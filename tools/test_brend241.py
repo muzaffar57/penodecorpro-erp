@@ -22,15 +22,17 @@ TALAB (har biri o'lchanadi):
      kichraytirilgan — H10: hujjat hajmi), PenoDecorPro logotipi /
      nomi / telefoni / manzili / shiori YO'Q, o'z nomi bor, logotip 34 × 12 mm qutida nisbati bilan; B (logotipsiz) — rasm YO'Q, o'z
      nomi bor, taqiqlilar yo'q; 1 (platforma egasi) — 9 hujjatda o'z logotipi va nomi; sarlavha balandligi o'zgarmagan (hujjat nomi
-     A da B dagidek joyda); sahifalar soni A = B; sarlavha geometriyasi (oq katak, bo'sh joylar, quti chegaralari — A = B)
+     A da B dagidek joyda); sahifalar soni A = B; sarlavha geometriyasi (oq katak, bo'sh joylar, quti chegaralari — A = B);
+     H11 (kech177, zip 241c) — «Buyurtma hisobi» / «Taklif» logotipi ham 300 dpi (o'lchami mm da AYNAN, hajmi < 150 KB)
   N  nisbat: tik (300 × 600) va juda keng (1000 × 100) logotip — yuk xatida nisbati saqlanadi, qutiga sig'adi; eski katta logotip
-     (diskda 3000 × 1500) — PDF ga kichraytirilgan nusxa
+     (diskda 3000 × 1500) — PDF ga kichraytirilgan nusxa (yuk xati va «Buyurtma hisobi» — 300 dpi)
   B  buzilgan logotip fayli (diskda) — 7 hujjat 200, rasm yo'q, nom bor (yiqilmaydi)
   U  (review241 H1) UZUN nom (40 belgi) + KENG logotip (4 : 1) + 20 detalli to'liq yuk: logotipli (C) va logotipsiz (D) — sahifalar soni
      AYNAN (yuk xati 1 sahifa), sarlavha qutisi kengligi bir xil, balandligi OSHMAYDI, nom qatorlari soni bir xil; oylik hisobot oltin
      chizig'i — butun eniga (L1)
   G  (review241 M2) 16 bitli kulrang PNG logotip — 8 bitga saqlanadi, PDF da OQ quti emas (yuk xati va «Buyurtma hisobi»); diskdagi eski
-     16 bitli fayl ham PDF da 8 bitga
+     16 bitli fayl ham PDF da 8 bitga; G3 (kech177, review241c M1) CMYK JPEG — PDF da CMYK (rang o'zgarmaydi), 300 dpi
+  N4 / N5 (kech177, review241c) kichik logotip (400 × 200) «Buyurtma hisobi» da tegilmaydi; tik / juda keng — «Buyurtma hisobi» da ham
   R  (review241 M1) logotip almashtirilayotganda PDF lar (yuk xati, hisob-kitob, oylik, «Buyurtma hisobi») — hammasi 200, rasm — eski yoki
      yangi logotip
   J  HAQIQIY Chromium: kirish oynasi (kompyuter — oq plitadagi logotip ko'rinadi; telefon 390 — tepada logotip), hodim kirishi
@@ -611,6 +613,33 @@ check("H10 sarlavha logotipi 300 dpi ga kichraytirilgan: A (24 mm) — 284 × 14
       len(_px) == 7 and all(v == [(284, 142)] for v in _px.values()) and _px1 == [(178, 142)] and len(_kb1) == 7
       and all(v < 150 for v in _kb1.values()), (_px, _px1, _kb1))
 
+# kech177 (zip 241c): «Buyurtma hisobi» / «Taklif» — logotip qutisi `LOGO_QUTI_MM` (32 × 18 mm, o'zgarmagan), rasm chizilgan enining
+# 300 dpi siga kichraytiriladi: A (600 × 300, 2 : 1) — 32 × 16 mm → 378 × 189 px; platforma logotipi (1000 × 798) — 22,56 × 18 mm → 267 × 213 px.
+# Asl (zip 241b) — asl o'lchamda: A 600 × 300, platforma 1000 × 798 (913 KB; O'LCHANGAN `work/k241c/probe241c_asl.txt`).
+_IKKI = ("buyurtma_hisobi", "taklif")
+_h11 = {}
+for _k, _px_k, _mm_k, _iz_k in (("A", (378, 189), (32.0, 16.0), LOGO_A_IMZO), ("1", (267, 213), (22.56, 18.0), PLAT_IMZO)):
+    for _n in _IKKI:
+        _b = P[_k][_n]
+        _r = pdf_rasmlari(_b) if _b else None
+        _m = pdf_rasm_mm(_b) if _b else None
+        _h11[(_k, _n)] = ([x[1] for x in (_r or [])], _m, bool(_r) and all(bir_xil(x, _iz_k) for x in _r),
+                          round(len(_b) / 1024) if _b else None)
+_kut11 = {("A", n): ((378, 189), (32.0, 16.0)) for n in _IKKI}
+_kut11.update({("1", n): ((267, 213), (22.56, 18.0)) for n in _IKKI})
+
+
+def _h11_ok(k, v):
+    px, m, iz, kb = v
+    (kpx, kmm) = _kut11[k]
+    return (px == [kpx] and m and len(m) == 1 and abs(m[0][0] - kmm[0]) <= 0.1 and abs(m[0][1] - kmm[1]) <= 0.1 and iz
+            and kb is not None and kb < 150)
+
+
+check("H11 «Buyurtma hisobi» / «Taklif» logotipi 300 dpi ga kichraytirilgan (o'lchami mm da AYNAN, o'sha rasm): A — 378 × 189 px "
+      "(32 × 16 mm); platforma logotipi — 267 × 213 px (22,56 × 18 mm); hajmi < 150 KB (asl: platforma logotipi bilan 913 KB)",
+      len(_h11) == 4 and all(_h11_ok(k, v) for k, v in _h11.items()), {f"{k[0]}:{k[1]}": v for k, v in _h11.items()})
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("N. Logotip nisbati (tik / juda keng)")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -646,9 +675,57 @@ check("N3 eski katta logotip (diskda 3000 × 1500): yuk xati 200, PDF dagi rasm 
       and abs(_rkm[0][0] - 24) <= 0.1 and abs(_rkm[0][1] - 12) <= 0.1, (_rk.status_code, [x[:2] for x in (_rkr or [])], _rkm))
 _rkn = req(CA, "get", KX["A"]["URL"]["buyurtma_hisobi"][0])
 _rknr = pdf_rasmlari(_rkn.content) if _rkn.status_code == 200 else None
-check("N3b o'sha eski katta logotip «Buyurtma hisobi» da: 200, rasm — keshdagi kichraytirilgan nusxa (1000 × 500 px; asl 3000 × 1500 emas)",
-      _rkn.status_code == 200 and _rknr and len(_rknr) == 1 and _rknr[0][1] == (1000, 500) and bir_xil(_rknr[0], _kat_iz),
+check("N3b o'sha eski katta logotip «Buyurtma hisobi» da: 200, rasm — kichraytirilgan, 300 dpi (378 × 189 px; asl 3000 × 1500 / kesh "
+      "1000 × 500 emas — kech177, zip 241c)",
+      _rkn.status_code == 200 and _rknr and len(_rknr) == 1 and _rknr[0][1] == (378, 189) and bir_xil(_rknr[0], _kat_iz),
       (_rkn.status_code, [x[:2] for x in (_rknr or [])]))
+
+# kech177 (zip 241c, review241c): «Buyurtma hisobi» — kichik logotip (≤ 1,1 × 378 px) tegilmaydi; tik / juda keng — nisbati, 300 dpi
+import pdf_service as _ps241c                       # noqa: E402
+for _w, _h, _kmm, _kpx, _nom in ((400, 200, (32.0, 16.0), (400, 200), "N4 kichik"), (300, 600, (9.0, 18.0), (107, 214), "N5 tik"),
+                                 (1000, 100, (32.0, 3.2), (378, 38), "N5 keng")):
+    _b, _md = rasm_bayt(_w, _h, (60, 30, 150))
+    _iz = imzo(Image.open(io.BytesIO(_b)))
+    _ru = req(CA, "post", "/api/settings/company/logo", files={"file": ("n.png", _b, "image/png")})
+    _k0 = len(getattr(_ps241c, "_SARLAVHA_LOGO_KESH", ()))
+    _rp = req(CA, "get", KX["A"]["URL"]["buyurtma_hisobi"][0])
+    _k1 = len(getattr(_ps241c, "_SARLAVHA_LOGO_KESH", ()))
+    _mm = pdf_rasm_mm(_rp.content) if _rp.status_code == 200 else None
+    _rr = pdf_rasmlari(_rp.content) if _rp.status_code == 200 else None
+    # N4: kichraytirilmagan asl baytlar keshga yozilmaydi (review241c L2 — xotira); N5: kichraytirilgani — keshda (bitta yozuv)
+    _kesh_ok = (_k1 == _k0) if _nom.startswith("N4") else (_k1 == _k0 + 1)
+    check(f"{_nom} {_w} × {_h}: «Buyurtma hisobi» da {_kmm[0]} × {_kmm[1]} mm (±0,1), {_kpx[0]} × {_kpx[1]} px, rasm — yangi logotip"
+          + ("; asl baytlar keshga yozilmaydi" if _nom.startswith("N4") else "; kichraytirilgani keshda"),
+          _ru.status_code == 200 and _mm and len(_mm) == 1 and abs(_mm[0][0] - _kmm[0]) <= 0.1 and abs(_mm[0][1] - _kmm[1]) <= 0.1
+          and _rr and len(_rr) == 1 and _rr[0][1] == _kpx and bir_xil(_rr[0], _iz) and _kesh_ok,
+          (_ru.status_code, _mm, [x[:2] for x in (_rr or [])], _k0, _k1))
+
+# kech177 (review241c M1): CMYK JPEG logotip — PDF da CMYK bo'lib qoladi (ilgari sarlavha logotipi PIL ning oddiy CMYK → RGB o'girishidan
+# o'tib rangi o'zgarardi: brend ko'ki (32, 86, 174) → (0, 77, 255)); 300 dpi ga kichraytiriladi
+_cmyk = Image.new("CMYK", (800, 400), (255, 178, 0, 0))
+_bc = io.BytesIO()
+_cmyk.save(_bc, "JPEG", quality=95)
+_rc = req(CA, "post", "/api/settings/company/logo", files={"file": ("c.jpg", _bc.getvalue(), "image/jpeg")})
+_g3 = {}
+for _n, _kpx in (("yuk_xati", (284, 142)), ("buyurtma_hisobi", (378, 189))):
+    _rp = req(CA, "get", KX["A"]["URL"][_n][0])
+    _o = None
+    try:
+        _ims = [im.image for p in PdfReader(io.BytesIO(_rp.content)).pages for im in p.images]
+        _o = [(x.mode, x.size, x.getpixel((x.size[0] // 2, x.size[1] // 2))) for x in _ims]
+    except Exception as _e:                # noqa: BLE001
+        _o = repr(_e)
+    _g3[_n] = (_rp.status_code, _o, _kpx)
+
+
+def _g3_ok(v):
+    st, o, kpx = v
+    return (st == 200 and isinstance(o, list) and len(o) == 1 and o[0][0] == "CMYK" and o[0][1] == kpx
+            and all(abs(a - b) <= 12 for a, b in zip(o[0][2], (255, 178, 0, 0))))
+
+
+check("G3 CMYK JPEG logotip (800 × 400, C100 M70): yuk xati va «Buyurtma hisobi» da rasm CMYK (rang AYNAN, ±12), 300 dpi (284 × 142 / "
+      "378 × 189)", _rc.status_code == 200 and len(_g3) == 2 and all(_g3_ok(v) for v in _g3.values()), (_rc.status_code, _g3))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("B. Buzilgan logotip fayli (diskda)")

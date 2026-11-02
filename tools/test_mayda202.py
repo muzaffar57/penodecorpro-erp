@@ -402,13 +402,17 @@ check("L7 ikkinchi PDF — kichik nusxa keshdan: katta logotip fayli Pillow bila
       "diskdagi logotip fayli O'ZGARMADI",
       _p7[0] == 200 and _i7 == _i6 and not _ochish7 and 0 <= _m7 < 40 and _eski_endi == _eski,
       (f"ochildi {len(_ochish7)} marta", f"xotira +{_m7} MB", _p7[0], _i7, _t7, _eski_endi == _eski))
-_kichik_png = rasm(998, 561)
+# kech177 (zip 241c): yangi fayl BOSHQA nisbatda (2 : 1) — «Buyurtma hisobi» logotipi 300 dpi ga kichraytirilgach eski (6000 × 3375) va
+# yangi bir xil nisbatda bo'lsa piksel o'lchami ham bir xil chiqardi (kesh eskisini bersa ham ko'rinmasdi)
+_kichik_png = rasm(998, 499)
 with open(_eski_yol, "wb") as f:
     f.write(_kichik_png)
 _p8 = pdf_ol()
 _i8 = pdf_rasmlari(_p8[1]) if _p8[0] == 200 else None
-check("L8 logotip fayli almashsa (yangi o'zgarish vaqti / hajm) — PDF yangisini oladi (998 × 561 — o'z holicha, kesh eskisini bermaydi)",
-      _p8[0] == 200 and _i8 and len(_i8) == 1 and _i8[0][2] == (998, 561), (_p8[0], _i8))
+check("L8 logotip fayli almashsa (yangi o'zgarish vaqti / hajm) — PDF yangisini oladi (998 × 499: 32 × 16 mm, o'z holicha yoki 300 dpi "
+      "378 × 189 — kesh eskisini bermaydi)",
+      _p8[0] == 200 and _i8 and len(_i8) == 1 and abs(_i8[0][0] - 32) <= 0.1 and abs(_i8[0][1] - 16) <= 0.1
+      and _i8[0][2] in ((998, 499), (378, 189)), (_p8[0], _i8))
 
 
 # ── mustaqil tekshiruv F3: diskdagi kichraytirilgan nusxa (qayta ishga tushgandan keyin ham katta fayl o'qilmaydi) va bitta qulf

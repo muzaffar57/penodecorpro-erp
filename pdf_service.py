@@ -177,6 +177,7 @@ SARLAVHA_LOGO_QUTI_MM = (34, 12)
 SARLAVHA_LOGO_CHET = 5          # katak ichidagi chap / o'ng bo'sh joy (nuqta)
 # JONLI sinov (staging, kech176): platforma logotipi (1000 × 798, shaffof) asl o'lchamda — yuk xati / moliya PDF i ~900 KB (ilgari bir
 # necha KB; yuk xati Telegram ga ham boradi). Sarlavhadagi logotip chizilgan o'lchamining 300 dpi siga kichraytiriladi (bosmada farqsiz).
+# kech177 (zip 241c): «Buyurtma hisobi» / «Taklif» (`generate_nakladnoy`) ham shu qoidada — platforma logotipi bilan 913 KB edi (O'LCHANGAN).
 SARLAVHA_LOGO_DPI = 300
 _SARLAVHA_LOGO_KESH = _OrderedDict202()
 
@@ -199,18 +200,29 @@ def _sarlavha_logo_kichik(data, eni_nuqta):
             _im.load()
             if _im.width > tw * 1.1:
                 th = max(1, int(round(_im.height * tw / float(_im.width))))
-                if _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info:
-                    _rej = "RGBA"
-                elif _im.mode == "L":
-                    _rej = "L"
+                # kech177 (zip 241c), review241c M1 / L1: JPEG manba — JPEG bo'lib qoladi (ReportLab uni o'zgartirmay qo'yadi), CMYK — CMYK da
+                # (PIL ning oddiy CMYK → RGB o'girishi rangni buzardi: brend ko'ki (32, 86, 174) → (0, 77, 255) — O'LCHANGAN); JPEG → PNG
+                # hajmni oshirardi (static/logo_wide.jpg 126 → 160 KB)
+                if _im.format == "JPEG" and _im.mode in ("RGB", "L", "CMYK"):
+                    _n = _im.resize((tw, th), resample=_PilImage241k.LANCZOS)
+                    _b = io.BytesIO()
+                    _n.save(_b, "JPEG", quality=92)
+                    natija = _b.getvalue()
                 else:
-                    _rej = "RGB"
-                _n = _im.convert(_rej).resize((tw, th), resample=_PilImage241k.LANCZOS)
-                _b = io.BytesIO()
-                _n.save(_b, "PNG", optimize=True)
-                natija = _b.getvalue()
+                    if _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info:
+                        _rej = "RGBA"
+                    elif _im.mode == "L":
+                        _rej = "L"
+                    else:
+                        _rej = "RGB"
+                    _n = _im.convert(_rej).resize((tw, th), resample=_PilImage241k.LANCZOS)
+                    _b = io.BytesIO()
+                    _n.save(_b, "PNG", optimize=True)
+                    natija = _b.getvalue()
     except Exception:
         natija = data
+    if natija is data:
+        return natija              # kech177 (zip 241c), review241c L2: kichraytirilmagan asl baytlar keshga yozilmaydi (xotira)
     with _LOGO_QULF:
         _SARLAVHA_LOGO_KESH[kalit] = natija
         while len(_SARLAVHA_LOGO_KESH) > _LOGO_KESH_CHEGARA:
@@ -480,7 +492,9 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
         # cho'zilib/torayib, buzilib ko'rinardi.
         # kech154 (zip 202, N5): avval yuklangan katta logotip — kichraytirilgan nusxa (keshdan; fayl o'zgarmaydi)
-        logo_path = io.BytesIO(_lb241[2])
+        # kech177 (zip 241c): chizilgan eni (`_lo[0]`) ning 300 dpi siga (`_sarlavha_logo_kichik`; qutisi / joyi AYNAN) — platforma logotipi
+        # (1000 × 798) asl o'lchamda «Buyurtma hisobi» / «Taklif» PDF i 913 KB edi (boshqa 7 hujjat ~80 KB; O'LCHANGAN)
+        logo_path = io.BytesIO(_sarlavha_logo_kichik(_lb241[2], _lo[0]))
         logo_img = RLImage(logo_path, width=_lo[0], height=_lo[1])
         logo_img.hAlign = 'LEFT'
         header_left = [
