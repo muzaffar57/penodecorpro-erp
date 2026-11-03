@@ -3945,6 +3945,10 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # kech180 (zip 247): do'kon API si (`/api/dokon/v1/…`) — kalitli, mijozga xos javob: o'zi Cache-Control bermagan har javob (400 / 409 /
+    # 413 / 404 / 405 xatolari) — `no-store` (200 / 304 ning `private, no-cache` i, 401 / PDF ning `no-store` i — o'zgarmaydi)
+    if request.url.path.startswith("/api/dokon/") and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -4820,6 +4824,16 @@ class ReliableStaticFiles(StaticFiles):
 
 
 app.mount("/static", ReliableStaticFiles(directory=static_dir), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+@app.head("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    """kech180 (zip 247): `/favicon.ico` — platforma belgisi (PNG; sahifalar `<link rel="icon">` bilan SVG beradi, lekin brauzer, Telegram
+    havola ko'rinishi, PDF ko'ruvchi kabi mijozlar ildizdagi `/favicon.ico` ni so'raydi — ilgari 404). Loginsiz, 7 kun kesh."""
+    from fastapi.responses import FileResponse as _FR247
+    return _FR247(os.path.join(static_dir, "epserp_belgi_180.png"), media_type="image/png",
+                  headers={"Cache-Control": "public, max-age=604800"})
 
 
 # ============================================================

@@ -38,11 +38,15 @@ def detal_nomi_tartib(nom):
     # bo'shliqlar bittaga, katta harfli so'zlar kichik, birinchi harf katta (production 156 nomdan 97 tasi; aralash — 0 ta)
     if any(_oddiy(w) for w in _sozlar) or not any(_katta(w) for w in _sozlar):
         return nom
-    s = " ".join(nom.split())
+    # kech180 (zip 247, review246 L3): « · » dan keyingi qism — sayt katalogining eni / o'lchami (`crud._sayt_nom`: «D-3 · XL», «… · 12 sm») —
+    # AYNAN (ilgari «D-3 · XL» → «D-3 · xl»: «XL» butun katta harfli so'z deb kichraytirilardi). Qaror — avvalgidek BUTUN nom bo'yicha
+    # (review247 M1: «BK-1 · 15 sm · S» — oddiy so'z bor — o'zgarmaydi), o'zgarish — faqat birinchi « · » gacha (xodim nomlarida « · » yo'q)
+    _bosh247, _ajr247, _dum247 = nom.partition(" · ")
+    s = " ".join(_bosh247.split())
     s = _SOZ222.sub(lambda m: m.group(0).lower() if _katta(m.group(0)) else m.group(0), s)
     if s and s[0].isalpha() and s[0].islower():
         s = s[0].upper() + s[1:]
-    return s
+    return s + _ajr247 + _dum247
 
 
 # ============================================================

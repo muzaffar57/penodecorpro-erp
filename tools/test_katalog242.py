@@ -119,6 +119,19 @@ def _p246(nom, olcham):
     return f"{nom} · {olcham}" if Y246 else f"{nom} — {olcham}"
 
 
+def _y247():
+    """kech180 (zip 247): o'lcham eni bilan boshlansa («24 sm <i>y</i>», eni 24) — `_sayt_nom` eni alohida yozmaydimi (qobiliyat)."""
+    try:
+        from types import SimpleNamespace as _S247
+        return crud._sayt_nom(_S247(kod="X-1", nom=None), _S247(turi="asosiy", olcham="24 sm y", eni_sm=24)) == "X-1 · 24 sm y"
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+Y247 = _y247()
+_NOM_UD = "K-12 Tekis · 24 sm <i>y</i>" if Y247 else _n246("K-12 Tekis · 24 sm", "24 sm <i>y</i>")
+
+
 def js(r):
     try:
         x = r.json()
@@ -604,7 +617,7 @@ try:
                 chip: getComputedStyle(document.getElementById('p-katalog-chip')).display, chipm: document.getElementById('p-katalog-matn').textContent})""")
             check("U4 tanlandi: nom «K-12 Tekis · 24 sm» (o'lcham matni nomda emas — eni), tur Profil, Eni 24, Kengligi 9, qoplama «Bor»; oyna "
                   "yopildi; belgi «… bog'lanadi»",
-                  _u4["nom"] == _n246("K-12 Tekis · 24 sm", "24 sm <i>y</i>") and _u4["tur"] == "profil" and _u4["faol"] == "profil" and _u4["h"] == "24"
+                  _u4["nom"] == _NOM_UD and _u4["tur"] == "profil" and _u4["faol"] == "profil" and _u4["h"] == "24"
                   and _u4["w"] == "9" and _u4["qop"] == "true" and _u4["oyna"] == "none" and _u4["chip"] == "flex"
                   and "bog'lanadi" in _u4["chipm"], _u4)
             pg.click("#p-coat-toggle .coat-no")
@@ -643,7 +656,7 @@ try:
             pg.wait_for_timeout(200)
             pg.fill("#p-name", "Butunlay boshqa mahsulot")
             _u4c = pg.evaluate("() => ({m: document.getElementById('p-katalog-matn').textContent, o: document.getElementById('p-katalog-chip').classList.contains('ogoh')})")
-            pg.fill("#p-name", _n246("K-12 Tekis · 24 sm", "24 sm <i>y</i>"))
+            pg.fill("#p-name", _NOM_UD)
             pg.fill("#p-w", "12")
             _u4c2 = pg.evaluate("() => document.getElementById('p-katalog-matn').textContent")
             pg.fill("#p-w", "9")

@@ -25493,25 +25493,70 @@ def _sayt_miqdor(qiymat, birlik, qolip, turi, nom):
     return d
 
 
+def _sayt_nom_asosi(m, d):
+    """kech180 (zip 247): `_sayt_nom` asosi — (eni bilan, enisiz): «Rom karnizi R-18 · 15 sm» / «Rom karnizi R-18» (asosiy — model kodi va
+    nomi); review237 L1: 1 belgili nom (enisiz detal) — «Mahsulot …» (ERP detal nomi kamida 2 belgi); enili «D · 15 sm» — old qo'shimchasiz,
+    enisiz shakli ham (review247 L1: «D · 15 sm keng» va «D · 15 sm · S» — bir modelda bir xil)."""
+    asos = m.kod + (f" {m.nom}" if (d.turi == "asosiy" and m.nom) else "")
+    enisiz = asos if d.turi == "asosiy" else f"{DOKON_TURI_NOMI.get(d.turi, d.turi)} {asos}"
+    enili = enisiz + (f" · {audit_son(d.eni_sm, 2)} sm" if d.eni_sm else "")
+    if len(enili.strip()) < 2:                          # review247 L1: qaror — eni bilan nom bo'yicha (bir modelda bir xil old qo'shimcha)
+        enili, enisiz = f"Mahsulot {enili}", f"Mahsulot {enisiz}"
+    return enili, enisiz
+
+
+def _sayt_nom_olchamli(nom, olcham) -> str:
+    """Nom + « · {o'lcham}» — review246 L1: o'lcham BUTUN qoladi, sig'masa asosi qisqaradi (o'lcham ≤ 40), jami ≤ 150."""
+    dum = f" · {olcham}"
+    return (nom[:150 - len(dum)] + dum)[:150]
+
+
 def _sayt_nom(m, d) -> str:
     """ERP detal nomi: «Rom karnizi R-18 · 15 sm · O'rta», «D-2 Burchak · S» (asosiy — model kodi va nomi). kech179 (zip 246): katalog
     O'LCHAMI — nomda bo'lmasa (`_sayt_olcham_nomdami`: «K-12 Tekis · 12 sm» — o'lcham «12 sm» eni 12 — qo'shilmaydi): bir modelning ikki
-    o'lchami ERP buyurtmasida, «Katalogdan tanlash» partiyasida va «Tayyor mahsulotlar» kalitida (`tm_kam_kaliti` — nom bilan) AJRALADI."""
-    asos = m.kod + (f" {m.nom}" if (d.turi == "asosiy" and m.nom) else "")
-    nom = asos if d.turi == "asosiy" else f"{DOKON_TURI_NOMI.get(d.turi, d.turi)} {asos}"
-    if d.eni_sm:
-        nom += f" · {audit_son(d.eni_sm, 2)} sm"
-    if len(nom.strip()) < 2:                            # review237 L1: 1 belgili kod — ERP detal nomi kamida 2 belgi
-        nom = f"Mahsulot {nom}"
-    if not _sayt_olcham_nomdami(nom, d.olcham, d.eni_sm):
-        dum = f" · {d.olcham}"                          # review246 L1: o'lcham BUTUN qoladi, sig'masa asosi qisqaradi (o'lcham ≤ 40)
-        return (nom[:150 - len(dum)] + dum)[:150]
-    return nom[:150]
+    o'lchami ERP buyurtmasida, «Katalogdan tanlash» partiyasida va «Tayyor mahsulotlar» kalitida (`tm_kam_kaliti` — nom bilan) AJRALADI.
+    kech180 (zip 247, review246 L5): o'lcham eniga teng son bilan BOSHLANIB davomi bo'lsa («12 sm (keng)», «12sm keng», «12 (keng)» — eni 12)
+    — eni alohida yozilmaydi: «K-12 Tekis · 12 sm (keng)» (ilgari «K-12 Tekis · 12 sm · 12 sm (keng)»)."""
+    enili, enisiz = _sayt_nom_asosi(m, d)
+    if d.eni_sm and _sayt_olcham_enidan(d.olcham, d.eni_sm):
+        if not _sayt_olcham_nomdami(enisiz, d.olcham):
+            return _sayt_nom_olchamli(enisiz, d.olcham)
+        return enisiz[:150]
+    if not _sayt_olcham_nomdami(enili, d.olcham, d.eni_sm):
+        return _sayt_nom_olchamli(enili, d.olcham)
+    return enili[:150]
+
+
+def _sayt_nom_shakllari(m, d) -> list:
+    """kech180 (zip 247, review246 L4): detalning ERP nomi shakllari — [hozirgi (`_sayt_nom`), zip 246 shakli (eni + o'lcham — eni
+    takrorlanishi mumkin edi), zip 245 shakli (eni bilan, o'lchamsiz)] (takrorsiz). «Tayyor mahsulotlar» kalitidagi (kichik harfli) nomni
+    xodim yozgan katta-kichik harfga qaytarish uchun — eski partiya nomi kalitda shu shakllardan birida turadi."""
+    enili, _enisiz = _sayt_nom_asosi(m, d)
+    n245 = enili[:150]
+    n246 = n245 if _sayt_olcham_nomdami(enili, d.olcham, d.eni_sm) else _sayt_nom_olchamli(enili, d.olcham)
+    return list(dict.fromkeys([_sayt_nom(m, d), n246, n245]))
 
 
 _SAYT_AJRATUVCHI245 = _re236.compile(r"[\s·;«»()\[\]\"]+")       # review245 M1: «,» / «.» — ajratuvchi EMAS (12,5 — bitta so'z)
 _SAYT_ENI245 = _re236.compile(r"(\d{1,7}(?:\.\d{1,6})?)(?:sm)?")
 _SAYT_KASR245 = str.maketrans({",": ".", "\u0441": "s", "\u043c": "m"})     # o'nli vergul; Kirill «см» → «sm» (test_xabar_summalar192 S1)
+_SAYT_ENIBOSH247 = _re236.compile(r"(\d{1,7}(?:\.\d{1,6})?)\s*(?:sm)?(?=[\s·;«»()\[\]\"]|$)")
+
+
+def _sayt_olcham_enidan(olcham, eni_sm) -> bool:
+    """kech180 (zip 247, review246 L5): katalog o'lchami detal ENIGA teng son bilan boshlanadimi va davomida so'z bormi — «12 sm (keng)»,
+    «12sm keng», «12 (keng)», «12.0 sm uzun», «12 см keng» (eni 12) — ha; «12 sm» (davomi yo'q — `_sayt_olcham_nomdami` o'zi «bor» deydi),
+    «12,5 sm», «120 sm», «S», «12 sm ()» (davomida so'z yo'q) — yo'q. Son AYNAN teng (yaxlitlashsiz, zip 245 qoidasi)."""
+    if not eni_sm:
+        return False
+    ol = dokon_olcham_kalit(str(olcham or "")).strip().translate(_SAYT_KASR245)
+    m = _SAYT_ENIBOSH247.match(ol)
+    if not m or not _re236.search(r"[^\W_]", ol[m.end():]):
+        return False
+    try:
+        return Decimal(m.group(1)) == Decimal(str(eni_sm))
+    except ArithmeticError:
+        return False
 
 
 def _sayt_olcham_nomdami(nom, olcham, eni_sm=None) -> bool:
@@ -26563,10 +26608,15 @@ def dokon_tm_katalog(db: Session, company_id: int) -> list:
         if d.tm_bogl_kaliti:
             x = tm.get(d.tm_bogl_kaliti)
             q = d.tm_bogl_kaliti.split("|")
-            # review242 L1: partiyasi qolmagan — nom kalitdan (kichik harf; katalog nomi bilan kichik harfda teng bo'lsa — katalog nomi)
+            # review242 L1: partiyasi qolmagan — nom kalitdan (kichik harf; katalog nomi bilan kichik harfda teng bo'lsa — katalog nomi).
+            # kech180 (zip 247, review246 L4): zip 246 / 245 dagi shakli bilan teng bo'lsa ham — o'sha shakl (ilgari «d-2 burchak» kichik harfda
+            # qolardi: 246 dan beri katalog nomi «D-2 Burchak · S»); yangi partiya — AYNAN o'sha kalitga (faqat katta-kichik harf tiklanadi)
             _kn242 = q[2] if len(q) > 6 else None
-            if _kn242 is not None and " ".join(_sayt_nom(m, d).split()).lower() == _kn242:
-                _kn242 = _sayt_nom(m, d)
+            if _kn242 is not None:
+                for _sh247 in _sayt_nom_shakllari(m, d):
+                    if " ".join(_sh247.split()).lower() == _kn242:
+                        _kn242 = _sh247
+                        break
             bog = {"nom": x["nom"] if x else _kn242,
                    "eni": x["eni"] if x else (_son242(q[5]) if len(q) > 6 else None),
                    "qalinligi": x["qalinligi"] if x else (_son242(q[6]) if len(q) > 6 else None),

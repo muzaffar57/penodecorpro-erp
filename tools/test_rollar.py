@@ -431,6 +431,8 @@ YANGI_MARSHRUTLAR = {
     "DELETE /api/sayt-katalogi/galereya-rasmlari/{rasm_id}": "A", "GET /api/dokon/v1/galereya": "-",
     # kech178 (zip 244): do'kon — buyurtma / savat PDF i (kalit bilan, sessiyasiz)
     "POST /api/dokon/v1/buyurtmalar/pdf": "-", "POST /api/dokon/v1/savat/pdf": "-",
+    # kech180 (zip 247): platforma belgisi — login siz (statik fayl kabi)
+    "GET /favicon.ico": "-", "HEAD /favicon.ico": "-",
     "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
