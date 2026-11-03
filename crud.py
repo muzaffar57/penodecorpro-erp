@@ -25494,13 +25494,18 @@ def _sayt_miqdor(qiymat, birlik, qolip, turi, nom):
 
 
 def _sayt_nom(m, d) -> str:
-    """ERP detal nomi: «Rom karnizi R-18 · 15 sm» (asosiy — model kodi va nomi)."""
+    """ERP detal nomi: «Rom karnizi R-18 · 15 sm · O'rta», «D-2 Burchak · S» (asosiy — model kodi va nomi). kech179 (zip 246): katalog
+    O'LCHAMI — nomda bo'lmasa (`_sayt_olcham_nomdami`: «K-12 Tekis · 12 sm» — o'lcham «12 sm» eni 12 — qo'shilmaydi): bir modelning ikki
+    o'lchami ERP buyurtmasida, «Katalogdan tanlash» partiyasida va «Tayyor mahsulotlar» kalitida (`tm_kam_kaliti` — nom bilan) AJRALADI."""
     asos = m.kod + (f" {m.nom}" if (d.turi == "asosiy" and m.nom) else "")
     nom = asos if d.turi == "asosiy" else f"{DOKON_TURI_NOMI.get(d.turi, d.turi)} {asos}"
     if d.eni_sm:
         nom += f" · {audit_son(d.eni_sm, 2)} sm"
     if len(nom.strip()) < 2:                            # review237 L1: 1 belgili kod — ERP detal nomi kamida 2 belgi
         nom = f"Mahsulot {nom}"
+    if not _sayt_olcham_nomdami(nom, d.olcham, d.eni_sm):
+        dum = f" · {d.olcham}"                          # review246 L1: o'lcham BUTUN qoladi, sig'masa asosi qisqaradi (o'lcham ≤ 40)
+        return (nom[:150 - len(dum)] + dum)[:150]
     return nom[:150]
 
 
@@ -25530,7 +25535,9 @@ def _sayt_olcham_nomdami(nom, olcham, eni_sm=None) -> bool:
     t_ol = [x for x in _SAYT_AJRATUVCHI245.split(ol) if x]
     t_nom = [x for x in _SAYT_AJRATUVCHI245.split(nk) if x]
     n = len(t_ol)
-    return bool(n) and any(t_nom[i:i + n] == t_ol for i in range(len(t_nom) - n + 1))
+    if not n:                                           # kech179 (zip 246, review246 L2): faqat ajratuvchilardan iborat o'lcham
+        return ol in nk
+    return any(t_nom[i:i + n] == t_ol for i in range(len(t_nom) - n + 1))
 
 
 def _sayt_detal_narxi(d, koeff, qoplamali, chegirma, bugun, komplekt=False):

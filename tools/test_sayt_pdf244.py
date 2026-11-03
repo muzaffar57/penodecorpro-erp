@@ -93,6 +93,28 @@ def section(t):
     print(f"\n--- {t} ---")
 
 
+def _y246():
+    """kech179 (zip 246): `crud._sayt_nom` katalog o'lchamini nomga qo'shadimi (qobiliyat — eski kodda ham o'tadi)."""
+    try:
+        from types import SimpleNamespace as _S246
+        return crud._sayt_nom(_S246(kod="X-1", nom=None), _S246(turi="asosiy", olcham="S", eni_sm=None)) == "X-1 · S"
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+Y246 = _y246()
+
+
+def _n246(eski, olcham):
+    """ERP / katalog nomi: zip 246 dan — «… · o'lcham»."""
+    return f"{eski} · {olcham}" if Y246 else eski
+
+
+def _p246(nom, olcham):
+    """PDF qatori: zip 246 dan — o'lcham nomda («… · S»), avval — «… — S» (zip 244)."""
+    return f"{nom} · {olcham}" if Y246 else f"{nom} — {olcham}"
+
+
 def js(r):
     try:
         x = r.json()
@@ -362,9 +384,9 @@ check("P6 pastida: «Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqla
       and "yarmini biz to'laymiz" in P1 and "Chegirma hisobiga tejaldi" in P1
       and zich(crud.xabar_son(J1.get("tejaldi") or 0, 2)) in zich(P1), P1[-900:])
 check("P10 alohida detal qatorida katalog O'LCHAMI (review244 H1): «D-2 Burchak — S» va «D-2 Burchak — M» — ikki xil qator",
-      lambda: "D-2 Burchak — S" in P1 and "D-2 Burchak — M" in P1, P1[:1800])
+      lambda: _p246("D-2 Burchak", "S") in P1 and _p246("D-2 Burchak", "M") in P1, P1[:1800])
 check("P11 katta harfli model kodi va nomi PDF da AYNAN («AB-12 KESMA — XL», «Ab-12 kesma — xl» emas — review244 L1)",
-      lambda: "AB-12 KESMA — XL" in P1 and "Ab-12" not in P1, P1[:1800])
+      lambda: _p246("AB-12 KESMA", "XL") in P1 and "Ab-12" not in P1, P1[:1800])
 check("P16 metrli qator: miqdor 6, 1 m narxi, qator summasi — ketma-ket («K-12 … m 6 98 000 588 000»; kit karnizi «6 12 800 76 800»)",
       lambda: zich("m 6 98 000 588 000") in zich(P1) and zich("m 6 12 800 76 800") in zich(P1), P1[:1800])
 _tart = [zich(d.get("nom")) for gg in _g for d in gg.get("detallar") or []]
@@ -463,9 +485,9 @@ check("K2 jami — ERP hisobi (`sayt_buyurtma_hisobla`, YANGI narx 19 900); komp
       lambda: pul(_h["jami"]) + "so'm" in zich(K1) and pul(19900 * 4) in zich(K1) and "rom komplekti" in K1
       and "Savollar bo'lsa" in K1 and "+998 97 999 57 57" in K1 and "tasdiqlating" not in K1, (_h.get("jami"), K1[-700:]))
 check("K2b savat: komplekt soni («3 komplekt»), o'lchamli qatorlar («D-2 Burchak — M»), qatorlar tartibi — savatdagidek",
-      lambda: "3 komplekt" in K1 and "D-2 Burchak — M" in K1
-      and [zich(K1).find(zich(x)) for x in ("Rom karnizi", "K-12 Tekis", "T-1 Termopanel", "D-2 Burchak — S", "D-2 Burchak — M", "AB-12")]
-      == sorted(zich(K1).find(zich(x)) for x in ("Rom karnizi", "K-12 Tekis", "T-1 Termopanel", "D-2 Burchak — S", "D-2 Burchak — M", "AB-12"))
+      lambda: "3 komplekt" in K1 and _p246("D-2 Burchak", "M") in K1
+      and [zich(K1).find(zich(x)) for x in ("Rom karnizi", "K-12 Tekis", "T-1 Termopanel", _p246("D-2 Burchak", "S"), _p246("D-2 Burchak", "M"), "AB-12")]
+      == sorted(zich(K1).find(zich(x)) for x in ("Rom karnizi", "K-12 Tekis", "T-1 Termopanel", _p246("D-2 Burchak", "S"), _p246("D-2 Burchak", "M"), "AB-12"))
       and zich(K1).find(zich("Rom karnizi")) >= 0, K1[:1500])
 _oz = [{"oz_olcham": [{"detal_id": DID["karniz"], "miqdor": 4}, {"detal_id": DID["kapitel"], "miqdor": 1}], "qoplamali": False}]
 r = pdf_ol(SPDF, {"qatorlar": _oz})

@@ -113,6 +113,28 @@ def section(t):
     print(f"\n--- {t} ---")
 
 
+def _y246():
+    """kech179 (zip 246): `crud._sayt_nom` katalog o'lchamini nomga qo'shadimi (qobiliyat — eski kodda ham o'tadi)."""
+    try:
+        from types import SimpleNamespace as _S246
+        return crud._sayt_nom(_S246(kod="X-1", nom=None), _S246(turi="asosiy", olcham="S", eni_sm=None)) == "X-1 · S"
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+Y246 = _y246()
+
+
+def _n246(eski, olcham):
+    """ERP / katalog nomi: zip 246 dan — «… · o'lcham»."""
+    return f"{eski} · {olcham}" if Y246 else eski
+
+
+def _p246(nom, olcham):
+    """PDF qatori: zip 246 dan — o'lcham nomda («… · S»), avval — «… — S» (zip 244)."""
+    return f"{nom} · {olcham}" if Y246 else f"{nom} — {olcham}"
+
+
 def js(r):
     try:
         x = r.json()
@@ -465,7 +487,7 @@ _sb3 = sb_id(J3.get("raqam"))
 _q3 = xavfsiz(lambda d: [(q.sbq_nom, q.sbq_birlik, q.miqdor, q.narx, q.asl_narx, q.summa, q.chegirma_foiz) for q in
                          d.query(DokonBuyurtmaQator).filter(DokonBuyurtmaQator.buyurtma_id == _sb3).order_by(DokonBuyurtmaQator.tartib)], [])
 check("N6 bazada qatorlar: ERP nomi («Kapitel R-18 · 12 sm», «K-12 Tekis · 12 sm»), birlik, QOTGAN narx (chegirmali / asl), summa",
-      [x[0] for x in _q3] == ["K-12 Tekis · 12 sm", "T-1 Termopanel 60×120", "D-2 Burchak", "RS-1 Rust · 20 sm", "Kapitel R-18 · 12 sm"]
+      [x[0] for x in _q3] == ["K-12 Tekis · 12 sm", "T-1 Termopanel 60×120", _n246("D-2 Burchak", "S"), "RS-1 Rust · 20 sm", _n246("Kapitel R-18 · 12 sm", ORTA)]
       and [x[1] for x in _q3] == ["metr", "m2", "dona", "metr", "dona"] and pul(ix(_q3, 4, [0] * 7)[3]) == o_ch(o_avto(30000), 15)
       and pul(ix(_q3, 4, [0] * 7)[4]) == o_avto(30000) and ix(_q3, 4, [0] * 7)[6] == 15, _q3)
 _ulg = [yubor(tana([{"komplekt": "rom", "model_id": M1, "olcham": ORTA, "qoplamali": False, "soni": 1}])),
@@ -743,7 +765,7 @@ check("T4 buyurtma qatorlari — formadagidek: metr → profil (Eni, Qalinlik, U
                                                           ("dona", None, 5.0, None, "dona")]
       and [pul(x[7]) for x in _it] == _kut3 and pul(ix(_it, 0, [0] * 11)[6]) == pul(98000 * 6) and ix(_it, 0, [0] * 11)[2] == 12
       and ix(_it, 0, [0] * 11)[3] == 8 and [x[8] for x in _it] == [True, False, True, False, True]
-      and [x[0] for x in _it] == ["K-12 Tekis · 12 sm", "T-1 Termopanel 60×120", "D-2 Burchak", "RS-1 Rust · 20 sm", "Kapitel R-18 · 12 sm"], _it)
+      and [x[0] for x in _it] == ["K-12 Tekis · 12 sm", "T-1 Termopanel 60×120", _n246("D-2 Burchak", "S"), "RS-1 Rust · 20 sm", _n246("Kapitel R-18 · 12 sm", ORTA)], _it)
 check("T5 buyurtma jami = kelishilgan = sayt jami; topshirish 2026-11-20; izohda «Saytdan: S-…» va yetkazish; holat «ishlab chiqarishda»",
       pul(BO.get("jami")) == pul(BO.get("kel")) == pul(J3.get("jami")) and BO.get("deadline") == datetime(2026, 11, 20)
       and f"Saytdan: {J3.get('raqam')}" in (BO.get("notes") or "") and "yetkazib berish bepul" in (BO.get("notes") or "")
@@ -829,7 +851,7 @@ _r1 = yubor(tana([{"detal_id": _d1, "qoplamali": False, "miqdor": 1}]))
 _r2 = CA.post(SB + f"/{sb_id(js(_r1).get('raqam'))}/tasdiqla", json={"deadline": "2026-11-21"})
 check("T15b review237 L1: 1 belgili model kodi (nomsiz) — ERP detal nomi «Mahsulot Q», tasdiqlanadi",
       _r1.status_code == 200 and _r2.status_code == 200
-      and xavfsiz(lambda d: d.get(Order, js(_r2).get("order_id")).items[0].name) == "Mahsulot Q", (_r1.text[:150], _r2.text[:200]))
+      and xavfsiz(lambda d: d.get(Order, js(_r2).get("order_id")).items[0].name) == _n246("Mahsulot Q", "S"), (_r1.text[:150], _r2.text[:200]))
 _o = CA.get("/orders")
 _yn = js(CA.get(SB)).get("sonlar", {}).get("yangi")
 check("T16b tugma soni — faqat «yangi»lar (tasdiqlangan / bekor qilinganlar sanalmaydi)",

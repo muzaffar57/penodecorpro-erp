@@ -89,6 +89,28 @@ def section(t):
     print(f"\n--- {t} ---")
 
 
+def _y246():
+    """kech179 (zip 246): `crud._sayt_nom` katalog o'lchamini nomga qo'shadimi (qobiliyat — eski kodda ham o'tadi)."""
+    try:
+        from types import SimpleNamespace as _S246
+        return crud._sayt_nom(_S246(kod="X-1", nom=None), _S246(turi="asosiy", olcham="S", eni_sm=None)) == "X-1 · S"
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+Y246 = _y246()
+
+
+def _n246(eski, olcham):
+    """ERP / katalog nomi: zip 246 dan — «… · o'lcham»."""
+    return f"{eski} · {olcham}" if Y246 else eski
+
+
+def _p246(nom, olcham):
+    """PDF qatori: zip 246 dan — o'lcham nomda («… · S»), avval — «… — S» (zip 244)."""
+    return f"{nom} · {olcham}" if Y246 else f"{nom} — {olcham}"
+
+
 def js(r):
     try:
         x = r.json()
@@ -281,6 +303,9 @@ KAT = [  # (kalit, bo'lim, kod, nom, o'lcham, eni, kutilgan guruh nomi, kutilgan
     ("l", "Karnizlar", "A-1", "Kasr", "12", 12.5, "A-1 Kasr · 12,5 sm, 12, qoplamali", "A-1 Kasr · 12,5 sm — 12"),     # review245 M1
     ("m", "Karnizlar", "A-1", None, "5 sm", 12.5, "A-1 Kasr · 12,5 sm, 5 sm, qoplamali", "A-1 Kasr · 12,5 sm — 5 sm"),
 ]
+if Y246:                                           # kech179 (zip 246): o'lcham ERP nomida — guruh nomi «… · o'lcham, …», PDF «… · o'lcham»
+    KAT = [(k[0], k[1], k[2], k[3], k[4], k[5], k[6].replace(f", {k[4]}, qoplamali", f" · {k[4]}, qoplamali") if " — " in k[7] else k[6],
+            k[7].replace(f" — {k[4]}", f" · {k[4]}")) for k in KAT]
 MID, DID = {}, {}
 for kk, bol, kod, nom, ol, eni, _g, _p in KAT:
     if kod not in MID:
@@ -306,7 +331,8 @@ check("G3 sayt buyurtmasi yaratildi; javobdagi guruh nomlari — hisob bilan AYN
 _tg = "\n".join(TG)
 check("G4 Telegram xabarida — «• S244 Jonli sinov · 12 sm, qoplamali — …», «12 sm, 12 sm» YO'Q; «S-1 Burchak, S» va «S-1 Burchak, M» bor",
       lambda: "S244 Jonli sinov · 12 sm, qoplamali — " in _tg and "12 sm, 12 sm" not in _tg
-      and "S-1 Burchak, S, qoplamali" in _tg and "S-1 Burchak, M, qoplamali" in _tg, _tg[:900])
+      and (_n246("S-1 Burchak", "S") if Y246 else "S-1 Burchak, S") + ", qoplamali" in _tg
+      and (_n246("S-1 Burchak", "M") if Y246 else "S-1 Burchak, M") + ", qoplamali" in _tg, _tg[:900])
 SID = xavfsiz(lambda: SessionLocal().query(DokonBuyurtma.id).filter(DokonBuyurtma.company_id == 1, DokonBuyurtma.sb_raqam == RAQAM).scalar())
 _pn = js(CA.get(SB + f"/{SID}")) if SID else {}
 check("G5 «🛒 Saytdan» paneli (GET /api/sayt-buyurtmalari/{id}) guruh nomlari — AYNAN (bazada saqlangani)",
@@ -324,15 +350,15 @@ r = dok(SPDF, {"qatorlar": SAVAT})
 K1 = matn(r)
 check("P2 savat PDF i — har qator nomi PDF da (bo'shliqsiz solishtirish); «S-1 Burchak — S» va «S-1 Burchak — M» ikkalasi",
       lambda: r.status_code == 200 and all(zich(x) in zich(K1) for x in _kp)
-      and zich("S-1 Burchak — S") in zich(K1) and zich("S-1 Burchak — M") in zich(K1), (r.status_code, K1[:1500]))
+      and zich(_p246("S-1 Burchak", "S")) in zich(K1) and zich(_p246("S-1 Burchak", "M")) in zich(K1), (r.status_code, K1[:1500]))
 check("P3 savat PDF ida «12 sm — 12 sm» / «12 sm — 12» / «12,5 sm — 12.5 sm» YO'Q",
       lambda: bool(K1) and not any(zich(x) in zich(K1) for x in ("12 sm — 12 sm", "· 12 sm — 12", "12,5 sm — 12.5 sm", "12 sm — 12 см")),
       K1[:1500])
 r = dok(BPDF, {"raqam": RAQAM, "kalit": AMAL})
 P1 = matn(r)
 check("P4 buyurtma PDF i (bazadagi qatorlar, `eni_sm` — qatordan) — savat PDF i bilan bir xil nomlar",
-      lambda: r.status_code == 200 and all(zich(x) in zich(P1) for x in _kp) and zich("S-1 Burchak — S") in zich(P1)
-      and zich("K-12 Raqam — 12") in zich(P1) and zich("12 sm — 12 sm") not in zich(P1), (r.status_code, P1[:1500]))
+      lambda: r.status_code == 200 and all(zich(x) in zich(P1) for x in _kp) and zich(_p246("S-1 Burchak", "S")) in zich(P1)
+      and zich(_p246("K-12 Raqam", "12")) in zich(P1) and zich("12 sm — 12 sm") not in zich(P1), (r.status_code, P1[:1500]))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("E. ERP buyurtmasi qatorlari O'ZGARMAGAN")
@@ -351,7 +377,7 @@ def _erp():
 
 _ei = xavfsiz(_erp, ([], []))
 _mnom = {k[2]: k[3] for k in KAT if k[3]}
-_nomlar = [k[2] + (f" {_mnom[k[2]]}" if k[2] in _mnom else "") + (f" · {crud.audit_son(k[5], 2)} sm" if k[5] else "") for k in KAT]
+_nomlar = [k[7].split(" — ")[0] for k in KAT]          # ERP nomi = PDF nomi «— o'lcham» siz (zip 246 dan — o'lcham nomda, «—» yo'q)
 check("E1 ERP qatori nomi — `_sayt_nom` (« · 12 sm» bilan; o'lcham qo'shilmaydi — ERP / «Tayyor mahsulotlar» bog'lami shu nomda)",
       lambda: [i["name"] for i in _ei[0]] == _ei[1] == _nomlar and not any(i.get("kmp_guruh") for i in _ei[0]), (_ei, _nomlar))
 r = CA.post(SB + f"/{SID}/tasdiqla", json={"deadline": "2026-11-20", "recipe_id": RID})
@@ -391,7 +417,8 @@ _pk3 = xavfsiz(lambda: [x["name"] for x in crud._sayt_pdf_qatorlari([crud._sayt_
 check("K3 komplekt o'lchami «O'rta» (eni 15) — guruh nomida «O'rta», PDF qatorlarida «— O'rta» YO'Q (komplekt / «o'z o'lchami» qatori)",
       lambda: [x.get("guruh_nomi") for x in H3["qatorlar"]] == ["R-19 «Zamonaviy» — rom komplekti, O'rta, qoplamali × 1"] * 3
       + ["R-19 «Zamonaviy», O'rta, o'z o'lchami, qoplamasiz"]
-      and _pk3 == ["Rom karnizi R-19 · 15 sm", "Podokonnik R-19 · 15 sm", "Nalichnik R-19 · 15 sm", "Podokonnik R-19 · 15 sm"],
+      and _pk3 == [_n246(x, "O'rta") for x in ("Rom karnizi R-19 · 15 sm", "Podokonnik R-19 · 15 sm", "Nalichnik R-19 · 15 sm",
+                                                    "Podokonnik R-19 · 15 sm")],
       (H3["qatorlar"][:1], _pk3))
 
 if PG_URL:                                         # review245 L4: jarayon nomli baza — oxirida o'chiriladi

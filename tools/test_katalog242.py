@@ -97,6 +97,28 @@ def section(t):
     print(f"\n--- {t} ---")
 
 
+def _y246():
+    """kech179 (zip 246): `crud._sayt_nom` katalog o'lchamini nomga qo'shadimi (qobiliyat — eski kodda ham o'tadi)."""
+    try:
+        from types import SimpleNamespace as _S246
+        return crud._sayt_nom(_S246(kod="X-1", nom=None), _S246(turi="asosiy", olcham="S", eni_sm=None)) == "X-1 · S"
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+Y246 = _y246()
+
+
+def _n246(eski, olcham):
+    """ERP / katalog nomi: zip 246 dan — «… · o'lcham»."""
+    return f"{eski} · {olcham}" if Y246 else eski
+
+
+def _p246(nom, olcham):
+    """PDF qatori: zip 246 dan — o'lcham nomda («… · S»), avval — «… — S» (zip 244)."""
+    return f"{nom} · {olcham}" if Y246 else f"{nom} — {olcham}"
+
+
 def js(r):
     try:
         x = r.json()
@@ -300,7 +322,7 @@ check("K3 K-12 12 sm: nom «K-12 Tekis · 12 sm» (`_sayt_nom`), turkum profil, 
       and _k12.get("eni") == 12 and _k12.get("qalinligi") == 8 and _k12.get("saytda") is True and _k12.get("bog") is None, _k12)
 _kap, _d2, _k30 = LD.get(D["kapitel"], {}), LD.get(D["d2"], {}), LD.get(D["k30"], {})
 check("K4 Kapitel R-18 — «Kapitel R-18 · 15 sm», turkum dona; D-2 — «D-2 Burchak <b>x</b>» (HTML — o'zgarmagan matn); K-30 — saytda=false",
-      _kap.get("nom") == "Kapitel R-18 · 15 sm" and _kap.get("turkum") == "dona" and _d2.get("nom") == "D-2 Burchak <b>x</b>"
+      _kap.get("nom") == _n246("Kapitel R-18 · 15 sm", "O'rta") and _kap.get("turkum") == "dona" and _d2.get("nom") == _n246("D-2 Burchak <b>x</b>", "S")
       and _d2.get("turkum") == "dona" and _k30.get("saytda") is False, (_kap, _d2, _k30))
 _tartib = [x["detal_id"] for x in L]
 check("K5 tartib: bo'lim → model → detal (R-18 detallari ketma-ket, K-12 12 → 20 sm)",
@@ -362,7 +384,7 @@ j6 = js(r6)
 check("P9 mahsulot boshqa detalga bog'langan (12 sm) → partiya yaratildi, holat «band» (o'sha detal nomi bilan), 18 sm bog'lanmadi",
       r6.status_code == 200 and (j6.get("katalog") or {}).get("holat") == "band" and "K-12 Tekis · 12 sm" in (j6.get("katalog") or {}).get("matn", "")
       and bog(D["k18"]) is None and bog(D["k12"]) == kalit(P1), (r6.status_code, j6.get("katalog"), bog(D["k18"])))
-r7 = ishlab("Kapitel R-18 · 15 sm", cat="dona", h=15, t=10, q=10, yield_=5, detal=D["kapitel"])
+r7 = ishlab(_n246("Kapitel R-18 · 15 sm", "O'rta"), cat="dona", h=15, t=10, q=10, yield_=5, detal=D["kapitel"])
 j7 = js(r7)
 check("P10 donali (Kapitel, «1 metrdan nechta» bilan) → «boglandi», kalit turkumi dona; tayyor bo'lgach saytda 10 dona",
       r7.status_code == 200 and (j7.get("katalog") or {}).get("holat") == "boglandi" and (bog(D["kapitel"]) or "").startswith("dona|")
@@ -411,7 +433,7 @@ _r18d = ishlab(" k-12  TEKIS · 28 sm ", h=28.0, w=8.0, l=2, detal=_d18)
 check("P19 o'sha detal, nom harf / bo'shliq farqi bilan, o'lcham AYNAN — «boglandi»",
       _r18d.status_code == 200 and (js(_r18d).get("katalog") or {}).get("holat") == "boglandi" and bog(_d18) == kalit(js(_r18d).get("product_id")),
       (_r18d.status_code, js(_r18d).get("katalog")))
-_r18e = ishlab("Baza R-18 · 15 sm", cat="dona", q=4, detal=D["baza"])
+_r18e = ishlab(_n246("Baza R-18 · 15 sm", "O'rta"), cat="dona", q=4, detal=D["baza"])
 check("P20 donali, «1 metrdan nechta»siz (o'lchamsiz) — katalog nomi bilan «boglandi»",
       _r18e.status_code == 200 and (js(_r18e).get("katalog") or {}).get("holat") == "boglandi", (_r18e.status_code, js(_r18e).get("katalog")))
 
@@ -582,7 +604,7 @@ try:
                 chip: getComputedStyle(document.getElementById('p-katalog-chip')).display, chipm: document.getElementById('p-katalog-matn').textContent})""")
             check("U4 tanlandi: nom «K-12 Tekis · 24 sm» (o'lcham matni nomda emas — eni), tur Profil, Eni 24, Kengligi 9, qoplama «Bor»; oyna "
                   "yopildi; belgi «… bog'lanadi»",
-                  _u4["nom"] == "K-12 Tekis · 24 sm" and _u4["tur"] == "profil" and _u4["faol"] == "profil" and _u4["h"] == "24"
+                  _u4["nom"] == _n246("K-12 Tekis · 24 sm", "24 sm <i>y</i>") and _u4["tur"] == "profil" and _u4["faol"] == "profil" and _u4["h"] == "24"
                   and _u4["w"] == "9" and _u4["qop"] == "true" and _u4["oyna"] == "none" and _u4["chip"] == "flex"
                   and "bog'lanadi" in _u4["chipm"], _u4)
             pg.click("#p-coat-toggle .coat-no")
@@ -621,7 +643,7 @@ try:
             pg.wait_for_timeout(200)
             pg.fill("#p-name", "Butunlay boshqa mahsulot")
             _u4c = pg.evaluate("() => ({m: document.getElementById('p-katalog-matn').textContent, o: document.getElementById('p-katalog-chip').classList.contains('ogoh')})")
-            pg.fill("#p-name", "K-12 Tekis · 24 sm")
+            pg.fill("#p-name", _n246("K-12 Tekis · 24 sm", "24 sm <i>y</i>"))
             pg.fill("#p-w", "12")
             _u4c2 = pg.evaluate("() => document.getElementById('p-katalog-matn').textContent")
             pg.fill("#p-w", "9")
