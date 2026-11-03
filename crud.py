@@ -28663,3 +28663,101 @@ def _ulgurji_guruhlar_dona(guruhlar: list) -> list:
                               "narx": float((Decimal(str(x["summa"])) / dn).quantize(Decimal("0.01"))),
                               "asl_narx": float((Decimal(str(x["summa"])) / dn).quantize(Decimal("0.01")))})
     return guruhlar
+
+
+# ══ kech184 (zip 251) — DO'KON: MAGAZIN NARXLAR RO'YXATI PDF I VA ULGURJI TANLOV (SAVAT) PDF I ═══════════════════════════════════
+# Egasi QARORLARI («Onlayn do'kon rejasi» 30.10; QAYTA SO'RALMAYDI): «narxlar ro'yxati PDF shu bo'limdan olinadi»; «Magazin butun ulgurji
+# katalogni o'z narxlari bilan PDF qilib oladi — vitrina va mijozlari uchun». Dizayn: `Ulgurji.dc.html`, `Kabinet.dc.html`,
+# `Ulgurji-buyurtma.dc.html` («PDF yuklab olish» — tarkib ostida).
+# Texnik qarorlar (Claude, kech184):
+#   * kirish — `/api/dokon/v1/ulgurji` bilan AYNAN (`dokon_ulgurji_mijoz`: 401 / 403 bir xil / 404 bo'lim yashirin) — ulgurji narx
+#     tasdiqlangan magazindan boshqa hech kimga chiqmaydi;
+#   * narxlar ro'yxati — FAQAT `dokon_api_ulgurji` ma'lumotidan (bitta narx qoidasi: katalog sahifasida ko'ringanining O'ZI); detal nomi —
+#     ERP buyurtmasidagi nom (`_sayt_nom`); birlik — 1 sotish birligi (metr — 1 dona = 2 m, dona, m² — 1 m²);
+#   * tanlov PDF i — `ulgurji_buyurtma_hisobla` (buyurtma yuborilgandagi hisobning O'ZI), metr qatori DONADA (`_sayt_pdf_qatorlari`
+#     ulgurji=True); hech narsa yozilmaydi;
+#   * chegara — kalit qabuli `_DOKON_MIJOZ_CHEKLOV` (kabinet yo'llari kabi); PDF chegarasi (korxonaga daqiqasiga 30 — `_ULGURJI_PDF_CHEKLOV`,
+#     chakana PDF lardan ALOHIDA) va narxlar ro'yxatiga hisobga daqiqasiga 6 — FAQAT kirish tekshiruvidan KEYIN sanaladi (review251 M1:
+#     tasdiqlanmagan hisob / sessiyasiz so'rov PDF chegarasini band qilib, haqiqiy magazinni to'smasin).
+ULGURJI_NARXLAR_YOLI = "/api/dokon/v1/ulgurji/narxlar/pdf"
+ULGURJI_SAVAT_PDF_YOLI = "/api/dokon/v1/ulgurji/savat/pdf"
+ULGURJI_NARXLAR_HISOB_DAQIQA_MAX = 6
+ULGURJI_NARXLAR_HISOB_MATNI = "Narxlar roʻyxati juda koʻp soʻraldi — bir daqiqadan keyin urining"
+_ULGURJI_NARXLAR_HISOB_CHEKLOV = _DokonApiCheklov(ULGURJI_NARXLAR_HISOB_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+_ULGURJI_PDF_CHEKLOV = _DokonApiCheklov(SAYT_PDF_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+ULGURJI_BIRLIK_MATNI = {"dona2m": f"1 dona ({ULGURJI_DONA_METR} m)", "dona": "1 dona", "m2": "1 m²"}
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + (ULGURJI_NARXLAR_YOLI, ULGURJI_SAVAT_PDF_YOLI)
+
+
+def _ulgurji_model_nomi(x: dict) -> str:
+    """API modeli → «R-15 «Klassik»» (do'kon `model_nomi` bilan bir xil)."""
+    nom = " ".join(str(x.get("nom") or "").split())
+    return f"{x['kod']} «{nom}»" if nom else str(x["kod"])
+
+
+def ulgurji_narxlar_hisob_chegarasi(company_id: int, m):
+    """Narxlar ro'yxati — hisobga daqiqasiga `ULGURJI_NARXLAR_HISOB_DAQIQA_MAX`: ruxsat — None, aks holda kutish soniyasi."""
+    return _ULGURJI_NARXLAR_HISOB_CHEKLOV.ol((company_id, m.id))
+
+
+def ulgurji_pdf_chegarasi(company_id: int):
+    """Ulgurji PDF lari (narxlar ro'yxati, tanlov) — korxonaga daqiqasiga `SAYT_PDF_DAQIQA_MAX` (kirish tekshiruvidan keyin): ruxsat — None,
+    aks holda kutish soniyasi."""
+    return _ULGURJI_PDF_CHEKLOV.ol(company_id)
+
+
+def ulgurji_narxlar_pdf_malumoti(db: Session, company_id: int, m, hozir_utc=None) -> dict:
+    """Magazin narxlar ro'yxati (`pdf_service.generate_ulgurji_narxlar_pdf`): {"company_id", "sana", "magazin", "shahar", "bolimlar":
+    [{"nom", "qatorlar": [{"nom", "birlik", "narx", "narx_qoplamali"}]}], "komplektlar": [{"nom", "tarkib", "qoplamasiz", "qoplamali",
+    "kb_bor", "qoplamasiz_kbsiz", "qoplamali_kbsiz"}], "pastki"}. Komplekt tarkibi — har qatorning o'zida (review251 L3: kapitel-bazasiz
+    model tarkibida kapitel / baza yo'q). Narx — `dokon_api_ulgurji` dagining O'ZI (1 sotish
+    birligi, so'm); chakana narx, chegirma, tannarx — YO'Q."""
+    from models import DokonModel, DokonDetal
+    api = dokon_api_ulgurji(db, company_id, m)
+    mids = [x["id"] for x in api["modellar"]]
+    dids = [d["id"] for x in api["modellar"] for d in x["detallar"]]
+    mobj = ({x.id: x for x in db.query(DokonModel).filter(DokonModel.company_id == company_id, DokonModel.id.in_(mids)).all()}
+            if mids else {})
+    dobj = ({d.id: d for d in db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.id.in_(dids)).all()}
+            if dids else {})
+    bolim_nomi = {b["id"]: b["nom"] for b in api["bolimlar"]}
+    bolimlar, joy, komplektlar = [], {}, []
+    for x in api["modellar"]:
+        if x["detallar"]:
+            g = joy.get(x["bolim_id"])
+            if g is None:
+                g = {"nom": bolim_nomi.get(x["bolim_id"]) or "", "qatorlar": []}
+                joy[x["bolim_id"]] = g
+                bolimlar.append(g)
+            for d in x["detallar"]:
+                g["qatorlar"].append({"nom": _sayt_nom(mobj[x["id"]], dobj[d["id"]]), "birlik": ULGURJI_BIRLIK_MATNI[d["sotish"]],
+                                      "narx": d["narx"], "narx_qoplamali": d["narx_qoplamali"]})
+        for k in x["komplekt"] or []:
+            komplektlar.append({
+                "nom": f"{_ulgurji_model_nomi(x)} · {' '.join(str(k['olcham'] or '').split())}",
+                "tarkib": ", ".join(f"{dd['turi_nomi'].lower()} {dd['dona']} dona" for dd in k["detallar"]),
+                "qoplamasiz": k["qoplamasiz"], "qoplamali": k["qoplamali"], "kb_bor": "qoplamasiz_kbsiz" in k,
+                "qoplamasiz_kbsiz": k.get("qoplamasiz_kbsiz"), "qoplamali_kbsiz": k.get("qoplamali_kbsiz")})
+    sana = hozir_utc or _dt233.utcnow()
+    tel = [dokon_telefon_korinish(t.raqam) for t in dokon_korinadigan_telefonlar(db, company_id, hozir_utc)]
+    pastki = [f"Ulgurji narxlar — {(sana + _td234(hours=5)).strftime('%d.%m.%Y')} holatiga, so'mda, 1 sotish birligi uchun (metrli "
+              f"detal — 1 dona = {ULGURJI_DONA_METR} m). Narx o'zgarishi mumkin — buyurtma berilgan paytdagi narx qotadi.",
+              "Buyurtma — saytdagi «Ulgurji» bo'limidan, 50 % oldindan to'lov bilan. Qo'shimcha chegirma yo'q."]
+    if tel:
+        pastki.append("Savollar bo'lsa: " + " · ".join(tel))
+    return {"company_id": company_id, "sana": sana, "magazin": ulgurji_mijoz_nomi(m),
+            "shahar": " ".join(str(m.mj_shahar or "").split()) or None, "bolimlar": bolimlar, "komplektlar": komplektlar,
+            "pastki": pastki}
+
+
+def ulgurji_savat_pdf_malumoti(db: Session, company_id: int, m, data, hozir_utc=None) -> dict:
+    """Magazin ulgurji tanlovi ({"qatorlar": [...]} — ulgurji buyurtma qatorlari shaklida) → PDF ma'lumoti (`generate_sayt_pdf`). Narx —
+    `ulgurji_buyurtma_hisobla` (buyurtma yuborilgandagi hisobning O'ZI); metr qatori — donada; hech narsa yozilmaydi."""
+    _dokon_kalitlar(data, ("qatorlar",))
+    hisob = ulgurji_buyurtma_hisobla(db, company_id, data.get("qatorlar"))
+    pastki = _sayt_pdf_pastki(db, company_id, "savat", None, Decimal("0"), None, hozir_utc)
+    pastki.insert(1, "Ulgurji buyurtma — 50 % oldindan to'lov bilan; qo'shimcha chegirma yo'q.")
+    return {"turi": "savat", "company_id": company_id, "raqam": None, "sana": hozir_utc or _dt233.utcnow(),
+            "mijoz": ulgurji_mijoz_nomi(m), "telefon": None, "viloyat_nomi": None, "holat": "savat", "holat_nomi": None,
+            "items": _sayt_pdf_qatorlari([_sayt_hisob_qatori(x) for x in hisob["qatorlar"]], ulgurji=True),
+            "jami": float(hisob["jami"]), "pastki": pastki, "ulgurji": True}

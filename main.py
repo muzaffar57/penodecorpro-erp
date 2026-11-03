@@ -15549,6 +15549,79 @@ async def api_dokon_v1_ulgurji_buyurtma(request: Request, db: Session = Depends(
     return JSONResponse(content=javob, headers={"Cache-Control": "no-store", **({"X-Takror": "1"} if takror else {})})
 
 
+
+# kech184 (zip 251): magazin narxlar ro'yxati PDF i va ulgurji tanlov PDF i — kirish `/api/dokon/v1/ulgurji` bilan AYNAN
+def _ulgurji_pdf_mijoz(db, cid, sessiya):
+    try:
+        return crud.dokon_ulgurji_mijoz(db, cid, sessiya)
+    except crud.DokonSessiyaYoq:
+        db.rollback()
+        raise _dokon_sessiya_xato()
+    except crud.DokonUlgurjiYopiq:
+        db.rollback()
+        raise _ulgurji_yopiq_xato()
+    except crud.DokonUlgurjiBolimYopiq:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=crud.ULGURJI_BOLIM_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+
+
+def _ulgurji_pdf_chegara(db, cid):
+    """review251 M1: PDF chegarasi — kirish tekshiruvidan KEYIN (tasdiqlanmagan hisob uni band qilolmaydi)."""
+    kut = crud.ulgurji_pdf_chegarasi(cid)
+    if kut:
+        db.rollback()
+        raise HTTPException(status_code=429, detail=f"PDF so'rovlari juda ko'p (daqiqasiga ko'pi bilan {crud.SAYT_PDF_DAQIQA_MAX} ta) — "
+                                                    f"{kut} soniyadan keyin urining", headers={**_DOKON_NOSTORE, "Retry-After": str(kut)})
+
+
+@app.get("/api/dokon/v1/ulgurji/narxlar/pdf")
+async def api_dokon_v1_ulgurji_narxlar_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — magazin narxlar ro'yxati PDF i (kalit + sessiya; FAQAT tasdiqlangan magazin): butun ulgurji katalog o'z narxlari
+    bilan (`/api/dokon/v1/ulgurji` dagi narxlarning O'ZI). 401 / 403 / 404 — ulgurji katalog bilan bir xil; chegara (kirishdan KEYIN) —
+    hisobga daqiqasiga 6 va korxonaga ulgurji PDF chegarasi (429)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr251
+    cid = await _thr251(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        m = _ulgurji_pdf_mijoz(db, cid, sessiya)
+        kut = crud.ulgurji_narxlar_hisob_chegarasi(cid, m)
+        if kut:
+            db.rollback()
+            raise HTTPException(status_code=429, detail=crud.ULGURJI_NARXLAR_HISOB_MATNI,
+                                headers={**_DOKON_NOSTORE, "Retry-After": str(kut)})
+        _ulgurji_pdf_chegara(db, cid)
+        h = crud.ulgurji_narxlar_pdf_malumoti(db, cid, m)
+        return pdf_service.generate_ulgurji_narxlar_pdf(h, db), _t_vaqt(h["sana"]).strftime("%Y-%m-%d")
+    pdf, sana = await _thr251(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, f"ulgurji-narxlar-{sana}.pdf")
+
+
+@app.post("/api/dokon/v1/ulgurji/savat/pdf")
+async def api_dokon_v1_ulgurji_savat_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — magazinning ulgurji tanlovi PDF i (kalit + sessiya): {"qatorlar": [...]} — ulgurji buyurtma qatorlari shaklida.
+    Narx — ERP ulgurji hisobi (buyurtma yuborilgandagining O'ZI), metr qatori donada; hech narsa yozilmaydi. Tanlov noto'g'ri — 400.
+    review251 L1: tana — kirish tekshiruvidan KEYIN o'qiladi (kirish qoidasi `/api/dokon/v1/ulgurji` bilan AYNAN: sessiyasiz — 401,
+    tasdiqlanmagan — 403, tana qanday bo'lmasin)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr251
+    cid = await _thr251(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _kirish():
+        m = _ulgurji_pdf_mijoz(db, cid, sessiya)
+        _ulgurji_pdf_chegara(db, cid)
+        return m
+    m = await _thr251(_dokon_bajar, db, _kirish)
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        return pdf_service.generate_sayt_pdf(crud.ulgurji_savat_pdf_malumoti(db, cid, m, data), db)
+    pdf = await _thr251(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, "ulgurji-savat.pdf")
+
+
 # ── Admin: «Usta va magazinlar» (sayt katalogi sahifasi) ──
 def _dokon_mijoz_amal(db, fn):
     try:

@@ -955,7 +955,9 @@ def generate_sayt_pdf(h: dict, db=None) -> bytes:
     _sana = _tashkent_vaqt(h["sana"]).strftime("%d.%m.%Y %H:%M")
     savat = h["turi"] == "savat"
     if savat:
-        info = [[("HUJJAT", "Savat — buyurtma hali berilmagan")], [("SANA", _sana)]]
+        # kech184 (zip 251): magazinning ulgurji tanlovi — magazin nomi ham (oddiy savatda mijoz yo'q — avvalgidek)
+        info = [[("HUJJAT", "Savat — buyurtma hali berilmagan")] + ([("MAGAZIN", h["mijoz"])] if h.get("mijoz") else []),
+                [("SANA", _sana)]]
     else:
         info = [[("MIJOZ", h.get("mijoz")), ("TELEFON", h.get("telefon")), ("VILOYAT", h.get("viloyat_nomi"))],
                 [("BUYURTMA RAQAMI", h.get("raqam")), ("SANA", _sana), ("HOLATI", h.get("holat_nomi"))]]
@@ -966,7 +968,134 @@ def generate_sayt_pdf(h: dict, db=None) -> bytes:
     )
     return generate_nakladnoy(_hujjat, db, taklif={
         "sana": h["sana"], "hisob": _hisob, "info": info, "pastki": list(h.get("pastki") or []), "jami_nomi": "JAMI:", "nom_asl": True,
-        "sarlavha": "SAVAT (HISOB-KITOB)" if savat else ("ULGURJI BUYURTMA" if h.get("ulgurji") else "BUYURTMA"),   # kech184 (zip 250)
+        "sarlavha": (("ULGURJI SAVAT (HISOB-KITOB)" if h.get("ulgurji") else "SAVAT (HISOB-KITOB)") if savat      # kech184 (zip 251)
+                     else ("ULGURJI BUYURTMA" if h.get("ulgurji") else "BUYURTMA")),   # kech184 (zip 250)
         "raqamsiz": savat,
-        "pastki_yorliq": "Savat" if savat else f"Buyurtma: {h.get('raqam')}",
-        "fayl_nomi": "Savat (hisob-kitob)" if savat else f"Buyurtma {h.get('raqam')}"})
+        "pastki_yorliq": ("Ulgurji savat" if h.get("ulgurji") else "Savat") if savat else f"Buyurtma: {h.get('raqam')}",
+        "fayl_nomi": ("Ulgurji savat (hisob-kitob)" if h.get("ulgurji") else "Savat (hisob-kitob)") if savat
+        else f"Buyurtma {h.get('raqam')}"})
+
+
+def generate_ulgurji_narxlar_pdf(h: dict, db=None) -> bytes:
+    """kech184 (zip 251 — egasi QARORI «Onlayn do'kon rejasi» 30.10: «Magazin butun ulgurji katalogni o'z narxlari bilan PDF qilib oladi —
+    vitrina va mijozlari uchun»): magazin narxlar ro'yxati. `h` — `crud.ulgurji_narxlar_pdf_malumoti`. Ko'p sahifali (jadval sarlavhasi
+    har sahifada takrorlanadi); sarlavha — korxona logotipi / nomi / telefonlari (`generate_nakladnoy` qoidasi, o'sha yordamchilar);
+    bo'limlar bo'yicha detallar (1 sotish birligi — qoplamasiz / qoplamali), rom komplektlari; narx yo'q — «—»; pastida — har sahifada
+    korxona, sana va sahifa raqami."""
+    import os
+    from reportlab.platypus import Image as RLImage
+    buf = io.BytesIO()
+    st = get_styles(0.0)
+    _brand = get_brand(db, h["company_id"])
+    _sana = _tashkent_vaqt(h["sana"])
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=14*mm, bottomMargin=16*mm,
+                            title=f"Ulgurji narxlar {_sana.strftime('%d.%m.%Y')}", author=_brand["name"] or "",
+                            subject="Ulgurji narxlar ro'yxati")
+    W = A4[0] - 30*mm
+    story = []
+
+    # ── SARLAVHA (generate_nakladnoy qoidasi: logotip bo'lmasa / o'qilmasa — korxona nomi) ──
+    if _brand.get("tel_qatori"):
+        _kontakt = "\n".join([x for x in (_brand["address"], _brand["tel_qatori"]) if x])
+    else:
+        _tels = _brand.get("telefonlar")
+        _tel1 = (_tels[0] if _tels else "") if _tels is not None else _brand["phone"]
+        _kontakt = "  ·  ".join([x for x in (_brand["address"], _tel1) if x])
+    logo_path = _brand["logo"]
+    _lo = _logo_olcham(logo_path) if logo_path and os.path.exists(logo_path) else None
+    _lb = _logo_baytlari(logo_path) if _lo else None
+    if _lo and _lb:
+        logo_img = RLImage(io.BytesIO(_sarlavha_logo_kichik(_lb[2], _lo[0])), width=_lo[0], height=_lo[1])
+        logo_img.hAlign = "LEFT"
+        chap = [logo_img]
+    else:
+        chap = [Paragraph(_x(_brand["name"]), st["company"])]
+    chap += [Paragraph(_x(_brand["slogan"]), st["company_sub"]), Paragraph(_x(_kontakt).replace("\n", "<br/>"), st["company_sub"])]
+    chap = [x for x in chap if not (hasattr(x, "text") and not str(x.text).strip())]
+    sarlavha = Table([[chap, [Paragraph("ULGURJI NARXLAR RO'YXATI", st["doc_title"]),
+                              Paragraph(f"Sana: {_sana.strftime('%d.%m.%Y')}", st["doc_num"])]]], colWidths=[W*0.58, W*0.42])
+    sarlavha.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                                  ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+    story.append(sarlavha)
+    story.append(HRFlowable(width="100%", thickness=2, color=GOLD, spaceAfter=10))
+
+    # ── MAGAZIN ──
+    _mag = h.get("magazin") or "—"
+    if h.get("shahar"):
+        _mag = f"{_mag} ({h['shahar']})"
+    info = Table([[[Paragraph("MAGAZIN", st["section_label"]), Paragraph(_x(_mag), st["section_value"])],
+                   [Paragraph("NARXLAR", st["section_label"]),
+                    Paragraph("Ulgurji, so'mda — 1 sotish birligi uchun", st["section_value_sm"])]]], colWidths=[W/2, W/2])
+    info.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+                              ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                              ("LEFTPADDING", (0, 0), (-1, -1), 12), ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                              ("LINEAFTER", (0, 0), (0, -1), 0.5, LGRAY)]))
+    story.append(info)
+    story.append(Spacer(1, 12))
+
+    def _narx(v):
+        return "—" if v is None else _pul_matni(v)
+
+    def _jadval(sarlavhalar, qatorlar, enlar, guruh_qatorlari):
+        data = [[Paragraph(_x(t), st["table_header"]) for t in sarlavhalar]] + qatorlar
+        t = Table(data, colWidths=enlar, repeatRows=1)
+        uslub = [("BACKGROUND", (0, 0), (-1, 0), DARK), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                 ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                 ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                 ("GRID", (0, 0), (-1, -1), 0.3, LGRAY), ("LINEBELOW", (0, 0), (-1, 0), 1.5, GOLD)]
+        for r in guruh_qatorlari:
+            uslub += [("SPAN", (0, r), (-1, r)), ("BACKGROUND", (0, r), (-1, r), LIGHT)]
+        t.setStyle(TableStyle(uslub))
+        return t
+
+    bolim_st = ParagraphStyle("ulg_bolim", parent=st["section_value"], fontSize=9.5, leading=12)
+    n = 0
+    if h["bolimlar"]:
+        qatorlar, guruh = [], []
+        for b in h["bolimlar"]:
+            guruh.append(len(qatorlar) + 1)
+            qatorlar.append([Paragraph(_x(b["nom"]), bolim_st), "", "", "", ""])
+            for q in b["qatorlar"]:
+                n += 1
+                qatorlar.append([Paragraph(_x(n), st["table_cell_c"]), Paragraph(_x(q["nom"]), st["table_cell"]),
+                                 Paragraph(_x(q["birlik"]), st["table_cell_c"]), Paragraph(_x(_narx(q["narx"])), st["table_cell_r"]),
+                                 Paragraph(_x(_narx(q["narx_qoplamali"])), st["table_cell_r"])])
+        story.append(_jadval(["№", "Mahsulot", "Birlik", "Qoplamasiz", "Qoplamali"], qatorlar,
+                             [W*0.07, W*0.49, W*0.14, W*0.15, W*0.15], guruh))
+    if h["komplektlar"]:
+        story.append(Spacer(1, 14))
+        story.append(Paragraph("ROM KOMPLEKTLARI — 1 komplekt narxi", st["section_value"]))
+        # review251 L3: tarkib — har komplekt qatorida (kapitel-bazasiz modelda kapitel / baza yo'q); umumiy izoh — faqat o'chirish imkoni
+        _kb_izoh = " Kapitel va bazani o'chirsa bo'ladi — narxi «kapitel va bazasiz» qatorida." if any(k.get("kb_bor") for k in h["komplektlar"]) else ""
+        story.append(Paragraph(_x("Tarkibi — har komplekt nomi ostida." + _kb_izoh), st["note"]))
+        story.append(Spacer(1, 6))
+        qatorlar = []
+        for k in h["komplektlar"]:
+            n += 1
+            qatorlar.append([Paragraph(_x(n), st["table_cell_c"]),
+                             [Paragraph(_x(k["nom"]), st["table_cell"]), Paragraph(_x(k["tarkib"]), st["note"])],
+                             Paragraph(_x(_narx(k["qoplamasiz"])), st["table_cell_r"]),
+                             Paragraph(_x(_narx(k["qoplamali"])), st["table_cell_r"])])
+            if k.get("kb_bor"):
+                qatorlar.append(["", Paragraph("— kapitel va bazasiz", st["table_cell"]),
+                                 Paragraph(_x(_narx(k["qoplamasiz_kbsiz"])), st["table_cell_r"]),
+                                 Paragraph(_x(_narx(k["qoplamali_kbsiz"])), st["table_cell_r"])])
+        story.append(_jadval(["№", "Komplekt", "Qoplamasiz", "Qoplamali"], qatorlar, [W*0.07, W*0.63, W*0.15, W*0.15], []))
+    if not h["bolimlar"] and not h["komplektlar"]:
+        story.append(Paragraph("Hozircha ulgurji narxli mahsulot yo'q.", st["section_value"]))
+
+    story.append(Spacer(1, 12))
+    for p in h.get("pastki") or []:
+        story.append(Paragraph(_x(p), st["note"]))
+        story.append(Spacer(1, 3))
+
+    _pastki_matn = f"{_brand['name'] or ''} · Ulgurji narxlar · {_sana.strftime('%d.%m.%Y')}"
+
+    def _sahifa(canvas, _doc):
+        canvas.saveState()
+        canvas.setFont(st["footer"].fontName, 7.5)
+        canvas.setFillColor(GRAY)
+        canvas.drawCentredString(A4[0] / 2, 9*mm, f"{_pastki_matn} · {canvas.getPageNumber()}-sahifa")
+        canvas.restoreState()
+    doc.build(story, onFirstPage=_sahifa, onLaterPages=_sahifa)
+    return buf.getvalue()
