@@ -284,7 +284,7 @@ check("S2 do'kon yo'llari — 3 ta GET (katalog, sozlamalar, tayyor) + buyurtma 
       sorted(_dy) == sorted([("GET", KAT), ("GET", SOZ), ("GET", "/api/dokon/v1/tayyor"), ("POST", "/api/dokon/v1/buyurtmalar")]
                              + ([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else [])
                              + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else [])
-                             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else [])), _dy)   # kech178 (zip 243): galereya; zip 244: PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
+                             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else [])), _dy)   # kech178 (zip 243): galereya; zip 244: PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
 check("S3 jadval `dokon_api_kalitlar`: korxonaga bitta qator (yagona company_id), xesh — 64 belgi, yagona; xom kalit ustuni YO'Q",
       DokonApiKalit is not None and DokonApiKalit.__tablename__ == "dokon_api_kalitlar"
       and any(getattr(c, "name", "") == "uq_dokon_api_kalit_korxona" for c in DokonApiKalit.__table__.constraints)
@@ -381,7 +381,7 @@ r = CA.get(AK)
 H0 = js(r)
 check("Y1 holat — kalit yo'q: bor=false, boshi / yaratilgan / oxirgi — null; sarlavha X-Dokon-Kalit, 2 yo'l, daqiqasiga 120",
       r.status_code == 200 and H0.get("bor") is False and H0.get("boshi") is None and H0.get("oxirgi_murojaat") is None
-      and H0.get("sarlavha") == "X-Dokon-Kalit" and H0.get("yollar") == [KAT, SOZ, "/api/dokon/v1/buyurtmalar", "/api/dokon/v1/tayyor"] + (["/api/dokon/v1/galereya"] if hasattr(crud, "dokon_api_galereya") else []) + (["/api/dokon/v1/buyurtmalar/pdf", "/api/dokon/v1/savat/pdf"] if hasattr(crud, "sayt_pdf_savat") else []) + (["/api/dokon/v1/kirish", "/api/dokon/v1/kirish/holat", "/api/dokon/v1/mijoz", "/api/dokon/v1/mijoz/royxat", "/api/dokon/v1/mijoz/chiqish"] if hasattr(crud, "dokon_kirish_boshla") else []) and H0.get("daqiqa_max") == 120, (r.status_code, H0))
+      and H0.get("sarlavha") == "X-Dokon-Kalit" and H0.get("yollar") == [KAT, SOZ, "/api/dokon/v1/buyurtmalar", "/api/dokon/v1/tayyor"] + (["/api/dokon/v1/galereya"] if hasattr(crud, "dokon_api_galereya") else []) + (["/api/dokon/v1/buyurtmalar/pdf", "/api/dokon/v1/savat/pdf"] if hasattr(crud, "sayt_pdf_savat") else []) + (["/api/dokon/v1/kirish", "/api/dokon/v1/kirish/holat", "/api/dokon/v1/mijoz", "/api/dokon/v1/mijoz/royxat", "/api/dokon/v1/mijoz/chiqish"] if hasattr(crud, "dokon_kirish_boshla") else []) + (["/api/dokon/v1/mijoz/buyurtmalar", "/api/dokon/v1/mijoz/buyurtmalar/pdf"] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) and H0.get("daqiqa_max") == 120, (r.status_code, H0))
 _j0 = len(jurnal())
 r = yarat()
 Y1 = js(r)

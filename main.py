@@ -12514,15 +12514,19 @@ async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db),
     data = await _dokon_json_tana(request)          # kech178 (zip 244): tana o'qish — alohida (PDF yo'llari ham shundan)
     kalit = request.headers.get(crud.SAYT_KALIT_SARLAVHA.lower())
 
+    sessiya249 = _dokon_sessiya_ol(request)         # kech182 (zip 249): kirgan usta / magazin — buyurtma hisobga bog'lanadi
+
     def _bajar():
         try:
-            return crud.sayt_buyurtma_yarat(db, cid, kalit, data)
+            _m249 = crud.dokon_sessiya_mijoz_ixtiyoriy(db, cid, sessiya249)
+            return crud.sayt_buyurtma_yarat(db, cid, kalit, data, kirgan_hisob=_m249)
         except ValueError as e:
             db.rollback()
             raise _sayt_xato(e)
     def _ish():
         b, qatorlar, takror = _dokon_bajar(db, _bajar)
-        return crud.sayt_dokon_javobi(db, b, qatorlar, takror=takror), (None if takror else crud.sayt_telegram_matni(b, qatorlar)), takror
+        return crud.sayt_dokon_javobi(db, b, qatorlar, takror=takror), \
+            (None if takror else crud.sayt_telegram_matni(b, qatorlar, crud.sayt_mijoz_yorligi(db, cid, b))), takror
     javob, _matn, takror = await _thr237(_ish)
     if _matn is not None:
         _fonda(background_tasks, _send_telegram, _matn, company_id=cid, sessiya=db)
@@ -12663,7 +12667,8 @@ def api_sayt_tasdiqla(data: dict = Body(...), sb_id: int = _Path213(..., ge=1, l
             _tm238 = crud.sayt_tm_taqsimla(db, cid, qatorlar)        # kech172 (zip 238): ombordan qatorlar → partiyalar
             _loyiha = crud.create_project(db, _loyiha_tana, company_id=cid)
             try:
-                order = schemas.OrderCreate(**crud.sayt_buyurtma_tanasi(b, qatorlar, _loyiha.id, t["sana"], t["recipe_id"], tm=_tm238))
+                order = schemas.OrderCreate(**crud.sayt_buyurtma_tanasi(b, qatorlar, _loyiha.id, t["sana"], t["recipe_id"], tm=_tm238,
+                                                                        master_id=crud.sayt_mijoz_ustasi(db, cid, b)))   # kech182 (zip 249)
             except _PVE237 as e:                      # review237 L1: pydantic matni emas — qaysi qator va nima
                 _x = (e.errors() or [{}])[0]
                 raise HTTPException(status_code=400, detail="Buyurtma qatori qabul qilinmadi ("
@@ -15434,6 +15439,46 @@ def api_dokon_v1_mijoz_chiqish(request: Request, db: Session = Depends(get_db)):
     cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
     _dokon_bajar(db, lambda: crud.dokon_mijoz_chiqish(db, cid, _dokon_sessiya_ol(request)))
     return JSONResponse({"ok": True}, headers=_DOKON_NOSTORE)
+
+
+# ══ kech182 (zip 249) — DO'KON: KABINET — O'Z BUYURTMALARI VA PDF (kalit + `X-Mijoz-Sessiya`) ═════════════════════════════════════════
+@app.get("/api/dokon/v1/mijoz/buyurtmalar")
+def api_dokon_v1_mijoz_buyurtmalar(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan mijozning sayt buyurtmalari (yangisi birinchi, 50 tagacha): raqam, sana, jami, mahsulotlar soni, holat.
+    Sessiya yaroqsiz — 401."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            return crud.dokon_mijoz_buyurtmalari(db, cid, _dokon_sessiya_ol(request))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/mijoz/buyurtmalar/pdf")
+async def api_dokon_v1_mijoz_buyurtma_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kabinetdan O'Z buyurtmasining PDF i: {"raqam"} (kalit + sessiya). Boshqaniki / yo'q — 404 (bir xil javob);
+    sessiya yaroqsiz — 401. Chegara — PDF yo'llari bilan umumiy (`_DOKON_PDF_CHEKLOV`)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr249
+    cid = await _thr249(_dokon_api_korxona, request, db, crud._DOKON_PDF_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        try:
+            b, qatorlar = crud.dokon_mijoz_buyurtma_pdf_ol(db, cid, sessiya, data)
+            return pdf_service.generate_sayt_pdf(crud.dokon_mijoz_pdf_malumoti(db, b, qatorlar), db), b.sb_raqam   # H249-4
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.SaytPdfTopilmadi as e:
+            db.rollback()
+            raise HTTPException(status_code=404, detail=str(e), headers=_DOKON_NOSTORE)
+    pdf, raqam = await _thr249(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, f"buyurtma-{raqam}.pdf")
 
 
 # ── Admin: «Usta va magazinlar» (sayt katalogi sahifasi) ──

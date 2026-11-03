@@ -3170,6 +3170,9 @@ class DokonBuyurtma(Base):
     # kech172 (zip 238): ombordan («Tayyor mahsulotlar») qatori bo'lsa — band tugash vaqti (UTC, yaratilgandan 48 soat); «yangi» holatda
     # va shu vaqtgacha qatorlarning `sbq_tm_kaliti` miqdori saytdagi qoldiqdan ayiriladi. NULL — band yo'q.
     sb_band_tugash = Column(DateTime, nullable=True)
+    # kech182 (zip 249): buyurtmani bergan kirgan hisob (`dokon_mijozlar.id`; FK siz — hisob o'chirilmaydi, faqat bloklanadi); NULL — mehmon.
+    # Kabinetdagi buyurtmalar tarixi / PDF va ERP buyurtmasiga usta (KPI / keshbek) — shu bo'yicha. `default=` ATAYLAB YO'Q.
+    mijoz_id = Column(Integer, nullable=True, index=True)
 
     def __repr__(self):
         return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"

@@ -25860,7 +25860,7 @@ def sayt_dokon_javobi(db: Session, b, qatorlar=None, takror=False, hozir_utc=Non
             "band_tugash": (b.sb_band_tugash.isoformat() + "Z") if b.sb_band_tugash else None, "band_matni": _sayt_band_matni(b)}
 
 
-def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, hozir_utc=None) -> tuple:
+def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, hozir_utc=None, kirgan_hisob=None) -> tuple:
     """Do'kon savati → «yangi» sayt buyurtmasi. Qaytaradi: (buyurtma, qatorlar, takror). Bir xil `kalit` + bir xil tana — avvalgi buyurtma
     (takror = True, yangi yozuv yo'q); bir xil kalit + boshqa tana — `SaytKalitBand`. `kutilgan_jami` farq qilsa — `SaytNarxOzgardi`
     (hech narsa yozilmaydi). Raqam — korxona qulfi (PG `_pul_qulfi(237, korxona)`) ostida eng katta + 1."""
@@ -25933,7 +25933,7 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
     b = DokonBuyurtma(company_id=company_id, sb_seq=seq, sb_raqam=sayt_raqami(seq), sb_kalit=kalit, sb_tana_xesh=xesh,
                       sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
                       sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir,
-                      sb_band_tugash=band_tugash)
+                      sb_band_tugash=band_tugash, mijoz_id=(kirgan_hisob.id if kirgan_hisob is not None else None))     # kech182 (zip 249) — «mijoz», «hisob» band nomlar
     db.add(b)
     db.flush()
     qatorlar = []
@@ -25965,11 +25965,12 @@ def _tg237(matn) -> str:
     return s
 
 
-def sayt_telegram_matni(b, qatorlar) -> str:
-    """Korxona botiga: yangi sayt buyurtmasi (raqam, mijoz, telefon, viloyat, mahsulotlar, jami). Mijoz yozgan matn — `_tg237`."""
+def sayt_telegram_matni(b, qatorlar, mijoz_yorligi=None) -> str:
+    """Korxona botiga: yangi sayt buyurtmasi (raqam, mijoz, telefon, viloyat, mahsulotlar, jami). Mijoz yozgan matn — `_tg237`.
+    kech182 (zip 249): `mijoz_yorligi` — kirgan usta / magazin (`sayt_mijoz_yorligi`)."""
     gl = _sayt_guruhlar(qatorlar)
     qism = [f"🛒 *Saytdan yangi buyurtma — {b.sb_raqam}*",
-            f"👤 {_tg237(b.sb_mijoz)} · {dokon_telefon_korinish(b.sb_telefon)}",
+            f"👤 {_tg237(b.sb_mijoz)} · {dokon_telefon_korinish(b.sb_telefon)}"] + ([mijoz_yorligi] if mijoz_yorligi else []) + [
             f"📍 {SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
     if b.sb_manzil:
         qism.append(f"🏠 {_tg237(b.sb_manzil[:300])}")
@@ -26175,7 +26176,7 @@ def _sayt_kmp239(q) -> dict:
     return {"kmp_guruh": int(q.guruh), "kmp_turi": tur, "kmp_nomi": nomi[:200], "kmp_soni": int(soni) if soni else None}
 
 
-def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=None) -> dict:
+def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=None, master_id=None) -> dict:
     """ERP buyurtma tanasi (`schemas.OrderCreate`) — xodim formada qo'lda yozgandek: metr → «profil» (Eni, Qalinlik, Uzunlik = metr,
     soni 1, narx = qator jami, qatorning O'Z «1 m³ narxi» — formada shu narx qayta hosil bo'ladi, review237 H1); dona → «dona» (soni, 1 dona
     narxi, hajm — qoplamasiz narxdan, review237 M1); m² → «blok» (birligi m², miqdor, 1 m² narxi). Narx — sayt buyurtmasida QOTGAN narx
@@ -26187,7 +26188,8 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
         izoh.append(f"Mijoz izohi: {b.sb_izoh}")
     return {"project_id": project_id, "order_type": "product", "items": items, "agreed_amount": float(b.sb_jami), "recipe_id": recipe_id,
             "deadline": datetime(sana.year, sana.month, sana.day), "notes": "\n".join(izoh)[:2000],
-            "yaratish_kaliti": f"sayt{int(b.company_id)}x{int(b.id):06d}"}
+            "yaratish_kaliti": f"sayt{int(b.company_id)}x{int(b.id):06d}",
+            **({"master_id": int(master_id)} if master_id else {})}         # kech182 (zip 249): kirgan usta — `sayt_mijoz_ustasi`
 
 
 def sayt_tasdiqlandi(db: Session, b, order, kim: str, loyiha=None) -> None:
@@ -27717,6 +27719,8 @@ def dokon_kirish_holat(db: Session, company_id: int, data, hozir=None) -> dict:
          .filter(DokonKirish.company_id == company_id, DokonKirish.kr_kod_xesh == _dk_xesh(kod)).first())
     if k is None or not _hm248.compare_digest(k.kr_sir_xesh.encode("ascii"), _dk_xesh(sir).encode("ascii")):
         raise KeyError("Kirish topilmadi")
+    if k.kr_holat == "bloklangan":                 # kech182 (zip 249): bloklangan hisob raqam yuborgan — yakuniy, sessiya YO'Q
+        return {"holat": "bloklangan"}
     if k.kr_holat == "ishlatildi":
         return {"holat": "ishlatildi"}
     if k.kr_holat != "tasdiqlandi":
@@ -27790,6 +27794,10 @@ def dokon_bot_kontakt(db: Session, company_id: int, chat_id: str, from_id, conta
             m.mj_tg_ism = ism or m.mj_tg_ism
             m.updated_at = hozir
     if m.mj_holat == "bloklangan":
+        # kech182 (zip 249): kirish ham yopiladi — sayt keyingi so'rovda «bloklangan» oladi (`dokon_kirish_holat`, sessiya BERILMAYDI);
+        # ilgari kirish «raqam» da qolardi va sayt 10 daqiqa «kutilmoqda» ko'rsatardi
+        k.kr_holat = "bloklangan"              # review249 H249-3: YAKUNIY holat (keyin blokdan chiqarilsa ham sessiya bermaydi)
+        k.mijoz_id = m.id
         db.commit()
         return "bloklangan", m
     k.kr_holat = "tasdiqlandi"
@@ -28126,3 +28134,128 @@ def dokon_bot_korxonasi_kirishdan(db: Session, kod=None, chat_id=None, hozir=Non
             return None
         row = q.first()
     return row[0] if row else None
+
+
+# ══ kech182 (zip 249) — DO'KON: BUYURTMA ↔ HISOB, KABINET TARIXI (egasi QARORLARI «Onlayn do'kon rejasi» 30.10: ro'yxatdan o'tgan usta va
+# magazin kabinetida o'z buyurtmalari tarixi, holati va PDF i; usta tasdiqlanguncha bergan buyurtmalariga ham keshbek — buyurtma «Tayyor»
+# bo'lganda). Kirgan mijoz bergan sayt buyurtmasi hisobga bog'lanadi (`dokon_buyurtmalar.mijoz_id`, FK siz — hisob o'chirilmaydi, faqat
+# bloklanadi); ERP buyurtmasi tasdiqlanganda tasdiqlangan ustaning ERP ustasi buyurtmaga yoziladi (KPI / keshbek — mavjud mexanizm).
+DOKON_MIJOZ_BUYURTMA_MAX = 50
+# mijozga ko'rinadigan holat (kalit, matn): sayt buyurtmasi holati, tasdiqlangandan keyin — ERP buyurtmasi holati
+_DK_MB_HOLAT = {"yangi": ("kutilmoqda", "Tasdiqlash kutilmoqda"), "bekor": ("bekor", "Bekor qilindi")}
+_DK_MB_ORDER = {"draft": ("tasdiqlandi", "Tasdiqlandi"), "new": ("tasdiqlandi", "Tasdiqlandi"),
+                "in_progress": ("tayyorlanmoqda", "Tayyorlanmoqda"), "coating": ("tayyorlanmoqda", "Tayyorlanmoqda"),
+                "ready": ("tayyor", "Tayyor"), "delivered": ("yetkazildi", "Yetkazildi"), "cancelled": ("bekor", "Bekor qilindi")}
+
+
+def dokon_sessiya_mijoz_ixtiyoriy(db: Session, company_id: int, token):
+    """Buyurtma yo'li: sessiya yuborilgan va yaroqli bo'lsa — mijoz (buyurtma hisobga bog'lanadi); yo'q / yaroqsiz / bloklangan — None
+    (buyurtma mehmon buyurtmasi kabi QABUL qilinadi — mijoz yuborgan savat yo'qolmasin)."""
+    if not token:
+        return None
+    try:
+        return dokon_sessiya_mijoz(db, company_id, token)
+    except DokonSessiyaYoq:
+        db.rollback()
+        return None
+
+
+def dokon_buyurtma_mijoz_holati(b, order) -> tuple:
+    """Mijozga holat (kalit, matn): «yangi» — tasdiqlash kutilmoqda, «bekor» — bekor; «tasdiqlandi» — ERP buyurtmasi holati (o'chirilgan /
+    savatga tushgan ERP buyurtmasi — «Tasdiqlandi», ichki tafsilot berilmaydi)."""
+    if b.sb_holat != "tasdiqlandi":
+        return _DK_MB_HOLAT.get(b.sb_holat, ("kutilmoqda", "Tasdiqlash kutilmoqda"))
+    if order is None or getattr(order, "is_deleted", False):
+        return ("tasdiqlandi", "Tasdiqlandi")
+    st = getattr(order.status, "value", order.status)
+    return _DK_MB_ORDER.get(str(st), ("tasdiqlandi", "Tasdiqlandi"))
+
+
+def dokon_mijoz_buyurtmalari(db: Session, company_id: int, token) -> dict:
+    """Kabinet: kirgan mijozning sayt buyurtmalari (yangisi birinchi, ko'pi bilan `DOKON_MIJOZ_BUYURTMA_MAX`): raqam, sana (Toshkent), jami,
+    mahsulotlar soni (guruh), holat. ERP buyurtma raqami, xodim, ichki izoh — YO'Q. Sessiya yaroqsiz — `DokonSessiyaYoq`."""
+    from models import DokonBuyurtma, DokonBuyurtmaQator, Order
+    from sqlalchemy import func as _f249
+    dokon_tekshir(db, company_id)
+    m = dokon_sessiya_mijoz(db, company_id, token)
+    rows = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.mijoz_id == m.id)
+            .order_by(DokonBuyurtma.created_at.desc(), DokonBuyurtma.id.desc()).limit(DOKON_MIJOZ_BUYURTMA_MAX).all())
+    ids = [r.id for r in rows]
+    soni = {}
+    if ids:
+        for bid, n in (db.query(DokonBuyurtmaQator.buyurtma_id, _f249.count(_f249.distinct(DokonBuyurtmaQator.guruh)))
+                       .filter(DokonBuyurtmaQator.company_id == company_id, DokonBuyurtmaQator.buyurtma_id.in_(ids))
+                       .group_by(DokonBuyurtmaQator.buyurtma_id).all()):
+            soni[bid] = int(n or 0)
+    oids = [r.order_id for r in rows if r.order_id]
+    orders = {o.id: o for o in db.query(Order).filter(Order.company_id == company_id, Order.id.in_(oids)).all()} if oids else {}
+    natija = []
+    for r in rows:
+        k, matn = dokon_buyurtma_mijoz_holati(r, orders.get(r.order_id))
+        natija.append({"raqam": r.sb_raqam, "sana": (r.created_at + _td234(hours=5)).strftime("%d.%m.%Y") if r.created_at else None,
+                       "jami": _sayt_pul(r.sb_jami), "soni": soni.get(r.id, 0), "holat": k, "holat_nomi": matn})
+    return {"buyurtmalar": natija, "turi": m.mj_turi, "max": DOKON_MIJOZ_BUYURTMA_MAX}
+
+
+def dokon_mijoz_buyurtma_pdf_ol(db: Session, company_id: int, token, data) -> tuple:
+    """Kabinet: O'Z buyurtmasining PDF i — {"raqam"}. Qaytaradi: (buyurtma, qatorlar). Yo'q / boshqa mijozniki / boshqa korxonaniki —
+    `SaytPdfTopilmadi` (bir xil javob). Sessiya yaroqsiz — `DokonSessiyaYoq`."""
+    from models import DokonBuyurtma
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("raqam",))
+    raqam = data.get("raqam")
+    if not isinstance(raqam, str) or not SAYT_PDF_RAQAM_RE.fullmatch(raqam):
+        raise ValueError("«raqam» — buyurtma raqami (masalan S-0001)")
+    m = dokon_sessiya_mijoz(db, company_id, token)
+    b = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_raqam == raqam,
+                                        DokonBuyurtma.mijoz_id == m.id).first())
+    if b is None:
+        raise SaytPdfTopilmadi("Buyurtma topilmadi")
+    return b, _sayt_qatorlari(db, company_id, b.id)
+
+
+def sayt_mijoz_ustasi(db: Session, company_id: int, b):
+    """Sayt buyurtmasi tasdiqlanganda ERP buyurtmasiga yoziladigan usta (`Master.id`) yoki None: buyurtmani bergan hisob — usta, egasi
+    tasdiqlagan (`master_id` bor), usta SHU korxonada va faol. Chaqiruvchining tranzaksiyasida (hisob qatori — o'qish)."""
+    from models import DokonMijoz
+    if not getattr(b, "mijoz_id", None):
+        return None
+    m = (db.query(DokonMijoz).filter(DokonMijoz.id == b.mijoz_id, DokonMijoz.company_id == company_id).populate_existing().first())
+    # review249 H249-1: FAQAT «tasdiqlangan» usta (blokdan chiqarilib / rad etilib qayta tasdiq kutayotgan — `master_id` saqlangan bo'lsa ham
+    # — KPI olmaydi; tasdiqlangach keyingi buyurtmalari bog'lanadi)
+    if m is None or m.mj_turi != "usta" or not m.master_id or m.mj_holat != "tasdiqlangan":
+        return None
+    u = db.query(Master).filter(Master.id == m.master_id, Master.company_id == company_id).first()
+    if u is None or not u.is_active:
+        return None
+    return u.id
+
+
+def dokon_mijoz_pdf_malumoti(db: Session, b, qatorlar) -> dict:
+    """Kabinet PDF i — `sayt_pdf_buyurtma` + holat kabinet ro'yxatidagi BILAN BIR XIL (review249 H249-4: tasdiqlangan, keyin bekor qilingan /
+    tayyor bo'lgan buyurtma PDF ida «Buyurtma tasdiqlangan.» qolmasin) — `dokon_buyurtma_mijoz_holati`."""
+    from models import Order
+    d = sayt_pdf_buyurtma(db, b, qatorlar)
+    order = (db.query(Order).filter(Order.id == b.order_id, Order.company_id == b.company_id).first()) if b.order_id else None
+    _k, matn = dokon_buyurtma_mijoz_holati(b, order)
+    d["holat_nomi"] = matn
+    if b.sb_holat == "tasdiqlandi":
+        d["pastki"] = [f"Buyurtma holati: {matn.lower()}." if x == "Buyurtma tasdiqlangan." else x for x in d.get("pastki") or []]
+    return d
+
+
+def sayt_mijoz_yorligi(db: Session, company_id: int, b):
+    """Telegram / ro'yxat uchun: buyurtmani bergan hisob — «👷 Usta: ism» / «🏪 Magazin: «nom», shahar» (holati bilan); mehmon — None."""
+    from models import DokonMijoz
+    if not getattr(b, "mijoz_id", None):
+        return None
+    m = db.query(DokonMijoz).filter(DokonMijoz.id == b.mijoz_id, DokonMijoz.company_id == company_id).first()
+    if m is None or not m.mj_turi:
+        return None
+    holat = "" if m.mj_holat == "tasdiqlangan" else f" ({DOKON_MIJOZ_HOLATLARI.get(m.mj_holat, m.mj_holat).lower()})"
+    if m.mj_turi == "magazin":
+        return f"🏪 Magazin: «{_tg237(m.mj_magazin or '')}», {_tg237(m.mj_shahar or '')}{holat}"
+    return f"👷 Usta: {_tg237(m.mj_ism or m.mj_tg_ism or '')}{holat}"
+
+
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + ("/api/dokon/v1/mijoz/buyurtmalar", "/api/dokon/v1/mijoz/buyurtmalar/pdf")
