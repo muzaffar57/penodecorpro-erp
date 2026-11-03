@@ -4031,7 +4031,8 @@ MANBA_RAD_XABARI = ("So'rov boshqa saytdan keldi — xavfsizlik uchun rad etildi
 
 
 def _manba_istisnomi(yol: str) -> bool:
-    return yol == "/telegram/webhook" or yol.startswith("/telegram/webhook/")
+    # kech181 (zip 248): + do'kon boti webhooki (server-server; sir sarlavhasi bilan)
+    return yol == "/telegram/webhook" or yol.startswith("/telegram/webhook/") or yol == "/telegram/dokon"
 
 
 def manba_rad_sababi(usul: str, yol: str, sarlavhalar) -> Optional[str]:
@@ -15145,6 +15146,418 @@ async def telegram_korxona_webhook(company_id: int, request: Request):
     except Exception:
         return {"ok": True}
     return await _ip_ichida(_usta_boti_javobi, data, token, korxona_id=company_id)
+
+
+# ══ kech181 (zip 248) — DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH VA RO'YXAT ═══════════════════════════════════════════════════
+# Do'kon boti (@penodecorprobot; sinovda — sinov boti) — `DOKON_BOT_TOKEN` (Railway o'zgaruvchisi, har muhitga o'z boti). Webhook —
+# `/telegram/dokon`, siri tokendan (`crud.dokon_bot_sir`). Usta boti (@Penoustabot, `/telegram/webhook`) va korxona botlariga TEGILMAYDI.
+# Mantiq — `crud.dokon_kirish_*`, `crud.dokon_bot_*`, `crud.dokon_mijoz_*`.
+_DOKON_BOT_NOMI_KESH = {}
+DOKON_BOT_YOL = "/telegram/dokon"
+
+
+def _dokon_bot_token():
+    t = (os.environ.get(crud.DOKON_BOT_TOKEN_ENV) or "").strip()
+    return t if _TG_TOKEN_NAQSH.fullmatch(t) else ""
+
+
+def _dokon_bot_nomi(token):
+    """Bot foydalanuvchi nomi (getMe; muvaffaqiyatlisi keshlanadi — token bo'yicha). Token yo'q / Telegram javob bermadi — None."""
+    if not token:
+        return None
+    k = crud.dokon_bot_sir(token)
+    if k in _DOKON_BOT_NOMI_KESH:
+        return _DOKON_BOT_NOMI_KESH[k]
+    try:
+        nom = (_tg_api(token, "getMe", timeout=5) or {}).get("username")
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti getMe: {_tg_toza(e, token)}")
+        return None
+    if not isinstance(nom, str) or not _re_tg.fullmatch(r"[A-Za-z0-9_]{5,64}", nom):
+        return None
+    _DOKON_BOT_NOMI_KESH[k] = nom
+    return nom
+
+
+def _dokon_bot_yubor(chat_id, matn, reply_markup=None):
+    """Do'kon boti orqali mijozga xabar (fon vazifasi; xato — jim, log)."""
+    token = _dokon_bot_token()
+    if not token or not chat_id:
+        return False
+    try:
+        _tg_post_message(token, str(chat_id), matn, reply_markup=reply_markup)
+        return True
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti xabari yuborilmadi: {_tg_toza(e, token)}")
+        return False
+
+
+def _dokon_bot_korxonasi(db):
+    """Do'kon boti qaysi korxonaniki: sayt katalogi yoqilgan platforma egasi korxonasi (eng kichik raqam). Yo'q — None."""
+    import tenant_context as _tc248
+    from production_models import Company as _Co248
+    platforma = _obuna.platforma_korxonalari(db)
+    with _tc248.system_context(db):
+        rows = [r[0] for r in db.query(_Co248.id).filter(_Co248.dokon_yoqilgan == True).order_by(_Co248.id).all()]   # noqa: E712
+    for cid in rows:
+        if cid in platforma:
+            return cid
+    return None
+
+
+_DOKON_RAQAM_TUGMASI = {"keyboard": [[{"text": "📱 Raqamni yuborish", "request_contact": True}]], "resize_keyboard": True,
+                        "one_time_keyboard": True}
+_DOKON_TUGMA_YOP = {"remove_keyboard": True}
+
+
+def _dokon_bot_chiqar_javobi(cq, token):
+    """review248 M1: «🚫 Bu men emas» (callback_query) — shu Telegram foydalanuvchisining saytdagi hamma sessiyasi o'chadi."""
+    import tenant_context as _tc248d
+    frm = cq.get("from") if isinstance(cq.get("from"), dict) else {}
+    from_id = frm.get("id")
+    msg = cq.get("message") if isinstance(cq.get("message"), dict) else {}
+    chat = msg.get("chat") if isinstance(msg.get("chat"), dict) else {}
+    if from_id is None or chat.get("type") != "private" or str(chat.get("id")) != str(from_id):
+        return {"ok": True}
+    m = None
+    db = SessionLocal()
+    try:
+        cid = _dokon_bot_korxonasi(db)
+        if cid is not None:
+            _tc248d.set_current_company(db, cid)
+            m = crud.dokon_bot_chiqar(db, cid, from_id)
+    except Exception as e:                               # noqa: BLE001
+        db.rollback()
+        print(f"⚠ Do'kon boti (chiqarish) xatosi: {_tg_toza(e, token)}")
+    finally:
+        db.close()
+    try:
+        _tg_api(token, "answerCallbackQuery", {"callback_query_id": str(cq.get("id") or ""),
+                                               "text": "Chiqarildi" if m is not None else "Hisob topilmadi"}, timeout=5)
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti answerCallbackQuery: {_tg_toza(e, token)}")
+    try:
+        _tg_post_message(token, str(from_id), "🚫 Saytdagi hisobingiz barcha qurilmalardan chiqarildi. Saytga o'zingiz qayta kirishingiz "
+                         "mumkin. Savollar bo'lsa, biz bilan telefon orqali bog'laning." if m is not None
+                         else "Saytda hisobingiz topilmadi — hech narsa o'zgarmadi.")
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti javobi yuborilmadi: {_tg_toza(e, token)}")
+    return {"ok": True}
+
+
+_DOKON_CHIQ_TUGMASI = {"inline_keyboard": [[{"text": "🚫 Bu men emas — chiqarish", "callback_data": crud.DOKON_BOT_CHIQ}]]}
+
+
+def _dokon_boti_javobi(data, token):
+    """Do'kon boti: `/start k_<kod>` — raqam so'raladi; kontakt — hisob topiladi / ochiladi, kirish tasdiqlanadi (keyin «🚫 Bu men emas»
+    tugmasi bilan ogohlantirish — review248 M1); «Bu men emas» — hamma sessiya o'chadi; boshqasi — salom va sayt havolasi. Faqat shaxsiy chat
+    (chat.id == from.id). Korxona — kirishning o'zidan (review248 L8), topilmasa — standart. Javob — bazadan chiqqandan keyin."""
+    cq = data.get("callback_query") if isinstance(data, dict) else None
+    if isinstance(cq, dict):
+        if cq.get("data") == crud.DOKON_BOT_CHIQ:
+            return _dokon_bot_chiqar_javobi(cq, token)
+        return {"ok": True}
+    msg = data.get("message") if isinstance(data, dict) else None
+    if not isinstance(msg, dict):
+        return {"ok": True}
+    chat = msg.get("chat")
+    frm = msg.get("from")
+    if not isinstance(chat, dict) or not isinstance(frm, dict) or chat.get("type") != "private":
+        return {"ok": True}
+    chat_id = str(chat.get("id") or "")
+    from_id = frm.get("id")
+    if not chat_id or from_id is None or str(from_id) != chat_id or len(chat_id) > 20:
+        return {"ok": True}
+    import tenant_context as _tc248b
+    javob, tugma, qoshimcha = None, None, None
+    db = SessionLocal()
+    try:
+        matn = msg.get("text") if isinstance(msg.get("text"), str) else ""
+        _kod = None
+        if matn.strip().startswith("/start") and matn.strip()[6:].strip().startswith(crud.DOKON_BOT_START_OLDI):
+            _kod = matn.strip()[6:].strip()[len(crud.DOKON_BOT_START_OLDI):]
+        if _kod is not None:
+            cid = crud.dokon_bot_korxonasi_kirishdan(db, kod=_kod)
+        elif isinstance(msg.get("contact"), dict):
+            cid = crud.dokon_bot_korxonasi_kirishdan(db, chat_id=chat_id)
+        else:
+            cid = None
+        if cid is None:
+            cid = _dokon_bot_korxonasi(db)
+        if cid is None:
+            return {"ok": True}
+        _tc248b.set_current_company(db, cid)
+        sayt = crud.get_setting(db, crud.DOKON_SAYT_URL_KALIT, None, company_id=cid)
+        _nom = _tg_brand(db, cid)[0] or "Do'kon"            # korxona nomi (kodda qattiq nom YO'Q — tools/test_telegram_tenant.py)
+        if isinstance(msg.get("contact"), dict):
+            holat, _m = crud.dokon_bot_kontakt(db, cid, chat_id, from_id, msg["contact"])
+            tugma = _DOKON_TUGMA_YOP
+            if holat == "kirdi":
+                javob = "✅ Raqamingiz qabul qilindi — saytga qayting, kabinetingiz o'zi ochiladi."
+                qoshimcha = ("Saytga kirishni siz boshlamagan bo'lsangiz (havolani kimdir yuborgan bo'lsa) — «🚫 Bu men emas» tugmasini bosing: "
+                             "hisobingiz barcha qurilmalardan darhol chiqariladi.", _DOKON_CHIQ_TUGMASI)
+            elif holat == "begona":
+                javob, tugma = "❗ Faqat o'zingizning raqamingizni yuboring — «📱 Raqamni yuborish» tugmasini bosing.", \
+                    _DOKON_RAQAM_TUGMASI
+            elif holat == "xorijiy":
+                javob = "❗ Hozircha faqat O'zbekiston raqamlari (+998) qabul qilinadi. Biz bilan telefon orqali bog'laning."
+            elif holat == "bloklangan":
+                javob = "⛔ Hisobingiz vaqtincha yopilgan. Savollar bo'lsa, biz bilan telefon orqali bog'laning."
+            else:
+                javob = "⌛ Kirish muddati o'tgan. Saytga qaytib, «Telegram orqali kirish» tugmasini qayta bosing."
+        elif _kod is not None:
+            if crud.dokon_bot_start(db, cid, chat_id, _kod) == "raqam_sora":
+                javob = (f"🔐 *Saytga kirish*\n\n{_nom} saytiga kirish uchun «📱 Raqamni yuborish» tugmasini bosing.\n\n"
+                         "Agar saytda kirishni siz boshlamagan bo'lsangiz — hech narsa yubormang.")
+                tugma = _DOKON_RAQAM_TUGMASI
+            else:
+                javob = "⌛ Bu havola eskirgan. Saytga qaytib, «Telegram orqali kirish» tugmasini qayta bosing."
+                tugma = _DOKON_TUGMA_YOP
+        else:
+            javob = f"Assalomu alaykum! 👋 {_nom} rasmiy boti.\n\nMahsulotlarimizni saytda ko'ring va buyurtma bering."
+            if sayt:
+                tugma = {"inline_keyboard": [[{"text": "🛒 Saytni ochish", "url": sayt}]]}
+    except Exception as e:                               # noqa: BLE001 — Telegram xabarni qayta-qayta yubormasin (200)
+        db.rollback()
+        print(f"⚠ Do'kon boti xatosi: {_tg_toza(e, token)}")
+        javob, tugma = "⚠️ Xatolik yuz berdi. Iltimos, birozdan keyin qayta urinib ko'ring.", None
+    finally:
+        db.close()
+    for _matn, _tugma in ((javob, tugma), qoshimcha or (None, None)):
+        if not _matn:
+            continue
+        try:
+            _tg_post_message(token, chat_id, _matn, reply_markup=_tugma)
+        except Exception as e:                           # noqa: BLE001
+            print(f"⚠ Do'kon boti javobi yuborilmadi: {_tg_toza(e, token)}")
+    return {"ok": True}
+
+
+@app.post("/telegram/dokon")
+async def telegram_dokon_webhook(request: Request):
+    """Do'kon boti webhooki (sir — `crud.dokon_bot_sir(DOKON_BOT_TOKEN)`). Token yo'q — 503, sir mos emas — 403 (hech narsa o'qilmaydi)."""
+    token = _dokon_bot_token()
+    if not token:
+        raise HTTPException(status_code=503, detail="Do'kon boti sozlanmagan")
+    kelgan = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not _hmac_tg.compare_digest(kelgan.encode("utf-8"), crud.dokon_bot_sir(token).encode("utf-8")):
+        raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+    return await _ip_ichida(_dokon_boti_javobi, data, token)
+
+
+def _dokon_sessiya_ol(request: Request):
+    return (request.headers.get(crud.MIJOZ_SESSIYA_SARLAVHA.lower()) or "").strip()
+
+
+_DOKON_NOSTORE = {"Cache-Control": "no-store"}
+
+
+def _dokon_sessiya_xato():
+    return HTTPException(status_code=401, detail="Kirilmagan", headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kirish")
+async def api_dokon_v1_kirish(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — Telegram orqali kirishni boshlash (kalit bilan): {"sayt"?: "https://…"} → {"kod", "sir", "muddat_soniya", "bot",
+    "havola"}. Do'kon boti sozlanmagan / Telegram javob bermadi — 503."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_KIRISH_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    nom = await _ip_ichida(_dokon_bot_nomi, _dokon_bot_token())
+    if not nom:
+        raise HTTPException(status_code=503, detail="Telegram orqali kirish hozircha ishlamayapti — qo'ng'iroq qiling",
+                            headers=_DOKON_NOSTORE)
+    natija = await _ip_ichida(_dokon_bajar, db, lambda: crud.dokon_kirish_boshla(db, cid, data))
+    natija["bot"] = nom
+    natija["havola"] = f"https://t.me/{nom}?start={crud.DOKON_BOT_START_OLDI}{natija['kod']}"
+    return JSONResponse(natija, headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kirish/holat")
+async def api_dokon_v1_kirish_holat(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirish holati (kalit bilan): {"kod", "sir"}. «tayyor» bo'lsa — sessiya tokeni (BIR marta). Mos emas — 404."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_HOLAT_CHEKLOV)
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        try:
+            return crud.dokon_kirish_holat(db, cid, data)
+        except KeyError:
+            db.rollback()
+            raise HTTPException(status_code=404, detail="Kirish topilmadi", headers=_DOKON_NOSTORE)
+    return JSONResponse(await _ip_ichida(_dokon_bajar, db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.get("/api/dokon/v1/mijoz")
+def api_dokon_v1_mijoz(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan mijoz (kalit + `X-Mijoz-Sessiya`): turi, holati, ismi, telefoni, magazin. Sessiya yaroqsiz — 401."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            return crud.dokon_mijoz_korinish(crud.dokon_sessiya_mijoz(db, cid, _dokon_sessiya_ol(request)))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/mijoz/royxat")
+async def api_dokon_v1_mijoz_royxat(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — ro'yxat so'rovi (kalit + sessiya): {"turi": "usta"|"magazin", "ism", "magazin"?, "shahar"?}. Egasiga — Telegram."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        try:
+            m, yangi = crud.dokon_mijoz_royxat(db, cid, sessiya, data)
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.DokonMijozZiddiyat as e:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(e), headers=_DOKON_NOSTORE)
+        return crud.dokon_mijoz_korinish(m), (crud.dokon_royxat_telegram_matni(m) if yangi else None)
+    javob, matn = await _ip_ichida(_dokon_bajar, db, _bajar)
+    if matn:
+        _fonda(background_tasks, _send_telegram, matn, company_id=cid, sessiya=db)
+    return JSONResponse(javob, headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/mijoz/chiqish")
+def api_dokon_v1_mijoz_chiqish(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — chiqish (kalit + sessiya): shu sessiya o'chiriladi. Har doim {"ok": true}."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    _dokon_bajar(db, lambda: crud.dokon_mijoz_chiqish(db, cid, _dokon_sessiya_ol(request)))
+    return JSONResponse({"ok": True}, headers=_DOKON_NOSTORE)
+
+
+# ── Admin: «Usta va magazinlar» (sayt katalogi sahifasi) ──
+def _dokon_mijoz_amal(db, fn):
+    try:
+        return _dokon_bajar(db, fn)
+    except KeyError:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Hisob topilmadi")
+    except crud.DokonMijozZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/api/sayt-katalogi/mijozlar")
+def api_sayt_mijozlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Saytda ro'yxatdan o'tgan usta va magazinlar (kutilayotganlar birinchi) + ERP ustalari (bog'lash uchun)."""
+    return _dokon_bajar(db, lambda: crud.dokon_mijozlar_royxati(db, auth.company_id_of(current_user)))
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/tasdiqla")
+def api_sayt_mijoz_tasdiqla(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), data: dict = Body(...),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only),
+                            background_tasks: BackgroundTasks = None):
+    """Tasdiqlash: usta — {"kpi", "master_id"} yoki {"kpi", "yangi_usta": true}; magazin — {}. Mijozga — do'kon boti xabari."""
+    cid = auth.company_id_of(current_user)
+    m, _j, xabar = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_tasdiqla(db, cid, mijoz_id, data, _dokon_kim(current_user)))
+    _fonda(background_tasks, _dokon_bot_yubor, m.mj_tg_id, xabar, sessiya=db)
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/rad")
+def api_sayt_mijoz_rad(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), data: dict = Body(...),
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only),
+                       background_tasks: BackgroundTasks = None):
+    """Rad etish ({"sabab"?}). Mijozga — do'kon boti xabari."""
+    cid = auth.company_id_of(current_user)
+    m, _j, xabar = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_rad(db, cid, mijoz_id, data, _dokon_kim(current_user)))
+    _fonda(background_tasks, _dokon_bot_yubor, m.mj_tg_id, xabar, sessiya=db)
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/blokla")
+def api_sayt_mijoz_blokla(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Bloklash — sessiyalar darhol o'chadi."""
+    cid = auth.company_id_of(current_user)
+    m, _j = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_blokla(db, cid, mijoz_id, _dokon_kim(current_user)))
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/ochish")
+def api_sayt_mijoz_ochish(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Blokdan chiqarish — qayta tasdiq kerak."""
+    cid = auth.company_id_of(current_user)
+    m, _j = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_ochish(db, cid, mijoz_id, _dokon_kim(current_user)))
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+def _dokon_bot_holati(request: Request, db):
+    token = _dokon_bot_token()
+    kutilgan = _sayt_manzili(request) + DOKON_BOT_YOL
+    natija = {"token_bor": bool(token), "bot": None, "webhook": "", "kutilgan": kutilgan, "ulangan": False,
+              "muhit": _railway_muhit() or None, "oxirgi_xato": "", "sayt": None}
+    cid = _dokon_bot_korxonasi(db)
+    if cid is not None:
+        natija["sayt"] = crud.get_setting(db, crud.DOKON_SAYT_URL_KALIT, None, company_id=cid)
+    if not token:
+        return natija
+    natija["bot"] = _dokon_bot_nomi(token)
+    try:
+        h = _tg_webhook_holati(token)
+        natija["webhook"] = h.get("url") or ""
+        natija["oxirgi_xato"] = h.get("last_error_izoh") or h.get("last_error_message") or ""
+    except Exception as e:                               # noqa: BLE001
+        natija["oxirgi_xato"] = _tg_toza(e, token)
+    natija["ulangan"] = natija["webhook"] == kutilgan
+    return natija
+
+
+@app.get("/api/sayt-katalogi/dokon-bot")
+def api_sayt_dokon_bot(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Do'kon boti holati: token bormi (qiymati — YO'Q), bot nomi, hozirgi va kutilgan webhook manzili, oxirgi xato."""
+    if not crud.dokon_yoqilganmi(db, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    return _dokon_bot_holati(request, db)
+
+
+@app.post("/api/sayt-katalogi/dokon-bot/ulash")
+def api_sayt_dokon_bot_ulash(request: Request, data: dict = Body(...), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Do'kon botini SHU saytga ulash (setWebhook, sir — tokendan). Bot boshqa saytga ulangan bo'lsa — 409; {"majburiy": true} faqat asosiy
+    muhitda (production) — aks holda sinov sayti asosiy botni «o'g'irlab» qo'ymasin (kech129 hodisasi)."""
+    cid = auth.company_id_of(current_user)
+    if not crud.dokon_yoqilganmi(db, cid):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    if not isinstance(data, dict) or set(data) - {"majburiy"} or data.get("majburiy") not in (None, True, False):
+        raise HTTPException(status_code=400, detail="Noto'g'ri so'rov")
+    token = _dokon_bot_token()
+    if not token:
+        raise HTTPException(status_code=409, detail=f"Do'kon boti tokeni yo'q — Railway da {crud.DOKON_BOT_TOKEN_ENV} o'zgaruvchisini qo'ying")
+    kutilgan = _sayt_manzili(request) + DOKON_BOT_YOL
+    try:
+        hozirgi = (_tg_webhook_holati(token).get("url") or "")
+    except Exception as e:                               # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Telegram javob bermadi: {_tg_toza(e, token)}")
+    if hozirgi and hozirgi != kutilgan:
+        from urllib.parse import urlsplit as _us248
+        _xost248 = _us248(hozirgi).hostname or "noma'lum"
+        if not (data.get("majburiy") is True and _asosiy_muhitmi()):
+            raise HTTPException(status_code=409, detail=(
+                f"Bot hozir boshqa manzilga ulangan ({_xost248}). "
+                + ("Ulansa, o'sha yerdagi bot ishlamay qoladi — ishonchingiz komil bo'lsa, «Baribir ulash» ni bosing."
+                   if _asosiy_muhitmi() else "Sinov saytida boshqa joyga ulangan botni ko'chirib bo'lmaydi — sinov uchun alohida bot oching.")))
+    try:
+        _tg_api(token, "setWebhook", {"url": kutilgan, "secret_token": crud.dokon_bot_sir(token),
+                                      "allowed_updates": ["message", "callback_query"], "max_connections": 10})
+    except Exception as e:                               # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Telegram rad etdi: {_tg_toza(e, token)}")
+    crud.log_activity(db, "telegram_bot_ulandi", "dokon_bot", 0, entity_label="Do'kon boti", performed_by=_dokon_kim(current_user),
+                      new_value=f"Do'kon boti shu saytga ulandi: {kutilgan}" + (f" (avval: {hozirgi})" if hozirgi else ""),
+                      company_id=cid)
+    return _dokon_bot_holati(request, db)
 
 
 # ============================================================

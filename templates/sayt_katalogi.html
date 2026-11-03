@@ -239,6 +239,22 @@
 @media (max-width: 700px){
   .sk-api-kalit-qator .btn{flex:1 1 100%;justify-content:center}
 }
+/* kech181 (zip 248): «Usta va magazinlar (saytdan)» — bot holati, hisoblar ro'yxati, tasdiq formasi */
+.sk-mj-bot{margin-top:8px;font-size:13px;line-height:1.6}
+.sk-mj-bot .sk-ex-tugmalar{margin-top:6px}
+.sk-mj-guruh{margin-top:12px;font-size:12px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.04em}
+.sk-mj-qator{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-mj-qator[data-holat="kutilmoqda"]{border-color:var(--gold);background:var(--gold-tint)}
+.sk-mj-bosh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.sk-mj-bosh b{font-size:14px}
+.sk-mj-izoh{font-size:12px;opacity:.8}
+.sk-mj-forma{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.sk-mj-forma select{flex:1 1 220px;min-width:0}
+.sk-mj-forma input{flex:0 1 120px;min-width:0}
+.sk-mj-forma .btn{flex:0 0 auto}
+@media (max-width: 700px){
+  .sk-mj-forma select,.sk-mj-forma input,.sk-mj-forma .btn{flex:1 1 100%;justify-content:center}
+}
 /* kech178 (zip 243): «Bajarilgan ishlar» galereyasi — ishlar ro'yxati (asosiy rasm, nomi, joyi · oyi, saytda ko'rinishi), ochiq ish — forma,
    mahsulotlar (katalogdan model → o'lcham yoki komplekt → miqdor), rasmlar (model rasmlari uslubida; qirqilmaydi) */
 .sk-gl-ish{border:1px solid var(--border2);border-radius:var(--r-btn);margin-top:10px;background:var(--white)}
@@ -337,6 +353,19 @@
           katalogdan olinadi, alohida yozilmaydi. Rasmsiz yoki yashirilgan ish saytda ko'rinmaydi.</p>
         <div class="sk-ex-tugmalar"><button type="button" class="btn btn-dark" id="skGlYangi">+ Yangi ish</button></div>
         <div id="skGlRoyxat" aria-live="polite"><div class="sk-bosh-holat">Yuklanmoqda…</div></div>
+      </div>
+    </details>
+  </div>
+</div>
+<div class="card" style="margin-bottom:14px" id="skMj">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-mj"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">👷 Usta va magazinlar (saytdan)</span><span class="sht-holat" id="skMjHolatQisqa"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Usta va qurilish magazinlari saytga Telegram orqali kiradi (telefon raqami Telegramdan olinadi) va so'rov yuboradi.
+          Shu yerda tasdiqlaysiz: usta — ERP'dagi ustaga bog'lanadi va KPI foizi qo'yiladi (keshbek shu foizdan); magazinga — ulgurji
+          bo'lim ochiladi. Tasdiq yoki rad haqida mijozga Telegram'da xabar boradi.</p>
+        <div class="sk-mj-bot" id="skMjBot" aria-live="polite">Yuklanmoqda…</div>
+        <div id="skMjRoyxat" aria-live="polite"></div>
       </div>
     </details>
   </div>
@@ -2242,6 +2271,174 @@ async function skApiNusxa() {
 }
 
 skApiYukla();
+
+// ── kech181 (zip 248): «Usta va magazinlar (saytdan)» ──
+// Hisoblar — GET /api/sayt-katalogi/mijozlar (kutilayotganlar birinchi), bot holati — GET /api/sayt-katalogi/dokon-bot (token qiymati
+// kelmaydi). Tasdiq: usta — ERP ustasi (telefon / Telegram mos kelsa — taklif birinchi) yoki «Yangi usta» + KPI % (SHART, 0 dan katta);
+// magazin — tasdiqning o'zi. Rad (sabab ixtiyoriy), bloklash, blokdan chiqarish — tasdiq oynasi bilan. Har amaldan keyin ro'yxat qayta
+// o'qiladi (boshqa oynada o'zgargan bo'lsa server 409 beradi — sababi ko'rsatiladi). Server matni — `escapeHtml`.
+SK.mj = null;
+SK.mjBot = null;
+
+function skMjSana(iso) { return iso ? (tkSanaVaqt(iso) || '—') : '—'; }   // server vaqti — zonasiz UTC; ko'rinish — Toshkent
+
+function skMjBotChiz() {
+  var h = document.getElementById('skMjBot');
+  if (!h) return;
+  var b = SK.mjBot;
+  if (!b) { h.textContent = 'Bot holati olinmadi — sahifani yangilang.'; return; }
+  var html;
+  if (!b.token_bor) {
+    html = '🤖 Do\'kon boti ulanmagan: serverda <b data-no-i18n>DOKON_BOT_TOKEN</b> o\'zgaruvchisi yo\'q — usta va magazinlar hozircha saytga kira olmaydi.';
+  } else {
+    html = '🤖 Bot: <b data-no-i18n>' + escapeHtml(b.bot ? '@' + b.bot : 'nomi olinmadi') + '</b> · ' +
+      (b.ulangan ? '✓ shu saytga ulangan' : (b.webhook ? '⚠ boshqa manzilga ulangan: <span data-no-i18n>' + escapeHtml(b.webhook) + '</span>'
+        : '⚠ hali hech qayerga ulanmagan')) +
+      (b.oxirgi_xato ? '<br>Oxirgi xato: ' + escapeHtml(b.oxirgi_xato) : '') +
+      (b.sayt ? '<br>Do\'kon sayti: <span data-no-i18n>' + escapeHtml(b.sayt) + '</span>' : '');
+    if (!b.ulangan) {
+      html += '<div class="sk-ex-tugmalar"><button type="button" class="btn btn-dark" id="skMjBotUla">🔗 Botni shu saytga ulash</button>' +
+        (b.webhook && b.muhit === 'production' ? '<button type="button" class="btn btn-outline" id="skMjBotMajburiy">Baribir ulash</button>' : '') +
+        '</div>';
+    }
+  }
+  h.innerHTML = html;
+  var t = document.getElementById('skMjBotUla');
+  if (t) t.addEventListener('click', function () { skMjBotUla(false); });
+  t = document.getElementById('skMjBotMajburiy');
+  if (t) t.addEventListener('click', function () { skMjBotUla(true); });
+}
+
+function skMjUstaTanlov(x) {
+  var u = (SK.mj && SK.mj.ustalar) || [];
+  var tk = x.taklif;
+  var opt = '<option value="">— ERP\'dagi ustani tanlang —</option>';
+  if (tk) opt += '<option value="' + tk.id + '" selected>' + escapeHtml(tk.nomi + ' · ' + (tk.telefon || '') + ' (mos keldi)') + '</option>';
+  u.forEach(function (a) {
+    if (tk && a.id === tk.id) return;
+    if (a.band) return;
+    opt += '<option value="' + a.id + '">' + escapeHtml(a.nomi + ' · ' + (a.telefon || '') + (a.faol ? '' : ' (nofaol)')) + '</option>';
+  });
+  opt += '<option value="yangi"' + (tk ? '' : ' selected') + '>➕ Yangi usta (ism va telefon — saytdagidek)</option>';
+  return '<select data-mj-usta aria-label="ERP ustasi">' + opt + '</select>' +
+    '<input type="text" inputmode="decimal" data-mj-kpi placeholder="KPI %" aria-label="KPI foizi" value="' +
+    (tk && tk.kpi > 0 ? escapeHtml(String(tk.kpi).replace('.', ',')) : '') + '">';
+}
+
+function skMjQator(x) {
+  var bosh = '<div class="sk-mj-bosh"><b>' + escapeHtml(x.ism || '—') + '</b><span>' + escapeHtml(x.telefon_korinish || '') + '</span>' +
+    '<span>' + escapeHtml(x.turi_nomi || 'tanlanmagan') + '</span>' +
+    (x.turi === 'magazin' ? '<span>🏪 ' + escapeHtml((x.magazin || '') + (x.shahar ? ', ' + x.shahar : '')) + '</span>' : '') +
+    '<span class="sk-mj-izoh">' + escapeHtml(x.holat_nomi || x.holat) + ' · ' + escapeHtml(skMjSana(x.royxat_vaqti || x.yaratilgan)) + '</span></div>';
+  var tafsil = '';
+  if (x.holat === 'tasdiqlangan' && x.turi === 'usta' && x.taklif) {
+    tafsil = '<div class="sk-mj-izoh">ERP ustasi: ' + escapeHtml(x.taklif.nomi) + ' · KPI ' + escapeHtml(sonKor(x.taklif.kpi, 2)) + ' %</div>';
+  }
+  if (x.holat === 'tasdiqlangan' && x.tasdiqlagan) {
+    tafsil += '<div class="sk-mj-izoh">Tasdiqladi: ' + escapeHtml(x.tasdiqlagan) + ' · ' + escapeHtml(skMjSana(x.tasdiq_vaqti)) + '</div>';
+  }
+  if (x.holat === 'rad' && x.rad_sababi) tafsil += '<div class="sk-mj-izoh">Rad sababi: ' + escapeHtml(x.rad_sababi) + '</div>';
+  var forma = '';
+  if (x.holat === 'kutilmoqda') {
+    forma = '<div class="sk-mj-forma">' + (x.turi === 'usta' ? skMjUstaTanlov(x) : '') +
+      '<button type="button" class="btn btn-dark" data-mj-amal="tasdiqla">✓ Tasdiqlash</button></div>' +
+      '<div class="sk-mj-forma"><input type="text" data-mj-sabab maxlength="200" placeholder="Rad sababi (ixtiyoriy)" aria-label="Rad sababi">' +
+      '<button type="button" class="btn btn-outline" data-mj-amal="rad">Rad etish</button>' +
+      '<button type="button" class="btn btn-outline" data-mj-amal="blokla">Bloklash</button></div>';
+  } else if (x.holat === 'bloklangan') {
+    forma = '<div class="sk-mj-forma"><button type="button" class="btn btn-outline" data-mj-amal="ochish">Blokdan chiqarish</button></div>';
+  } else {
+    forma = '<div class="sk-mj-forma"><button type="button" class="btn btn-outline" data-mj-amal="blokla">Bloklash</button></div>';
+  }
+  return '<div class="sk-mj-qator" data-mj-id="' + x.id + '" data-holat="' + escapeHtml(x.holat) + '">' + bosh + tafsil + forma + '</div>';
+}
+
+function skMjChiz() {
+  var r = document.getElementById('skMjRoyxat');
+  if (!r) return;
+  var d = SK.mj;
+  if (!d) { r.textContent = 'Ro\'yxat olinmadi — sahifani yangilang.'; shtorkaHolat('sk-mj', '', null); return; }
+  var m = d.mijozlar || [];
+  shtorkaHolat('sk-mj', d.kutilmoqda ? d.kutilmoqda + ' ta so\'rov kutmoqda' : (m.length ? m.length + ' ta hisob' : 'hisob yo\'q'),
+    d.kutilmoqda ? 'muammo' : null);
+  if (!m.length) { r.innerHTML = '<p class="sk-matn">Hali hech kim ro\'yxatdan o\'tmagan.</p>'; return; }
+  var guruhlar = [['kutilmoqda', 'Tasdiq kutayotganlar'], ['tasdiqlangan', 'Tasdiqlanganlar'], ['yangi', 'Kirgan, so\'rov yubormagan'],
+    ['rad', 'Rad etilganlar'], ['bloklangan', 'Bloklanganlar']];
+  var html = '';
+  guruhlar.forEach(function (g) {
+    var q = m.filter(function (x) { return x.holat === g[0]; });
+    if (!q.length) return;
+    html += '<div class="sk-mj-guruh">' + escapeHtml(g[1]) + ' (' + q.length + ')</div>' + q.map(skMjQator).join('');
+  });
+  r.innerHTML = html;
+  r.querySelectorAll('[data-mj-amal]').forEach(function (b) {
+    b.addEventListener('click', function () { skMjAmal(b); });
+  });
+}
+
+async function skMjYukla() {
+  var n = await skSorov('/api/sayt-katalogi/mijozlar', 'GET');
+  SK.mj = n.ok ? n.d : null;
+  skMjChiz();
+  var b = await skSorov('/api/sayt-katalogi/dokon-bot', 'GET');
+  SK.mjBot = b.ok ? b.d : null;
+  skMjBotChiz();
+}
+
+async function skMjBotUla(majburiy) {
+  if (majburiy && !(await customConfirm('Botni ulash', 'Bot hozir boshqa manzilga ulangan. Shu saytga ulansa, o\'sha yerdagi bot ishlamay ' +
+      'qoladi. Davom etilsinmi?', {danger: true}))) return;
+  if (!skBandla('mjbot')) return;
+  document.querySelectorAll('#skMjBot .btn').forEach(function (x) { x.disabled = true; });
+  var n = await skSorov('/api/sayt-katalogi/dokon-bot/ulash', 'POST', majburiy ? {majburiy: true} : {});
+  skBo('mjbot');
+  if (n.ok) { SK.mjBot = n.d; showMsg('✓ Bot shu saytga ulandi', 'success'); skMjBotChiz(); return; }
+  showMsg('❌ Bot ulanmadi: ' + n.sabab, 'error');
+  await skMjYukla();
+}
+
+async function skMjAmal(tugma) {
+  var q = tugma.closest('[data-mj-id]');
+  if (!q) return;
+  var id = parseInt(q.getAttribute('data-mj-id'), 10);
+  var amal = tugma.getAttribute('data-mj-amal');
+  var x = ((SK.mj && SK.mj.mijozlar) || []).filter(function (a) { return a.id === id; })[0];
+  if (!x) return;
+  var tana = {};
+  var savol = null;
+  if (amal === 'tasdiqla' && x.turi === 'usta') {
+    var u = q.querySelector('[data-mj-usta]').value;
+    var kpiMatn = (q.querySelector('[data-mj-kpi]').value || '').trim().replace(',', '.');
+    var kpi = kpiMatn === '' ? NaN : Number(kpiMatn);
+    if (!u) { showMsg('❌ ERP\'dagi ustani tanlang yoki «Yangi usta» ni belgilang', 'error'); return; }
+    if (!isFinite(kpi) || kpi <= 0 || kpi > 100) { showMsg('❌ KPI foizini kiriting (0 dan katta, 100 gacha) — 0 % bilan usta tasdiqlanmaydi', 'error'); return; }
+    tana = {kpi: kpi};
+    if (u === 'yangi') tana.yangi_usta = true; else tana.master_id = parseInt(u, 10);
+  } else if (amal === 'rad') {
+    var sabab = (q.querySelector('[data-mj-sabab]').value || '').trim();
+    if (sabab) tana.sabab = sabab;
+    savol = ['So\'rovni rad etish', (x.ism || '') + ' so\'rovi rad etilsinmi? Unga Telegram\'da xabar boradi.'];
+  } else if (amal === 'blokla') {
+    savol = ['Bloklash', (x.ism || '') + ' bloklansinmi? U saytdan darhol chiqadi va qayta kira olmaydi.'];
+  } else if (amal === 'ochish') {
+    savol = ['Blokdan chiqarish', (x.ism || '') + ' blokdan chiqarilsinmi? Keyin uni qayta tasdiqlash kerak bo\'ladi.'];
+  }
+  if (savol && !(await customConfirm(savol[0], savol[1], amal === 'ochish' ? {} : {danger: true}))) return;
+  if (!skBandla('mj' + id)) return;
+  q.querySelectorAll('.btn').forEach(function (b) { b.disabled = true; });
+  // yo'llar — har amal ALOHIDA yozilgan (tools/test_pasport B2 — har /api/ havola marshrutga mos bo'lsin)
+  var yol = {tasdiqla: '/api/sayt-katalogi/mijozlar/' + id + '/tasdiqla', rad: '/api/sayt-katalogi/mijozlar/' + id + '/rad',
+    blokla: '/api/sayt-katalogi/mijozlar/' + id + '/blokla', ochish: '/api/sayt-katalogi/mijozlar/' + id + '/ochish'}[amal];
+  if (!yol) return;
+  var n = await skSorov(yol, 'POST', (amal === 'blokla' || amal === 'ochish') ? undefined : tana);
+  skBo('mj' + id);
+  var nomi = {tasdiqla: 'tasdiqlandi', rad: 'rad etildi', blokla: 'bloklandi', ochish: 'blokdan chiqarildi'}[amal];
+  if (n.ok) showMsg('✓ ' + (x.ism || 'Hisob') + ' — ' + nomi, 'success');
+  else showMsg('❌ Bajarilmadi: ' + n.sabab, 'error');
+  await skMjYukla();
+}
+
+skMjYukla();
 
 // ── kech178 (zip 243): «Bajarilgan ishlar» galereyasi ────────────────────────────────────────────────────────────────────────
 // SK.gl — /api/sayt-katalogi/galereya javobi; SK.glOchiq — ochiq ish (raqam yoki 'yangi'); SK.glD — ochiq ishning TAHRIR nusxasi (saqlanmagan

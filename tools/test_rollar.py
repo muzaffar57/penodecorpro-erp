@@ -433,6 +433,13 @@ YANGI_MARSHRUTLAR = {
     "POST /api/dokon/v1/buyurtmalar/pdf": "-", "POST /api/dokon/v1/savat/pdf": "-",
     # kech180 (zip 247): platforma belgisi — login siz (statik fayl kabi)
     "GET /favicon.ico": "-", "HEAD /favicon.ico": "-",
+    # kech181 (zip 248): do'kon — Telegram orqali kirish / hisob (kalit + sessiya, login siz), do'kon boti; admin — FAQAT Admin
+    "POST /api/dokon/v1/kirish": "-", "POST /api/dokon/v1/kirish/holat": "-", "GET /api/dokon/v1/mijoz": "-",
+    "POST /api/dokon/v1/mijoz/royxat": "-", "POST /api/dokon/v1/mijoz/chiqish": "-", "POST /telegram/dokon": "-",
+    "GET /api/sayt-katalogi/mijozlar": "A", "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/tasdiqla": "A",
+    "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/rad": "A", "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/blokla": "A",
+    "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/ochish": "A", "GET /api/sayt-katalogi/dokon-bot": "A",
+    "POST /api/sayt-katalogi/dokon-bot/ulash": "A",
     "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",

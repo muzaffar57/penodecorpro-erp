@@ -7214,6 +7214,11 @@ AUDIT_AMALLARI = {
     # kech145 (zip 182, N5 — egasi qarori «Avtomatik yopilsin»): shu mahsulotning boshqa partiyasidan minus (yoki band kamomadi)
     # yopildi — `old_value` / `new_value` da partiyalar va miqdor
     "tm_minus_yopildi": ("🔁", "— minus yopildi (boshqa partiyadan ko'chirildi)", "Tayyor mahsulot minusi yopildi"),
+    # kech181 (zip 248): saytdagi usta / magazin hisobi tasdiqlandi yoki so'rovi rad etildi — `new_value` da tafsilot (bloklash —
+    # «blocked» / «unblocked»)
+    "dokon_tasdiq": ("✅", "— saytdagi hisob tasdiqlandi", "Sayt hisobi tasdiqlandi"),
+    "dokon_rad": ("❌", "— saytdagi so'rov rad etildi", "Sayt so'rovi rad etildi"),
+    "dokon_chiqarildi": ("🚫", "— «Bu men emas»: saytdagi hisob barcha qurilmalardan chiqarildi", "Sayt hisobidan chiqarildi"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
     "Zaxiradan tiklash": ("💾", "— zaxiradan tiklandi", "Zaxiradan tiklandi"),
 }
@@ -11438,7 +11443,9 @@ _TENANT_PARENTS = {
 #       ham yo'q — korxonaning «Barcha ma'lumotlarni o'chirish» amali yozishmani o'chirmaydi (`models.Murojaat` izohi).
 # kech170 (zip 236): + do'kon API kaliti (`dokon_api_kalitlar` — kalit xeshi; tiklash o'chirilgan / almashtirilgan kalitni qayta
 # tiriltirmasin; «Barcha ma'lumotlarni o'chirish» unga tegmaydi — `_reset_table_order` da yo'q)
-_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari", "dokon_api_kalitlar"}
+# kech181 (zip 248): + do'kon kirish urinishlari va mijoz sessiyalari (xeshlar; tiklash eski sessiyani tiriltirmasin)
+_NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari", "dokon_api_kalitlar",
+                      "dokon_kirishlar", "dokon_sessiyalar"}
 
 # Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
 # kech133 (zip 159): + hodim telefon kalitlari xeshi (ruxsat berilgan va kutayotgan) — tiklashdan keyin telefonlar qayta tasdiqlanadi
@@ -11582,6 +11589,7 @@ def _reset_table_order():
         DokonDetal, DokonModel, DokonBolim, DokonRasm, DokonTelefon, DokonChegirma,
         DokonBuyurtma, DokonBuyurtmaQator,
         DokonGalereya, DokonGalereyaQator, DokonGalereyaRasm,
+        DokonMijoz, DokonKirish, DokonSessiya,
     )
     return [
         ProductionOrder,
@@ -11608,6 +11616,9 @@ def _reset_table_order():
         # kech117 (A2): yo'nalish — unga ishora qiluvchilardan (hodim, xarajat, transport, kirim, MRP turi) KEYIN
         # o'chiriladi, tiklashda ulardan OLDIN qo'shiladi.
         Yonalish,
+        # kech181 (zip 248, review248 H1): saytdagi hisob ERP ustasiga (`master_id`), kirish / sessiya — hisobga ishora qiladi: o'chirishda
+        # sessiya → kirish → hisob → usta; tiklashda hisob ustadan KEYIN (sessiya / kirish — tiklanmaydi)
+        DokonSessiya, DokonKirish, DokonMijoz,
         MasterGiftRedemption, MasterGift,
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
         Master, Project, Supplier,
@@ -11738,7 +11749,7 @@ def import_full_backup(db: Session, data: dict, company_id: int,
         return v
 
     # Tartib: o'chirish tartibining TESKARISI — ota avval, bola keyin. kech139 (A-X07): sessiya jadvali — HECH QACHON.
-    _sessiya_jadvallari = {"employee_sessions", "user_sessions"}
+    _sessiya_jadvallari = {"employee_sessions", "user_sessions", "dokon_sessiyalar", "dokon_kirishlar"}   # kech181 (zip 248)
     order = [m for m in reversed(_reset_table_order()) if m.__tablename__ not in _sessiya_jadvallari]
 
     # kech139 (zip 167, A-X07): bog'lanishlar tekshiruvi — HECH NARSA o'zgartirilmasdan OLDIN. Fayldagi har jadvalning `id` lari
@@ -27538,3 +27549,580 @@ def sayt_pdf_savat(db: Session, company_id: int, data, hozir_utc=None) -> dict:
             "telefon": None, "viloyat_nomi": None, "holat": "savat", "holat_nomi": None,
             "items": _sayt_pdf_qatorlari([_sayt_hisob_qatori(x) for x in hisob["qatorlar"]]), "jami": float(hisob["jami"]),
             "pastki": _sayt_pdf_pastki(db, company_id, "savat", None, tejaldi, None, hozir_utc)}
+
+
+# ══ kech181 (zip 248) — DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH VA RO'YXAT (do'kon 2-bosqich, ERP tomoni, 1-qism) ══════════
+# Egasi QARORLARI («Onlayn do'kon rejasi» 30.10; QAYTA SO'RALMAYDI): kirish parol / SMS siz — Telegram orqali (@penodecorprobot,
+# «Raqamni yuborish» — telefon Telegram akkauntidan, tasdiqlangan); birinchi kirishda usta yoki magazin tanlanadi (ism; magazinda — nomi va
+# shahar / tuman); egasi tasdiqlaydi — usta KPI % SHART (0 % bilan qolmaydi), ERP dagi usta hisobiga bog'lanadi; tasdiq / rad xabari —
+# shu bot orqali. 03.11 egasi: @penodecorprobot ni o'zi ochgan.
+# Texnik qarorlar (Claude, kech181):
+#   * hisob, kirish kodi va sessiya — ERP bazasida (do'kon saytida baza yo'q); bot — ERP da (`DOKON_BOT_TOKEN`, har muhitga o'z boti;
+#     webhook siri tokendan hosil qilinadi — `dokon_bot_sir`); usta boti (@Penoustabot) va korxona botlariga TEGILMAYDI;
+#   * kirish: `kod` (24 bayt, bot havolasida — ochiq) + `sir` (32 bayt — faqat shu brauzerga); bazada — SHA-256 xeshlar; 10 daqiqa,
+#     bir marta; havolani ko'rgan boshqa odam `sir` siz sessiya ololmaydi; kontakt — FAQAT yuboruvchining o'zi (`contact.user_id ==
+#     from.id`), FAQAT +998;
+#   * sessiya — «pds_» + 32 bayt (bazada xeshi, 30 kun); sessiya beriladigan lahza — shartli UPDATE (bir kirishga BITTA sessiya);
+#     bloklash / rad — `mj_avlod` oshadi va sessiyalar o'chiriladi;
+#   * do'kon javobida — faqat do'kon ko'rsatadiganlari (`dokon_mijoz_korinish`): tannarx, KPI %, ERP usta raqami — YO'Q.
+import hashlib as _hl248                                 # noqa: E402
+import hmac as _hm248                                    # noqa: E402
+import math as _math248                                  # noqa: E402
+import re as _re248                                      # noqa: E402
+import secrets as _sec248                                # noqa: E402
+from datetime import timedelta as _td248                 # noqa: E402
+
+DOKON_BOT_TOKEN_ENV = "DOKON_BOT_TOKEN"
+_VERGUL248 = str.maketrans(",", ".")                  # KPI «7,5» → 7.5 (o'nli vergul; `.replace(",", …)` — test_xabar_summalar192)
+DOKON_SAYT_URL_KALIT = "dokon_sayt_url"
+MIJOZ_SESSIYA_SARLAVHA = "X-Mijoz-Sessiya"
+DOKON_KIRISH_MUDDAT = _td248(minutes=10)
+DOKON_SESSIYA_MUDDAT = _td248(days=30)
+DOKON_SESSIYA_QADAM = _td248(minutes=5)
+DOKON_KIRISH_SAQLASH = _td248(days=1)
+DOKON_KIRISH_DAQIQA_MAX = 300                  # review248 L6: kalitga umumiy (do'kon sayti — o'z IP chegarasi bilan)
+DOKON_KIRISH_OLISH_ZAXIRA = _td248(minutes=5)   # review248 L3: tasdiqlangan kirish — sessiya muddat + 5 daqiqagacha olinadi
+DOKON_BOT_CHIQ = "dk_chiq"                      # review248 M1: «Bu men emas» tugmasi (callback_data)
+DOKON_HOLAT_DAQIQA_MAX = 900
+DOKON_MIJOZ_DAQIQA_MAX = 900
+DOKON_KIRISH_KOD_RE = _re248.compile(r"[A-Za-z0-9_-]{32}")
+DOKON_KIRISH_SIR_RE = _re248.compile(r"[A-Za-z0-9_-]{43}")
+DOKON_SESSIYA_OLDI = "pds_"
+DOKON_SESSIYA_RE = _re248.compile(r"pds_[A-Za-z0-9_-]{43}")
+DOKON_BOT_START_OLDI = "k_"
+DOKON_MIJOZ_TURLARI = {"usta": "Usta", "magazin": "Qurilish magazini"}
+DOKON_MIJOZ_HOLATLARI = {"yangi": "So'rov yubormagan", "kutilmoqda": "Tasdiq kutilmoqda", "tasdiqlangan": "Tasdiqlangan",
+                         "rad": "Rad etilgan", "bloklangan": "Bloklangan"}
+_DOKON_KIRISH_CHEKLOV = _DokonApiCheklov(DOKON_KIRISH_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+_DOKON_HOLAT_CHEKLOV = _DokonApiCheklov(DOKON_HOLAT_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+_DOKON_MIJOZ_CHEKLOV = _DokonApiCheklov(DOKON_MIJOZ_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + ("/api/dokon/v1/kirish", "/api/dokon/v1/kirish/holat", "/api/dokon/v1/mijoz",
+                                       "/api/dokon/v1/mijoz/royxat", "/api/dokon/v1/mijoz/chiqish")
+
+
+class DokonSessiyaYoq(Exception):
+    """Mijoz sessiyasi yo'q / yaroqsiz / muddati o'tgan / hisob bloklangan — 401."""
+
+
+class DokonMijozZiddiyat(Exception):
+    """Holat amalga mos emas (allaqachon tasdiqlangan, boshqa oynada o'zgargan, usta band …) — 409."""
+
+
+def _dk_xesh(s: str) -> str:
+    return _hl248.sha256(s.encode("utf-8")).hexdigest()
+
+
+def dokon_bot_sir(token: str) -> str:
+    """Webhook siri (Telegram `secret_token`: 1–256 belgi, A–Z a–z 0–9 _ -) — bot tokenidan hosil qilinadi: alohida o'zgaruvchi shart
+    emas, token almashsa sir ham almashadi; token o'zi Telegram'ga qayta yuborilmaydi."""
+    return _hm248.new(str(token or "").encode("utf-8"), b"penodecor-dokon-bot-webhook", "sha256").hexdigest()
+
+
+def dokon_telegram_telefon(qiymat):
+    """Telegram kontaktidagi raqam («998901234567», «+998 90 123 45 67») → `+998XXXXXXXXX`; O'zbekiston raqami bo'lmasa — None."""
+    r = "".join(ch for ch in str(qiymat or "") if ch.isascii() and ch.isdigit())
+    if len(r) == 12 and r.startswith("998"):
+        return "+" + r
+    return None
+
+
+def _dk_tg_ism(birinchi, oxirgi) -> str:
+    qism = []
+    for x in (birinchi, oxirgi):
+        if isinstance(x, str):
+            t = " ".join(_dokon_toza(x).split())
+            if t and not any(0xD800 <= ord(ch) <= 0xDFFF for ch in t):
+                qism.append(t)
+    return " ".join(qism)[:130] or None
+
+
+def dokon_mijoz_korinish(m) -> dict:
+    """Do'kon sayti ko'radigan hisob ma'lumoti: turi, holati, ismi, telefoni, magazin nomi / shahri, rad sababi. KPI %, ERP usta raqami,
+    Telegram raqami — YO'Q."""
+    return {"id": m.id, "turi": m.mj_turi, "turi_nomi": DOKON_MIJOZ_TURLARI.get(m.mj_turi) if m.mj_turi else None,
+            "holat": m.mj_holat, "holat_nomi": DOKON_MIJOZ_HOLATLARI.get(m.mj_holat, m.mj_holat),
+            "ism": m.mj_ism or m.mj_tg_ism, "tg_ism": m.mj_tg_ism, "telefon": m.mj_telefon,
+            "telefon_korinish": dokon_telefon_korinish(m.mj_telefon), "magazin": m.mj_magazin, "shahar": m.mj_shahar,
+            "rad_sababi": m.mj_rad_sababi if m.mj_holat == "rad" else None}
+
+
+def _dk_tozala(db: Session, company_id: int, hozir):
+    """Muddati o'tgan kirish urinishlari (1 kundan eski) va sessiyalar — o'chiriladi (chaqiruvchining tranzaksiyasida)."""
+    from models import DokonKirish, DokonSessiya
+    db.query(DokonKirish).filter(DokonKirish.company_id == company_id,
+                                 DokonKirish.kr_muddat < hozir - DOKON_KIRISH_SAQLASH).delete(synchronize_session=False)
+    db.query(DokonSessiya).filter(DokonSessiya.company_id == company_id,
+                                  DokonSessiya.ss_muddat < hozir).delete(synchronize_session=False)
+
+
+def dokon_sayt_url_norm(qiymat):
+    """Do'kon sayti o'z manzilini yuboradi (bot «Saytni ochish» havolasi uchun): faqat `https://xost[:port]` (yo'l / so'rov / foydalanuvchi
+    YO'Q); noto'g'ri — None (e'tiborga olinmaydi)."""
+    if not isinstance(qiymat, str) or len(qiymat) > 200:
+        return None
+    m = _re248.fullmatch(r"https://([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)(:\d{1,5})?/?",
+                         qiymat.strip().lower())
+    if not m:
+        return None
+    return "https://" + m.group(1) + (m.group(2) or "")
+
+
+def dokon_kirish_boshla(db: Session, company_id: int, data, hozir=None) -> dict:
+    """Yangi kirish urinishi: {"kod", "sir", "muddat_soniya"}. Ixtiyoriy {"sayt": "https://…"} — bot havolasi uchun saqlanadi."""
+    from models import DokonKirish
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("sayt",))
+    hozir = hozir or _dt233.utcnow()
+    sayt = dokon_sayt_url_norm(data.get("sayt"))
+    if data.get("sayt") is not None and sayt is None:
+        raise ValueError("Sayt manzili noto'g'ri")
+    kod = _sec248.token_urlsafe(24)
+    sir = _sec248.token_urlsafe(32)
+    _dk_tozala(db, company_id, hozir)
+    db.add(DokonKirish(company_id=company_id, kr_kod_xesh=_dk_xesh(kod), kr_sir_xesh=_dk_xesh(sir), kr_holat="kutilmoqda",
+                       kr_muddat=hozir + DOKON_KIRISH_MUDDAT, created_at=hozir))
+    if sayt and sayt != get_setting(db, DOKON_SAYT_URL_KALIT, None, company_id=company_id):
+        from models import CompanySetting
+        row = (db.query(CompanySetting)
+               .filter(CompanySetting.company_id == company_id, CompanySetting.key == DOKON_SAYT_URL_KALIT).first())
+        if row:
+            row.value = sayt
+        else:
+            db.add(CompanySetting(company_id=company_id, key=DOKON_SAYT_URL_KALIT, value=sayt))
+    db.commit()
+    return {"kod": kod, "sir": sir, "muddat_soniya": int(DOKON_KIRISH_MUDDAT.total_seconds())}
+
+
+def _dk_sessiya_yarat(db: Session, m, hozir) -> str:
+    from models import DokonSessiya
+    token = DOKON_SESSIYA_OLDI + _sec248.token_urlsafe(32)
+    db.add(DokonSessiya(company_id=m.company_id, mijoz_id=m.id, ss_xesh=_dk_xesh(token), ss_avlod=m.mj_avlod or 0,
+                        created_at=hozir, ss_oxirgi=hozir, ss_muddat=hozir + DOKON_SESSIYA_MUDDAT))
+    return token
+
+
+def dokon_kirish_holat(db: Session, company_id: int, data, hozir=None) -> dict:
+    """Sayt so'raydi: {"kod", "sir"}. Javob: {"holat": "kutilmoqda", "telegram_ochildi": bool} | {"holat": "tayyor", "sessiya", "mijoz"}
+    (BIR marta) | {"holat": "muddati_otdi"} | {"holat": "ishlatildi"} | {"holat": "bloklangan"}. Kod yoki sir mos emas — `KeyError`
+    (marshrut 404, bir xil javob)."""
+    from models import DokonKirish, DokonMijoz
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("kod", "sir"))
+    kod, sir = data.get("kod"), data.get("sir")
+    if not isinstance(kod, str) or not isinstance(sir, str) or not DOKON_KIRISH_KOD_RE.fullmatch(kod) \
+            or not DOKON_KIRISH_SIR_RE.fullmatch(sir):
+        raise KeyError("Kirish topilmadi")
+    hozir = hozir or _dt233.utcnow()
+    k = (db.query(DokonKirish)
+         .filter(DokonKirish.company_id == company_id, DokonKirish.kr_kod_xesh == _dk_xesh(kod)).first())
+    if k is None or not _hm248.compare_digest(k.kr_sir_xesh.encode("ascii"), _dk_xesh(sir).encode("ascii")):
+        raise KeyError("Kirish topilmadi")
+    if k.kr_holat == "ishlatildi":
+        return {"holat": "ishlatildi"}
+    if k.kr_holat != "tasdiqlandi":
+        if k.kr_muddat <= hozir:
+            return {"holat": "muddati_otdi"}
+        return {"holat": "kutilmoqda", "telegram_ochildi": k.kr_holat == "raqam"}
+    if k.kr_muddat + DOKON_KIRISH_OLISH_ZAXIRA <= hozir:          # review248 L3: tasdiqlangan, lekin olinmagan kirish — abadiy emas
+        return {"holat": "muddati_otdi"}
+    # tasdiqlandi — sessiya BIR marta (shartli UPDATE: ikki parallel so'rovdan faqat bittasi oladi)
+    n = (db.query(DokonKirish)
+         .filter(DokonKirish.id == k.id, DokonKirish.company_id == company_id, DokonKirish.kr_holat == "tasdiqlandi")
+         .update({DokonKirish.kr_holat: "ishlatildi"}, synchronize_session=False))
+    if n != 1:
+        db.rollback()
+        return {"holat": "ishlatildi"}
+    m = (db.query(DokonMijoz).filter(DokonMijoz.id == k.mijoz_id, DokonMijoz.company_id == company_id)
+         .populate_existing().with_for_update().first())
+    if m is None or m.mj_holat == "bloklangan":
+        db.commit()
+        return {"holat": "bloklangan"}
+    token = _dk_sessiya_yarat(db, m, hozir)
+    db.commit()
+    return {"holat": "tayyor", "sessiya": token, "mijoz": dokon_mijoz_korinish(m)}
+
+
+def dokon_bot_start(db: Session, company_id: int, chat_id: str, kod: str, hozir=None) -> str:
+    """Bot: `/start k_<kod>` — «raqam_sora» (kirish topildi, chat yozildi) | «eskirgan» (yo'q / muddati o'tgan / ishlatilgan / BOSHQA chat
+    allaqachon ochgan — review248 M2: havolani ko'rgan ikkinchi odam birinchisining kirishini egallab ololmaydi)."""
+    from models import DokonKirish
+    from sqlalchemy import or_ as _or248
+    if not isinstance(kod, str) or not DOKON_KIRISH_KOD_RE.fullmatch(kod):
+        return "eskirgan"
+    hozir = hozir or _dt233.utcnow()
+    n = (db.query(DokonKirish)
+         .filter(DokonKirish.company_id == company_id, DokonKirish.kr_kod_xesh == _dk_xesh(kod),
+                 DokonKirish.kr_holat.in_(("kutilmoqda", "raqam")), DokonKirish.kr_muddat > hozir,
+                 _or248(DokonKirish.kr_chat.is_(None), DokonKirish.kr_chat == str(chat_id)[:20]))
+         .update({DokonKirish.kr_chat: str(chat_id)[:20], DokonKirish.kr_holat: "raqam"}, synchronize_session=False))
+    db.commit()
+    return "raqam_sora" if n == 1 else "eskirgan"
+
+
+def dokon_bot_kontakt(db: Session, company_id: int, chat_id: str, from_id, contact, hozir=None):
+    """Bot: kontakt keldi. Natija (holat, mijoz): «begona» (boshqa odamning kontakti) | «xorijiy» (+998 emas) | «kirish_yoq» (shu chatda
+    ochiq kirish yo'q) | «bloklangan» | «kirdi». Hisob — Telegram raqami bo'yicha topiladi yoki ochiladi («yangi»)."""
+    from models import DokonKirish, DokonMijoz
+    hozir = hozir or _dt233.utcnow()
+    if not isinstance(contact, dict) or from_id is None or str(contact.get("user_id")) != str(from_id):
+        return "begona", None
+    telefon = dokon_telegram_telefon(contact.get("phone_number"))
+    if telefon is None:
+        return "xorijiy", None
+    k = (db.query(DokonKirish)
+         .filter(DokonKirish.company_id == company_id, DokonKirish.kr_chat == str(chat_id)[:20], DokonKirish.kr_holat == "raqam",
+                 DokonKirish.kr_muddat > hozir)
+         .order_by(DokonKirish.id.desc()).populate_existing().with_for_update().first())
+    if k is None:
+        return "kirish_yoq", None
+    tg = str(from_id)[:20]
+    ism = _dk_tg_ism(contact.get("first_name"), contact.get("last_name"))
+    m = (db.query(DokonMijoz).filter(DokonMijoz.company_id == company_id, DokonMijoz.mj_tg_id == tg)
+         .populate_existing().with_for_update().first())
+    if m is None:
+        m = DokonMijoz(company_id=company_id, mj_tg_id=tg, mj_telefon=telefon, mj_tg_ism=ism, mj_holat="yangi", mj_avlod=0,
+                       created_at=hozir, updated_at=hozir)
+        db.add(m)
+        db.flush()
+    else:
+        if m.mj_telefon != telefon or (ism and m.mj_tg_ism != ism):
+            m.mj_telefon = telefon
+            m.mj_tg_ism = ism or m.mj_tg_ism
+            m.updated_at = hozir
+    if m.mj_holat == "bloklangan":
+        db.commit()
+        return "bloklangan", m
+    k.kr_holat = "tasdiqlandi"
+    k.mijoz_id = m.id
+    db.commit()
+    return "kirdi", m
+
+
+def dokon_sessiya_mijoz(db: Session, company_id: int, token, hozir=None, qulf=False):
+    """`X-Mijoz-Sessiya` → mijoz (DokonMijoz). Yo'q / shakli noto'g'ri / muddati o'tgan / avlodi eski / bloklangan — `DokonSessiyaYoq`.
+    Oxirgi faollik — 5 daqiqada bir marta yoziladi. `qulf=True` — mijoz qatori FOR UPDATE bilan (yozuvchi yo'llar)."""
+    from models import DokonMijoz, DokonSessiya
+    if not isinstance(token, str) or not DOKON_SESSIYA_RE.fullmatch(token):
+        raise DokonSessiyaYoq("Kirilmagan")
+    hozir = hozir or _dt233.utcnow()
+    s = (db.query(DokonSessiya)
+         .filter(DokonSessiya.company_id == company_id, DokonSessiya.ss_xesh == _dk_xesh(token)).first())
+    if s is None or s.ss_muddat <= hozir:
+        raise DokonSessiyaYoq("Kirilmagan")
+    q = db.query(DokonMijoz).filter(DokonMijoz.id == s.mijoz_id, DokonMijoz.company_id == company_id)
+    if qulf:
+        q = q.populate_existing().with_for_update()
+    m = q.first()
+    if m is None or m.mj_holat == "bloklangan" or (m.mj_avlod or 0) != (s.ss_avlod or 0):
+        raise DokonSessiyaYoq("Kirilmagan")
+    if not qulf and (s.ss_oxirgi is None or hozir - s.ss_oxirgi >= DOKON_SESSIYA_QADAM):
+        try:
+            (db.query(DokonSessiya).filter(DokonSessiya.id == s.id, DokonSessiya.company_id == company_id)
+             .update({DokonSessiya.ss_oxirgi: hozir}, synchronize_session=False))
+            db.commit()
+        except Exception:                                # noqa: BLE001 — vaqtni yozib bo'lmasa ham javob berilsin
+            db.rollback()
+    return m
+
+
+def dokon_mijoz_chiqish(db: Session, company_id: int, token) -> bool:
+    """Saytdan chiqish — shu sessiya o'chiriladi (boshqa qurilmalardagi sessiyalar qoladi). Yo'q bo'lsa — False."""
+    from models import DokonSessiya
+    if not isinstance(token, str) or not DOKON_SESSIYA_RE.fullmatch(token):
+        return False
+    n = (db.query(DokonSessiya).filter(DokonSessiya.company_id == company_id, DokonSessiya.ss_xesh == _dk_xesh(token))
+         .delete(synchronize_session=False))
+    db.commit()
+    return n > 0
+
+
+def dokon_mijoz_royxat(db: Session, company_id: int, token, data, hozir=None):
+    """Ro'yxat so'rovi: {"turi": "usta"|"magazin", "ism", "magazin"?, "shahar"?} — «yangi» / «rad» / «kutilmoqda» (tahrir) holatida.
+    Natija: (mijoz, yangi_sorovmi). «tasdiqlangan» — `DokonMijozZiddiyat` (409)."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("turi", "ism", "magazin", "shahar"))
+    turi = data.get("turi")
+    if turi not in DOKON_MIJOZ_TURLARI:
+        raise ValueError("Usta yoki magazinni tanlang")
+    ism = _dokon_matn(data.get("ism"), "Ismingiz", 100)
+    if len(ism) < 2:
+        raise ValueError("«Ismingiz» kamida 2 belgi bo'lsin")
+    magazin = shahar = None
+    if turi == "magazin":
+        magazin = _dokon_matn(data.get("magazin"), "Magazin nomi", 120)
+        shahar = _dokon_matn(data.get("shahar"), "Shahar yoki tuman", 80)
+        if len(magazin) < 2 or len(shahar) < 2:
+            raise ValueError("Magazin nomi va shahar / tuman kamida 2 belgi bo'lsin")
+    elif data.get("magazin") not in (None, "") or data.get("shahar") not in (None, ""):
+        raise ValueError("Usta uchun magazin nomi / shahar yuborilmaydi")
+    hozir = hozir or _dt233.utcnow()
+    m = dokon_sessiya_mijoz(db, company_id, token, hozir, qulf=True)
+    if m.mj_holat == "tasdiqlangan":
+        db.rollback()
+        raise DokonMijozZiddiyat("Hisobingiz allaqachon tasdiqlangan")
+    # review248 L7: egasiga xabar — faqat so'rov YANGI tushganda («yangi» / «rad» dan); kutilayotgan so'rovni tahrirlash (turini almashtirish
+    # ham) — xabarsiz (ro'yxatda yangilangani ko'rinadi), aks holda turini almashtirib egasining Telegramini to'ldirish mumkin edi
+    yangi = m.mj_holat != "kutilmoqda"
+    m.mj_turi, m.mj_ism, m.mj_magazin, m.mj_shahar = turi, ism, magazin, shahar
+    if turi != "usta":
+        m.master_id = None                                     # review248 M3: magazin ERP ustasiga bog'lanmaydi
+    m.mj_holat = "kutilmoqda"
+    m.mj_rad_sababi = None
+    m.mj_royxat_vaqti = hozir
+    m.updated_at = hozir
+    db.commit()
+    return m, yangi
+
+
+def dokon_royxat_telegram_matni(m) -> str:
+    """Egasiga (korxona boti) — yangi ro'yxat so'rovi."""
+    qator = [f"🆕 *Saytda yangi so'rov — {_tg237(DOKON_MIJOZ_TURLARI.get(m.mj_turi, m.mj_turi))}*",
+             f"👤 {_tg237(m.mj_ism or m.mj_tg_ism or '')} · {dokon_telefon_korinish(m.mj_telefon)}"]
+    if m.mj_turi == "magazin":
+        qator.append(f"🏪 {_tg237(m.mj_magazin or '')}, {_tg237(m.mj_shahar or '')}")
+    qator.append("Tasdiqlash: ERP → Sayt katalogi → «Usta va magazinlar»")
+    return "\n".join(qator)
+
+
+def _dk_master_taklif(db: Session, company_id: int, m):
+    """Telefoni (yoki Telegram raqami) mos ERP ustasi — tasdiqlash oynasida taklif (birinchi mosi)."""
+    kalit = telefon_kaliti(m.mj_telefon)
+    for u in (db.query(Master).filter(Master.company_id == company_id).order_by(Master.id).all()):
+        if (u.telegram_id and str(u.telegram_id).strip() == m.mj_tg_id) or (kalit and telefon_kaliti(u.phone) == kalit):
+            return u
+    return None
+
+
+def dokon_mijozlar_royxati(db: Session, company_id: int) -> dict:
+    """Admin: hamma hisoblar (kutilayotganlar birinchi, keyin yangisi birinchi) + ustalar ro'yxati (bog'lash uchun) + bot holati uchun
+    sayt manzili. Usta uchun — bog'langan / taklif qilingan ERP ustasi va uning KPI %."""
+    from models import DokonMijoz
+    dokon_tekshir(db, company_id)
+    tartib = {"kutilmoqda": 0, "yangi": 1, "rad": 2, "tasdiqlangan": 3, "bloklangan": 4}
+    rows = db.query(DokonMijoz).filter(DokonMijoz.company_id == company_id).all()
+    rows.sort(key=lambda r: (tartib.get(r.mj_holat, 9), -(r.mj_royxat_vaqti or r.created_at).timestamp(), -r.id))
+    ustalar = db.query(Master).filter(Master.company_id == company_id).order_by(Master.name, Master.id).all()
+    band = {r.master_id: r.id for r in rows if r.master_id}
+    natija = []
+    for r in rows:
+        x = dokon_mijoz_korinish(r)
+        x.update({"tg_id": r.mj_tg_id, "yaratilgan": r.created_at.isoformat() if r.created_at else None,
+                  "royxat_vaqti": r.mj_royxat_vaqti.isoformat() if r.mj_royxat_vaqti else None,
+                  "tasdiq_vaqti": r.mj_tasdiq_vaqti.isoformat() if r.mj_tasdiq_vaqti else None,
+                  "tasdiqlagan": r.mj_tasdiqlagan, "rad_sababi": r.mj_rad_sababi, "master_id": r.master_id, "taklif": None})
+        if r.mj_turi == "usta":
+            u = next((u for u in ustalar if u.id == r.master_id), None) if r.master_id else _dk_master_taklif(db, company_id, r)
+            if u is not None and (r.master_id or band.get(u.id) in (None, r.id)):
+                x["taklif"] = {"id": u.id, "nomi": u.name, "telefon": u.phone, "kpi": float(u.kpi_percent or 0)}
+        natija.append(x)
+    return {"mijozlar": natija, "kutilmoqda": sum(1 for r in rows if r.mj_holat == "kutilmoqda"),
+            "ustalar": [{"id": u.id, "nomi": u.name, "telefon": u.phone, "kpi": float(u.kpi_percent or 0),
+                         "faol": bool(u.is_active), "band": u.id in band} for u in ustalar]}
+
+
+def _dk_mijoz_qulf(db: Session, company_id: int, mijoz_id):
+    from models import DokonMijoz
+    if isinstance(mijoz_id, bool) or not isinstance(mijoz_id, int) or not (1 <= mijoz_id <= 2_147_483_647):
+        raise KeyError("Hisob topilmadi")
+    m = (db.query(DokonMijoz).filter(DokonMijoz.id == mijoz_id, DokonMijoz.company_id == company_id)
+         .populate_existing().with_for_update().first())
+    if m is None:
+        raise KeyError("Hisob topilmadi")
+    return m
+
+
+def _dk_kpi(qiymat) -> float:
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float, str)):
+        raise ValueError("KPI foizini kiriting (0 dan katta, 100 gacha)")
+    try:
+        k = float(str(qiymat).translate(_VERGUL248).strip()) if isinstance(qiymat, str) else float(qiymat)
+    except (ValueError, OverflowError):
+        raise ValueError("KPI foizi son bo'lsin")
+    if not _math248.isfinite(k):
+        raise ValueError("KPI foizi son bo'lsin")
+    k = round(k, 2)                                            # review248 L1: avval yaxlitlanadi (0,004 → 0 — rad)
+    if k <= 0 or k > 100:
+        raise ValueError("KPI foizi 0 dan katta va 100 dan oshmasin — 0 % bilan usta tasdiqlanmaydi")
+    return k
+
+
+def dokon_mijoz_tasdiqla(db: Session, company_id: int, mijoz_id, data, kim: str, hozir=None):
+    """Admin tasdig'i. Usta: {"kpi": >0, "master_id": N} (mavjud ERP ustasi) yoki {"kpi", "yangi_usta": true} (ism / telefon — hisobdan).
+    Magazin: {}. Faqat «kutilmoqda» holatidan. Natija: (mijoz, jurnal matni, mijozga xabar)."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("kpi", "master_id", "yangi_usta"))
+    hozir = hozir or _dt233.utcnow()
+    m = _dk_mijoz_qulf(db, company_id, mijoz_id)
+    if m.mj_holat != "kutilmoqda":
+        db.rollback()
+        raise DokonMijozZiddiyat("Bu hisob tasdiq kutmayapti (holati shu orada o'zgargan) — ro'yxatni yangilang")
+    tafsilot = ""
+    if m.mj_turi == "usta":
+        kpi = _dk_kpi(data.get("kpi"))
+        mid, yangi = data.get("master_id"), data.get("yangi_usta")
+        if (mid is None) == (yangi is not True):
+            raise ValueError("ERP dagi ustani tanlang yoki «Yangi usta» ni belgilang")
+        if mid is not None:
+            if isinstance(mid, bool) or not isinstance(mid, int) or not (1 <= mid <= 2_147_483_647):
+                raise ValueError("Usta noto'g'ri")
+            u = (db.query(Master).filter(Master.id == mid, Master.company_id == company_id)
+                 .populate_existing().with_for_update().first())
+            if u is None:
+                raise ValueError("Usta topilmadi")
+        else:
+            kalit = telefon_kaliti(m.mj_telefon)
+            if any(telefon_kaliti(x.phone) == kalit for x in db.query(Master).filter(Master.company_id == company_id).all()):
+                raise DokonMijozZiddiyat("Shu telefonli usta ERP da bor — yangisini ochmasdan, ro'yxatdan o'shani tanlang")
+            u = Master(company_id=company_id, name=(m.mj_ism or m.mj_tg_ism or "Usta")[:100], phone=m.mj_telefon,
+                       kpi_percent=kpi, cashback_percent=0.0, is_active=True, hire_date=hozir,
+                       notes="Saytdan ro'yxatdan o'tgan (Telegram)")
+            db.add(u)
+            db.flush()
+        from models import DokonMijoz
+        boshqa = (db.query(DokonMijoz.id).filter(DokonMijoz.company_id == company_id, DokonMijoz.master_id == u.id,
+                                                 DokonMijoz.id != m.id).first())
+        if boshqa is not None:
+            db.rollback()
+            raise DokonMijozZiddiyat("Bu usta saytdagi boshqa hisobga bog'langan")
+        eski_kpi = float(u.kpi_percent or 0)
+        u.kpi_percent = kpi
+        if not (u.telegram_id or "").strip():
+            tg_band = (db.query(Master.id).filter(Master.company_id == company_id, Master.telegram_id == m.mj_tg_id,
+                                                  Master.id != u.id).first())
+            if tg_band is None:
+                u.telegram_id = m.mj_tg_id
+        m.master_id = u.id
+        tafsilot = (f"usta «{u.name}» (#{u.id}{', yangi' if mid is None else ''}), KPI {audit_son(eski_kpi, 2)} → "
+                    f"{audit_son(kpi, 2)} %")
+    else:
+        if data:
+            raise ValueError("Magazin tasdig'ida qo'shimcha maydon yo'q")
+        m.master_id = None                                     # review248 M3
+        tafsilot = f"magazin «{m.mj_magazin}», {m.mj_shahar}"
+    m.mj_holat = "tasdiqlangan"
+    m.mj_tasdiq_vaqti = hozir
+    m.mj_tasdiqlagan = (kim or "")[:100]
+    m.mj_rad_sababi = None
+    m.updated_at = hozir
+    jurnal = f"Saytdagi hisob tasdiqlandi: {m.mj_ism or m.mj_tg_ism} ({dokon_telefon_korinish(m.mj_telefon)}) — {tafsilot}"
+    log_activity(db, "dokon_tasdiq", "dokon_mijoz", m.id, entity_label=(m.mj_ism or m.mj_tg_ism or "")[:100], performed_by=kim,
+                 new_value=jurnal[:500], company_id=company_id, commit=False)
+    db.commit()
+    if m.mj_turi == "usta":
+        xabar = ("✅ *Siz usta sifatida tasdiqlandingiz!*\n\nEndi saytdagi buyurtmalaringizdan keshbek yig'iladi — buyurtma «Tayyor» "
+                 "bo'lganda yoziladi. Kabinetingizda ko'rasiz.")
+    else:
+        xabar = ("✅ *Magazingiz tasdiqlandi!*\n\nSaytda «Ulgurji» bo'limi ochildi — ulgurji narxlarda, donada buyurtma berasiz.")
+    return m, jurnal, xabar
+
+
+def dokon_mijoz_rad(db: Session, company_id: int, mijoz_id, data, kim: str, hozir=None):
+    """Admin: so'rovni rad etish ({"sabab"?: ≤ 200}). Faqat «kutilmoqda» dan. Sessiyalar o'chadi (avlod oshadi); mijoz keyin qayta
+    kirib, qayta so'rov yuborishi mumkin."""
+    from models import DokonSessiya
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("sabab",))
+    sabab = _dokon_matn(data.get("sabab"), "Sabab", 200, bosh_mumkin=True)
+    hozir = hozir or _dt233.utcnow()
+    m = _dk_mijoz_qulf(db, company_id, mijoz_id)
+    if m.mj_holat != "kutilmoqda":
+        db.rollback()
+        raise DokonMijozZiddiyat("Bu hisob tasdiq kutmayapti (holati shu orada o'zgargan) — ro'yxatni yangilang")
+    m.mj_holat = "rad"
+    m.mj_rad_sababi = sabab
+    m.mj_avlod = (m.mj_avlod or 0) + 1
+    m.updated_at = hozir
+    db.query(DokonSessiya).filter(DokonSessiya.company_id == company_id, DokonSessiya.mijoz_id == m.id).delete(synchronize_session=False)
+    jurnal = (f"Saytdagi so'rov rad etildi: {m.mj_ism or m.mj_tg_ism} ({dokon_telefon_korinish(m.mj_telefon)}, "
+              f"{DOKON_MIJOZ_TURLARI.get(m.mj_turi, m.mj_turi)})" + (f" — {sabab}" if sabab else ""))
+    log_activity(db, "dokon_rad", "dokon_mijoz", m.id, entity_label=(m.mj_ism or m.mj_tg_ism or "")[:100], performed_by=kim,
+                 new_value=jurnal[:500], company_id=company_id, commit=False)
+    db.commit()
+    xabar = "❌ So'rovingiz tasdiqlanmadi." + (f"\n\nSabab: {sabab}" if sabab else "") + \
+            "\n\nSavollar bo'lsa, biz bilan bog'laning. Saytdan qayta so'rov yuborishingiz mumkin."
+    return m, jurnal, xabar
+
+
+def dokon_mijoz_blokla(db: Session, company_id: int, mijoz_id, kim: str, hozir=None):
+    """Admin: hisobni bloklash (har qanday holatdan) — sessiyalar darhol o'chadi, bot orqali kira olmaydi."""
+    from models import DokonSessiya
+    dokon_tekshir(db, company_id)
+    hozir = hozir or _dt233.utcnow()
+    m = _dk_mijoz_qulf(db, company_id, mijoz_id)
+    if m.mj_holat == "bloklangan":
+        db.rollback()
+        raise DokonMijozZiddiyat("Hisob allaqachon bloklangan")
+    eski = m.mj_holat
+    m.mj_holat = "bloklangan"
+    m.mj_avlod = (m.mj_avlod or 0) + 1
+    m.updated_at = hozir
+    db.query(DokonSessiya).filter(DokonSessiya.company_id == company_id, DokonSessiya.mijoz_id == m.id).delete(synchronize_session=False)
+    jurnal = (f"Saytdagi hisob bloklandi: {m.mj_ism or m.mj_tg_ism} ({dokon_telefon_korinish(m.mj_telefon)}) — avval "
+              f"«{DOKON_MIJOZ_HOLATLARI.get(eski, eski)}»")
+    log_activity(db, "blocked", "dokon_mijoz", m.id, entity_label=(m.mj_ism or m.mj_tg_ism or "")[:100], performed_by=kim,
+                 new_value=jurnal[:500], company_id=company_id, commit=False)
+    db.commit()
+    return m, jurnal
+
+
+def dokon_mijoz_ochish(db: Session, company_id: int, mijoz_id, kim: str, hozir=None):
+    """Admin: blokdan chiqarish — qayta tasdiq kerak: turi bor bo'lsa «kutilmoqda» (ERP ustasi bog'lami saqlanadi), yo'q bo'lsa «yangi»."""
+    dokon_tekshir(db, company_id)
+    hozir = hozir or _dt233.utcnow()
+    m = _dk_mijoz_qulf(db, company_id, mijoz_id)
+    if m.mj_holat != "bloklangan":
+        db.rollback()
+        raise DokonMijozZiddiyat("Hisob bloklanmagan")
+    m.mj_holat = "kutilmoqda" if m.mj_turi else "yangi"
+    m.updated_at = hozir
+    jurnal = f"Saytdagi hisob blokdan chiqarildi: {m.mj_ism or m.mj_tg_ism} ({dokon_telefon_korinish(m.mj_telefon)}) — qayta tasdiq kerak"
+    log_activity(db, "unblocked", "dokon_mijoz", m.id, entity_label=(m.mj_ism or m.mj_tg_ism or "")[:100], performed_by=kim,
+                 new_value=jurnal[:500], company_id=company_id, commit=False)
+    db.commit()
+    return m, jurnal
+
+
+def dokon_bot_chiqar(db: Session, company_id: int, from_id, hozir=None):
+    """review248 M1: bot «🚫 Bu men emas» — shu Telegram foydalanuvchisining hisobidagi HAMMA sessiya o'chadi (avlod oshadi), hali olinmagan
+    tasdiqlangan kirishlar yopiladi. Kimdir unga havola yuborib, uning nomidan kirib olgan bo'lsa — darhol chiqariladi. Natija: mijoz
+    yoki None (hisob yo'q)."""
+    from models import DokonKirish, DokonMijoz, DokonSessiya
+    if from_id is None:
+        return None
+    hozir = hozir or _dt233.utcnow()
+    m = (db.query(DokonMijoz).filter(DokonMijoz.company_id == company_id, DokonMijoz.mj_tg_id == str(from_id)[:20])
+         .populate_existing().with_for_update().first())
+    if m is None:
+        db.rollback()
+        return None
+    m.mj_avlod = (m.mj_avlod or 0) + 1
+    m.updated_at = hozir
+    db.query(DokonSessiya).filter(DokonSessiya.company_id == company_id, DokonSessiya.mijoz_id == m.id).delete(synchronize_session=False)
+    (db.query(DokonKirish).filter(DokonKirish.company_id == company_id, DokonKirish.mijoz_id == m.id, DokonKirish.kr_holat == "tasdiqlandi")
+     .update({DokonKirish.kr_holat: "ishlatildi"}, synchronize_session=False))
+    log_activity(db, "dokon_chiqarildi", "dokon_mijoz", m.id, entity_label=(m.mj_ism or m.mj_tg_id or "")[:100],
+                 performed_by=(m.mj_ism or m.mj_tg_ism or "Telegram")[:100],
+                 new_value=f"«Bu men emas» (Telegram) — saytdagi hisob {dokon_telefon_korinish(m.mj_telefon)} barcha qurilmalardan chiqarildi",
+                 company_id=company_id, commit=False)
+    db.commit()
+    return m
+
+
+def dokon_bot_korxonasi_kirishdan(db: Session, kod=None, chat_id=None, hozir=None):
+    """review248 L8: bot xabari qaysi korxonaning kirishiga tegishli — kod (`/start k_…`) yoki shu chatdagi ochiq kirish bo'yicha (hamma
+    korxona orasida, tizim so'rovi). Topilmasa — None (chaqiruvchi standart korxonani oladi)."""
+    import tenant_context as _tc248c
+    from models import DokonKirish
+    hozir = hozir or _dt233.utcnow()
+    with _tc248c.system_context(db):
+        q = db.query(DokonKirish.company_id).filter(DokonKirish.kr_muddat > hozir)
+        if kod is not None:
+            if not isinstance(kod, str) or not DOKON_KIRISH_KOD_RE.fullmatch(kod):
+                return None
+            q = q.filter(DokonKirish.kr_kod_xesh == _dk_xesh(kod))
+        elif chat_id is not None:
+            q = q.filter(DokonKirish.kr_chat == str(chat_id)[:20], DokonKirish.kr_holat == "raqam").order_by(DokonKirish.id.desc())
+        else:
+            return None
+        row = q.first()
+    return row[0] if row else None

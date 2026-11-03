@@ -3054,6 +3054,84 @@ class DokonApiKalit(Base):
         return f"<DokonApiKalit {self.id} korxona={self.company_id}>"
 
 
+class DokonMijoz(Base):
+    """kech181 (zip 248) — do'kon saytining ro'yxatdan o'tgan mijozi: usta yoki qurilish magazini (egasi QARORLARI «Onlayn do'kon rejasi»
+    30.10: kirish parol / SMS siz — Telegram orqali, telefon Telegram akkauntidan (tasdiqlangan); birinchi kirishda usta yoki magazin
+    tanlanadi; egasi tasdiqlaydi — usta KPI % bilan ERP dagi usta hisobiga bog'lanadi, magazinga ulgurji bo'lim ochiladi).
+    `mj_tg_id` — Telegram foydalanuvchi raqami (korxonada yagona), `mj_telefon` — Telegram kontaktidan (`+998XXXXXXXXX`).
+    Holat: «yangi» (kirdi, hali so'rov yubormagan) | «kutilmoqda» | «tasdiqlangan» | «rad» (qayta so'rov yuborishi mumkin) | «bloklangan».
+    `mj_avlod` — bloklash / rad etishda oshadi: eski sessiyalar ishlamay qoladi. `master_id` — tasdiqlangan ustaning ERP dagi yozuvi
+    (usta o'chirilsa NULL). Zaxiraga KIRADI (kirish kodlari va sessiyalar — kirmaydi). Mantiq — `crud.dokon_mijoz_*`. Ustun nomlari NOYOB
+    (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_mijozlar"
+    # review248 L4: bitta ERP ustasi — bitta hisobga (baza darajasida ham: SQLite da FOR UPDATE yo'q — parallel tasdiq ikkinchisini
+    # bog'lab qo'yardi); NULL lar cheklanmaydi
+    __table_args__ = (UniqueConstraint("company_id", "mj_tg_id", name="uq_dokon_mijoz_tg"),
+                      UniqueConstraint("company_id", "master_id", name="uq_dokon_mijoz_master"))
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    mj_tg_id = Column(String(20), nullable=False)
+    mj_telefon = Column(String(13), nullable=False, index=True)
+    mj_tg_ism = Column(String(130), nullable=True)
+    mj_ism = Column(String(100), nullable=True)
+    mj_turi = Column(String(10), nullable=True)
+    mj_magazin = Column(String(120), nullable=True)
+    mj_shahar = Column(String(80), nullable=True)
+    mj_holat = Column(String(15), nullable=False, default="yangi")
+    master_id = Column(Integer, ForeignKey("masters.id", ondelete="SET NULL"), nullable=True, index=True)
+    mj_rad_sababi = Column(String(200), nullable=True)
+    mj_avlod = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    mj_royxat_vaqti = Column(DateTime, nullable=True)
+    mj_tasdiq_vaqti = Column(DateTime, nullable=True)
+    mj_tasdiqlagan = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DokonMijoz {self.id} {self.mj_turi} {self.mj_holat} c={self.company_id}>"
+
+
+class DokonKirish(Base):
+    """kech181 (zip 248) — Telegram orqali kirish urinishi (10 daqiqa, bir marta). Do'kon sayti `kod` ni bot havolasiga
+    (`t.me/<bot>?start=k_<kod>`), `sir` ni faqat shu brauzerga beradi; bazada — ikkalasining SHA-256 xeshi. Holat: «kutilmoqda» →
+    «raqam» (bot havolasi ochildi, `kr_chat` yozildi) → «tasdiqlandi» (kontakt keldi, `mijoz_id`) → «ishlatildi» (sayt sessiya oldi).
+    Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES`)."""
+    __tablename__ = "dokon_kirishlar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    kr_kod_xesh = Column(String(64), nullable=False, unique=True)
+    kr_sir_xesh = Column(String(64), nullable=False)
+    kr_chat = Column(String(20), nullable=True, index=True)
+    kr_holat = Column(String(12), nullable=False, default="kutilmoqda")
+    mijoz_id = Column(Integer, ForeignKey("dokon_mijozlar.id", ondelete="CASCADE"), nullable=True, index=True)
+    kr_muddat = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<DokonKirish {self.id} {self.kr_holat} c={self.company_id}>"
+
+
+class DokonSessiya(Base):
+    """kech181 (zip 248) — do'kon mijozining sessiyasi (30 kun). Token («pds_» + 43 belgi) — faqat brauzer cookie sida (do'kon sayti
+    imzolaydi) va `X-Mijoz-Sessiya` sarlavhasida; bazada SHA-256 xeshi. `ss_avlod` mijozning `mj_avlod` iga teng bo'lmasa — sessiya
+    yaroqsiz. Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES`)."""
+    __tablename__ = "dokon_sessiyalar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    mijoz_id = Column(Integer, ForeignKey("dokon_mijozlar.id", ondelete="CASCADE"), nullable=False, index=True)
+    ss_xesh = Column(String(64), nullable=False, unique=True)
+    ss_avlod = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ss_oxirgi = Column(DateTime, nullable=True)
+    ss_muddat = Column(DateTime, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<DokonSessiya {self.id} mijoz={self.mijoz_id} c={self.company_id}>"
+
+
 class DokonBuyurtma(Base):
     """kech171 (zip 237) — saytdan kelgan buyurtma (egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni»: mijoz savatni yig'ib,
     ism + telefon (+ viloyat, manzil / joylashuv) bilan buyurtma beradi → ERP da «Saytdan kelgan buyurtmalar» ro'yxati va Telegram xabari →
@@ -3524,6 +3602,10 @@ _TENANT_REFS = {
     "DokonGalereyaQator":          [("model_id", "DokonModel"), ("detal_id", "DokonDetal")],
     # kech171 (zip 237): sayt buyurtmasi — tasdiqlangan buyurtmasi FAQAT o'z korxonasidan
     "DokonBuyurtma":               [("order_id", "Order")],
+    # kech181 (zip 248): saytdagi hisob — ERP ustasi FAQAT o'z korxonasidan; kirish / sessiya — o'z korxonasining hisobiga
+    "DokonMijoz":                  [("master_id", "Master")],
+    "DokonKirish":                 [("mijoz_id", "DokonMijoz")],
+    "DokonSessiya":                [("mijoz_id", "DokonMijoz")],
 }
 
 

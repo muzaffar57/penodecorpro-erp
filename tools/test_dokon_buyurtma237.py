@@ -329,7 +329,8 @@ _yollar = {(m, r.path): r for r in main.app.routes for m in (getattr(r, "methods
 _dy = sorted((m, p) for (m, p) in _yollar if p.startswith("/api/dokon/"))
 # kech172 (zip 238, MOSLANDI): + «tayyor» GET (tools/test_dokon_tayyor238.py S1)
 check("S1 do'kon yo'llari: 3 GET (katalog, sozlamalar, tayyor) + BITTA POST (buyurtmalar); o'chiruvchi / tahrirlovchi yo'l YO'Q",
-      _dy == ([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else []) + [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", "/api/dokon/v1/tayyor"), ("POST", BY)] + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else []), _dy)   # kech178 (zip 244): PDF
+      _dy == sorted(([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else []) + [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", "/api/dokon/v1/tayyor"), ("POST", BY)] + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else [])
+             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else [])), _dy)   # kech178 (zip 244): PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
 
 
 def _ruxsat(m, p):
