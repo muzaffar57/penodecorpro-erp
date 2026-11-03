@@ -25504,6 +25504,35 @@ def _sayt_nom(m, d) -> str:
     return nom[:150]
 
 
+_SAYT_AJRATUVCHI245 = _re236.compile(r"[\s·;«»()\[\]\"]+")       # review245 M1: «,» / «.» — ajratuvchi EMAS (12,5 — bitta so'z)
+_SAYT_ENI245 = _re236.compile(r"(\d{1,7}(?:\.\d{1,6})?)(?:sm)?")
+_SAYT_KASR245 = str.maketrans({",": ".", "\u0441": "s", "\u043c": "m"})     # o'nli vergul; Kirill «см» → «sm» (test_xabar_summalar192 S1)
+
+
+def _sayt_olcham_nomdami(nom, olcham, eni_sm=None) -> bool:
+    """kech179 (zip 245): katalog o'lchami detal nomida allaqachon bormi — guruh nomi va PDF qatori uchun BITTA qoida. Bor: (1) o'lcham
+    — ERP nomi OXIRIDAGI enining o'zi (`_sayt_nom` « · {eni} sm»; nom haqiqatan shu bilan tugasa — 150 belgida kesilgan nomda yo'q,
+    review245 L1): «12», «12 sm», «12sm», «12 см», «12.0 sm», «12,5 sm» — son AYNAN teng (yaxlitlashsiz: «12.004» ≠ 12, review245 L3);
+    (2) o'lcham nomning qolgan qismida (eni qismisiz — review245 M1: «12,5 sm» dagi «5» emas) BUTUN so'z(lar) bo'lib turibdi (ajratuvchi —
+    bo'shliq, «·», «;», qavslar, qo'shtirnoq; «S» — «S-1» ning, «12» — «K-12» ning, «5» — «12,5» ning bir qismi EMAS). Katta / kichik
+    harf, tutuq belgisi — `dokon_olcham_kalit`. Bo'sh o'lcham — bor (qo'shadigan narsa yo'q)."""
+    ol = dokon_olcham_kalit(str(olcham or "")).strip()
+    if not ol:
+        return True
+    nk = dokon_olcham_kalit(str(nom or ""))
+    if eni_sm:
+        dum = f" · {audit_son(eni_sm, 2)} sm".casefold()
+        if nk.endswith(dum):
+            nk = nk[:-len(dum)]
+            m = _SAYT_ENI245.fullmatch(_re236.sub(r"[\s·]+", "", ol).translate(_SAYT_KASR245))
+            if m and Decimal(m.group(1)) == Decimal(str(eni_sm)):
+                return True
+    t_ol = [x for x in _SAYT_AJRATUVCHI245.split(ol) if x]
+    t_nom = [x for x in _SAYT_AJRATUVCHI245.split(nk) if x]
+    n = len(t_ol)
+    return bool(n) and any(t_nom[i:i + n] == t_ol for i in range(len(t_nom) - n + 1))
+
+
 def _sayt_detal_narxi(d, koeff, qoplamali, chegirma, bugun, komplekt=False):
     """(narx, asl_narx, foiz | None, hajm_narxi): narx — 1 birlik (chegirma amalda va shu o'lchamga bo'lsa — chegirmali), asl —
     chegirmasiz, hajm_narxi — qoplamasiz chakana narx (donali detal penoplast sarfi uchun). Qoida katalog API bilan AYNAN (review237 M2):
@@ -25674,7 +25703,9 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
             if narx is None:
                 raise ValueError(f"{joy}: «{m.kod}» narxi kiritilmagan — bu mahsulotni hozir sotib bo'lmaydi")
             nom = _sayt_nom(m, d)
-            gnomi = f"{nom}, {d.olcham}, " + ("qoplamali" if qop else "qoplamasiz") + (", ombordan" if omb else "")
+            # kech179 (zip 245): o'lcham nomda bo'lsa (eni «· 12 sm» = o'lcham «12 sm») — ikki marta yozilmaydi
+            _ol245 = "" if _sayt_olcham_nomdami(nom, d.olcham, d.eni_sm) else f"{d.olcham}, "
+            gnomi = f"{nom}, {_ol245}" + ("qoplamali" if qop else "qoplamasiz") + (", ombordan" if omb else "")
             natija.append(_sayt_qator(n, gnomi[:200], "detal", None, m, d, qop, miqdor, narx, asl, foiz, hajm,
                                       tm=dokon_tm_amaldagi(d) if omb else None))
         if len(natija) > SAYT_MAX_DETAL_QATOR:
@@ -27377,7 +27408,8 @@ def _sayt_pdf_qatorlari(qatorlar) -> list:
         raise ValueError("PDF qatorlari soni mos emas")
     for q, it in zip(qatorlar, items):
         ol = str(getattr(q, "sbq_olcham", None) or "").strip()
-        if getattr(q, "sbq_tur", None) not in KMP_TURLARI and ol and ol not in str(it.get("name") or ""):
+        # kech179 (zip 245): «o'lcham nomdami» — butun so'z / eni (matn qismi emas: «S» — «S-1» da, «12» — «K-12» da YO'Q)
+        if getattr(q, "sbq_tur", None) not in KMP_TURLARI and not _sayt_olcham_nomdami(it.get("name"), ol, getattr(q, "eni_sm", None)):
             it["name"] = f"{it['name']} — {ol}"
     return items
 
