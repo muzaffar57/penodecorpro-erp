@@ -25780,6 +25780,19 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
     return {"qatorlar": natija, "jami": jami, "chegirmasiz": chegirmasiz}
 
 
+def _sayt_surrogat_bor(x, chuqur=0) -> bool:
+    """review250 E1: JSON ichida juft bo'lmagan surrogat («\\ud800») — UTF-8 ga o'girib bo'lmaydi (tana xeshi / baza). Juda chuqur — ha."""
+    if chuqur > 60:
+        return True
+    if isinstance(x, str):
+        return any(0xD800 <= ord(c) <= 0xDFFF for c in x)
+    if isinstance(x, dict):
+        return any(_sayt_surrogat_bor(k, chuqur + 1) or _sayt_surrogat_bor(v, chuqur + 1) for k, v in x.items())
+    if isinstance(x, list):
+        return any(_sayt_surrogat_bor(v, chuqur + 1) for v in x)
+    return False
+
+
 def _sayt_tana_xesh(data: dict) -> str:
     """So'rov tanasining barqaror xeshi (bir xil kalit + boshqa tana — boshqa buyurtma)."""
     return _hl237.sha256(_json237.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
@@ -25853,39 +25866,60 @@ def sayt_dokon_javobi(db: Session, b, qatorlar=None, takror=False, hozir_utc=Non
             "jami": _sayt_pul(b.sb_jami), "chegirmasiz": _sayt_pul(b.sb_chegirmasiz), "tejaldi": _sayt_pul(tejaldi),
             "viloyat": b.sb_viloyat, "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat),
             "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_yetkazish_matni(b.sb_viloyat),
-            "guruhlar": _sayt_guruhlar(qatorlar), "telefonlar": tel,
+            "guruhlar": _ulgurji_guruhlar_dona(_sayt_guruhlar(qatorlar)) if getattr(b, "sb_ulgurji", None) else _sayt_guruhlar(qatorlar),
+            "telefonlar": tel,
             "tasdiq_matni": ("Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating: "
                              + " · ".join(t["korinish"] for t in tel)) if tel else None,
             # kech172 (zip 238): ombordan qator bo'lsa — band tugash vaqti (UTC, «Z» bilan) va mijozga matn
-            "band_tugash": (b.sb_band_tugash.isoformat() + "Z") if b.sb_band_tugash else None, "band_matni": _sayt_band_matni(b)}
+            "band_tugash": (b.sb_band_tugash.isoformat() + "Z") if b.sb_band_tugash else None, "band_matni": _sayt_band_matni(b),
+            "ulgurji": bool(getattr(b, "sb_ulgurji", None))}                 # kech184 (zip 250)
 
 
-def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, hozir_utc=None, kirgan_hisob=None) -> tuple:
+def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, hozir_utc=None, kirgan_hisob=None,
+                        ulgurji_hisob=None) -> tuple:
     """Do'kon savati → «yangi» sayt buyurtmasi. Qaytaradi: (buyurtma, qatorlar, takror). Bir xil `kalit` + bir xil tana — avvalgi buyurtma
     (takror = True, yangi yozuv yo'q); bir xil kalit + boshqa tana — `SaytKalitBand`. `kutilgan_jami` farq qilsa — `SaytNarxOzgardi`
-    (hech narsa yozilmaydi). Raqam — korxona qulfi (PG `_pul_qulfi(237, korxona)`) ostida eng katta + 1."""
+    (hech narsa yozilmaydi). Raqam — korxona qulfi (PG `_pul_qulfi(237, korxona)`) ostida eng katta + 1.
+    kech184 (zip 250): `ulgurji_hisob` — tasdiqlangan magazin (`dokon_ulgurji_mijoz`): ulgurji buyurtma — ism / telefon hisobdan (boshqa
+    raqam ixtiyoriy), manzil SHART, narx — `ulgurji_buyurtma_hisobla`; tana xeshiga hisob raqami qo'shiladi (oddiy yo'l yoki boshqa magazin
+    o'sha kalit bilan bu buyurtmani olmaydi — 409)."""
     from models import DokonBuyurtma, DokonBuyurtmaQator
     from sqlalchemy import func as _f237
     dokon_tekshir(db, company_id)
     kalit = sayt_amal_kaliti(kalit)
-    _dokon_kalitlar(data, ("mijoz", "telefon", "viloyat", "manzil", "lokatsiya", "izoh", "qatorlar", "kutilgan_jami"))
-    xesh = _sayt_tana_xesh(data)
+    if _sayt_surrogat_bor(data):                   # review250 E1: tana xeshi (UTF-8) — xom Python xatosi emas, tushunarli 400
+        raise ValueError("Matnda buzilgan belgi bor — qayta yozing")
+    if ulgurji_hisob is not None:
+        _dokon_kalitlar(data, ("telefon", "viloyat", "manzil", "lokatsiya", "izoh", "qatorlar", "kutilgan_jami"))
+        xesh = _sayt_tana_xesh({"ulgurji": data, "hisob": int(ulgurji_hisob.id)})
+        kirgan_hisob = ulgurji_hisob
+    else:
+        _dokon_kalitlar(data, ("mijoz", "telefon", "viloyat", "manzil", "lokatsiya", "izoh", "qatorlar", "kutilgan_jami"))
+        xesh = _sayt_tana_xesh(data)
     eski = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_kalit == kalit).first())
     if eski is not None:
         if eski.sb_tana_xesh != xesh:
             raise SaytKalitBand("Bu buyurtma kaliti boshqa savat bilan ishlatilgan — yangi buyurtma uchun yangi kalit yuboring")
         return eski, _sayt_qatorlari(db, company_id, eski.id), True
-    mijoz = _dokon_matn(data.get("mijoz"), "Ism", 100)
-    if len(mijoz) < 2:
-        raise ValueError("«Ism» kamida 2 harf bo'lsin")
-    telefon = dokon_telefon_norm(data.get("telefon"))
+    if ulgurji_hisob is not None:                  # kech184 (zip 250): ism / telefon — hisobdan (boshqa raqam — ixtiyoriy)
+        mijoz = ulgurji_mijoz_nomi(ulgurji_hisob)
+        telefon = (dokon_telefon_norm(data.get("telefon")) if data.get("telefon") not in (None, "")
+                   else dokon_telefon_norm(ulgurji_hisob.mj_telefon))
+    else:
+        mijoz = _dokon_matn(data.get("mijoz"), "Ism", 100)
+        if len(mijoz) < 2:
+            raise ValueError("«Ism» kamida 2 harf bo'lsin")
+        telefon = dokon_telefon_norm(data.get("telefon"))
     viloyat = data.get("viloyat")
     if not isinstance(viloyat, str) or viloyat not in SAYT_VILOYAT_NOMI:
         raise ValueError("Viloyatni tanlang")
     manzil = _sayt_matn(data.get("manzil"), "Manzil", 300, bosh_mumkin=True, kop_qator=True)
+    if ulgurji_hisob is not None and (manzil is None or len(manzil) < 3):
+        raise ValueError("«Manzil» — ko'cha va uyni yozing (mahsulotni qayerga olib borishni bilishimiz kerak)")
     lokatsiya = _sayt_lokatsiya(data.get("lokatsiya"))
     izoh = _sayt_matn(data.get("izoh"), "Izoh", 500, bosh_mumkin=True, kop_qator=True)
-    hisob = sayt_buyurtma_hisobla(db, company_id, data.get("qatorlar"))
+    hisob = (ulgurji_buyurtma_hisobla(db, company_id, data.get("qatorlar")) if ulgurji_hisob is not None
+             else sayt_buyurtma_hisobla(db, company_id, data.get("qatorlar")))
     if "kutilgan_jami" in data and data["kutilgan_jami"] is not None:
         kj = data["kutilgan_jami"]
         if isinstance(kj, bool) or not isinstance(kj, (int, float)) or (isinstance(kj, float) and not math.isfinite(kj)) \
@@ -25933,7 +25967,8 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
     b = DokonBuyurtma(company_id=company_id, sb_seq=seq, sb_raqam=sayt_raqami(seq), sb_kalit=kalit, sb_tana_xesh=xesh,
                       sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
                       sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir,
-                      sb_band_tugash=band_tugash, mijoz_id=(kirgan_hisob.id if kirgan_hisob is not None else None))     # kech182 (zip 249) — «mijoz», «hisob» band nomlar
+                      sb_band_tugash=band_tugash, mijoz_id=(kirgan_hisob.id if kirgan_hisob is not None else None),     # kech182 (zip 249) — «mijoz», «hisob» band nomlar
+                      sb_ulgurji=(True if ulgurji_hisob is not None else None))         # kech184 (zip 250)
     db.add(b)
     db.flush()
     qatorlar = []
@@ -25949,7 +25984,8 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
         qatorlar.append(q)
     db.flush()
     log_activity(db, "created", "sayt_buyurtma", b.id, _sayt_yorligi(b), "Sayt (do'kon)",
-                 new_value=f"Jami: {audit_son(b.sb_jami, 0)} so'm, {len(_sayt_guruhlar(qatorlar))} ta mahsulot; "
+                 new_value=("Ulgurji (magazin); " if ulgurji_hisob is not None else "")
+                           + f"Jami: {audit_son(b.sb_jami, 0)} so'm, {len(_sayt_guruhlar(qatorlar))} ta mahsulot; "
                            f"{SAYT_VILOYAT_NOMI[viloyat]}" + (f"; ombordan — {SAYT_BAND_SOAT} soat band" if band_tugash else ""),
                  company_id=company_id, commit=False)
     db.commit()
@@ -25969,7 +26005,7 @@ def sayt_telegram_matni(b, qatorlar, mijoz_yorligi=None) -> str:
     """Korxona botiga: yangi sayt buyurtmasi (raqam, mijoz, telefon, viloyat, mahsulotlar, jami). Mijoz yozgan matn — `_tg237`.
     kech182 (zip 249): `mijoz_yorligi` — kirgan usta / magazin (`sayt_mijoz_yorligi`)."""
     gl = _sayt_guruhlar(qatorlar)
-    qism = [f"🛒 *Saytdan yangi buyurtma — {b.sb_raqam}*",
+    qism = [f"🛒 *Saytdan yangi buyurtma — {b.sb_raqam}*" + (" · 🏪 *Magazin (ulgurji)*" if getattr(b, "sb_ulgurji", None) else ""),
             f"👤 {_tg237(b.sb_mijoz)} · {dokon_telefon_korinish(b.sb_telefon)}"] + ([mijoz_yorligi] if mijoz_yorligi else []) + [
             f"📍 {SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
     if b.sb_manzil:
@@ -25986,6 +26022,8 @@ def sayt_telegram_matni(b, qatorlar, mijoz_yorligi=None) -> str:
         qism.append(f"🏭 Ombordan — {SAYT_BAND_SOAT} soat band: {(b.sb_band_tugash + _td234(hours=5)).strftime('%d.%m.%Y %H:%M')} gacha")
     if b.sb_izoh:
         qism.append(f"📝 {_tg237(b.sb_izoh[:300])}")
+    if getattr(b, "sb_ulgurji", None):             # kech184 (zip 250): egasi qarori — magazin ham 50 % oldindan, o'zi qo'ng'iroq qiladi
+        qism.append("🏪 Ulgurji narx (magazin) — tasdiqlangach 50 % oldindan to'lov; magazin o'zi qo'ng'iroq qiladi")
     qism.append("ERP → Buyurtmalar → «🛒 Saytdan» — mijozga qo'ng'iroq qilib tasdiqlang")
     return "\n".join(qism)
 
@@ -26004,7 +26042,8 @@ def sayt_korinish(b, buyurtma_bor: bool = None, qatorlar=None) -> dict:
          "bekor_sababi": b.sb_bekor_sababi, "order_id": b.order_id, "order_raqam": b.sb_order_raqam,
          "buyurtma_bor": (b.order_id is not None) if buyurtma_bor is None else bool(buyurtma_bor),
          # kech172 (zip 238): band (ombordan qator) — tugash vaqti (UTC), hozir faolmi
-         "band_tugash": b.sb_band_tugash.isoformat() if b.sb_band_tugash else None, "band_faol": sayt_band_faolmi(b)}
+         "band_tugash": b.sb_band_tugash.isoformat() if b.sb_band_tugash else None, "band_faol": sayt_band_faolmi(b),
+         "ulgurji": bool(getattr(b, "sb_ulgurji", None))}                  # kech184 (zip 250)
     if qatorlar is not None:
         # kech172 (zip 238): ombordan qator — tayyor (qoplangan) mahsulot, qoplama retsepti shart emas
         d["qoplamali_bor"] = any(q.qoplamali and not q.sbq_tm_kaliti for q in qatorlar)
@@ -26184,6 +26223,8 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
     ochilmaydi). Topshirish — Toshkent kuni oxiri emas, kun boshi (forma kabi)."""
     items = _sayt_erp_qatorlari(qatorlar, tm)        # kech178 (zip 244): halqa — alohida funksiyada (PDF ham shundan)
     izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
+    if getattr(b, "sb_ulgurji", None):             # kech184 (zip 250)
+        izoh.append("Ulgurji narx (magazin) — 50 % oldindan")
     if b.sb_izoh:
         izoh.append(f"Mijoz izohi: {b.sb_izoh}")
     return {"project_id": project_id, "order_type": "product", "items": items, "agreed_amount": float(b.sb_jami), "recipe_id": recipe_id,
@@ -27469,7 +27510,7 @@ def _sayt_hisob_qatori(x: dict):
                   sbq_olcham=x["olcham"])
 
 
-def _sayt_pdf_qatorlari(qatorlar) -> list:
+def _sayt_pdf_qatorlari(qatorlar, ulgurji=False) -> list:
     """PDF qatorlari — ERP buyurtmasiga tushadiganlarning O'ZI (`_sayt_erp_qatorlari`), faqat ko'rinadigan nomi: alohida detal qatorida
     katalog O'LCHAMI ham (review244 H1 — «D-2 Burchak» ning S va M o'lchami ikki bir xil qator bo'lib chiqardi; egasi talabida «o'lcham»
     bor). Komplekt / «o'z o'lchami» qatorlarida o'lcham — guruh sarlavhasida. ERP buyurtmasi qatorlari O'ZGARMAYDI."""
@@ -27481,6 +27522,12 @@ def _sayt_pdf_qatorlari(qatorlar) -> list:
         # kech179 (zip 245): «o'lcham nomdami» — butun so'z / eni (matn qismi emas: «S» — «S-1» da, «12» — «K-12» da YO'Q)
         if getattr(q, "sbq_tur", None) not in KMP_TURLARI and not _sayt_olcham_nomdami(it.get("name"), ol, getattr(q, "eni_sm", None)):
             it["name"] = f"{it['name']} — {ol}"
+        if ulgurji and getattr(q, "sbq_birlik", None) == "metr":       # kech184 (zip 250): magazin donada buyurtma qilgan (1 dona = 2 m)
+            # review250 L2: PDF qatori DONADA — 1 dona narxi × dona = qator summasi (AYNAN; 1 m narxi — yarim tiyinda yaxlitlangan)
+            _dn = ulgurji_dona_soni(q.miqdor)
+            it.update({"name": f"{it['name']} (1 dona = {ULGURJI_DONA_METR} m)", "category": "dona", "quantity": float(_dn),
+                       "unit_price": float((Decimal(str(q.summa)) / _dn).quantize(Decimal("0.01"))) if _dn else float(q.summa),
+                       "length": None, "width": None, "thickness": None, "price_per_m3": None})
     return items
 
 
@@ -27526,6 +27573,8 @@ def sayt_buyurtma_pdf_ol(db: Session, company_id: int, data) -> tuple:
     b = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_kalit == kalit).first())
     if b is None or not _hm244.compare_digest(str(b.sb_raqam or "").encode("utf-8"), raqam.encode("utf-8")):
         raise SaytPdfTopilmadi("Buyurtma topilmadi")
+    if getattr(b, "sb_ulgurji", None):            # review250-dokon U1: ulgurji PDF — FAQAT kabinetdan (sessiya: hozir tasdiqlangan magazin)
+        raise SaytPdfTopilmadi("Buyurtma topilmadi")
     return b, _sayt_qatorlari(db, company_id, b.id)
 
 
@@ -27535,9 +27584,11 @@ def sayt_pdf_buyurtma(db: Session, b, qatorlar, hozir_utc=None) -> dict:
     return {"turi": "buyurtma", "company_id": b.company_id, "raqam": b.sb_raqam, "sana": b.created_at,
             "mijoz": b.sb_mijoz, "telefon": dokon_telefon_korinish(b.sb_telefon),
             "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat), "holat": b.sb_holat,
-            "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat), "items": _sayt_pdf_qatorlari(qatorlar),
+            "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat),
+            "items": _sayt_pdf_qatorlari(qatorlar, ulgurji=bool(getattr(b, "sb_ulgurji", None))),
             "jami": float(b.sb_jami), "pastki": _sayt_pdf_pastki(db, b.company_id, b.sb_holat, b.sb_viloyat, tejaldi,
-                                                                  _sayt_band_matni(b), hozir_utc)}
+                                                                  _sayt_band_matni(b), hozir_utc),
+            "ulgurji": bool(getattr(b, "sb_ulgurji", None))}               # kech184 (zip 250)
 
 
 def sayt_pdf_savat(db: Session, company_id: int, data, hozir_utc=None) -> dict:
@@ -28190,10 +28241,13 @@ def dokon_mijoz_buyurtmalari(db: Session, company_id: int, token) -> dict:
     oids = [r.order_id for r in rows if r.order_id]
     orders = {o.id: o for o in db.query(Order).filter(Order.company_id == company_id, Order.id.in_(oids)).all()} if oids else {}
     natija = []
+    _ulg_ochiq = ulgurji_korinadimi(m)              # review250 M1: ulgurji narx — FAQAT hozir tasdiqlangan magazinga
     for r in rows:
         k, matn = dokon_buyurtma_mijoz_holati(r, orders.get(r.order_id))
         natija.append({"raqam": r.sb_raqam, "sana": (r.created_at + _td234(hours=5)).strftime("%d.%m.%Y") if r.created_at else None,
-                       "jami": _sayt_pul(r.sb_jami), "soni": soni.get(r.id, 0), "holat": k, "holat_nomi": matn})
+                       "jami": _sayt_pul(r.sb_jami) if (_ulg_ochiq or not r.sb_ulgurji) else None,
+                       "soni": soni.get(r.id, 0), "holat": k, "holat_nomi": matn,
+                       "ulgurji": bool(r.sb_ulgurji)})                  # kech184 (zip 250)
     return {"buyurtmalar": natija, "turi": m.mj_turi, "max": DOKON_MIJOZ_BUYURTMA_MAX}
 
 
@@ -28209,7 +28263,7 @@ def dokon_mijoz_buyurtma_pdf_ol(db: Session, company_id: int, token, data) -> tu
     m = dokon_sessiya_mijoz(db, company_id, token)
     b = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_raqam == raqam,
                                         DokonBuyurtma.mijoz_id == m.id).first())
-    if b is None:
+    if b is None or (getattr(b, "sb_ulgurji", None) and not ulgurji_korinadimi(m)):    # review250 M1 — bir xil 404
         raise SaytPdfTopilmadi("Buyurtma topilmadi")
     return b, _sayt_qatorlari(db, company_id, b.id)
 
@@ -28218,7 +28272,7 @@ def sayt_mijoz_ustasi(db: Session, company_id: int, b):
     """Sayt buyurtmasi tasdiqlanganda ERP buyurtmasiga yoziladigan usta (`Master.id`) yoki None: buyurtmani bergan hisob — usta, egasi
     tasdiqlagan (`master_id` bor), usta SHU korxonada va faol. Chaqiruvchining tranzaksiyasida (hisob qatori — o'qish)."""
     from models import DokonMijoz
-    if not getattr(b, "mijoz_id", None):
+    if not getattr(b, "mijoz_id", None) or getattr(b, "sb_ulgurji", None):     # kech184 (zip 250): ulgurji narxdagi buyurtmaga keshbek YO'Q
         return None
     m = (db.query(DokonMijoz).filter(DokonMijoz.id == b.mijoz_id, DokonMijoz.company_id == company_id).populate_existing().first())
     # review249 H249-1: FAQAT «tasdiqlangan» usta (blokdan chiqarilib / rad etilib qayta tasdiq kutayotgan — `master_id` saqlangan bo'lsa ham
@@ -28259,3 +28313,353 @@ def sayt_mijoz_yorligi(db: Session, company_id: int, b):
 
 
 DOKON_API_YOLLAR = DOKON_API_YOLLAR + ("/api/dokon/v1/mijoz/buyurtmalar", "/api/dokon/v1/mijoz/buyurtmalar/pdf")
+
+
+# ══ kech184 (zip 250) — DO'KON: ULGURJI BO'LIM — KATALOG VA MAGAZIN BUYURTMASI (egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Ulgurji
+# bo'lim»: yopiq bo'lim — FAQAT egasi tasdiqlagan magazinga; ulgurji narxlar boshqa odamning telefoniga umuman yuborilmaydi; narx 1 dona
+# uchun — metrli detal 1 dona = 2 m (ERP ga metr bo'lib tushadi: 50 dona = 100 m), kapitel / baza / dekor — dona, termopanel — m² narxi
+# (sayt butun panelga yaxlitlaydi); qo'shimcha chegirma yo'q; eng kam miqdor yo'q; rom komplekti ulgurjida ham — faqat rom (karniz 1,
+# podokonnik 1, nalichnik 2, kapitel 2, baza 2 dona), kapitel / baza o'chirilsa — narxi ayiriladi; magazin buyurtmasida ism / telefon —
+# kabinetdan, manzil bir marta yoziladi (keyingisida o'zi chiqadi); 50 % oldindan, magazin o'zi qo'ng'iroq qilib tasdiqlaydi; «oldingi
+# buyurtmani takrorlash»; ulgurji narxdagi buyurtmaga keshbek YO'Q).
+# Texnik qarorlar (Claude, kech184):
+#   * kirish — FAQAT `dokon_ulgurji_mijoz` (sessiya yaroqsiz — 401; usta / tasdiqlanmagan / rad etilgan magazin — 403, BIR XIL matn);
+#     katalog javobi — `Cache-Control: no-store` (do'kon ham keshlamaydi);
+#   * narx (1 sotish birligi) — FAQAT `_ulgurji_birlik_narxi`: qoplamasiz — `ulgurji_narx`, qoplamali — `ulgurji_qoplamali`, bo'sh bo'lsa
+#     `ulgurji_narx` × koeffitsient (`dokon_model_komplekti` dagi «ulgurji_rom» bilan AYNAN); chegirma ulgurjiga TEGMAYDI (zip 234);
+#   * katalog va buyurtma — bitta qoida (`ulgurji_buyurtma_hisobla` katalogdagi narxni qayta hisoblaydi, do'kon yuborgan narxga ishonilmaydi);
+#     buyurtma yozish — `sayt_buyurtma_yarat(…, ulgurji_hisob=m)` (takror, narx o'zgardi, telefon chegarasi, raqam — o'sha qoida);
+#   * ERP qatori: metr — miqdor = dona × 2 m, `narx` = 1 m (dona narxi ÷ 2, 2 xona), `summa` = dona narxi × dona (AYNAN — ERP buyurtmasi
+#     profil qatorida summa ishlatiladi); dona / m² — o'z birligida.
+ULGURJI_DONA_METR = 2
+ULGURJI_MAX_DONA = SAYT_MAX_MIQDOR // ULGURJI_DONA_METR      # 5 000 dona = 10 000 m
+ULGURJI_MAX_QATOR = 150              # magazin bir vaqtda ko'p qator to'ldiradi (komplektlar detallarga ajratilgandan keyin ham ≤ 250)
+ULGURJI_YOPIQ_MATN = "Bu bo'lim faqat tasdiqlangan magazinlar uchun"
+ULGURJI_BOLIM_YOPIQ_MATN = "Ulgurji bo'lim hozir yopiq"
+ULGURJI_YOLI = "/api/dokon/v1/ulgurji"
+ULGURJI_BUYURTMA_YOLI = "/api/dokon/v1/ulgurji/buyurtmalar"
+
+
+class DokonUlgurjiYopiq(Exception):
+    """Sessiya yaroqli, lekin hisob tasdiqlangan magazin emas (usta, kutilmoqda, rad) — 403 (bir xil matn)."""
+
+
+class DokonUlgurjiBolimYopiq(Exception):
+    """review250 L3: admin «Ulgurji» tizim bo'limini saytda yashirgan — ulgurji katalog va buyurtma yo'llari 404."""
+
+
+def ulgurji_korinadimi(m) -> bool:
+    """Hisob hozir ulgurji narxni ko'ra oladimi — FAQAT tasdiqlangan magazin (kabinet tarixi / PDF da ham — review250 M1)."""
+    return m is not None and m.mj_turi == "magazin" and m.mj_holat == "tasdiqlangan"
+
+
+def ulgurji_bolimi_ochiqmi(db: Session, company_id: int) -> bool:
+    """«Ulgurji» tizim bo'limi saytda yoqilganmi (yo'q — eski korxona: standart bo'limlar yaratilmagan — ochiq)."""
+    from models import DokonBolim
+    row = (db.query(DokonBolim.yoqilgan).filter(DokonBolim.company_id == company_id, DokonBolim.tizim_kaliti == "ulgurji").first())
+    return True if row is None else bool(row[0])
+
+
+def dokon_ulgurji_mijoz(db: Session, company_id: int, token, qulf: bool = False):
+    """Ulgurji yo'li: sessiya → TASDIQLANGAN MAGAZIN. Sessiya yaroqsiz — `DokonSessiyaYoq` (401); boshqa hisob — `DokonUlgurjiYopiq` (403).
+    `qulf=True` — buyurtma yozishda hisob qatori FOR UPDATE (bir vaqtda bloklansa — buyurtma ochilmaydi)."""
+    dokon_tekshir(db, company_id)
+    m = dokon_sessiya_mijoz(db, company_id, token, qulf=qulf)
+    if not ulgurji_korinadimi(m):
+        raise DokonUlgurjiYopiq(ULGURJI_YOPIQ_MATN)
+    if not ulgurji_bolimi_ochiqmi(db, company_id):
+        raise DokonUlgurjiBolimYopiq(ULGURJI_BOLIM_YOPIQ_MATN)
+    return m
+
+
+def ulgurji_mijoz_nomi(m) -> str:
+    """Ulgurji buyurtmadagi mijoz nomi — magazin nomi (bo'lmasa — ism), ≤ 100."""
+    nom = " ".join(str(m.mj_magazin or m.mj_ism or m.mj_tg_ism or "").split())[:100]
+    return nom if len(nom) >= 2 else "Magazin"
+
+
+def ulgurji_dona_soni(metr) -> int:
+    """ERP qatoridagi metr → magazin buyurtma qilgan dona (1 dona = 2 m)."""
+    return int(Decimal(str(metr)) / ULGURJI_DONA_METR)
+
+
+def ulgurji_sotish_birligi(d) -> str:
+    """Ulgurjida sotish birligi: metr — «dona2m» (1 dona = 2 m), m² — «m2», qolgani — «dona»."""
+    return "dona2m" if d.birlik == "metr" else ("m2" if d.birlik == "m2" else "dona")
+
+
+def _ulgurji_birlik_narxi(d, koeff, qoplamali):
+    """1 sotish birligining ulgurji narxi (Decimal) yoki None (kiritilmagan): metr — 1 dona (2 m), dona — 1 dona, m² — 1 m²."""
+    if qoplamali:
+        x = d.ulgurji_qoplamali if d.ulgurji_qoplamali is not None else dokon_avto_qoplamali(d.ulgurji_narx, koeff)
+    else:
+        x = d.ulgurji_narx
+    return None if x is None else Decimal(str(x))
+
+
+def _ulgurji_retsept_dona(retsept: dict) -> dict:
+    """Rom komplekti retsepti donada (metrli detal — metr ÷ 2; retsept rom metrlari juft — zip 233)."""
+    r = retsept["rom"]
+    return {t: (int(r[t]) // ULGURJI_DONA_METR if t in DOKON_METRLI_TURLAR else int(r[t])) for t in DOKON_RETSEPT_TURLARI["rom"]}
+
+
+def _ulgurji_komplekt_turlari(m, retsept: dict, kb: bool = True) -> list:
+    return [t for t in DOKON_RETSEPT_TURLARI["rom"]
+            if retsept["rom"][t] and (t not in ("kapitel", "baza") or (bool(m.kapitel_baza_bor) and kb))]
+
+
+def _ulgurji_olcham_guruhlari(detallar) -> list:
+    """Komplekt modelining detallari → [(o'lcham yozilishi, {turi: detal})] — yoqilgan qatorlar, detal tartibida birinchi uchragani."""
+    natija, joy = [], {}
+    for d in detallar:
+        if not d.yoqilgan:
+            continue
+        k = dokon_olcham_kalit(d.olcham)
+        if k not in joy:
+            joy[k] = {}
+            natija.append((d.olcham, joy[k]))
+        joy[k].setdefault(d.turi, d)
+    return natija
+
+
+def _ulgurji_komplekt(m, detallar, retsept: dict, koeff) -> list:
+    """Do'kon uchun ulgurji rom komplektlari (har o'lcham): detallari (dona, 1 dona narxi), komplekt narxi qoplamasiz / qoplamali va
+    (modelda bo'lsa) kapitel va bazasiz. Retseptdagi detal qatori yo'q o'lcham — chiqmaydi; ikkala qoplamada ham narx yo'q — chiqmaydi."""
+    if m.qolip != "komplekt":
+        return None
+    dona = _ulgurji_retsept_dona(retsept)
+    turlar = _ulgurji_komplekt_turlari(m, retsept)
+    kb_bor = bool(m.kapitel_baza_bor)
+    natija = []
+    for olcham, g in _ulgurji_olcham_guruhlari(detallar):
+        if any(t not in g for t in turlar if t not in ("kapitel", "baza")):
+            continue
+        # review250 L1: kapitel / baza qatori yo'q o'lcham — faqat kapitel va bazasiz (ERP buyurtmasi ham shuni qabul qiladi); review250-dokon
+        # U2: faqat bittasi (kapitel YOKI baza) bo'lsa ham — kapitel-bazasiz (to'liq komplekt buyurtmasi baribir rad etiladi)
+        _kbt = [t for t in turlar if t in ("kapitel", "baza")]
+        tl = [t for t in turlar if t in g and not (t in _kbt and any(k_ not in g for k_ in _kbt))]
+        x = {"olcham": olcham, "detallar": []}
+        for qop in (False, True):
+            nom = "qoplamali" if qop else "qoplamasiz"
+            narxlar = {t: _ulgurji_birlik_narxi(g[t], koeff, qop) for t in tl}
+            x[nom] = _dokon_pul(_dokon_jam([(narxlar[t], dona[t]) for t in tl])) if len(tl) == len(turlar) else None
+            if kb_bor:
+                x[nom + "_kbsiz"] = _dokon_pul(_dokon_jam([(narxlar[t], dona[t]) for t in tl if t not in ("kapitel", "baza")]))
+        if all(v is None for k_, v in x.items() if k_ not in ("olcham", "detallar")):
+            continue
+        for t in tl:
+            d = g[t]
+            x["detallar"].append({"turi": t, "turi_nomi": DOKON_TURI_NOMI.get(t, t), "olcham": d.olcham, "eni_sm": d.eni_sm,
+                                  "dona": dona[t], "kb": t in ("kapitel", "baza"),
+                                  "narx": _dokon_pul(_ulgurji_birlik_narxi(d, koeff, False)),
+                                  "narx_qoplamali": _dokon_pul(_ulgurji_birlik_narxi(d, koeff, True))})
+        natija.append(x)
+    return natija
+
+
+def _ulgurji_api_detal(d, koeff) -> dict:
+    return {"id": d.id, "model_id": d.model_id, "turi": d.turi, "turi_nomi": DOKON_TURI_NOMI.get(d.turi, d.turi), "olcham": d.olcham,
+            "eni_sm": d.eni_sm, "qalinligi_sm": d.qalinligi_sm, "birlik": d.birlik, "sotish": ulgurji_sotish_birligi(d),
+            "narx": _dokon_pul(_ulgurji_birlik_narxi(d, koeff, False)),
+            "narx_qoplamali": _dokon_pul(_ulgurji_birlik_narxi(d, koeff, True))}
+
+
+def _ulgurji_takror_qatorlari(qatorlar) -> list:
+    """Saqlangan ulgurji buyurtma qatorlari → so'rov shaklidagi qatorlar («takrorlash»: miqdorlar qo'yiladi, narx — bugungi)."""
+    natija, joy = [], {}
+    for q in qatorlar:
+        if q.sbq_tur == "komplekt_rom":
+            g = joy.get(q.guruh)
+            if g is None:
+                g = {"komplekt": "rom", "model_id": q.model_id, "olcham": q.sbq_olcham, "qoplamali": bool(q.qoplamali),
+                     "kapitel_baza": False, "soni": int(q.komplekt_soni or 1)}
+                joy[q.guruh] = g
+                natija.append(g)
+            if q.sbq_detal_turi in ("kapitel", "baza"):
+                g["kapitel_baza"] = True
+        elif q.detal_id:
+            if q.sbq_birlik == "metr":
+                miqdor = ulgurji_dona_soni(q.miqdor)
+            elif q.sbq_birlik == "m2":
+                miqdor = float(Decimal(str(q.miqdor)).quantize(Decimal("0.01")))
+            else:
+                miqdor = int(Decimal(str(q.miqdor)))
+            natija.append({"detal_id": q.detal_id, "qoplamali": bool(q.qoplamali), "miqdor": miqdor})
+    return [x for x in natija if x.get("model_id") or x.get("detal_id")]
+
+
+def dokon_api_ulgurji(db: Session, company_id: int, m) -> dict:
+    """Ulgurji katalog (FAQAT `dokon_ulgurji_mijoz` dan keyin): saytda ko'rinadigan bo'limlar / modellar (rasmlar), ulgurji narxi bor
+    detallar (1 sotish birligi — qoplamasiz / qoplamali), rom komplektlari, magazin, oxirgi manzil, oxirgi ulgurji buyurtma (takrorlash).
+    Tannarx, chakana narx, chegirma, ichki maydonlar — YO'Q."""
+    from models import DokonBolim, DokonModel, DokonDetal, DokonRasm, DokonBuyurtma
+    koeff = dokon_koeff(db, company_id)
+    retsept = dokon_retsept(db, company_id)
+    bolimlar = (db.query(DokonBolim).filter(DokonBolim.company_id == company_id, DokonBolim.yoqilgan == True,     # noqa: E712
+                                            DokonBolim.tizim_kaliti.is_(None))
+                .order_by(DokonBolim.tartib, DokonBolim.id).all())
+    bolim_orni = {b.id: i for i, b in enumerate(bolimlar)}
+    modellar = sorted((x for x in db.query(DokonModel).filter(DokonModel.company_id == company_id, DokonModel.yoqilgan == True).all()  # noqa: E712
+                       if x.bolim_id in bolim_orni), key=lambda x: (bolim_orni[x.bolim_id], x.tartib or 0, x.id))
+    mid = [x.id for x in modellar]
+    detallar, rasmlar = {}, {}
+    if mid:
+        for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_(mid))
+                  .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all()):
+            detallar.setdefault(d.model_id, []).append(d)
+        for r in (db.query(DokonRasm).filter(DokonRasm.company_id == company_id, DokonRasm.model_id.in_(mid))
+                  .order_by(DokonRasm.model_id, DokonRasm.tartib, DokonRasm.id).all()):
+            rasmlar.setdefault(r.model_id, []).append(r)
+    m_royxat, bor_bolim = [], set()
+    for x in modellar:
+        dl = detallar.get(x.id, [])
+        d_royxat = [y for y in (_ulgurji_api_detal(d, koeff) for d in dl if d.yoqilgan)
+                    if y["narx"] is not None or y["narx_qoplamali"] is not None]
+        k_royxat = _ulgurji_komplekt(x, dl, retsept, koeff)
+        if not d_royxat and not k_royxat:
+            continue
+        bor_bolim.add(x.bolim_id)
+        m_royxat.append({"id": x.id, "bolim_id": x.bolim_id, "kod": x.kod, "nom": x.nom, "qolip": x.qolip,
+                         "kapitel_baza_bor": bool(x.kapitel_baza_bor), "tartib": x.tartib or 0,
+                         "rasmlar": [{"url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi} for r in rasmlar.get(x.id, [])],
+                         "detallar": d_royxat, "komplekt": k_royxat or None})
+    oxirgi_b = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.mijoz_id == m.id,
+                                              DokonBuyurtma.sb_ulgurji == True)                                         # noqa: E712
+                .order_by(DokonBuyurtma.created_at.desc(), DokonBuyurtma.id.desc()).first())
+    oxirgi = None
+    if oxirgi_b is not None:
+        oxirgi = {"raqam": oxirgi_b.sb_raqam,
+                  "sana": (oxirgi_b.created_at + _td234(hours=5)).strftime("%d.%m.%Y") if oxirgi_b.created_at else None,
+                  "qatorlar": _ulgurji_takror_qatorlari(_sayt_qatorlari(db, company_id, oxirgi_b.id))}
+    manzil_b = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.mijoz_id == m.id,
+                                              DokonBuyurtma.sb_manzil.isnot(None))
+                .order_by(DokonBuyurtma.created_at.desc(), DokonBuyurtma.id.desc()).first())
+    return {"versiya": DOKON_API_VERSIYA, "bugun": dokon_bugun().isoformat(),
+            "magazin": {"nom": m.mj_magazin, "shahar": m.mj_shahar, "ism": m.mj_ism or m.mj_tg_ism, "telefon": m.mj_telefon,
+                        "telefon_korinish": dokon_telefon_korinish(m.mj_telefon)},
+            "bolimlar": [{"id": b.id, "nom": b.nom, "qolip": b.qolip, "tartib": b.tartib or 0} for b in bolimlar if b.id in bor_bolim],
+            "modellar": m_royxat,
+            "komplekt_retsepti": _ulgurji_retsept_dona(retsept), "dona_metr": ULGURJI_DONA_METR,
+            "manzil": ({"viloyat": manzil_b.sb_viloyat, "manzil": manzil_b.sb_manzil} if manzil_b is not None else None),
+            "oxirgi": oxirgi}
+
+
+def _ulgurji_qator(n, gnomi, tur, soni, m, d, qop, birlik_narx, sotish_soni, koeff=DOKON_QOPLAMA_KOEFF_STANDART) -> dict:
+    """Ulgurji hisob qatori (`_sayt_qator` shaklida): metr — miqdor = dona × 2 m, `narx` = 1 m (dona narxi ÷ 2), summa = dona narxi × dona
+    (AYNAN); dona / m² — o'z birligida. Chegirma yo'q (asl = narx). Hajm narxi (donali detal penoplast sarfi) — chakana qoplamasiz narx,
+    u yo'q bo'lsa — ulgurji qoplamasiz (ERP qoidasi: qoplama hajmga ta'sir qilmaydi)."""
+    sotish_soni = Decimal(str(sotish_soni))
+    if d.birlik == "metr":
+        miqdor = sotish_soni * ULGURJI_DONA_METR
+        narx = (birlik_narx / ULGURJI_DONA_METR).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    else:
+        miqdor = sotish_soni
+        narx = birlik_narx
+    # review250 M2: faqat qoplamali narx bor — koeffitsientga bo'linadi (chakana `_sayt_detal_narxi` qoidasi: hajm — qoplamasiz narxdan)
+    hajm = (Decimal(str(d.narx)) if d.narx is not None
+            else Decimal(str(d.ulgurji_narx)) if d.ulgurji_narx is not None
+            else (birlik_narx / Decimal(str(koeff))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if qop else birlik_narx)
+    x = _sayt_qator(n, gnomi, tur, soni, m, d, qop, miqdor, narx, narx, None, hajm)
+    x["summa"] = x["asl_summa"] = (birlik_narx * sotish_soni).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return x
+
+
+def ulgurji_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
+    """Magazin tanlovi → ERP hisobi (hech narsa yozilmaydi). `qatorlar` — [{"komplekt": "rom", "model_id", "olcham", "qoplamali",
+    "kapitel_baza", "soni"} | {"detal_id", "qoplamali", "miqdor"}] (miqdor: metrli detal — DONA (1 dona = 2 m), dona — dona, m² — m²). Narx —
+    FAQAT ERP katalogidan (saytda ko'rinadigan model / qator, ulgurji narx — `_ulgurji_birlik_narxi`); chakana narx va chegirma ishlatilmaydi.
+    Qaytaradi: {"qatorlar": [...], "jami", "chegirmasiz"} (Decimal; chegirmasiz = jami)."""
+    from models import DokonDetal
+    if not isinstance(qatorlar, list) or not qatorlar:
+        raise ValueError("Tanlov bo'sh — kamida bitta mahsulot miqdorini yozing")
+    if len(qatorlar) > ULGURJI_MAX_QATOR:
+        raise ValueError(f"Bitta buyurtmada ko'pi bilan {ULGURJI_MAX_QATOR} ta qator bo'lsin")
+    modellar = _sayt_koradigan(db, company_id)
+    koeff = dokon_koeff(db, company_id)
+    retsept = dokon_retsept(db, company_id)
+    dona = _ulgurji_retsept_dona(retsept)
+    detallar = {}
+    if modellar:
+        for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id.in_(list(modellar)))
+                  .order_by(DokonDetal.model_id, DokonDetal.tartib, DokonDetal.id).all()):
+            detallar.setdefault(d.model_id, []).append(d)
+    natija = []
+    for n, q in enumerate(qatorlar, start=1):
+        joy = f"{n}-qator"
+        if not isinstance(q, dict):
+            raise ValueError(f"{joy}: noto'g'ri qator")
+        if "komplekt" in q:
+            _dokon_kalitlar(q, ("komplekt", "model_id", "olcham", "qoplamali", "kapitel_baza", "soni"))
+            if q.get("komplekt") != "rom":
+                raise ValueError(f"{joy}: ulgurjida faqat rom komplekti bor")
+            mid = _dokon_butun(q.get("model_id"), f"{joy} — model", 1, 2_147_483_647)
+            m = modellar.get(mid)
+            if m is None or m.qolip != "komplekt":
+                raise ValueError(f"{joy}: bu model saytda sotuvda yo'q — sahifani yangilang")
+            olcham = _dokon_matn(q.get("olcham"), f"{joy} — o'lcham", 40)
+            qop = _dokon_bool(q.get("qoplamali"), f"{joy} — qoplamali")
+            kb = _dokon_bool(q.get("kapitel_baza", True), f"{joy} — kapitel va baza")
+            soni = _dokon_butun(q.get("soni"), f"{joy} — komplektlar soni", 1, SAYT_MAX_KOMPLEKT)
+            k = dokon_olcham_kalit(olcham)
+            guruh = next((g for ol, g in _ulgurji_olcham_guruhlari(detallar.get(m.id, [])) if dokon_olcham_kalit(ol) == k), None)
+            if not guruh:
+                raise ValueError(f"{joy}: «{m.kod}» modelida «{olcham}» o'lchami sotuvda yo'q — sahifani yangilang")
+            kbsiz = bool(m.kapitel_baza_bor) and not kb
+            gnomi = _sayt_gnomi239(m, f" — ulgurji {SAYT_KOMPLEKT_NOMI['rom']}, {next(iter(guruh.values())).olcham}, "
+                                   + ("qoplamali" if qop else "qoplamasiz") + (", kapitel va bazasiz" if kbsiz else "") + f" × {soni}")
+            for t in _ulgurji_komplekt_turlari(m, retsept, kb):
+                d = guruh.get(t)
+                if d is None:
+                    raise ValueError(f"{joy}: «{m.kod}» komplektida {DOKON_TURI_NOMI[t].lower()} yo'q — sahifani yangilang")
+                bn = _ulgurji_birlik_narxi(d, koeff, qop)
+                if bn is None:
+                    raise ValueError(f"{joy}: «{m.kod}» komplektida {DOKON_TURI_NOMI[t].lower()} ulgurji narxi kiritilmagan — sahifani yangilang")
+                natija.append(_ulgurji_qator(n, gnomi[:200], "komplekt_rom", soni, m, d, qop, bn, dona[t] * soni, koeff))
+        else:
+            _dokon_kalitlar(q, ("detal_id", "qoplamali", "miqdor"))
+            did = _dokon_butun(q.get("detal_id"), f"{joy} — mahsulot", 1, 2_147_483_647)
+            qop = _dokon_bool(q.get("qoplamali"), f"{joy} — qoplamali")
+            d = next((x for dl in detallar.values() for x in dl if x.id == did and x.yoqilgan), None)
+            if d is None:
+                raise ValueError(f"{joy}: bu mahsulot saytda sotuvda yo'q — sahifani yangilang")
+            m = modellar[d.model_id]
+            _dn = f"{m.kod} {DOKON_TURI_NOMI.get(d.turi, d.turi).lower()}"
+            bn = _ulgurji_birlik_narxi(d, koeff, qop)
+            if bn is None:
+                raise ValueError(f"{joy}: «{_dn}» — {'qoplamali' if qop else 'qoplamasiz'} ulgurji narxi kiritilmagan — sahifani yangilang")
+            if d.birlik == "metr":
+                soni_x = _dokon_butun(q.get("miqdor"), f"{_dn} — dona", 1, ULGURJI_MAX_DONA)
+                dum = f" — {soni_x} dona ({soni_x * ULGURJI_DONA_METR} m)"
+            elif d.birlik == "m2":
+                soni_x = _sayt_miqdor(q.get("miqdor"), "m2", m.qolip, d.turi, _dn)
+                dum = f" — {audit_son(soni_x, 2)} m²"
+            else:
+                soni_x = _dokon_butun(q.get("miqdor"), f"{_dn} — dona", 1, SAYT_MAX_MIQDOR)
+                dum = f" — {soni_x} dona"
+            nom = _sayt_nom(m, d)
+            _ol = "" if _sayt_olcham_nomdami(nom, d.olcham, d.eni_sm) else f"{d.olcham}, "
+            bosh = f"{nom}, {_ol}" + ("qoplamali" if qop else "qoplamasiz")
+            natija.append(_ulgurji_qator(n, bosh[:200 - len(dum)] + dum, "detal", None, m, d, qop, bn, soni_x, koeff))
+        if len(natija) > SAYT_MAX_DETAL_QATOR:
+            raise ValueError(f"Buyurtma juda katta — ko'pi bilan {SAYT_MAX_DETAL_QATOR} ta detal qatori")
+    jami = sum((x["summa"] for x in natija), Decimal("0"))
+    if jami > SAYT_MAX_JAMI or any(x["summa"] > SAYT_MAX_JAMI for x in natija):
+        raise ValueError("Buyurtma summasi juda katta — qo'ng'iroq qiling")
+    return {"qatorlar": natija, "jami": jami, "chegirmasiz": jami}
+
+
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + (ULGURJI_YOLI, ULGURJI_BUYURTMA_YOLI)
+
+
+def _ulgurji_guruhlar_dona(guruhlar: list) -> list:
+    """review250 L2: do'kon javobida ulgurji buyurtmaning metrli qatorlari — DONADA (miqdor = dona, narx = 1 dona narxi = summa ÷ dona;
+    summa o'zgarmaydi). ERP ichida (ro'yxat, buyurtma) — metr."""
+    for g in guruhlar:
+        for x in g.get("detallar") or []:
+            if x.get("birlik") == "metr" and x.get("miqdor"):
+                dn = ulgurji_dona_soni(x["miqdor"])
+                if dn:
+                    x.update({"birlik": "dona", "miqdor": float(dn), "dona_metr": ULGURJI_DONA_METR,
+                              "narx": float((Decimal(str(x["summa"])) / dn).quantize(Decimal("0.01"))),
+                              "asl_narx": float((Decimal(str(x["summa"])) / dn).quantize(Decimal("0.01")))})
+    return guruhlar

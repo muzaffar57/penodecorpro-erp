@@ -435,7 +435,7 @@ YANGI_MARSHRUTLAR = {
     "GET /favicon.ico": "-", "HEAD /favicon.ico": "-",
     # kech181 (zip 248): do'kon — Telegram orqali kirish / hisob (kalit + sessiya, login siz), do'kon boti; admin — FAQAT Admin
     "POST /api/dokon/v1/kirish": "-", "POST /api/dokon/v1/kirish/holat": "-", "GET /api/dokon/v1/mijoz": "-",
-    "POST /api/dokon/v1/mijoz/royxat": "-", "POST /api/dokon/v1/mijoz/chiqish": "-", "GET /api/dokon/v1/mijoz/buyurtmalar": "-", "POST /api/dokon/v1/mijoz/buyurtmalar/pdf": "-", "POST /telegram/dokon": "-",
+    "POST /api/dokon/v1/mijoz/royxat": "-", "POST /api/dokon/v1/mijoz/chiqish": "-", "GET /api/dokon/v1/mijoz/buyurtmalar": "-", "POST /api/dokon/v1/mijoz/buyurtmalar/pdf": "-", "GET /api/dokon/v1/ulgurji": "-", "POST /api/dokon/v1/ulgurji/buyurtmalar": "-", "POST /telegram/dokon": "-",
     "GET /api/sayt-katalogi/mijozlar": "A", "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/tasdiqla": "A",
     "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/rad": "A", "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/blokla": "A",
     "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/ochish": "A", "GET /api/sayt-katalogi/dokon-bot": "A",

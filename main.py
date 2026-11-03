@@ -15481,6 +15481,74 @@ async def api_dokon_v1_mijoz_buyurtma_pdf(request: Request, db: Session = Depend
     return _sayt_pdf_javob(pdf, f"buyurtma-{raqam}.pdf")
 
 
+# ══ kech184 (zip 250) — DO'KON: ULGURJI BO'LIM — KATALOG VA MAGAZIN BUYURTMASI (FAQAT tasdiqlangan magazin; kalit + `X-Mijoz-Sessiya`) ══
+# Ulgurji narx boshqa hech kimga berilmaydi: sessiya yaroqsiz — 401 «Kirilmagan», usta / tasdiqlanmagan magazin — 403 (bir xil matn).
+# Mantiq — `crud.dokon_ulgurji_mijoz`, `crud.dokon_api_ulgurji`, `crud.ulgurji_buyurtma_hisobla`, `crud.sayt_buyurtma_yarat(…, ulgurji_hisob=)`.
+def _ulgurji_yopiq_xato():
+    return HTTPException(status_code=403, detail=crud.ULGURJI_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+
+
+@app.get("/api/dokon/v1/ulgurji")
+def api_dokon_v1_ulgurji(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — ulgurji katalog (kalit + sessiya; FAQAT tasdiqlangan magazin): ulgurji narxi bor detallar (1 dona — 2 m / dona /
+    m²), rom komplektlari, magazin, oxirgi manzil va oxirgi ulgurji buyurtma (takrorlash). Keshlanmaydi (`no-store`)."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            m = crud.dokon_ulgurji_mijoz(db, cid, _dokon_sessiya_ol(request))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.DokonUlgurjiYopiq:
+            db.rollback()
+            raise _ulgurji_yopiq_xato()
+        except crud.DokonUlgurjiBolimYopiq:                 # review250 L3: admin «Ulgurji» bo'limini yashirgan
+            db.rollback()
+            raise HTTPException(status_code=404, detail=crud.ULGURJI_BOLIM_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+        return crud.dokon_api_ulgurji(db, cid, m)
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/ulgurji/buyurtmalar")
+async def api_dokon_v1_ulgurji_buyurtma(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — magazinning ulgurji buyurtmasi (kalit + sessiya + `X-Amal-Kaliti`): {"telefon"?, "viloyat", "manzil", "lokatsiya"?,
+    "izoh"?, "qatorlar", "kutilgan_jami"?}. Ism / telefon — hisobdan; narx — ERP ulgurji hisobi (farq — 409, hech narsa yozilmaydi);
+    takror — avvalgi javob (`X-Takror: 1`). Sessiya yaroqsiz — 401, magazin emas / tasdiqlanmagan — 403. Telegram — korxona botiga."""
+    from starlette.concurrency import run_in_threadpool as _thr250
+    cid = await _thr250(_dokon_api_korxona, request, db, crud._DOKON_BUYURTMA_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    kalit = request.headers.get(crud.SAYT_KALIT_SARLAVHA.lower())
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        try:
+            m = crud.dokon_ulgurji_mijoz(db, cid, sessiya, qulf=True)
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.DokonUlgurjiYopiq:
+            db.rollback()
+            raise _ulgurji_yopiq_xato()
+        except crud.DokonUlgurjiBolimYopiq:                 # review250 L3: admin «Ulgurji» bo'limini yashirgan
+            db.rollback()
+            raise HTTPException(status_code=404, detail=crud.ULGURJI_BOLIM_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+        try:
+            return crud.sayt_buyurtma_yarat(db, cid, kalit, data, ulgurji_hisob=m)
+        except ValueError as e:
+            db.rollback()
+            raise _sayt_xato(e)
+
+    def _ish():
+        b, qatorlar, takror = _dokon_bajar(db, _bajar)
+        return crud.sayt_dokon_javobi(db, b, qatorlar, takror=takror), \
+            (None if takror else crud.sayt_telegram_matni(b, qatorlar, crud.sayt_mijoz_yorligi(db, cid, b))), takror
+    javob, _matn, takror = await _thr250(_ish)
+    if _matn is not None:
+        _fonda(background_tasks, _send_telegram, _matn, company_id=cid, sessiya=db)
+    return JSONResponse(content=javob, headers={"Cache-Control": "no-store", **({"X-Takror": "1"} if takror else {})})
+
+
 # ── Admin: «Usta va magazinlar» (sayt katalogi sahifasi) ──
 def _dokon_mijoz_amal(db, fn):
     try:

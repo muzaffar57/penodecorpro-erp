@@ -389,7 +389,7 @@ check("T1 usta — FAQAT o'z buyurtmalari (yangisi birinchi), no-store", t.statu
       and t.headers.get("cache-control") == "no-store", (t.status_code, t.text[:300]))
 _x = T[-1] if T else {}
 check("T2 yozuv: raqam, sana (Toshkent), jami, mahsulotlar soni, holat «kutilmoqda» — ortiqcha maydon YO'Q",
-      set(_x) == {"raqam", "sana", "jami", "soni", "holat", "holat_nomi"} and _x.get("sana") == "03.11.2026" and _x.get("jami") == 180000.0
+      set(_x) == ({"raqam", "sana", "jami", "soni", "holat", "holat_nomi"} | ({"ulgurji"} if hasattr(crud, "dokon_api_ulgurji") else set())) and _x.get("sana") == "03.11.2026" and _x.get("jami") == 180000.0
       and _x.get("soni") == 1 and _x.get("holat") == "kutilmoqda" and _x.get("holat_nomi") == "Tasdiqlash kutilmoqda", _x)
 check("T3 magazin — o'zinikini ko'radi (usta buyurtmalari YO'Q)", [x.get("raqam") for x in js(tarix(S_MAG)).get("buyurtmalar") or []] == [R2],
       js(tarix(S_MAG)))

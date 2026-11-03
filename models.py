@@ -3173,6 +3173,9 @@ class DokonBuyurtma(Base):
     # kech182 (zip 249): buyurtmani bergan kirgan hisob (`dokon_mijozlar.id`; FK siz — hisob o'chirilmaydi, faqat bloklanadi); NULL — mehmon.
     # Kabinetdagi buyurtmalar tarixi / PDF va ERP buyurtmasiga usta (KPI / keshbek) — shu bo'yicha. `default=` ATAYLAB YO'Q.
     mijoz_id = Column(Integer, nullable=True, index=True)
+    # kech184 (zip 250): ulgurji buyurtma — tasdiqlangan magazin «Ulgurji» bo'limidan bergan (narx — ulgurji, 1 dona = 2 m); NULL / False —
+    # oddiy (chakana). Bitta buyurtmada aralashmaydi. Keshbek (usta KPI) — ulgurjida YO'Q. `default=` ATAYLAB YO'Q (eski qatorlar — NULL).
+    sb_ulgurji = Column(Boolean, nullable=True)
 
     def __repr__(self):
         return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"

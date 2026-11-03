@@ -188,7 +188,7 @@ for _fn in ast.walk(_tree):
             _s4_yoq.append(f"{_fn.name}:{_c.lineno} add_task")
 check("S4 HAR `_fonda(background_tasks, …)` (25 ta) — `sessiya=db` bilan (fon vazifalaridan OLDIN so'rov sessiyasi yopiladi — ulanish "
       "hovuzga qaytadi); `background_tasks.add_task` faqat `_fonda` ichida; `_tm_minus_xabari` matni so'rov ichida (`_fonda_tayyorla`)",
-      _s4_jami == (28 if hasattr(main, "_dokon_bot_yubor") else 25) and not _s4_yoq   # kech181 (zip 248, MOSLANDI): + ro'yxat / tasdiq / rad   # kech171 (zip 237): + sayt buyurtmasi xabari and callable(getattr(main, "_tm_minus_xabari", None))
+      _s4_jami == ((28 + (1 if hasattr(main.crud, "dokon_api_ulgurji") else 0)) if hasattr(main, "_dokon_bot_yubor") else 25) and not _s4_yoq   # kech181 (zip 248, MOSLANDI): + ro'yxat / tasdiq / rad   # kech171 (zip 237): + sayt buyurtmasi xabari and callable(getattr(main, "_tm_minus_xabari", None))
       and callable(getattr(main._tm_minus_xabari, "_fonda_tayyorla", None)) and callable(getattr(main, "_sessiyani_yop", None)),
       (_s4_jami, _s4_yoq[:10]))
 

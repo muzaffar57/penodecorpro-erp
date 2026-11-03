@@ -966,6 +966,7 @@ def generate_sayt_pdf(h: dict, db=None) -> bytes:
     )
     return generate_nakladnoy(_hujjat, db, taklif={
         "sana": h["sana"], "hisob": _hisob, "info": info, "pastki": list(h.get("pastki") or []), "jami_nomi": "JAMI:", "nom_asl": True,
-        "sarlavha": "SAVAT (HISOB-KITOB)" if savat else "BUYURTMA", "raqamsiz": savat,
+        "sarlavha": "SAVAT (HISOB-KITOB)" if savat else ("ULGURJI BUYURTMA" if h.get("ulgurji") else "BUYURTMA"),   # kech184 (zip 250)
+        "raqamsiz": savat,
         "pastki_yorliq": "Savat" if savat else f"Buyurtma: {h.get('raqam')}",
         "fayl_nomi": "Savat (hisob-kitob)" if savat else f"Buyurtma {h.get('raqam')}"})

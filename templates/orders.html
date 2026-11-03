@@ -4293,7 +4293,7 @@ function saytChiz(d) {
         ? `<div class="tk-meta" style="color:var(--m-b45309)">⚠️ ${(b.ogohlantirishlar || []).map(x => escapeHtml(x)).join('<br>⚠️ ')}</div>` : '';
       return `<div class="tk-qator" data-id="${id}">
         <div style="min-width:0">
-          <div class="tk-bosh"><span class="tk-raqam">${escapeHtml(b.raqam)}</span>${_sbBelgi(b)}</div>
+          <div class="tk-bosh"><span class="tk-raqam">${escapeHtml(b.raqam)}</span>${_sbBelgi(b)}${b.ulgurji ? '<span class="tk-belgi rasmiy">🏪 Ulgurji (magazin)</span>' : ''}</div>
           <div class="tk-mijoz">${mij}</div>
           <div class="tk-meta">${joy}</div>
           ${(b.guruhlar || []).map(g => _sbGuruhHtml(g)).join('')}
