@@ -294,7 +294,7 @@ section("S. Statik")
 _yollar = {(m, r.path): r for r in main.app.routes for m in (getattr(r, "methods", None) or ())}
 _dy = sorted((m, p) for (m, p) in _yollar if p.startswith("/api/dokon/"))
 check("S1 do'kon yo'llari: 3 GET (katalog, sozlamalar, tayyor) + BITTA POST (buyurtmalar); o'chiruvchi / tahrirlovchi yo'l YO'Q",
-      _dy == ([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else []) + [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", TY), ("POST", BY)], _dy)
+      _dy == ([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else []) + [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", TY), ("POST", BY)] + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else []), _dy)   # kech178 (zip 244): PDF
 
 
 def _bogliq(m, p):

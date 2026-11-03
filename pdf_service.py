@@ -373,9 +373,13 @@ IZOH_RANG = colors.HexColor("#4B5563")
 def _pul_matni(n) -> str:
     """kech120 (zip 136 — G6-12): buyurtma hisobidagi summa — boshqa hujjatlardagidek ming ajratgich BO'SHLIQ («900 000»;
     ilgari «900,000» — vergul, yuk xati / hisob-kitob / moliya PDF larida bo'shliq). Butun so'mgacha yaxlitlanadi (avvalgidek)."""
+    # kech178 (review244 M2): yarim so'm — YUQORIGA (ERP qoidasi, ROUND_HALF_UP). Ilgari `:,.0f` — «bankir» yaxlitlashi: 6 172,5 →
+    # «6 172», 6 173,5 → «6 174» (bir hujjatda ikki xil qoida)
+    from decimal import Decimal as _D244p, ROUND_HALF_UP as _RHU244p, InvalidOperation as _IO244p
     try:
-        return f"{float(n or 0):,.0f}".replace(",", " ")
-    except (TypeError, ValueError):
+        _d = _D244p(repr(float(n or 0))).quantize(_D244p("1"), rounding=_RHU244p)
+        return f"{int(_d):,}".replace(",", " ")
+    except (TypeError, ValueError, _IO244p, OverflowError):
         return "0"
 
 
@@ -454,6 +458,8 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     _hujjat_vaqti = None
     if taklif:
         doc.title, doc.subject = f"Taklif {order.order_number}", "Taklif (hisob-kitob)"
+        if taklif.get("fayl_nomi"):             # kech178 (zip 244): do'kon buyurtmasi / savati — o'z nomi
+            doc.title, doc.subject = taklif["fayl_nomi"], taklif.get("fayl_mavzu") or taklif["fayl_nomi"]
         _hujjat_vaqti = taklif.get("sana")
 
     W = A4[0] - 36*mm
@@ -519,8 +525,9 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
             # kech118 (D-1, G6-11 — egasi QARORI «Taklif qilingan lug'at»): «Buyurtma hisobi» (ilgari «NAKLADNOY» — yuk xati va
             # sotuv hujjati bilan bir xil nomda edi, mijoz qog'ozni sarlavhasidan ajrata olmasdi)
             # kech126 (zip 148): taklif — «TAKLIF (HISOB-KITOB)» (egasi qarori), sana — taklif sanasi (narxlar shu kundan 3 kun)
-            Paragraph("TAKLIF (HISOB-KITOB)", st["doc_title"]) if taklif else Paragraph("BUYURTMA HISOBI", st["doc_title"]),
-            Paragraph(f"# {_x(order.order_number)}", st["doc_num"]),
+            # kech178 (zip 244): do'kon — «BUYURTMA» / «SAVAT (HISOB-KITOB)» (`taklif["sarlavha"]`); savatda raqam yo'q (`raqamsiz`)
+            Paragraph(_x(taklif.get("sarlavha") or "TAKLIF (HISOB-KITOB)"), st["doc_title"]) if taklif else Paragraph("BUYURTMA HISOBI", st["doc_title"]),
+        ] + ([] if (taklif and taklif.get("raqamsiz")) else [Paragraph(f"# {_x(order.order_number)}", st["doc_num"])]) + [
             Paragraph(f"Sana: {_tashkent_vaqt(_hujjat_vaqti).strftime('%d.%m.%Y')}", st["doc_num"]),
         ],
     ]]
@@ -570,7 +577,19 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         ],
     ]]
 
-    if taklif:
+    if taklif and taklif.get("info"):
+        # kech178 (zip 244): do'kon — ustunlar tayyor: [[(yorliq, qiymat), …], …] (birinchi qiymat — katta, qolgani — kichik)
+        info_data = [[]]
+        for _u244 in taklif["info"]:
+            _ust244 = []
+            for _i244, (_l244, _q244) in enumerate(_u244):
+                if _i244:
+                    _ust244.append(Spacer(1, 4*(1-cx*0.7)))
+                _ust244.append(Paragraph(_x(_l244), st["section_label"]))
+                _ust244.append(Paragraph(_x(_q244 if _q244 not in (None, "") else "—"),
+                                         st["section_value"] if _i244 == 0 else st["section_value_sm"]))
+            info_data[0].append(_ust244)
+    elif taklif:
         # kech126 (zip 148): taklifda loyiha, buyurtma holati va usta yo'q — mijoz va taklif ma'lumoti (ikki ustun)
         info_data = [[
             [
@@ -588,7 +607,7 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
                 Paragraph(f"{_tashkent_vaqt(_hujjat_vaqti).strftime('%d.%m.%Y')}", st["section_value_sm"]),
             ],
         ]]
-    info_tbl = Table(info_data, colWidths=([W/2, W/2] if taklif else [W/3, W/3, W/3]))
+    info_tbl = Table(info_data, colWidths=([W / len(info_data[0])] * len(info_data[0]) if taklif else [W/3, W/3, W/3]))
     info_tbl.setStyle(TableStyle([
         ("VALIGN", (0,0), (-1,-1), "TOP"),
         ("BACKGROUND", (0,0), (-1,-1), LIGHT),
@@ -678,7 +697,8 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
 
         # kech159 (zip 222): detal nomi — tartibli ko'rinishda (bazadagi eski «PADAKOLNIK» ham «Padakolnik»)
         from schemas import detal_nomi_tartib as _dnt222
-        _nom222 = _dnt222(item.name)
+        # kech178 (zip 244, review244 L1): do'kon PDF ida — katalogdagi nom AYNAN («AB-12» — «Ab-12» bo'lib qolmasin, sayt bilan bir xil)
+        _nom222 = item.name if (taklif and taklif.get("nom_asl")) else _dnt222(item.name)
         if (item.category or '').lower() == 'gips':
             item_label = f"{_nom222} (GIPS)"
         elif item.is_coated:
@@ -746,7 +766,8 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     import crud as _crud_nak
     # kech126 (zip 148): taklif — qatorlar `generate_taklif` da o'sha qoida bilan hisoblangan (to'lov yo'q)
     _hisob = taklif["hisob"] if taklif else _crud_nak.buyurtma_hisob_qatorlari(db, order, mijoz_hujjati=True)
-    _NOMI = {"jami": "Umumiy jami:", "kelishilgan": "TO'LOV SUMMASI:"}
+    # kech178 (zip 244): do'kon buyurtmasi / savati — «JAMI:» (yetkazish narxi telefonda kelishiladi — hali to'lov summasi emas)
+    _NOMI = {"jami": "Umumiy jami:", "kelishilgan": (taklif or {}).get("jami_nomi") or "TO'LOV SUMMASI:"}
     totals_data = []
     grand_total_row = None
     for q in _hisob["qatorlar"]:
@@ -775,7 +796,7 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): chegirma / qaytarish / kechirilgan yo'q — kelishilgan = jami. Ilgari
         # «Umumiy jami» va «TO'LOV SUMMASI» — bir xil raqam, ketma-ket ikki qator edi; endi BITTA qator «TO'LOV SUMMASI».
         totals_data[0] = [
-            Paragraph("TO'LOV SUMMASI:", st["total_label"]),
+            Paragraph(_x(_NOMI["kelishilgan"]), st["total_label"]),
             Paragraph(f"{_pul_matni(_hisob['korinish']['kelishilgan'])} so'm", st["total_value"]),
         ]
         grand_total_row = 0
@@ -821,12 +842,18 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # topshirish yo'q). Muddat `crud.TAKLIF_MUDDAT_KUN` bilan bir xil (tools/test_taklif.py tekshiradi).
         story.append(Spacer(1, 10*(1-cx*0.7)))
         story.append(HRFlowable(width="100%", thickness=1, color=GOLD, spaceAfter=6))
-        story.append(Paragraph("Narxlar 3 kun amal qiladi", st["total_label"]))
+        if taklif.get("pastki") is not None:
+            # kech178 (zip 244): do'kon — pastdagi yozuvlar (`crud._sayt_pdf_pastki`): birinchisi — qalin (tasdiqlash raqamlari / holat)
+            _qalin244 = ParagraphStyle("sayt_pastki244", parent=st["note"], fontName="Helvetica-Bold", textColor=DARK)
+            for _i244, _p244 in enumerate(taklif["pastki"]):
+                story.append(Paragraph(_x(_p244), _qalin244 if _i244 == 0 else st["note"]))
+        else:
+            story.append(Paragraph("Narxlar 3 kun amal qiladi", st["total_label"]))
         story.append(Spacer(1, 16*(1-cx*0.7)))
         story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
         story.append(Paragraph(
             f"{_x(_brand['name'])} · Chiqarilgan: {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')} · "
-            f"Taklif: {_x(order.order_number)}",
+            f"{_x(taklif.get('pastki_yorliq') or ('Taklif: ' + str(order.order_number)))}",
             st["footer"]
         ))
         doc.build(story)
@@ -898,3 +925,47 @@ def generate_taklif(t, db=None) -> bytes:
         project=_NS(client_name=t.mijoz, client_phone=t.telefon, client_address=None, project_name=None),
     )
     return generate_nakladnoy(_hujjat, db, taklif={"sana": t.tahrirlangan or t.yaratilgan, "hisob": _hisob})
+
+
+def generate_sayt_pdf(h: dict, db=None) -> bytes:
+    """kech178 (zip 244 — egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF»): do'kon buyurtmasi / savati PDF i —
+    «Buyurtma hisobi» / «Taklif» shablonining O'ZI (korxona logotipi, nomi, telefonlari; komplekt sarlavhasi). `h` —
+    `crud.sayt_pdf_buyurtma` / `crud.sayt_pdf_savat`: qatorlar — tasdiqlanganda ERP buyurtmasiga tushadiganlarning O'ZI
+    (`crud._sayt_erp_qatorlari`), summa — qator narxi × miqdor (2 xona; buyurtmadagi summa bilan AYNAN), jami — sayt buyurtmasi /
+    savat hisobi. To'lov / qarz / imzo qatori yo'q."""
+    from types import SimpleNamespace as _NS
+    from decimal import Decimal as _D244, ROUND_HALF_UP as _RHU244
+    import crud as _crud244
+    _items = []
+    for _d in h["items"]:
+        _kat = (_d.get("category") or "").lower()
+        _miq = _d.get("quantity") if _kat != "profil" else 1
+        _jami = (_D244(str(_d.get("unit_price") or 0)) * _D244(str(_miq or 0))).quantize(_D244("0.01"), rounding=_RHU244)
+        _items.append(_NS(
+            name=str(_d.get("name") or ""), category=_d.get("category"), is_coated=bool(_d.get("is_coated")),
+            length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
+            unit_price=_d.get("unit_price"), total_price=float(_jami), delivery_unit=None, gips_unit=None,
+            blok_birlik=_d.get("blok_birlik"), kmp_guruh=_d.get("kmp_guruh"), kmp_turi=_d.get("kmp_turi"),
+            kmp_nomi=_d.get("kmp_nomi"), kmp_soni=_d.get("kmp_soni"),
+        ))
+    _jami_h = float(h["jami"] or 0)
+    _ord = _NS(total_amount=_jami_h, kechirilgan=0.0, kelishilgan_summa=_jami_h, paid_amount=0.0, debt_amount=_jami_h,
+               ortiqcha_tolov=0.0)
+    _hisob = _crud244.buyurtma_hisob_qatorlari(None, _ord, qaytarish=0.0, mijoz_hujjati=True)
+    _sana = _tashkent_vaqt(h["sana"]).strftime("%d.%m.%Y %H:%M")
+    savat = h["turi"] == "savat"
+    if savat:
+        info = [[("HUJJAT", "Savat — buyurtma hali berilmagan")], [("SANA", _sana)]]
+    else:
+        info = [[("MIJOZ", h.get("mijoz")), ("TELEFON", h.get("telefon")), ("VILOYAT", h.get("viloyat_nomi"))],
+                [("BUYURTMA RAQAMI", h.get("raqam")), ("SANA", _sana), ("HOLATI", h.get("holat_nomi"))]]
+    _hujjat = _NS(
+        id=0, company_id=h["company_id"], order_number=h.get("raqam") or "", items=_items, notes=None, created_at=h["sana"],
+        status=None, master=None,
+        project=_NS(client_name=h.get("mijoz") or "—", client_phone=h.get("telefon"), client_address=None, project_name=None),
+    )
+    return generate_nakladnoy(_hujjat, db, taklif={
+        "sana": h["sana"], "hisob": _hisob, "info": info, "pastki": list(h.get("pastki") or []), "jami_nomi": "JAMI:", "nom_asl": True,
+        "sarlavha": "SAVAT (HISOB-KITOB)" if savat else "BUYURTMA", "raqamsiz": savat,
+        "pastki_yorliq": "Savat" if savat else f"Buyurtma: {h.get('raqam')}",
+        "fayl_nomi": "Savat (hisob-kitob)" if savat else f"Buyurtma {h.get('raqam')}"})

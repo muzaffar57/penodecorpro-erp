@@ -429,6 +429,8 @@ YANGI_MARSHRUTLAR = {
     "PUT /api/sayt-katalogi/galereya/{galereya_id}": "A", "DELETE /api/sayt-katalogi/galereya/{galereya_id}": "A",
     "POST /api/sayt-katalogi/galereya/{galereya_id}/rasmlar": "A", "PUT /api/sayt-katalogi/galereya/{galereya_id}/rasmlar": "A",
     "DELETE /api/sayt-katalogi/galereya-rasmlari/{rasm_id}": "A", "GET /api/dokon/v1/galereya": "-",
+    # kech178 (zip 244): do'kon — buyurtma / savat PDF i (kalit bilan, sessiyasiz)
+    "POST /api/dokon/v1/buyurtmalar/pdf": "-", "POST /api/dokon/v1/savat/pdf": "-",
     "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",

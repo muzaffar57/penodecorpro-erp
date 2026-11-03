@@ -12461,16 +12461,10 @@ def _sayt_xato(e):
 SAYT_TANA_MAX = 200_000
 
 
-@app.post("/api/dokon/v1/buyurtmalar")
-async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
-    """Do'kon sayti — yangi buyurtma (kalit bilan; `X-Amal-Kaliti` — savat kaliti, SHART). Narx — ERP hisobi (do'kon yuborgan narxga
-    ishonilmaydi; `kutilgan_jami` farq qilsa — 409 + yangi hisob, hech narsa yozilmaydi). Takror (o'sha kalit, o'sha savat) — avvalgi
-    javob (`takror: true`, `X-Takror: 1`). Telegram — korxona botiga (javobdan keyin, takrorda — yo'q)."""
+async def _dokon_json_tana(request: Request) -> dict:
+    """Do'kon so'rovi tanasi — JSON obyekt. review237 L4: hajm — o'qishdan OLDIN (Content-Length) va o'qish davomida (413); NaN /
+    Infinity — rad (400). kech178 (zip 244): `api_dokon_v1_buyurtma` dan ajratildi (xulq AYNAN) — PDF yo'llari ham shundan."""
     import json as _js237
-    from starlette.concurrency import run_in_threadpool as _thr237
-    # review237 L3: baza ishi — oqimlar hovuzida (asinxron marshrut voqealar siklini to'xtatmasin)
-    cid = await _thr237(_dokon_api_korxona, request, db, crud._DOKON_BUYURTMA_CHEKLOV)
-    # review237 L4: tana hajmi — o'qishdan OLDIN (Content-Length) va o'qish davomida
     try:
         _uz = int(request.headers.get("content-length") or 0)
     except ValueError:
@@ -12491,6 +12485,18 @@ async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db),
         raise HTTPException(status_code=400, detail="So'rov tanasi JSON bo'lishi kerak")
     if not isinstance(data, dict):
         raise HTTPException(status_code=400, detail="So'rov tanasi JSON obyekt bo'lishi kerak")
+    return data
+
+
+@app.post("/api/dokon/v1/buyurtmalar")
+async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — yangi buyurtma (kalit bilan; `X-Amal-Kaliti` — savat kaliti, SHART). Narx — ERP hisobi (do'kon yuborgan narxga
+    ishonilmaydi; `kutilgan_jami` farq qilsa — 409 + yangi hisob, hech narsa yozilmaydi). Takror (o'sha kalit, o'sha savat) — avvalgi
+    javob (`takror: true`, `X-Takror: 1`). Telegram — korxona botiga (javobdan keyin, takrorda — yo'q)."""
+    from starlette.concurrency import run_in_threadpool as _thr237
+    # review237 L3: baza ishi — oqimlar hovuzida (asinxron marshrut voqealar siklini to'xtatmasin)
+    cid = await _thr237(_dokon_api_korxona, request, db, crud._DOKON_BUYURTMA_CHEKLOV)
+    data = await _dokon_json_tana(request)          # kech178 (zip 244): tana o'qish — alohida (PDF yo'llari ham shundan)
     kalit = request.headers.get(crud.SAYT_KALIT_SARLAVHA.lower())
 
     def _bajar():
@@ -12506,6 +12512,50 @@ async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db),
     if _matn is not None:
         _fonda(background_tasks, _send_telegram, _matn, company_id=cid, sessiya=db)
     return JSONResponse(content=javob, headers={"Cache-Control": "no-store", **({"X-Takror": "1"} if takror else {})})
+
+
+# ══ kech178 (zip 244) — DO'KON: BUYURTMA VA SAVAT PDF I (egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF») ═══════════
+# Do'kon sayti (o'sha kalit bilan) mijozga PDF beradi: buyurtma — raqam + o'sha buyurtmaning amal kaliti (do'kon kalitining o'zi yetmaydi),
+# savat — savat qatorlari (narx — ERP hisobi, hech narsa yozilmaydi). Mantiq — `crud.sayt_pdf_*`, PDF — `pdf_service.generate_sayt_pdf`.
+def _sayt_pdf_javob(pdf: bytes, fayl: str):
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Cache-Control": "no-store", "Content-Disposition": f'attachment; filename="{fayl}"',
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/dokon/v1/buyurtmalar/pdf")
+async def api_dokon_v1_buyurtma_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — buyurtma PDF i (kalit bilan): {"raqam": "S-0001", "kalit": "<buyurtma yuborilgandagi X-Amal-Kaliti>"}. Narx —
+    buyurtmada QOTGANI. Raqam yoki kalit mos emas — 404 (bir xil javob)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr244
+    cid = await _thr244(_dokon_api_korxona, request, db, crud._DOKON_PDF_CHEKLOV)     # review244 M1: o'z chegarasi
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        try:
+            b, qatorlar = crud.sayt_buyurtma_pdf_ol(db, cid, data)
+            return pdf_service.generate_sayt_pdf(crud.sayt_pdf_buyurtma(db, b, qatorlar), db), b.sb_raqam
+        except crud.SaytPdfTopilmadi as e:
+            db.rollback()
+            raise HTTPException(status_code=404, detail=str(e), headers={"Cache-Control": "no-store"})
+    pdf, raqam = await _thr244(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, f"buyurtma-{raqam}.pdf")
+
+
+@app.post("/api/dokon/v1/savat/pdf")
+async def api_dokon_v1_savat_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — savat PDF i (kalit bilan): {"qatorlar": [...]} — buyurtma qatorlari shaklida. Narx — ERP hisobi (buyurtma
+    yuborilgandagining O'ZI); hech narsa yozilmaydi. Savat noto'g'ri — 400 (buyurtma yo'lining xabari)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr244
+    cid = await _thr244(_dokon_api_korxona, request, db, crud._DOKON_PDF_CHEKLOV)     # review244 M1: o'z chegarasi
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        return pdf_service.generate_sayt_pdf(crud.sayt_pdf_savat(db, cid, data), db)
+    pdf = await _thr244(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, "savat.pdf")
 
 
 def _sayt_yoqilgan(db, current_user):

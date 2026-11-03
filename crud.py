@@ -25064,7 +25064,8 @@ DOKON_API_OYNA_SEKUND = 60
 DOKON_API_MUROJAAT_QADAM = _td234(minutes=5)
 DOKON_API_YOLLAR = ("/api/dokon/v1/katalog", "/api/dokon/v1/sozlamalar", "/api/dokon/v1/buyurtmalar",   # kech171 (zip 237): buyurtma (POST)
                     "/api/dokon/v1/tayyor",                                 # kech172 (zip 238): «Tayyor mahsulotlar» qoldig'i
-                    "/api/dokon/v1/galereya")                               # kech178 (zip 243): «Bajarilgan ishlar»
+                    "/api/dokon/v1/galereya",                               # kech178 (zip 243): «Bajarilgan ishlar»
+                    "/api/dokon/v1/buyurtmalar/pdf", "/api/dokon/v1/savat/pdf")   # kech178 (zip 244): buyurtma / savat PDF i
 
 
 class DokonApiRad(Exception):
@@ -26086,37 +26087,7 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
     narxi, hajm — qoplamasiz narxdan, review237 M1); m² → «blok» (birligi m², miqdor, 1 m² narxi). Narx — sayt buyurtmasida QOTGAN narx
     (chegirmali bo'lsa — chegirmali). `recipe_id` — qoplama retsepti (qoplamali qator bo'lsa — SHART, forma qoidasi; review237 L2). `yaratish_kaliti` — sayt buyurtmasidan (takror tasdiqlashda ikkinchi buyurtma
     ochilmaydi). Topshirish — Toshkent kuni oxiri emas, kun boshi (forma kabi)."""
-    items = []
-    for q in qatorlar:
-        _k239, _n239 = _sayt_kmp239(q), len(items)        # kech173 (zip 239): komplekt belgisi — shu qatordan chiqqan hamma ERP qatoriga
-        miqdor = float(q.miqdor)
-        if tm and q.id in tm:
-            # kech172 (zip 238): ombordan — partiyadan (`sayt_tm_taqsimla`; forma `pickFinished` shakli: nom / o'lcham — partiyaniki, profil —
-            # uzunlik = metr, soni 1, narx = qism jami (forma `tmSaqlanganBirlikNarxi` — 1 m narxini AYNAN qaytaradi); dona — soni, 1 dona narxi)
-            for fp, ol, s in tm[q.id]:
-                if fp.category == "profil":
-                    items.append({"name": fp.name, "category": "profil", "width": fp.width, "thickness": fp.thickness,
-                                  "length": float(ol), "quantity": 1.0, "unit_price": float(s), "is_coated": True,
-                                  "finished_product_id": fp.id})
-                else:
-                    items.append({"name": fp.name, "category": "dona", "quantity": float(ol), "unit_price": float(q.narx),
-                                  "is_coated": True, "finished_product_id": fp.id})
-            for _x239 in items[_n239:]:
-                _x239.update(_k239)
-            continue
-        if q.sbq_birlik == "metr":
-            items.append({"name": q.sbq_nom, "category": "profil", "width": q.eni_sm, "thickness": q.qalinligi_sm, "length": miqdor,
-                          "quantity": 1.0, "unit_price": float(q.summa), "is_coated": bool(q.qoplamali),
-                          "price_per_m3": _sayt_m3_narxi(q.narx, q.eni_sm, q.qalinligi_sm, q.qoplamali)})
-        elif q.sbq_birlik == "m2":
-            items.append({"name": q.sbq_nom, "category": "blok", "width": q.eni_sm, "thickness": q.qalinligi_sm, "quantity": miqdor,
-                          "unit_price": float(q.narx), "is_coated": bool(q.qoplamali), "blok_birlik": "m2"})
-        else:
-            items.append({"name": q.sbq_nom, "category": "dona", "quantity": miqdor, "unit_price": float(q.narx),
-                          "is_coated": bool(q.qoplamali),
-                          "unit_price_for_volume": float(q.hajm_narxi) if q.hajm_narxi is not None else None})
-        for _x239 in items[_n239:]:
-            _x239.update(_k239)
+    items = _sayt_erp_qatorlari(qatorlar, tm)        # kech178 (zip 244): halqa — alohida funksiyada (PDF ham shundan)
     izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
     if b.sb_izoh:
         izoh.append(f"Mijoz izohi: {b.sb_izoh}")
@@ -27325,3 +27296,156 @@ def dokon_api_galereya(db: Session, company_id: int) -> dict:
                        "rasmlar": [{"url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi} for r in rs],
                        "bolimlar": bolim_ids, "qatorlar": q_royxat})
     return {"versiya": DOKON_API_VERSIYA, "galereya": royxat}
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech178 (zip 244) — DO'KON: BUYURTMA VA SAVAT PDF I (egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF»: savatda va
+# buyurtma berilgandan keyingi sahifada «PDF yuklab olish»; PDF da firma nomi va telefoni, buyurtma raqami va sanasi, mijoz ismi va
+# telefoni, har qator (model, o'lcham, detal, miqdor, narx, summa) va jami summa; komplekt buyurtmalar uchun ham)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# Texnik qarorlar (Claude, kech178): PDF ni ERP yasaydi — «Buyurtma hisobi» / «Taklif» shablonining O'ZI (`pdf_service.generate_nakladnoy`,
+# korxona logotipi, nomi, telefonlari; komplekt sarlavhasi — zip 239). Qatorlar — sayt buyurtmasi TASDIQLANGANDA ERP buyurtmasiga
+# tushadigan qatorlarning O'ZI (`_sayt_erp_qatorlari` — `sayt_buyurtma_tanasi` dan ajratildi, xulq AYNAN): mijoz qog'ozi keyingi ERP
+# hujjati bilan bir xil. Buyurtma PDF i — bazada QOTGAN narx bilan; uni olish uchun buyurtma raqami VA o'sha buyurtmaning amal kaliti
+# (`X-Amal-Kaliti` — do'kon har savat uchun yaratgan tasodifiy kalit) kerak: do'kon kalitining o'zi yetmaydi — boshqa mijozning
+# buyurtmasini raqamini taxmin qilib ochib bo'lmaydi («Xavfsizlik» 10-band). Raqam / kalit noto'g'ri — bir xil 404 (qaysi biri
+# noto'g'riligi aytilmaydi). Savat PDF i — `sayt_buyurtma_hisobla` (buyurtma narxining O'ZI), hech narsa yozilmaydi. Ikkalasi ham POST
+# (kalit URL / jurnalga tushmasin), do'kon kalitining umumiy chegarasi (`_DOKON_API_CHEKLOV`) bilan.
+SAYT_PDF_RAQAM_RE = _re236.compile(r"[A-Za-z0-9-]{1,20}")
+# review244 M1: PDF yo'llarining O'Z chegarasi (buyurtma yo'li kabi — zip 237 L6): mijoz «PDF yuklab olish» ni qayta-qayta bossa ham
+# katalog / sozlamalar chegarasi (120) tugab, butun do'kon 429 olmaydi
+SAYT_PDF_DAQIQA_MAX = 30
+_DOKON_PDF_CHEKLOV = _DokonApiCheklov(SAYT_PDF_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+
+
+class SaytPdfTopilmadi(LookupError):
+    """Buyurtma PDF i: shu korxonada bunday raqam + kalit juftligi yo'q (404)."""
+
+
+def _sayt_erp_qatorlari(qatorlar, tm=None) -> list:
+    """Sayt qatorlari → ERP buyurtma qatorlari (`sayt_buyurtma_tanasi` va PDF — bir qoida; kech178, zip 244 — o'sha funksiyadan AYNAN
+    ko'chirildi). `tm` — tasdiqlashda ombordan qatorlarning partiya taqsimoti (`sayt_tm_taqsimla`); PDF da — yo'q."""
+    items = []
+    for q in qatorlar:
+        _k239, _n239 = _sayt_kmp239(q), len(items)        # kech173 (zip 239): komplekt belgisi — shu qatordan chiqqan hamma ERP qatoriga
+        miqdor = float(q.miqdor)
+        if tm and q.id in tm:
+            # kech172 (zip 238): ombordan — partiyadan (`sayt_tm_taqsimla`; forma `pickFinished` shakli: nom / o'lcham — partiyaniki, profil —
+            # uzunlik = metr, soni 1, narx = qism jami (forma `tmSaqlanganBirlikNarxi` — 1 m narxini AYNAN qaytaradi); dona — soni, 1 dona narxi)
+            for fp, ol, s in tm[q.id]:
+                if fp.category == "profil":
+                    items.append({"name": fp.name, "category": "profil", "width": fp.width, "thickness": fp.thickness,
+                                  "length": float(ol), "quantity": 1.0, "unit_price": float(s), "is_coated": True,
+                                  "finished_product_id": fp.id})
+                else:
+                    items.append({"name": fp.name, "category": "dona", "quantity": float(ol), "unit_price": float(q.narx),
+                                  "is_coated": True, "finished_product_id": fp.id})
+            for _x239 in items[_n239:]:
+                _x239.update(_k239)
+            continue
+        if q.sbq_birlik == "metr":
+            items.append({"name": q.sbq_nom, "category": "profil", "width": q.eni_sm, "thickness": q.qalinligi_sm, "length": miqdor,
+                          "quantity": 1.0, "unit_price": float(q.summa), "is_coated": bool(q.qoplamali),
+                          "price_per_m3": _sayt_m3_narxi(q.narx, q.eni_sm, q.qalinligi_sm, q.qoplamali)})
+        elif q.sbq_birlik == "m2":
+            items.append({"name": q.sbq_nom, "category": "blok", "width": q.eni_sm, "thickness": q.qalinligi_sm, "quantity": miqdor,
+                          "unit_price": float(q.narx), "is_coated": bool(q.qoplamali), "blok_birlik": "m2"})
+        else:
+            items.append({"name": q.sbq_nom, "category": "dona", "quantity": miqdor, "unit_price": float(q.narx),
+                          "is_coated": bool(q.qoplamali),
+                          "unit_price_for_volume": float(q.hajm_narxi) if q.hajm_narxi is not None else None})
+        for _x239 in items[_n239:]:
+            _x239.update(_k239)
+    return items
+
+
+def _sayt_hisob_qatori(x: dict):
+    """`sayt_buyurtma_hisobla` qatori (lug'at) → sayt buyurtma qatori ko'rinishi (`_sayt_erp_qatorlari` uchun; bazaga yozilmaydi)."""
+    from types import SimpleNamespace as _NS244
+    return _NS244(id=None, guruh=x["guruh"], sbq_guruh_nomi=x["guruh_nomi"], sbq_tur=x["tur"], komplekt_soni=x["komplekt_soni"],
+                  sbq_nom=x["nom"], sbq_birlik=x["birlik"], eni_sm=x["eni_sm"], qalinligi_sm=x["qalinligi_sm"], miqdor=x["miqdor"],
+                  narx=x["narx"], summa=x["summa"], qoplamali=bool(x["qoplamali"]), hajm_narxi=x["hajm_narxi"],
+                  sbq_olcham=x["olcham"])
+
+
+def _sayt_pdf_qatorlari(qatorlar) -> list:
+    """PDF qatorlari — ERP buyurtmasiga tushadiganlarning O'ZI (`_sayt_erp_qatorlari`), faqat ko'rinadigan nomi: alohida detal qatorida
+    katalog O'LCHAMI ham (review244 H1 — «D-2 Burchak» ning S va M o'lchami ikki bir xil qator bo'lib chiqardi; egasi talabida «o'lcham»
+    bor). Komplekt / «o'z o'lchami» qatorlarida o'lcham — guruh sarlavhasida. ERP buyurtmasi qatorlari O'ZGARMAYDI."""
+    items = _sayt_erp_qatorlari(qatorlar)
+    if len(items) != len(qatorlar):                     # tm siz — har sayt qatoriga bitta ERP qatori
+        raise ValueError("PDF qatorlari soni mos emas")
+    for q, it in zip(qatorlar, items):
+        ol = str(getattr(q, "sbq_olcham", None) or "").strip()
+        if getattr(q, "sbq_tur", None) not in KMP_TURLARI and ol and ol not in str(it.get("name") or ""):
+            it["name"] = f"{it['name']} — {ol}"
+    return items
+
+
+def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_utc=None) -> list:
+    """PDF pastidagi yozuvlar: holat (tasdiqlangan / bekor), tasdiqlash raqamlari (faqat «yangi» va savatda — «savol bo'lsa»), yetkazish,
+    band, chegirma bilan tejalgan summa."""
+    tel = [dokon_telefon_korinish(t.raqam) for t in dokon_korinadigan_telefonlar(db, company_id, hozir_utc)]
+    qism = []
+    if holat == "savat":
+        qism.append("Bu — savat hisob-kitobi: buyurtma hali berilmagan. Narx buyurtma berilgan paytda qotadi.")
+        if tel:
+            qism.append("Savollar bo'lsa: " + " · ".join(tel))
+    elif holat == "yangi":
+        if tel:
+            qism.append("Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating: " + " · ".join(tel))
+    elif holat == "tasdiqlandi":
+        qism.append("Buyurtma tasdiqlangan.")
+    elif holat == "bekor":
+        qism.append("Buyurtma bekor qilingan.")
+    if viloyat:
+        qism.append(f"Yetkazib berish: {SAYT_VILOYAT_NOMI.get(viloyat, viloyat)} — {sayt_yetkazish_matni(viloyat).lower()}.")
+    if band_matni:
+        qism.append(band_matni + ".")
+    if tejaldi and Decimal(str(tejaldi)) > 0:
+        qism.append(f"Chegirma hisobiga tejaldi: {xabar_son(tejaldi, 2)} so'm.")
+    return qism
+
+
+def sayt_buyurtma_pdf_ol(db: Session, company_id: int, data) -> tuple:
+    """Do'kon: buyurtma PDF i uchun buyurtma — {"raqam", "kalit"} (kalit — buyurtma yuborilgandagi `X-Amal-Kaliti`). Qaytaradi:
+    (buyurtma, qatorlar). Yo'q / begona korxona / kalit mos emas — `SaytPdfTopilmadi` (bir xil javob)."""
+    import hmac as _hm244
+    from models import DokonBuyurtma
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("raqam", "kalit"))
+    raqam, kalit = data.get("raqam"), data.get("kalit")
+    if not isinstance(raqam, str) or not SAYT_PDF_RAQAM_RE.fullmatch(raqam):
+        raise ValueError("«raqam» — buyurtma raqami (masalan S-0001)")
+    if not isinstance(kalit, str) or not _SAYT_KALIT_RE.fullmatch(kalit):
+        raise ValueError(f"«kalit» — buyurtma yuborilgandagi «{SAYT_KALIT_SARLAVHA}» qiymati: 8 … 64 belgi (lotin harf, raqam, «-», «_»)")
+    # review244 L2: qidiruv — amal kaliti bo'yicha (korxona + kalit — yagona indeks), raqam — `compare_digest` (raqam yoki kalit xatosi
+    # vaqt bo'yicha ham ajralmasin)
+    b = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_kalit == kalit).first())
+    if b is None or not _hm244.compare_digest(str(b.sb_raqam or "").encode("utf-8"), raqam.encode("utf-8")):
+        raise SaytPdfTopilmadi("Buyurtma topilmadi")
+    return b, _sayt_qatorlari(db, company_id, b.id)
+
+
+def sayt_pdf_buyurtma(db: Session, b, qatorlar, hozir_utc=None) -> dict:
+    """Saqlangan sayt buyurtmasi → PDF ma'lumoti (`pdf_service.generate_sayt_pdf`): narx — buyurtmada QOTGANI."""
+    tejaldi = (Decimal(str(b.sb_chegirmasiz)) - Decimal(str(b.sb_jami))).quantize(Decimal("0.01"))
+    return {"turi": "buyurtma", "company_id": b.company_id, "raqam": b.sb_raqam, "sana": b.created_at,
+            "mijoz": b.sb_mijoz, "telefon": dokon_telefon_korinish(b.sb_telefon),
+            "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat), "holat": b.sb_holat,
+            "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat), "items": _sayt_pdf_qatorlari(qatorlar),
+            "jami": float(b.sb_jami), "pastki": _sayt_pdf_pastki(db, b.company_id, b.sb_holat, b.sb_viloyat, tejaldi,
+                                                                  _sayt_band_matni(b), hozir_utc)}
+
+
+def sayt_pdf_savat(db: Session, company_id: int, data, hozir_utc=None) -> dict:
+    """Do'kon savati ({"qatorlar": [...]} — buyurtma qatorlari shaklida) → PDF ma'lumoti. Narx — `sayt_buyurtma_hisobla` (buyurtma
+    yuborilgandagi hisobning O'ZI); hech narsa yozilmaydi."""
+    dokon_tekshir(db, company_id)
+    _dokon_kalitlar(data, ("qatorlar",))
+    hisob = sayt_buyurtma_hisobla(db, company_id, data.get("qatorlar"))
+    tejaldi = (hisob["chegirmasiz"] - hisob["jami"]).quantize(Decimal("0.01"))
+    return {"turi": "savat", "company_id": company_id, "raqam": None, "sana": hozir_utc or _dt233.utcnow(), "mijoz": None,
+            "telefon": None, "viloyat_nomi": None, "holat": "savat", "holat_nomi": None,
+            "items": _sayt_pdf_qatorlari([_sayt_hisob_qatori(x) for x in hisob["qatorlar"]]), "jami": float(hisob["jami"]),
+            "pastki": _sayt_pdf_pastki(db, company_id, "savat", None, tejaldi, None, hozir_utc)}
