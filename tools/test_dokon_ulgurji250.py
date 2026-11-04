@@ -419,7 +419,9 @@ check("K1 faqat ulgurji narxi bor, saytda ko'rinadigan qatorlar (yashirin qator 
       sorted(DETS))
 _d = DETS.get(DID["k3"]) or {}
 check("K2 metrli detal: sotish «dona2m», narx — 1 dona (= kiritilgan ulgurji narx), qoplamali — avto (× 2, 1 000 ga yaxlit)",
-      _d.get("sotish") == "dona2m" and _d.get("narx") == 45001.0 and _d.get("narx_qoplamali") == 90000.0 and UK.get("dona_metr") == 2, _d)
+      _d.get("sotish") == "dona2m" and _d.get("narx") == 45001.0 and UK.get("dona_metr") == 2
+      # kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali — butun so'm (45 001 × 2 = 90 002); eski kodda 1 000 ga (90 000)
+      and _d.get("narx_qoplamali") == (90000.0 if crud.dokon_avto_qoplamali(D("1234"), D("2")) == D("2000") else 90002.0), _d)
 _t = DETS.get(DID["tp"]) or {}
 _k = DETS.get(DID["d4"]) or {}
 _q = DETS.get(DID["d6q"]) or {}

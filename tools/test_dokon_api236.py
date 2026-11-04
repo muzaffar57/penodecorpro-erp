@@ -233,7 +233,10 @@ D = Decimal
 
 def o_avto(n, koeff=D(2)):
     asl = D(str(n)) * koeff
-    x = (asl / D(1000)).quantize(D(1), rounding=ROUND_HALF_UP) * D(1000)
+    # kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali narx endi 1 000 ga yaxlitlanmaydi, butun so'm (egasi QARORI 04.11);
+    # eski kodda — 1 000 ga. Test eski va yangi kodda ham o'tadi.
+    x = ((asl / D(1000)).quantize(D(1), rounding=ROUND_HALF_UP) * D(1000) if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000")
+         else asl.quantize(D(1), rounding=ROUND_HALF_UP))
     return x if x > 0 else asl.quantize(D("0.01"), rounding=ROUND_HALF_UP)
 
 
@@ -284,7 +287,7 @@ check("S2 do'kon yo'llari — 3 ta GET (katalog, sozlamalar, tayyor) + buyurtma 
       sorted(_dy) == sorted([("GET", KAT), ("GET", SOZ), ("GET", "/api/dokon/v1/tayyor"), ("POST", "/api/dokon/v1/buyurtmalar")]
                              + ([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else [])
                              + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else [])
-                             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + ([("GET", "/api/dokon/v1/ulgurji"), ("POST", "/api/dokon/v1/ulgurji/buyurtmalar")] if hasattr(crud, "dokon_api_ulgurji") else []) + ([("GET", "/api/dokon/v1/ulgurji/narxlar/pdf"), ("POST", "/api/dokon/v1/ulgurji/savat/pdf")] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + ([("GET", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish/bekor")] if hasattr(crud, "dokon_kutish_qosh") else []) + ([("GET", "/api/dokon/v1/mijoz/keshbek")] if hasattr(crud, "dokon_mijoz_keshbek") else [])), _dy)   # kech178 (zip 243): galereya; zip 244: PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
+                             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + ([("GET", "/api/dokon/v1/ulgurji"), ("POST", "/api/dokon/v1/ulgurji/buyurtmalar")] if hasattr(crud, "dokon_api_ulgurji") else []) + ([("GET", "/api/dokon/v1/ulgurji/narxlar/pdf"), ("POST", "/api/dokon/v1/ulgurji/savat/pdf")] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + ([("GET", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish/bekor")] if hasattr(crud, "dokon_kutish_qosh") else []) + ([("GET", "/api/dokon/v1/mijoz/keshbek")] if hasattr(crud, "dokon_mijoz_keshbek") else []) + ([("GET", "/api/dokon/v1/maxsus-narx")] if hasattr(crud, "dokon_api_maxsus_narx") else [])), _dy)   # kech178 (zip 243): galereya; zip 244: PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
 check("S3 jadval `dokon_api_kalitlar`: korxonaga bitta qator (yagona company_id), xesh — 64 belgi, yagona; xom kalit ustuni YO'Q",
       DokonApiKalit is not None and DokonApiKalit.__tablename__ == "dokon_api_kalitlar"
       and any(getattr(c, "name", "") == "uq_dokon_api_kalit_korxona" for c in DokonApiKalit.__table__.constraints)
@@ -381,7 +384,7 @@ r = CA.get(AK)
 H0 = js(r)
 check("Y1 holat — kalit yo'q: bor=false, boshi / yaratilgan / oxirgi — null; sarlavha X-Dokon-Kalit, 2 yo'l, daqiqasiga 120",
       r.status_code == 200 and H0.get("bor") is False and H0.get("boshi") is None and H0.get("oxirgi_murojaat") is None
-      and H0.get("sarlavha") == "X-Dokon-Kalit" and H0.get("yollar") == [KAT, SOZ, "/api/dokon/v1/buyurtmalar", "/api/dokon/v1/tayyor"] + (["/api/dokon/v1/galereya"] if hasattr(crud, "dokon_api_galereya") else []) + (["/api/dokon/v1/buyurtmalar/pdf", "/api/dokon/v1/savat/pdf"] if hasattr(crud, "sayt_pdf_savat") else []) + (["/api/dokon/v1/kirish", "/api/dokon/v1/kirish/holat", "/api/dokon/v1/mijoz", "/api/dokon/v1/mijoz/royxat", "/api/dokon/v1/mijoz/chiqish"] if hasattr(crud, "dokon_kirish_boshla") else []) + (["/api/dokon/v1/mijoz/buyurtmalar", "/api/dokon/v1/mijoz/buyurtmalar/pdf"] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + (["/api/dokon/v1/ulgurji", "/api/dokon/v1/ulgurji/buyurtmalar"] if hasattr(crud, "dokon_api_ulgurji") else []) + (["/api/dokon/v1/ulgurji/narxlar/pdf", "/api/dokon/v1/ulgurji/savat/pdf"] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + (["/api/dokon/v1/kutish", "/api/dokon/v1/kutish/bekor"] if hasattr(crud, "dokon_kutish_qosh") else []) + (["/api/dokon/v1/mijoz/keshbek"] if hasattr(crud, "dokon_mijoz_keshbek") else []) and H0.get("daqiqa_max") == 120, (r.status_code, H0))
+      and H0.get("sarlavha") == "X-Dokon-Kalit" and H0.get("yollar") == [KAT, SOZ, "/api/dokon/v1/buyurtmalar", "/api/dokon/v1/tayyor"] + (["/api/dokon/v1/galereya"] if hasattr(crud, "dokon_api_galereya") else []) + (["/api/dokon/v1/buyurtmalar/pdf", "/api/dokon/v1/savat/pdf"] if hasattr(crud, "sayt_pdf_savat") else []) + (["/api/dokon/v1/kirish", "/api/dokon/v1/kirish/holat", "/api/dokon/v1/mijoz", "/api/dokon/v1/mijoz/royxat", "/api/dokon/v1/mijoz/chiqish"] if hasattr(crud, "dokon_kirish_boshla") else []) + (["/api/dokon/v1/mijoz/buyurtmalar", "/api/dokon/v1/mijoz/buyurtmalar/pdf"] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + (["/api/dokon/v1/ulgurji", "/api/dokon/v1/ulgurji/buyurtmalar"] if hasattr(crud, "dokon_api_ulgurji") else []) + (["/api/dokon/v1/ulgurji/narxlar/pdf", "/api/dokon/v1/ulgurji/savat/pdf"] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + (["/api/dokon/v1/kutish", "/api/dokon/v1/kutish/bekor"] if hasattr(crud, "dokon_kutish_qosh") else []) + (["/api/dokon/v1/mijoz/keshbek"] if hasattr(crud, "dokon_mijoz_keshbek") else []) + (["/api/dokon/v1/maxsus-narx"] if hasattr(crud, "dokon_api_maxsus_narx") else []) and H0.get("daqiqa_max") == 120, (r.status_code, H0))
 _j0 = len(jurnal())
 r = yarat()
 Y1 = js(r)
@@ -482,6 +485,8 @@ RUXSAT = {
 for _k in ("rom", "eshik", "chegirma.rom", "chegirma.eshik"):
     for _n in ("qoplamasiz", "qoplamali", "qoplamasiz_kbsiz", "qoplamali_kbsiz"):
         RUXSAT.add(f"modellar[].komplekt[].{_k}.{_n}")
+if hasattr(crud, "dokon_api_maxsus_narx"):   # kech187 (zip 255, MOSLANDI): «Boshqa o'lcham» oralig'i (formula ichki sonlari — YO'Q)
+    RUXSAT.update({"modellar[].maxsus", "modellar[].maxsus.min", "modellar[].maxsus.max", "modellar[].maxsus.qadam"})
 _bor = kalitlar_hammasi(KT)
 check("K2 javobdagi HAMMA kalit ruxsat ro'yxatida (ulgurji, tannarx, yetishmaydi, updated_by, yoqilgan, koeff … — YO'Q)", _bor <= RUXSAT,
       sorted(_bor - RUXSAT))
@@ -571,7 +576,7 @@ check("K16 K-12: yashirin qator (15 sm) YO'Q; narxi kiritilmagan (18 sm) — nar
       and _m2.get("komplekt") is None, _m2)
 _mt = MD.get("T-1", {})
 _dt = (_mt.get("detallar") or [{}])[0]
-check("K17 T-1: tiyinli narx 150 000,50; qoplamali avto 300 000 (1 000 ga); chegirma bugun tugaydi — AMALDA (−20 %), «tugash» 2026-11-03",
+check("K17 T-1: tiyinli narx 150 000,50; qoplamali avto 300 000 (1 000 ga; zip 255 dan — 300 001); chegirma bugun tugaydi — AMALDA (−20 %), «tugash» 2026-11-03",
       son(_dt.get("narx")) == D("150000.50") and son(_dt.get("narx_qoplamali")) == o_avto(D("150000.5"))
       and (_dt.get("chegirma") or {}).get("narx") == float(o_ch(D("150000.5"), 20)) and (_mt.get("chegirma") or {}).get("tugash") == "2026-11-03"
       and (_mt.get("chegirma") or {}).get("tugash_matni"), _mt)

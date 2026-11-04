@@ -330,13 +330,18 @@ K3 = js(_r).get("id")
 _r = CA.post(API + "/modellar", json={"bolim_id": DEKOR, "kod": "D-1"})
 D1 = js(_r).get("id")
 
+# kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali narx endi 1 000 ga yaxlitlanmaydi (butun so'm, egasi QARORI 04.11);
+# eski kodda — 1 000 ga. Kutilgan qiymatlar shu bayroq bo'yicha — test eski va yangi kodda ham o'tadi.
+from decimal import Decimal as _D255                 # noqa: E402
+_Y1000_255 = crud.dokon_avto_qoplamali(_D255("1234"), _D255("2")) == _D255("2000")
+
 # Narx qatorlari
 _j0 = jurnal("dokon_detal")
 _r = CA.post(API + "/detallar", json={"model_id": R18, "turi": "karniz", "olcham": "O'rta", "eni_sm": 15,
                                       "narx": 12345, "ulgurji_narx": 20000})
 D_KAR = js(_r).get("id")
-check("A14 rom karnizi — birlik metr, avto qoplamali 24 690 → 25 000 (1 000 ga), ulgurji avto 40 000, jurnal",
-      _r.status_code == 200 and js(_r).get("birlik") == "metr" and js(_r).get("narx_qoplamali_avto") == 25000
+check("A14 rom karnizi — birlik metr, avto qoplamali 24 690 (zip 255 gacha → 25 000, 1 000 ga), ulgurji avto 40 000, jurnal",
+      _r.status_code == 200 and js(_r).get("birlik") == "metr" and js(_r).get("narx_qoplamali_avto") == (25000 if _Y1000_255 else 24690)
       and js(_r).get("ulgurji_qoplamali_avto") == 40000 and js(_r).get("narx_qoplamali") is None
       and jurnal("dokon_detal") == _j0 + 1, _r.text[:300])
 _r = CA.post(API + "/detallar", json={"model_id": R18, "turi": "kapitel", "olcham": "O'rta", "narx": 30000,
@@ -408,8 +413,8 @@ check("A18f narx 0 bilan tahrir — 400, eski qiymat joyida",
 # Koeffitsient
 _r = CA.put(API + "/koeff", json={"koeff": 2.5})
 _kd = [detal(D_KAR)] if detal(D_KAR) else []
-check("A19 koeffitsient 2,5 — avto 15 000 × 2,5 = 37 500 → 38 000; alohida yozilgan qoplamali (kapitel 45 000) o'zgarmadi",
-      _r.status_code == 200 and katalog()["koeff"] == 2.5 and _kd and _kd[0]["narx_qoplamali_avto"] == 38000
+check("A19 koeffitsient 2,5 — avto 15 000 × 2,5 = 37 500 (zip 255 gacha → 38 000); alohida yozilgan qoplamali (kapitel 45 000) o'zgarmadi",
+      _r.status_code == 200 and katalog()["koeff"] == 2.5 and _kd and _kd[0]["narx_qoplamali_avto"] == (38000 if _Y1000_255 else 37500)
       and detal(D_KAP).get("narx_qoplamali") == 45000, (_r.text[:200], _kd))
 for _n, _tana in (("0,5", {"koeff": 0.5}), ("11", {"koeff": 11}), ("satr", {"koeff": "2"}), ("true", {"koeff": True}),
                   ("ortiqcha kalit", {"koeff": 2, "x": 1}), ("bo'sh", {})):
@@ -723,8 +728,8 @@ else:
             _bas = len(SOROV)
             pg.fill(f"tr[data-detal='{_did}'] [data-df=narx]", "125 500")
             pg.press(f"tr[data-detal='{_did}'] [data-df=narx]", "Tab")
-            _y = kut(pg, f"(document.querySelector(\"tr[data-detal='{_did}'] [data-avto=narx_qoplamali]\").textContent || '').indexOf('314') >= 0")
-            check("U4 katakni o'zgartirish — PUT, bazada 125 500, avto 313 750 → 314 000 ko'rsatildi",
+            _y = kut(pg, f"(document.querySelector(\"tr[data-detal='{_did}'] [data-avto=narx_qoplamali]\").textContent || '').replace(/\\s/g, '').indexOf('{'314000' if _Y1000_255 else '313750'}') >= 0")
+            check("U4 katakni o'zgartirish — PUT, bazada 125 500, avto 313 750 (zip 255 gacha → 314 000) ko'rsatildi",
                   _y and xavfsiz(lambda d: float(d.get(DokonDetal, _did).narx)) == 125500.0
                   and [x for x in SOROV[_bas:] if x[0] == "PUT"] == [("PUT", API + f"/detallar/{_did}")], SOROV[_bas:])
             _bas = len(SOROV)

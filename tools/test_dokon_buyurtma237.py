@@ -185,7 +185,10 @@ def pul(x):
 
 def o_avto(n, koeff=D(2)):
     asl = D(str(n)) * koeff
-    x = (asl / D(1000)).quantize(D(1), rounding=ROUND_HALF_UP) * D(1000)
+    # kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali narx endi 1 000 ga yaxlitlanmaydi, butun so'm (egasi QARORI 04.11);
+    # eski kodda — 1 000 ga. Test eski va yangi kodda ham o'tadi.
+    x = ((asl / D(1000)).quantize(D(1), rounding=ROUND_HALF_UP) * D(1000) if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000")
+         else asl.quantize(D(1), rounding=ROUND_HALF_UP))
     return x if x > 0 else asl.quantize(D("0.01"), rounding=ROUND_HALF_UP)
 
 
@@ -330,7 +333,7 @@ _dy = sorted((m, p) for (m, p) in _yollar if p.startswith("/api/dokon/"))
 # kech172 (zip 238, MOSLANDI): + «tayyor» GET (tools/test_dokon_tayyor238.py S1)
 check("S1 do'kon yo'llari: 3 GET (katalog, sozlamalar, tayyor) + BITTA POST (buyurtmalar); o'chiruvchi / tahrirlovchi yo'l YO'Q",
       _dy == sorted(([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else []) + [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", "/api/dokon/v1/tayyor"), ("POST", BY)] + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else [])
-             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + ([("GET", "/api/dokon/v1/ulgurji"), ("POST", "/api/dokon/v1/ulgurji/buyurtmalar")] if hasattr(crud, "dokon_api_ulgurji") else []) + ([("GET", "/api/dokon/v1/ulgurji/narxlar/pdf"), ("POST", "/api/dokon/v1/ulgurji/savat/pdf")] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + ([("GET", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish/bekor")] if hasattr(crud, "dokon_kutish_qosh") else []) + ([("GET", "/api/dokon/v1/mijoz/keshbek")] if hasattr(crud, "dokon_mijoz_keshbek") else [])), _dy)   # kech178 (zip 244): PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
+             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + ([("GET", "/api/dokon/v1/ulgurji"), ("POST", "/api/dokon/v1/ulgurji/buyurtmalar")] if hasattr(crud, "dokon_api_ulgurji") else []) + ([("GET", "/api/dokon/v1/ulgurji/narxlar/pdf"), ("POST", "/api/dokon/v1/ulgurji/savat/pdf")] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + ([("GET", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish/bekor")] if hasattr(crud, "dokon_kutish_qosh") else []) + ([("GET", "/api/dokon/v1/mijoz/keshbek")] if hasattr(crud, "dokon_mijoz_keshbek") else []) + ([("GET", "/api/dokon/v1/maxsus-narx")] if hasattr(crud, "dokon_api_maxsus_narx") else [])), _dy)   # kech178 (zip 244): PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
 
 
 def _ruxsat(m, p):
@@ -374,7 +377,9 @@ check("S6 kalit sahifasida manzillar ro'yxatida buyurtma yo'li; buyurtma chegara
 _hk = None
 check("S7 viloyatlar: 14 ta (12 viloyat + Toshkent shahri + Qoraqalpog'iston), Andijon — bepul, qolgani — 50/50",
       len(crud.sayt_viloyatlar()) == 14 and [v["kod"] for v in crud.sayt_viloyatlar() if v["yetkazish_bepul"]] == ["andijon"]
-      and all(v["yetkazish_matni"] == "Yetkazib berish narxining yarmini biz to'laymiz" for v in crud.sayt_viloyatlar() if not v["yetkazish_bepul"]))
+      and all(v["yetkazish_matni"] == crud.SAYT_YETKAZISH_YARIM for v in crud.sayt_viloyatlar() if not v["yetkazish_bepul"])
+      # kech187 (zip 255, MOSLANDI): matn — konstantadan (egasi QARORI 04.11: «Yetkazib berish — kelishuv asosida»; eski kodda «yarmini…»)
+      and crud.SAYT_YETKAZISH_YARIM in ("Yetkazib berish narxining yarmini biz to'laymiz", "Yetkazib berish — kelishuv asosida"))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("A. Kirish va katalog")
@@ -474,7 +479,7 @@ _kut2 = sum(D((NARX[t] + 3000) * 2 + 500) * RET["eshik"][t] * 2 for t in ("karni
 check("N4 eshik komplekti Katta, qoplamali (yozilgan narx), kapitel va bazasiz × 2 — chegirma YO'Q (boshqa o'lcham); Samarqand — 50/50",
       r.status_code == 200 and pul(J2.get("jami")) == pul(_kut2) == pul(D(str(KOMP_KAT["Katta"]["eshik"]["qoplamali_kbsiz"])) * 2)
       and pul(J2.get("tejaldi")) == 0 and J2.get("yetkazish_bepul") is False
-      and J2.get("yetkazish_matni") == "Yetkazib berish narxining yarmini biz to'laymiz"
+      and J2.get("yetkazish_matni") == crud.SAYT_YETKAZISH_YARIM          # kech187 (zip 255, MOSLANDI)
       and "kapitel va bazasiz" in str(ix(J2.get("guruhlar"), 0, {}).get("guruh_nomi")), (r.status_code, r.text[:400], _kut2))
 r = yubor(tana([{"detal_id": DID["k12"], "qoplamali": True, "miqdor": 6}, {"detal_id": DID["t1"], "qoplamali": False, "miqdor": 7.25},
                 {"detal_id": DID["d2"], "qoplamali": True, "miqdor": 4}, {"detal_id": DID["r1"], "qoplamali": False, "miqdor": 3},

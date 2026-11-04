@@ -22447,10 +22447,38 @@ def dokon_formula_bormi(m) -> bool:
 def dokon_formula_narx(m, balandlik, kub):
     """1 m qoplamasiz narx (butun so'm): balandlik/100 × (balandlik × blok / asos)/100 × kub ÷ bo'lak. Misol (egasi): 20 sm, blok 9,97,
     1 200 000, 2 → 0,2 × 0,0997 × 1 200 000 ÷ 2 = 11 964."""
+    # review255 L1: oraliq bo'lishlar (h × blok / asos — asos 2 / 5 dan boshqa ko'paytuvchili bo'lsa) 28 xonaga yaxlitlanib, aniq «…,5»
+    # «…,4999…» bo'lib 1 so'm KAM chiqardi. Endi: surat va maxraj ALOHIDA (Decimal ko'paytma — aniq), keyin bitta aniq kasr (Fraction) va
+    # HALF_UP — natija har doim matematik aniq qiymatning yaxlitlangani.
+    from fractions import Fraction as _Fr255
     h = Decimal(str(balandlik))
     asos, blok = Decimal(str(m.formula_asos_sm)), Decimal(str(m.formula_blok_sm))
-    x = (h / 100) * (h * blok / asos / 100) * Decimal(str(kub)) / Decimal(int(m.formula_bolak))
-    return x.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    surat = _Fr255(h) * _Fr255(h) * _Fr255(blok) * _Fr255(Decimal(str(kub)))
+    maxraj = _Fr255(asos) * 10000 * int(m.formula_bolak)
+    x = surat / maxraj
+    return Decimal((x + _Fr255(1, 2)).__floor__())
+
+
+DOKON_FORMULA_ENI_MIN = Decimal("5")         # review255 L2: formula qatori balandligi (sm) — metrda yozilgan «0,2» narxni 1–2 so'm qilardi
+
+
+def dokon_formula_qatormi(m, d) -> bool:
+    """review255 M2: formula FAQAT metrda sotiladigan asosiy qatorga (karniz o'zi); kapitel / baza (donada) — qo'lda narx qoladi."""
+    return dokon_formula_bormi(m) and getattr(d, "turi", None) == "asosiy"
+
+
+def dokon_formula_narx_tekshir(m, balandlik, kub, joy: str):
+    """review255 L2 / L3: formula narxi + chegaralar (0 dan katta, qo'lda kiritiladigan narx chegarasidan oshmasin) — ValueError (o'zbekcha)."""
+    if balandlik is None:
+        raise ValueError(f"{joy}: balandlik (eni, sm) yozilmagan — formula uchun kerak")
+    if Decimal(str(balandlik)) < DOKON_FORMULA_ENI_MIN:
+        raise ValueError(f"{joy}: balandlik {audit_son(DOKON_FORMULA_ENI_MIN, 0)} sm dan kam bo'lmasin — santimetrda yozing (masalan 20)")
+    x = dokon_formula_narx(m, balandlik, kub)
+    if x <= 0:
+        raise ValueError(f"{joy}: formula narxi 0 chiqdi — 1 m³ narxini va balandlikni tekshiring")
+    if x > DOKON_NARX_MAX:
+        raise ValueError(f"{joy}: formula narxi juda katta chiqdi — 1 m³ narxini va formulani tekshiring")
+    return x
 
 
 def dokon_maxsus_balandlik(qiymat, nom="Balandlik"):
@@ -22499,25 +22527,23 @@ def _dokon_formula_kirish(qiymat):
     return tuple(natija)
 
 
-def dokon_formula_dict(m, kub=None):
+def dokon_formula_dict(m):
     if not dokon_formula_bormi(m):
         return None
-    return {"asos_sm": m.formula_asos_sm, "blok_sm": m.formula_blok_sm, "bolak": m.formula_bolak,
-            "asos_narx": _dokon_pul(dokon_formula_narx(m, m.formula_asos_sm, kub)) if kub is not None else None}
+    return {"asos_sm": m.formula_asos_sm, "blok_sm": m.formula_blok_sm, "bolak": m.formula_bolak}
 
 
 def _dokon_formula_qayta(db: Session, company_id: int, m, kub) -> int:
-    """Formulali modelning HAMMA narx qatoriga `narx` = formula(eni_sm); qoplamali — bo'sh (koeffitsient bilan). Eni yo'q qator — rad
+    """Formulali modelning ASOSIY (metrdagi) narx qatorlariga `narx` = formula(eni_sm) (review255 M2: kapitel / baza — qo'lda narx, tegilmaydi);
+    qoplamali — bo'sh (koeffitsient bilan). Eni yo'q qator — rad
     (balandliksiz narx hisoblanmaydi). O'zgargan qatorlar sonini qaytaradi (commit — chaqiruvchida)."""
     from models import DokonDetal
     n = 0
     for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id)
               .order_by(DokonDetal.id).with_for_update().all()):
-        if d.eni_sm is None:
-            raise ValueError(f"{m.kod}: «{d.olcham}» qatorida balandlik (eni, sm) yozilmagan — formula uchun kerak")
-        yangi = dokon_formula_narx(m, d.eni_sm, kub)
-        if yangi <= 0:
-            raise ValueError(f"{m.kod}: «{d.olcham}» uchun formula narxi 0 chiqdi — 1 m³ narxini tekshiring")
+        if not dokon_formula_qatormi(m, d):            # review255 M2: kapitel / baza (donada) — qo'lda narx, formulaga tegmaydi
+            continue
+        yangi = dokon_formula_narx_tekshir(m, d.eni_sm, kub, f"{m.kod}: «{d.olcham}»")
         if _dokon_qiymatlar((d.narx, d.narx_qoplamali)) != _dokon_qiymatlar((yangi, None)):
             d.narx, d.narx_qoplamali = yangi, None
             n += 1
@@ -22953,7 +22979,7 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
         if (m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak) != eski[8] or m.qolip != eski[4]:
             _kub255 = dokon_kub_narx(db, company_id)
             if _kub255 is None:
-                raise ValueError("Avval «Do'kon sozlamalari»da 1 m³ mahsulot narxini kiriting")
+                raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
             _fq255 = _dokon_formula_qayta(db, company_id, m, _kub255)
     yangi = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan),
              (m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak))
@@ -23067,15 +23093,13 @@ def dokon_detal_yarat(db: Session, company_id: int, data: dict, kim: str):
                    yoqilgan=_dokon_bool(data.get("yoqilgan", True), "Yoqilgan"), updated_by=kim)
     for k in _DOKON_NARX_NOMI:
         setattr(d, k, _dokon_narx(data.get(k), _DOKON_NARX_NOMI[k]))
-    if dokon_formula_bormi(m):                          # kech187 (zip 255): formulali model — narx serverdan
+    if dokon_formula_qatormi(m, d):                     # kech187 (zip 255): formulali asosiy qator — narx serverdan (review255 M2)
         if d.narx is not None or d.narx_qoplamali is not None:
             raise ValueError(DOKON_FORMULA_RAD)
-        if d.eni_sm is None:
-            raise ValueError("Formulali modelda balandlik (eni, sm) majburiy — narx shundan hisoblanadi")
         _kub255 = dokon_kub_narx(db, company_id)
         if _kub255 is None:
-            raise ValueError("Avval «Do'kon sozlamalari»da 1 m³ mahsulot narxini kiriting")
-        d.narx = dokon_formula_narx(m, d.eni_sm, _kub255)
+            raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
+        d.narx = dokon_formula_narx_tekshir(m, d.eni_sm, _kub255, "Formulali qator")
     db.add(d)
     db.flush()
     log_activity(db, "created", "dokon_detal", d.id, f"Sayt narxi {m.kod}", kim, new_value=_dokon_detal_matni(d),
@@ -23119,19 +23143,17 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
         d.eni_sm = _dokon_olcham_son(data["eni_sm"], "Eni")
     if "qalinligi_sm" in data:
         d.qalinligi_sm = _dokon_olcham_son(data["qalinligi_sm"], "Qalinligi")
-    _f255 = dokon_formula_bormi(m)
-    if _f255 and ("narx" in data or "narx_qoplamali" in data):     # kech187 (zip 255): formulali model — narx serverdan
+    _f255 = dokon_formula_qatormi(m, d)               # review255 M2: faqat asosiy (metrdagi) qator; kapitel / baza — qo'lda
+    if _f255 and ("narx" in data or "narx_qoplamali" in data):     # kech187 (zip 255): formulali qator — narx serverdan
         raise ValueError(DOKON_FORMULA_RAD)
     for k in _DOKON_NARX_NOMI:
         if k in data:
             setattr(d, k, _dokon_narx(data[k], _DOKON_NARX_NOMI[k]))
     if _f255:
-        if d.eni_sm is None:
-            raise ValueError("Formulali modelda balandlik (eni, sm) majburiy — narx shundan hisoblanadi")
         _kub255 = dokon_kub_narx(db, company_id)
         if _kub255 is None:
-            raise ValueError("Avval «Do'kon sozlamalari»da 1 m³ mahsulot narxini kiriting")
-        d.narx, d.narx_qoplamali = dokon_formula_narx(m, d.eni_sm, _kub255), None
+            raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
+        d.narx, d.narx_qoplamali = dokon_formula_narx_tekshir(m, d.eni_sm, _kub255, "Formulali qator"), None
     if "tartib" in data:
         d.tartib = _dokon_butun(data["tartib"], "Tartib", 0, 10000)
     if "yoqilgan" in data:
@@ -25142,7 +25164,7 @@ def dokon_excel_korish(db: Session, company_id: int, bayt) -> dict:
                            + ". Eski fayl yangi narxni bosib ketmasligi uchun saqlanmaydi — yangi fayl oling va qayta tahrirlang")
             xatoli.add(q["qator"])
             continue
-        if dokon_formula_bormi(m) and any(x["maydon"] in ("narx", "narx_qoplamali") for x in maydonlar):    # kech187 (zip 255)
+        if dokon_formula_qatormi(m, d) and any(x["maydon"] in ("narx", "narx_qoplamali") for x in maydonlar):    # kech187 (zip 255)
             xatolar.append(f"{boshi} ({dokon_excel_kimlik(d, m)}): {DOKON_FORMULA_RAD}")
             xatoli.add(q["qator"])
             continue
@@ -25296,7 +25318,7 @@ def dokon_excel_saqla(db: Session, company_id: int, data: dict, kim: str) -> dic
         e, y, kim_q = reja[d.id]
         joriy = {k: getattr(d, k) for k in y}
         m = modellar.get(d.model_id)
-        if dokon_formula_bormi(m) and any(k in ("narx", "narx_qoplamali") for k in y):     # kech187 (zip 255): model qulfi ostida
+        if dokon_formula_qatormi(m, d) and any(k in ("narx", "narx_qoplamali") for k in y):     # kech187 (zip 255): model qulfi ostida
             db.rollback()
             raise ValueError(f"{dokon_excel_kimlik(d, m)}: {DOKON_FORMULA_RAD}")
         if _dokon_excel_kalit(kim_q) != _dokon_excel_kalit(dokon_excel_kimlik(d, m)):
@@ -25744,7 +25766,20 @@ def sayt_viloyatlar() -> list:
 
 
 def sayt_yetkazish_matni(viloyat) -> str:
+    """HOZIRGI shart (yangi buyurtma / savat). Saqlangan buyurtma uchun — `sayt_buyurtma_yetkazish(b)`."""
     return SAYT_YETKAZISH_BEPUL if viloyat == SAYT_BEPUL_VILOYAT else SAYT_YETKAZISH_YARIM
+
+
+SAYT_YETKAZISH_YARIM_ESKI = "Yetkazib berish narxining yarmini biz to'laymiz"      # zip 255 gacha (04.11) mijozga aytilgan shart
+
+
+def sayt_buyurtma_yetkazish(b) -> str:
+    """review255 M4: buyurtmaning O'Z sharti — buyurtma paytida mijozga ko'rsatilgani (`sb_yetkazish`). Bo'sh — zip 255 dan oldingi buyurtma:
+    o'sha paytdagi shart (shart o'zgargani eski buyurtmani o'zgartirmaydi — menejer mijozga nima va'da qilinganini ko'radi)."""
+    s = getattr(b, "sb_yetkazish", None)
+    if isinstance(s, str) and s.strip():
+        return s
+    return SAYT_YETKAZISH_BEPUL if b.sb_viloyat == SAYT_BEPUL_VILOYAT else SAYT_YETKAZISH_YARIM_ESKI
 
 
 def sayt_amal_kaliti(qiymat):
@@ -25947,8 +25982,9 @@ def _dokon_maxsus_detal(m, h, kub, koeff, detallar):
     """kech187 (zip 255): katalogda YO'Q o'lcham uchun detal o'rnini bosuvchi (bazaga yozilmaydi): turi «asosiy», o'lcham «18 sm (maxsus
     o'lcham)», eni = h, chuqurligi — asos balandlikdagi (yoki eng yaqin) katalog qatori chuqurligidan mutanosib, narx — formula."""
     from types import SimpleNamespace
-    narx = dokon_formula_narx(m, h, kub)
-    asos = [d for d in detallar if d.eni_sm and d.qalinligi_sm and d.turi == "asosiy"]
+    narx = dokon_formula_narx_tekshir(m, h, kub, dokon_maxsus_olcham(h))      # review255 L3: juda katta 1 m³ narxi — 400 (500 emas)
+    # review255 L6: chuqurlik — faqat SAYTDA KO'RINADIGAN (yoqilgan) asosiy qatordan (narx so'rovi ham, buyurtma ham bir xil qator)
+    asos = [d for d in detallar if d.eni_sm and d.qalinligi_sm and d.turi == "asosiy" and d.yoqilgan]
     qal = None
     if asos:
         r = min(asos, key=lambda d: (abs(Decimal(str(d.eni_sm)) - Decimal(str(m.formula_asos_sm))), d.id))
@@ -26111,7 +26147,9 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
             miqdor = _sayt_miqdor(q.get("miqdor"), d.birlik, m.qolip, d.turi, f"{m.kod} {d.olcham}")
             narx = Decimal(str(d.narx_qoplamali if qop else d.narx))
             nom = _sayt_nom(m, d)
-            gnomi = f"{nom}, {d.olcham}, " + ("qoplamali" if qop else "qoplamasiz")
+            # review255 L5: o'lcham («18,5 sm (maxsus o'lcham)») `_sayt_nom` da bor — ikkinchi marta yozilmaydi (detal qatori naqshi)
+            _ol255 = "" if d.olcham in nom else f"{d.olcham}, "
+            gnomi = f"{nom}, {_ol255}" + ("qoplamali" if qop else "qoplamasiz")
             natija.append(_sayt_qator(n, gnomi[:200], "maxsus", None, m, d, qop, miqdor, narx, narx, None, Decimal(str(d.narx))))
         else:
             _dokon_kalitlar(q, ("detal_id", "qoplamali", "miqdor", "ombordan"))
@@ -26232,7 +26270,7 @@ def sayt_dokon_javobi(db: Session, b, qatorlar=None, takror=False, hozir_utc=Non
     return {"versiya": DOKON_API_VERSIYA, "raqam": b.sb_raqam, "holat": b.sb_holat, "takror": bool(takror),
             "jami": _sayt_pul(b.sb_jami), "chegirmasiz": _sayt_pul(b.sb_chegirmasiz), "tejaldi": _sayt_pul(tejaldi),
             "viloyat": b.sb_viloyat, "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat),
-            "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_yetkazish_matni(b.sb_viloyat),
+            "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_buyurtma_yetkazish(b),
             "guruhlar": _ulgurji_guruhlar_dona(_sayt_guruhlar(qatorlar)) if getattr(b, "sb_ulgurji", None) else _sayt_guruhlar(qatorlar),
             "telefonlar": tel,
             "tasdiq_matni": ("Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating: "
@@ -26335,7 +26373,8 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
     _eng = db.query(_f237.max(DokonBuyurtma.sb_seq)).filter(DokonBuyurtma.company_id == company_id).scalar()
     seq = int(_eng or 0) + 1
     b = DokonBuyurtma(company_id=company_id, sb_seq=seq, sb_raqam=sayt_raqami(seq), sb_kalit=kalit, sb_tana_xesh=xesh,
-                      sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
+                      sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_yetkazish=sayt_yetkazish_matni(viloyat),     # review255 M4
+                      sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
                       sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir,
                       sb_band_tugash=band_tugash, mijoz_id=(kirgan_hisob.id if kirgan_hisob is not None else None),     # kech182 (zip 249) — «mijoz», «hisob» band nomlar
                       sb_ulgurji=(True if ulgurji_hisob is not None else None),         # kech184 (zip 250)
@@ -26378,7 +26417,7 @@ def sayt_telegram_matni(b, qatorlar, mijoz_yorligi=None) -> str:
     gl = _sayt_guruhlar(qatorlar)
     qism = [f"🛒 *Saytdan yangi buyurtma — {b.sb_raqam}*" + (" · 🏪 *Magazin (ulgurji)*" if getattr(b, "sb_ulgurji", None) else ""),
             f"👤 {_tg237(b.sb_mijoz)} · {dokon_telefon_korinish(b.sb_telefon)}"] + ([mijoz_yorligi] if mijoz_yorligi else []) + [
-            f"📍 {SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
+            f"📍 {SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_buyurtma_yetkazish(b).lower()}"]
     if b.sb_manzil:
         qism.append(f"🏠 {_tg237(b.sb_manzil[:300])}")
     if b.sb_lokatsiya:
@@ -26404,7 +26443,7 @@ def sayt_korinish(b, buyurtma_bor: bool = None, qatorlar=None) -> dict:
     d = {"id": b.id, "raqam": b.sb_raqam, "holat": b.sb_holat, "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat),
          "mijoz": b.sb_mijoz, "telefon": b.sb_telefon, "telefon_korinish": dokon_telefon_korinish(b.sb_telefon),
          "viloyat": b.sb_viloyat, "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat),
-         "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_yetkazish_matni(b.sb_viloyat),
+         "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_buyurtma_yetkazish(b),
          "manzil": b.sb_manzil, "lokatsiya": b.sb_lokatsiya, "izoh": b.sb_izoh,
          "jami": _sayt_pul(b.sb_jami), "chegirmasiz": _sayt_pul(b.sb_chegirmasiz),
          "yaratilgan": b.created_at.isoformat() if b.created_at else None,
@@ -26593,7 +26632,7 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
     (chegirmali bo'lsa — chegirmali). `recipe_id` — qoplama retsepti (qoplamali qator bo'lsa — SHART, forma qoidasi; review237 L2). `yaratish_kaliti` — sayt buyurtmasidan (takror tasdiqlashda ikkinchi buyurtma
     ochilmaydi). Topshirish — Toshkent kuni oxiri emas, kun boshi (forma kabi)."""
     items = _sayt_erp_qatorlari(qatorlar, tm)        # kech178 (zip 244): halqa — alohida funksiyada (PDF ham shundan)
-    izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
+    izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_buyurtma_yetkazish(b).lower()}"]
     if getattr(b, "sb_ulgurji", None):             # kech184 (zip 250)
         izoh.append("Ulgurji narx (magazin) — 50 % oldindan")
     if b.sb_izoh:
@@ -27902,7 +27941,7 @@ def _sayt_pdf_qatorlari(qatorlar, ulgurji=False) -> list:
     return items
 
 
-def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_utc=None) -> list:
+def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_utc=None, yetkazish=None) -> list:
     """PDF pastidagi yozuvlar: holat (tasdiqlangan / bekor), tasdiqlash raqamlari (faqat «yangi» va savatda — «savol bo'lsa»), yetkazish,
     band, chegirma bilan tejalgan summa."""
     tel = [dokon_telefon_korinish(t.raqam) for t in dokon_korinadigan_telefonlar(db, company_id, hozir_utc)]
@@ -27919,7 +27958,8 @@ def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_
     elif holat == "bekor":
         qism.append("Buyurtma bekor qilingan.")
     if viloyat:
-        qism.append(f"Yetkazib berish: {SAYT_VILOYAT_NOMI.get(viloyat, viloyat)} — {sayt_yetkazish_matni(viloyat).lower()}.")
+        # review255 M4: saqlangan buyurtma — o'z sharti (`yetkazish`), aks holda hozirgisi
+        qism.append(f"Yetkazib berish: {SAYT_VILOYAT_NOMI.get(viloyat, viloyat)} — {(yetkazish or sayt_yetkazish_matni(viloyat)).lower()}.")
     if band_matni:
         qism.append(band_matni + ".")
     if tejaldi and Decimal(str(tejaldi)) > 0:
@@ -27958,7 +27998,7 @@ def sayt_pdf_buyurtma(db: Session, b, qatorlar, hozir_utc=None) -> dict:
             "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat),
             "items": _sayt_pdf_qatorlari(qatorlar, ulgurji=bool(getattr(b, "sb_ulgurji", None))),
             "jami": float(b.sb_jami), "pastki": _sayt_pdf_pastki(db, b.company_id, b.sb_holat, b.sb_viloyat, tejaldi,
-                                                                  _sayt_band_matni(b), hozir_utc),
+                                                                  _sayt_band_matni(b), hozir_utc, yetkazish=sayt_buyurtma_yetkazish(b)),
             "ulgurji": bool(getattr(b, "sb_ulgurji", None))}               # kech184 (zip 250)
 
 

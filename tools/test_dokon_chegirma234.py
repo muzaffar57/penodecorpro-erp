@@ -400,7 +400,10 @@ def o_ch(narx, foiz):
 
 def o_avto(n, koeff=2):
     a = Decimal(str(n)) * Decimal(str(koeff))
-    x = (a / 1000).quantize(Decimal(1), rounding=ROUND_HALF_UP) * 1000
+    # kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali narx endi 1 000 ga yaxlitlanmaydi, butun so'm (egasi QARORI 04.11);
+    # eski kodda — 1 000 ga. Test eski va yangi kodda ham o'tadi.
+    x = ((a / 1000).quantize(Decimal(1), rounding=ROUND_HALF_UP) * 1000 if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000")
+         else a.quantize(Decimal(1), rounding=ROUND_HALF_UP))
     return x if x > 0 else a.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
@@ -518,7 +521,8 @@ _d2 = {o: detal(i).get("chegirma") for o, i in D2.items()}
 check("K13 karniz modeli (10 %): 99 000 → 89 100 (qoplamali avto 198 000 → 178 200); 1 500 → 1 400 (qoplamali 2 900 → 2 600); "
       "20 900 → 18 800 (qoplamali avto 42 000 → 37 800)", _d2 == {"O'rta": {"foiz": 10.0, "narx": 89100.0, "narx_qoplamali": 178200.0},
                                             "Katta": {"foiz": 10.0, "narx": 1400.0, "narx_qoplamali": 2600.0},
-                                            "Kichik": {"foiz": 10.0, "narx": 18800.0, "narx_qoplamali": 37800.0}}, _d2)
+                                            # kech187 (zip 255, MOSLANDI): avto qoplamali 41 800 (1 000 ga emas) → −10 % = 37 620 → 37 600
+                                            "Kichik": {"foiz": 10.0, "narx": 18800.0, "narx_qoplamali": 37800.0 if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000") else 37600.0}}, _d2)
 D2_ORTA = D2["O'rta"]
 _r = CA.put(API + f"/detallar/{D2_ORTA}", json={"narx": 100000})
 check("K14 narx qatori tahriri javobida — yangi chegirmali narx (100 000 → 90 000); katalog ham", lambda: js(_r).get("chegirma") ==

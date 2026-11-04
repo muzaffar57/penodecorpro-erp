@@ -421,6 +421,108 @@ if PG_URL:
     check("T6 [PG] ix_return_items_kqt_kalit bor", _ix == 1, _ix)
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+section("V. Mustaqil tekshiruv (review255) tuzatishlari")
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+from types import SimpleNamespace as _NS                                                         # noqa: E402
+from fractions import Fraction as _Fr                                                            # noqa: E402
+
+
+def _aniq(h, asos, blok, kub, bolak):
+    x = _Fr(Decimal(str(h))) ** 2 * _Fr(Decimal(str(blok))) * _Fr(Decimal(str(kub))) / (_Fr(Decimal(str(asos))) * 10000 * bolak)
+    return Decimal((x + _Fr(1, 2)).__floor__())
+
+
+_l1 = [(15, 14, 10.0, 2730000, 2), (20, 12, 7.55, 2298000, 2), (20, 20, 9.97, 1200000, 2), (18.5, 20, 9.97, 1200000, 2),
+       (33.3, 7, 3.33, 999999, 3), (40, 17, 13.13, 1234567, 7)]
+_l1x = [(t, crud.dokon_formula_narx(_NS(formula_asos_sm=t[1], formula_blok_sm=t[2], formula_bolak=t[4]), t[0], t[3]), _aniq(*t)) for t in _l1]
+check("V1 (L1) formula — aniq kasrning HALF_UP i: 14 / 10 / 15 sm / 2 730 000 → 21 938 (ilgari 21 937), egasining misoli 11 964",
+      all(a == b for _t, a, b in _l1x) and _l1x[0][1] == 21938 and _l1x[2][1] == 11964, _l1x)
+# M2: kapitel / baza (donada) — formulaga kirmaydi
+MP = js(CA.post(API + "/modellar", json={"bolim_id": BOL.get("Karnizlar"), "kod": "P-1", "nom": "Pilyastr", "kapitel_baza_bor": True})).get("id")
+DPA = js(CA.post(API + "/detallar", json={"model_id": MP, "turi": "asosiy", "olcham": "20 sm", "narx": 15000, "eni_sm": 20,
+                                          "qalinligi_sm": 6.76})).get("id")
+DPK = js(CA.post(API + "/detallar", json={"model_id": MP, "turi": "kapitel", "olcham": "30 sm", "narx": 85000, "eni_sm": 30})).get("id")
+DPKB = js(CA.post(API + "/detallar", json={"model_id": MP, "turi": "kapitel", "olcham": "Katta", "narx": 95000})).get("id")
+r = CA.put(API + f"/modellar/{MP}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
+check("V2 (M2) kapitelli metr modeliga formula — qabul (enisiz kapitel qatori to'sqinlik qilmaydi)", r.status_code == 200 and MP and DPK and DPKB,
+      (r.status_code, r.text[:200]))
+check("V2b asosiy qator — formula (11 964), kapitel qatorlari — o'z narxi (85 000 / 95 000)",
+      detal(DPA).get("narx") == 11964 and detal(DPK).get("narx") == 85000 and detal(DPKB).get("narx") == 95000,
+      (detal(DPA).get("narx"), detal(DPK).get("narx"), detal(DPKB).get("narx")))
+r = CA.put(API + f"/detallar/{DPK}", json={"narx": 87000})
+check("V2c kapitel narxini qo'lda o'zgartirish — mumkin", r.status_code == 200 and detal(DPK).get("narx") == 87000, (r.status_code, r.text[:200]))
+r = CA.post(API + "/detallar", json={"model_id": MP, "turi": "baza", "olcham": "30 sm", "narx": 70000, "eni_sm": 30})
+DPB = js(r).get("id")
+check("V2d baza qatori o'z narxi bilan — qo'shiladi", r.status_code == 200 and detal(DPB).get("narx") == 70000, (r.status_code, r.text[:200]))
+r = CA.put(API + f"/detallar/{DPA}", json={"narx": 1})
+check("V2e asosiy qatorda qo'lda narx — baribir rad", r.status_code == 400 and detal(DPA).get("narx") == 11964, (r.status_code, r.text[:200]))
+r = CA.put(API + "/kub-narx", json={"kub_narx": 1300000})
+check("V2f 1 m³ o'zgardi — faqat asosiy qatorlar qayta (K-20: 3, P-1: 1), kapitel / baza o'zgarmadi",
+      r.status_code == 200 and js(r).get("qayta_hisoblandi") == 4 and detal(DPK).get("narx") == 87000 and detal(DPB).get("narx") == 70000,
+      (r.status_code, r.text[:200]))
+CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
+check("V2g katalog javobida kapitel narxi — qo'lda yozilgani (do'kon katalogi)",
+      any(d.get("id") == DPK and d.get("narx") == 87000 for m in (js(dokon_get("/api/dokon/v1/katalog")).get("modellar") or [])
+          for d in (m.get("detallar") or [])))
+# L2: balandlik 5 sm dan kam / 0 so'm
+for n, e in (("0,1 sm", 0.1), ("4,9 sm (metrda yozilgan)", 4.9)):
+    r = CA.post(API + "/detallar", json={"model_id": MK, "turi": "asosiy", "olcham": f"x{e}", "eni_sm": e})
+    check(f"V3 (L2) formulali qator balandligi {n} — 400 (0 / 1 so'm narx yozilmaydi)", r.status_code == 400 and "5 sm" in js(r).get("detail", ""),
+          (r.status_code, r.text[:200]))
+r = CA.put(API + f"/detallar/{DK[20]}", json={"eni_sm": 0.2})
+check("V3b mavjud qator balandligini 0,2 qilish — 400, o'zgarmadi", r.status_code == 400 and detal(DK[20]).get("eni_sm") == 20,
+      (r.status_code, r.text[:200]))
+# L3: juda katta 1 m³ narxi — 400 (500 emas), hech narsa o'zgarmadi
+r = CA.put(API + "/kub-narx", json={"kub_narx": 1000000000})
+check("V4 (L3) 1 m³ 1 000 000 000 — formula narxi chegaradan oshmaydi (20 sm ≈ 9,97 mln): qabul", r.status_code == 200, (r.status_code, r.text[:200]))
+r = CA.post(API + "/detallar", json={"model_id": MK, "turi": "asosiy", "olcham": "1000 sm", "eni_sm": 1000})
+check("V4b 1000 sm qator (narx 24,9 mlrd > chegara) — 400, 500 emas", r.status_code == 400 and "juda katta" in js(r).get("detail", ""),
+      (r.status_code, r.text[:200]))
+CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 5, "blok_sm": 100, "bolak": 1}})
+r = dokon_get(f"/api/dokon/v1/maxsus-narx?model_id={MK}&balandlik=40")
+check("V4c eng katta formula (1 m³ 1 mlrd, 40 sm, blok 100 / asos 5) — narx chegara ichida (3,2 mlrd), 200",
+      r.status_code == 200 and js(r).get("narx") == 3200000000, (r.status_code, r.text[:200]))
+r = buyurtma([{"maxsus": {"model_id": MK, "balandlik_sm": 40}, "qoplamali": True, "miqdor": 2}])
+check("V4c2 shunday qatorli buyurtma (summa ustun sig'imidan katta) — 400, 500 emas", r.status_code == 400, (r.status_code, r.text[:200]))
+CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
+r = CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
+check("V4d 1 m³ qaytarildi — K-20 20 sm 11 964", r.status_code == 200 and detal(DK[20]).get("narx") == 11964, (r.status_code, r.text[:200]))
+# L5: guruh nomida o'lcham bir marta; L6: chuqurlik — faqat ko'rinadigan qatordan (narx so'rovi = buyurtma)
+CA.put(API + f"/detallar/{DK[20]}", json={"yoqilgan": False})
+_jm = js(dokon_get(f"/api/dokon/v1/maxsus-narx?model_id={MK}&balandlik=18.5"))
+r = buyurtma([{"maxsus": {"model_id": MK, "balandlik_sm": 18.5}, "qoplamali": False, "miqdor": 2}])
+_qv = bazadan(lambda d: d.query(models.DokonBuyurtmaQator).order_by(models.DokonBuyurtmaQator.id.desc()).first())
+check("V5 (L6) 20 sm qatori yashirin — chuqurlik narx so'rovida va buyurtma qatorida BIR XIL (eng yaqin ko'rinadigan qatordan)",
+      r.status_code in (200, 201) and _qv is not None and _jm.get("qalinligi_sm") is not None and _qv.qalinligi_sm == _jm.get("qalinligi_sm"),
+      (r.status_code, _jm.get("qalinligi_sm"), _qv and _qv.qalinligi_sm))
+_gn = _qv and _qv.sbq_guruh_nomi
+check("V6 (L5) guruh nomida «18,5 sm (maxsus o'lcham)» — BIR marta", _gn and _gn.count("18,5 sm (maxsus o'lcham)") == 1, _gn)
+_sb5 = bazadan(lambda d: d.query(models.DokonBuyurtma).order_by(models.DokonBuyurtma.id.desc()).first())
+_tg = bazadan(lambda d: crud.sayt_telegram_matni(_sb5, crud._sayt_qatorlari(d, 1, _sb5.id))) if _sb5 is not None else None
+check("V6b Telegram xabarida ham bir marta", _tg and _tg.count("18,5 sm (maxsus o'lcham)") == 1, _tg)
+CA.put(API + f"/detallar/{DK[20]}", json={"yoqilgan": True})
+# M4: yetkazish sharti buyurtmada saqlanadi; eski (NULL) buyurtma — eski shart
+r = buyurtma([{"detal_id": DO, "qoplamali": False, "miqdor": 2}], viloyat="fargona")
+_sbf = bazadan(lambda d: d.query(models.DokonBuyurtma).order_by(models.DokonBuyurtma.id.desc()).first())
+check("V7 (M4) yangi buyurtmada shart saqlandi: «Yetkazib berish — kelishuv asosida»",
+      r.status_code in (200, 201) and _sbf is not None and _sbf.sb_yetkazish == "Yetkazib berish — kelishuv asosida", _sbf and _sbf.sb_yetkazish)
+_asl_y = crud.SAYT_YETKAZISH_YARIM
+try:
+    crud.SAYT_YETKAZISH_YARIM = "Yetkazib berish — keyingi yangi shart"
+    _v = bazadan(lambda d: crud.sayt_korinish(d.get(models.DokonBuyurtma, _sbf.id), qatorlar=crud._sayt_qatorlari(d, 1, _sbf.id)))
+    _t = bazadan(lambda d: crud.sayt_telegram_matni(d.get(models.DokonBuyurtma, _sbf.id), crud._sayt_qatorlari(d, 1, _sbf.id)))
+finally:
+    crud.SAYT_YETKAZISH_YARIM = _asl_y
+check("V7b shart keyin o'zgarsa ham shu buyurtmada — o'zi (ko'rinish, Telegram)",
+      _v and _v.get("yetkazish_matni") == "Yetkazib berish — kelishuv asosida" and _t and "kelishuv asosida" in _t and "keyingi" not in _t,
+      (_v and _v.get("yetkazish_matni"), _t))
+bazadan(lambda d: (d.query(models.DokonBuyurtma).filter(models.DokonBuyurtma.id == _sbf.id).update({"sb_yetkazish": None}), d.commit()))
+_t0 = bazadan(lambda d: crud.sayt_telegram_matni(d.get(models.DokonBuyurtma, _sbf.id), crud._sayt_qatorlari(d, 1, _sbf.id)))
+check("V7c zip 255 dan oldingi buyurtma (shart saqlanmagan) — o'sha paytdagi shart «narxining yarmini biz to'laymiz»",
+      _t0 and "yarmini biz to'laymiz" in _t0, _t0)
+check("V7d Andijon (shart saqlanmagan) — «bepul»", crud.sayt_buyurtma_yetkazish(_NS(sb_yetkazish=None, sb_viloyat="andijon")) == "Yetkazib berish bepul")
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("Z. Ikkinchi korxona, jurnal")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 check("Z1 B korxona 1 m³ narxi — o'ziniki (bo'sh)", js(CB.get(API)).get("kub_narx") is None, js(CB.get(API)).get("kub_narx"))
@@ -438,6 +540,7 @@ check("Z5 formula o'chirildi — narxlar oxirgi qiymatda qoladi, qo'lda tahrir m
       (r.status_code, r.text[:200]))
 r = dokon_get(f"/api/dokon/v1/maxsus-narx?model_id={MK}&balandlik=18")
 check("Z6 formulasi o'chgan modelda «Boshqa o'lcham» — 404", r.status_code == 404, r.status_code)
+CA.put(API + f"/modellar/{MP}", json={"formula": None})
 r = CA.put(API + "/kub-narx", json={"kub_narx": None})
 check("Z7 formulali model qolmadi — 1 m³ narxini o'chirish mumkin", r.status_code == 200 and katalog().get("kub_narx") is None, r.text[:200])
 

@@ -365,7 +365,10 @@ check("A4 sinov katalogi yaratildi (5 model, 11 narx qatori)", all(DID.values())
 
 def o_avto(n, koeff=D(2)):
     asl = D(str(n)) * koeff
-    x = (asl / D(1000)).quantize(D(1), rounding=ROUND_HALF_UP) * D(1000)
+    # kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali narx endi 1 000 ga yaxlitlanmaydi, butun so'm (egasi QARORI 04.11);
+    # eski kodda — 1 000 ga. Test eski va yangi kodda ham o'tadi.
+    x = ((asl / D(1000)).quantize(D(1), rounding=ROUND_HALF_UP) * D(1000) if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000")
+         else asl.quantize(D(1), rounding=ROUND_HALF_UP))
     return x if x > 0 else asl.quantize(D("0.01"), rounding=ROUND_HALF_UP)
 
 

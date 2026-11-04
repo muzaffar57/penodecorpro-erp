@@ -3230,6 +3230,9 @@ class DokonBuyurtma(Base):
     sb_mijoz = Column(String(100), nullable=False)
     sb_telefon = Column(String(13), nullable=False, index=True)     # kech186 (review254 L6): telefon bo'yicha havola / soatlik chegara
     sb_viloyat = Column(String(20), nullable=False)
+    # kech187 (review255 M4): mijozga BUYURTMA PAYTIDA ko'rsatilgan yetkazib berish sharti (keyin shart o'zgarsa ham shu buyurtmada — o'zi).
+    # NULL — zip 255 dan oldingi buyurtma (o'sha paytdagi shart: Andijon — bepul, boshqa viloyat — «narxining yarmini biz to'laymiz»)
+    sb_yetkazish = Column(String(200), nullable=True)
     sb_manzil = Column(Text, nullable=True)
     sb_lokatsiya = Column(String(40), nullable=True)
     sb_izoh = Column(Text, nullable=True)
