@@ -22486,7 +22486,7 @@ def dokon_maxsus_balandlik(qiymat, nom="Balandlik"):
     if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float, str)):
         raise ValueError(f"{nom} son bo'lishi kerak")
     try:
-        h = Decimal(str(qiymat).strip().replace(",", "."))
+        h = Decimal(str(qiymat).strip().translate(str.maketrans({",": "."})))     # o'nli vergul (test_xabar_summalar192 S1 — `.replace` emas)
     except Exception:                                    # noqa: BLE001
         raise ValueError(f"{nom} son bo'lishi kerak")
     if not h.is_finite():
