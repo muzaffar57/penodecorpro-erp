@@ -9724,6 +9724,13 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
     return {"status": "ok"}
 
 
+@app.get("/api/finance/usta-keshbek")
+def api_finance_usta_keshbek(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
+    """kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar {"ustalar": [{id, nom, qoldiq, faol}]}.
+    Ruxsat — to'lovni yozish bilan bir xil («Kassa: Yaratish»; `POST /api/masters/{id}/keshbek`)."""
+    return {"ustalar": crud.usta_keshbek_tolov_royxati(db, auth.company_id_of(current_user))}
+
+
 @app.post("/api/finance/cash-transaction")
 def api_record_cash_transaction(category: str = Form(...), amount: float = Form(...),
                                  notes: str = Form(None), hisob: str = Form(None), db: Session = Depends(get_db),
@@ -9734,6 +9741,13 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
     eski «boshlang'ich balans» — rad (u «Kassa + bank» ga endi ta'sir qilmaydi — «+ Boshlang'ich qoldiq» dan)."""
     if category not in ("boshlangich", "usta_kpi", "ehson"):
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
+    # kech189 (zip 256, egasi QARORI 05.11 «Ustaga bog'lash» — O'LCHANGAN `work/k256/probe256.py`): ustaga BOG'LANMAGAN «Usta KPI to'landi»
+    # kassadan ayirardi, usta keshbek qoldig'i esa kamaymasdi («💸 Keshbek berildi» bilan birga bosilsa — kassadan 2 marta). Endi bu to'lov
+    # FAQAT ustaga bog'lab yoziladi — `POST /api/masters/{id}/keshbek` (usul «naqd»; Moliya oynasi ham shuni chaqiradi). Eski yozuvlar
+    # tarixda qoladi (o'chirish — avvalgidek).
+    if category == "usta_kpi":
+        raise HTTPException(status_code=400, detail="«Usta KPI to'landi» endi ustaga bog'lab yoziladi — oynada ustani tanlang "
+                                                    "(yoki «Ustalar KPI» → «💸 Keshbek berildi»)")
     # kech157 (zip 216 — O'LCHANGAN, HAQIQIY PG): «nan» summa 500 bersa ham `cash_transactions.amount = NaN` yozilardi (keyin kassa qoldig'i,
     # pul oqimi, kassa ro'yxati — 500); «inf» / «-inf» — 500. Son bo'lmagan / cheksiz — 400, hech narsa yozilmaydi.
     import math as _m216

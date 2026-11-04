@@ -392,6 +392,9 @@ ESKI = {
 }
 # Rollar sahifasi va API (kech118) — FAQAT Admin (topshirilmaydi)
 YANGI_MARSHRUTLAR = {
+    # kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar; ruxsat — to'lovni yozish bilan bir xil
+    # («Kassa: Yaratish» — `POST /api/masters/{master_id}/keshbek`)
+    "GET /api/finance/usta-keshbek": "A",
     # kech186 (zip 253): usta keshbegi — ko'rish «Ustalar KPI: Ko'rish» (kpi-report bilan bir xil), berish / o'chirish — «Kassa» (Moliya
     # «Usta KPI to'landi» bilan bir xil); do'kon kabineti — kalit + sessiya
     "GET /api/masters/kpi-keshbek": "AF", "GET /api/masters/{master_id}/keshbek": "AF", "POST /api/masters/{master_id}/keshbek": "A",
