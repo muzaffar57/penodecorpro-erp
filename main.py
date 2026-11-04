@@ -3806,6 +3806,37 @@ def _migrate_ish_davrlari():
 _migrate_ish_davrlari()
 
 
+def _migrate_kpi_qotir253():
+    """kech186 (zip 253 — egasi QARORI 04.11 «KPI foizi — faqat yangilari») — IDEMPOTENT, PostgreSQL va SQLite. Ustunlar
+    `orders.usta_kpi_foizi`, `finished_product_sales.usta_kpi_foizi` — `sync_missing_columns` (NULL). Bu yerda: ustasi bor «Tayyor»
+    buyurtmalar va ustaga biriktirilgan sotuvlarning foizi QOTMAGAN (NULL) bo'lsa — ustaning HOZIRGI foizi bilan qotiriladi (shu kodgacha
+    hisob shu foiz bilan edi — raqamlar o'zgarmaydi; keyin foiz o'zgarsa faqat yangi «Tayyor» lar yangi foizda). Yangi yozuvlar —
+    `models._usta_kpi_qotir` (before_flush). Korxonalar bo'yicha (tizim so'rovi), bitta tranzaksiya; xato — hech narsa o'zgarmaydi."""
+    from sqlalchemy import select as _sel253, update as _upd253, and_ as _and253
+    from database import engine as _e253
+    from models import Order as _O253, OrderStatus as _OS253, Master as _M253, FinishedProductSale as _S253
+    _n = {"buyurtma": 0, "sotuv": 0}
+    try:
+        with _e253.begin() as conn:
+            _f = _sel253(_M253.kpi_percent).where(_M253.id == _O253.master_id).scalar_subquery()
+            r = conn.execute(_upd253(_O253).where(_and253(_O253.status == _OS253.READY, _O253.master_id.isnot(None),
+                                                            _O253.usta_kpi_foizi.is_(None)))
+                             .values(usta_kpi_foizi=_f).execution_options(synchronize_session=False))
+            _n["buyurtma"] = r.rowcount or 0
+            _f2 = _sel253(_M253.kpi_percent).where(_M253.id == _S253.master_id).scalar_subquery()
+            r = conn.execute(_upd253(_S253).where(_and253(_S253.master_id.isnot(None), _S253.usta_kpi_foizi.is_(None)))
+                             .values(usta_kpi_foizi=_f2).execution_options(synchronize_session=False))
+            _n["sotuv"] = r.rowcount or 0
+        if _n["buyurtma"] or _n["sotuv"]:
+            print(f"✓ Usta KPI foizi qotirildi: {_n['buyurtma']} ta «Tayyor» buyurtma, {_n['sotuv']} ta sotuv")
+    except Exception as e:
+        print(f"⚠ Usta KPI foizini qotirish o'tkazib yuborildi: {e}")
+    return _n
+
+
+_migrate_kpi_qotir253()
+
+
 def _migrate_himoya143():
     """kech143 (zip 171, AUDIT A-X09): bazadagi XOM sessiya tokenlari — SHA-256 xeshga (`auth.sessiya_tokenlarini_xeshla`;
     cookie o'zgarmaydi — hech kim chiqib ketmaydi), eski tuzsiz SHA-256 parol / PIN xeshlari — bcrypt bilan o'ralgan
@@ -5324,8 +5355,11 @@ def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), cur
     who = current_user.full_name or current_user.username
     # kech99 (probe103 qoldig'i I, O'LCHANGAN): o'chirish `commit` qilingach audit yozuvida xato bo'lsa buyurtma IZSIZ
     # o'chardi (audit yo'q). Endi o'chirish va audit BITTA tranzaksiyada.
-    with crud.bitta_tranzaksiya(db):
-        _ok = crud.permanent_delete_order(db, order_id, performed_by=who)
+    try:
+        with crud.bitta_tranzaksiya(db):
+            _ok = crud.permanent_delete_order(db, order_id, performed_by=who)
+    except crud.UstaKeshbekZiddiyat as e:            # kech186 (review253 H1): keshbek hisobidan to'lovli buyurtma
+        raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
     return {"status": "ok"}
@@ -7278,6 +7312,58 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
     return {"status": "ok", "ehson_percent": percent}
 
 
+# ══ kech186 (zip 253) — USTA KESHBEGI: qoldiq, «Keshbek berildi», tarix ══════════════════════════════════════════════════════════════════
+def _keshbek_bajar(db, fn):
+    try:
+        return fn()
+    except crud.UstaKeshbekTopilmadi as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
+    except crud.UstaKeshbekZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/masters/kpi-keshbek")
+def api_masters_keshbek_qoldiqlari(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
+    """Har usta keshbek qoldig'i (barcha yillar hisoblangani − berilgan): {"qoldiqlar": {usta id: so'm}}."""
+    cid = auth.company_id_of(current_user)
+    return {"qoldiqlar": {str(k): v for k, v in crud.usta_keshbek_qoldiqlari(db, cid).items()}}
+
+
+@app.get("/api/masters/{master_id}/keshbek")
+def api_master_keshbek(master_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                       current_user=Depends(auth.ruxsat("kpi", "korish"))):
+    """Usta keshbegi: yozilgan (yillar bo'yicha), berilgan, qoldiq, berilganlar tarixi."""
+    cid = auth.company_id_of(current_user)
+    return _keshbek_bajar(db, lambda: crud.usta_keshbek_holati(db, cid, master_id))
+
+
+@app.post("/api/masters/{master_id}/keshbek")
+def api_master_keshbek_ber(master_id: int = _Path213(..., ge=1, le=2_147_483_647), data: dict = Body(...),
+                           db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
+    """«Keshbek berildi»: {"summa", "usul": naqd | buyurtma | oldin, "hisob"?, "buyurtma"?, "sana"?, "izoh"?} — qoldiqdan ko'p — 409."""
+    cid = auth.company_id_of(current_user)
+    kim = current_user.full_name or current_user.username
+    rec = _keshbek_bajar(db, lambda: crud.usta_keshbek_ber(db, cid, master_id, data, kim))
+    # review253 L5: javobda faqat yozuv natijasi (hisob tafsiloti — «Ustalar KPI: Ko'rish» bilan GET da)
+    return {"status": "ok", "id": rec.id, "duplicate": bool(getattr(rec, "_is_duplicate_submit", False)),
+            "qoldiq": getattr(rec, "_qoldiq", None)}
+
+
+@app.delete("/api/masters/keshbek/{kid}")
+def api_master_keshbek_ochir(kid: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.ruxsat("kassa", "ochirish"))):
+    """Berilgan keshbek yozuvini o'chirish — bog'langan buyurtma to'lovi va kassa yozuvi birga o'chadi."""
+    cid = auth.company_id_of(current_user)
+    kim = current_user.full_name or current_user.username
+    _keshbek_bajar(db, lambda: crud.usta_keshbek_ochir(db, cid, kid, kim))
+    return {"status": "ok"}
+
+
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
@@ -9100,8 +9186,12 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
         # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
         db.flush()
 
-        if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username),
-                                 jurnal_matni=_jurnal_matni209):
+        try:
+            _ok253 = crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username),
+                                       jurnal_matni=_jurnal_matni209)
+        except crud.UstaKeshbekZiddiyat as e:        # kech186 (review253 H1): himoya (odatda `ochirishda_yumshoqmi` yumshoq qiladi)
+            raise HTTPException(status_code=409, detail=str(e))
+        if not _ok253:
             raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
@@ -9625,7 +9715,11 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
     _cid = auth.company_id_of(current_user)
     if not auth.cash_transaction_of_company(db, tx_id, _cid):
         raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
-    if not crud.delete_cash_transaction(db, tx_id, company_id=_cid):
+    try:
+        _ok253 = crud.delete_cash_transaction(db, tx_id, company_id=_cid)
+    except crud.UstaKeshbekZiddiyat as e:            # kech186 (zip 253): keshbekka bog'langan «Usta KPI to'landi»
+        raise HTTPException(status_code=409, detail=str(e))
+    if not _ok253:
         raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
     return {"status": "ok"}
 
@@ -10817,8 +10911,11 @@ def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_u
     who = current_user.full_name or current_user.username
     # kech99 (probe103 qoldig'i H, O'LCHANGAN): audit ("deleted") o'zi `commit` qilinib, keyin to'lov o'chirishda xato
     # bo'lsa — to'lov QOLARDI, audit esa "o'chirildi" derdi; qayta urinish ikkinchi audit yozardi. Endi BITTA tranzaksiya.
-    with crud.bitta_tranzaksiya(db):
-        _ok = crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user))
+    try:
+        with crud.bitta_tranzaksiya(db):
+            _ok = crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user))
+    except crud.UstaKeshbekZiddiyat as e:            # kech186 (zip 253): keshbek hisobidan to'lov — keshbek tarixidan o'chiriladi
+        raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
     return {"status": "ok"}
@@ -15032,7 +15129,14 @@ def _usta_boti_javobi(data, token, korxona_id=None):
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))
-                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {services.son_korinish(int(info['jami_bonus']), 0)} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
+                # kech186 (zip 253): olinmagan qoldiq (barcha yillar hisoblangani − berilgan) — sayt kabineti bilan bitta hisob
+                try:
+                    _q253 = crud.usta_keshbek_holati(db, getattr(master, "company_id", None), master.id, tarix=False)
+                    _qq253 = f"💼 *Olinmagan qoldiq: {services.son_korinish(int(round(max(_q253['qoldiq'], 0))), 0)} so'm*\n\n"
+                except Exception:          # noqa: BLE001
+                    db.rollback()
+                    _qq253 = ""
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {services.son_korinish(int(info['jami_bonus']), 0)} so'm*\n\n" + _qq253 + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -15451,6 +15555,22 @@ def api_dokon_v1_mijoz_buyurtmalar(request: Request, db: Session = Depends(get_d
     def _bajar():
         try:
             return crud.dokon_mijoz_buyurtmalari(db, cid, _dokon_sessiya_ol(request))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+# kech186 (zip 253): kabinet — usta keshbegi (qoldiq, jami yozilgan, berilgan, buyurtmalar keshbegi)
+@app.get("/api/dokon/v1/mijoz/keshbek")
+def api_dokon_v1_mijoz_keshbek(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan ustaning keshbegi (kalit + sessiya). Usta tasdiqlanmagan / magazin — `keshbek: null`. Sessiya yaroqsiz — 401.
+    Foyda, KPI %, ERP raqamlari — YO'Q."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            return crud.dokon_mijoz_keshbek(db, cid, _dokon_sessiya_ol(request))
         except crud.DokonSessiyaYoq:
             db.rollback()
             raise _dokon_sessiya_xato()

@@ -6654,6 +6654,7 @@ def delete_cash_transaction(db: Session, tx_id: int, company_id: int = None) -> 
     tx = q.first()
     if not tx:
         return False
+    _keshbek_boglami_tekshir(db, cash_tx_id=tx.id)              # kech186 (zip 253)
     db.delete(tx)
     db.commit()
     return True
@@ -7217,6 +7218,8 @@ AUDIT_AMALLARI = {
     # kech181 (zip 248): saytdagi usta / magazin hisobi tasdiqlandi yoki so'rovi rad etildi — `new_value` da tafsilot (bloklash —
     # «blocked» / «unblocked»)
     "dokon_tasdiq": ("✅", "— saytdagi hisob tasdiqlandi", "Sayt hisobi tasdiqlandi"),
+    # kech186 (zip 253): ustaga keshbek berildi (naqd / buyurtma to'loviga / oldin berilgan) — `new_value` da summa, usul, qoldiq
+    "keshbek_berildi": ("💸", "— keshbek berildi", "Keshbek berildi"),
     "dokon_rad": ("❌", "— saytdagi so'rov rad etildi", "Sayt so'rovi rad etildi"),
     "dokon_chiqarildi": ("🚫", "— «Bu men emas»: saytdagi hisob barcha qurilmalardan chiqarildi", "Sayt hisobidan chiqarildi"),
     # eski yozuvlar (zip 129 dan oldin shu nom bilan yozilishi mo'ljallangan, lekin NOT NULL sabab yozilmagan)
@@ -8066,6 +8069,9 @@ def delete_order(db: Session, order_id: int, soft: bool = False, performed_by: s
     db_order = db.query(Order).filter(Order.id == order_id).first()
     if not db_order:
         return False
+    if not soft and _keshbek_tolovi_bormi(db_order):            # kech186 (review253 H1): himoya — qattiq o'chirish yo'q
+        db.rollback()
+        raise UstaKeshbekZiddiyat("Bu buyurtmaga keshbek hisobidan to'lov yozilgan — avval «Ustalar KPI» dagi keshbek yozuvini o'chiring")
     order_num = db_order.order_number
     if soft:
         # 2026-09-17: MRP band qilingan detallar bo'lsa — avtomatik ozod
@@ -8140,6 +8146,10 @@ def permanent_delete_order(db: Session, order_id: int, performed_by: str = None)
     db_order = db.query(Order).filter(Order.id == order_id, Order.is_deleted.is_(True)).first()
     if not db_order:
         return False
+    if _keshbek_tolovi_bormi(db_order):                          # kech186 (review253 H1)
+        db.rollback()
+        raise UstaKeshbekZiddiyat("Bu buyurtmaga keshbek hisobidan to'lov yozilgan — butunlay o'chirishdan oldin «Ustalar KPI» dagi "
+                                  "keshbek yozuvini o'chiring")
     order_num = db_order.order_number
     from models import InventoryMovement, FinishedProduct, Payment as _Payment209
     from production_models import ProductionOrder
@@ -10593,6 +10603,7 @@ def delete_payment(db: Session, payment_id: int, performed_by: str = None,
     if not payment:
         return False
 
+    _keshbek_boglami_tekshir(db, payment_id=payment.id)        # kech186 (zip 253)
     order = payment.order
     order_label = order.order_number if order else f"#{payment.order_id}"
     detail = _tolov_audit_matni(payment)
@@ -11233,7 +11244,19 @@ def ochirishda_yumshoqmi(order) -> bool:
     funksiyadan — biri o'zgarsa ikkinchisi ham (`tools/test_tayyor_yuk.py` rejani amal natijasi bilan solishtiradi)."""
     return (bool(order.deliveries)
             or order.status in (OrderStatus.READY, OrderStatus.DELIVERED)
-            or bool(order.returns))
+            or bool(order.returns)
+            or _keshbek_tolovi_bormi(order))         # kech186 (review253 H1): keshbek hisobidan to'lov — iz saqlanadi
+
+
+def _keshbek_tolovi_bormi(order) -> bool:
+    """kech186 (review253 H1): buyurtmaga «Keshbek berildi» (buyurtma to'loviga) yozilganmi — bunday buyurtma QATTIQ o'chirilmaydi (to'lov
+    yo'qolsa keshbek yozuvi va «Usta KPI to'landi» kassa yozuvi osilib qolardi: kassa −summa, qoldiq kamaygan)."""
+    from sqlalchemy.orm import object_session as _os253
+    from models import UstaKeshbek
+    s = _os253(order)
+    if s is None or getattr(order, "id", None) is None:
+        return False
+    return s.query(UstaKeshbek.id).filter(UstaKeshbek.company_id == order.company_id, UstaKeshbek.order_id == order.id).first() is not None
 
 
 def ochirishda_yopiladimi(order) -> bool:
@@ -11590,10 +11613,13 @@ def _reset_table_order():
         DokonBuyurtma, DokonBuyurtmaQator,
         DokonGalereya, DokonGalereyaQator, DokonGalereyaRasm,
         DokonMijoz, DokonKirish, DokonSessiya,
-        DokonKutish,
+        DokonKutish, UstaKeshbek,
     )
     return [
         ProductionOrder,
+        # kech186 (zip 253): berilgan keshbek — to'lov, kassa yozuvi, buyurtma, usta, pul hisobiga ishora qiladi: o'chirishda ulardan OLDIN,
+        # tiklashda KEYIN
+        UstaKeshbek,
         # kech125 (zip 146): ombor harakati brak yozuviga (`return_item_id`, `fp_loss_id`) va taqdir qatoriga
         # (`brak_taqdir_id`) ishora qiladi, taqdir qatori — brak yozuvlari va tayyor mahsulotga: o'chirishda harakat →
         # taqdir → qaytarish (bola avval), tiklashda (teskari) qaytarish → taqdir → harakat (ota avval). Ilgari harakat
@@ -11864,6 +11890,7 @@ def import_full_backup(db: Session, data: dict, company_id: int,
         # kech141 (zip 169, A-P02): zip 169 dan oldingi zaxira (ish davrlari jadvalisiz) — o'chirilgan hodimlarning ish davri
         # jurnaldan (ishga tushishdagi migratsiya bilan bir funksiya). Ketma-ketliklar yangilangandan KEYIN (yangi qator id si).
         ish_davrlarini_tola(db, company_id=company_id)
+        usta_kpi_qotir(db, company_id=company_id)    # kech186 (review253 L4): zip 253 dan oldingi zaxira — foiz qotmagan
 
         db.commit()
         dokon_yetim_fayllar_tozala(db)          # kech167 (zip 232, review232 №5): yozuvsiz eski sayt rasmi fayllari
@@ -18181,6 +18208,16 @@ def admin_avans_nizo_korildi(db: Session, advance_id: int, company_id: int, korg
 # MASTER KPI — Yillik KPI (sotuvdan %, yil oxiri sovg'a)
 # ============================================================
 
+def usta_foizi(obj, usta) -> float:
+    """kech186 (zip 253 — egasi QARORI 04.11 «Faqat yangilari»): hodisaning (buyurtma «Tayyor» / tayyor mahsulot sotuvi) usta KPI foizi —
+    o'sha paytda QOTGANI (`usta_kpi_foizi`, `models._usta_kpi_qotir`); qotmagan (eski / xom SQL bilan yozilgan) — ustaning hozirgi foizi.
+    Usta KPI / keshbek hisobining HAMMA joyi (KPI sahifasi, tafsilot, bot, oylik «Usta bonusi», «Tayyor» javobi) — shu qoida."""
+    q = getattr(obj, "usta_kpi_foizi", None) if obj is not None else None
+    if q is not None:
+        return float(q)
+    return float(getattr(usta, "kpi_percent", None) or 0) if usta is not None else 0.0
+
+
 def update_master_kpi(db: Session, master_id: int, kpi_percent: float,
                       company_id: int = None) -> Optional[Master]:
     # kech93 (8-band): ildizda ham QAT'IY — marshrut sxemasi (`MasterKpiUpdate`,
@@ -18220,7 +18257,6 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
     ).order_by(Order.completed_at.desc()).all()
     services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
-    kpi_pct = float(master.kpi_percent or 0)
     # kech140 (zip 168, egasi QARORI 11.10 «Bot to'g'ri»): ishtirokchining sovg'a davri ichidagi buyurtmasi / qaytarishi /
     # sotuvi — qator ko'rinadi («🎁 sovg'a davrida»), KPI si 0 (sovg'a hisobiga); davr yopilganda o'tkazilgan qoldiq —
     # alohida qator. Yig'indi = KPI sahifasi `gift_amount` = bot «Bonuslarim».
@@ -18241,7 +18277,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
             "completed_at": o.completed_at.isoformat() if o.completed_at else None,
             "total_amount": float(o.total_amount or 0),
             "profit": round(profit),
-            "kpi_amount": 0 if _davrda else round(profit * kpi_pct / 100),
+            "kpi_amount": 0 if _davrda else round(profit * usta_foizi(o, master) / 100),     # kech186 (zip 253): qotgan foiz
         })
 
     # kech102 (144-band, QAROR — usta KPI "yo'qotilgan foydaga"): shu yilda bo'lgan qaytarishlar (buyurtma
@@ -18261,7 +18297,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
             "completed_at": _h144["vaqt"].isoformat(),
             "total_amount": round(_h144["daromad"], 2),
             "profit": round(_h144["foyda"]),
-            "kpi_amount": 0 if _davrda else round(_h144["foyda"] * kpi_pct / 100),
+            "kpi_amount": 0 if _davrda else round(_h144["foyda"] * usta_foizi(_o144, master) / 100),
         })
 
     # MUHIM (2026-09): Tayyor mahsulot bo'limidan TO'G'RIDAN-TO'G'RI
@@ -18282,7 +18318,7 @@ def get_master_kpi_detail(db: Session, master_id: int, year: int,
             "completed_at": s.sold_at.isoformat() if s.sold_at else None,
             "total_amount": float(s.total_amount or 0),
             "profit": round(profit),
-            "kpi_amount": 0 if _davrda else round(profit * kpi_pct / 100),
+            "kpi_amount": 0 if _davrda else round(profit * usta_foizi(s, master) / 100),
         })
     # kech140 (zip 168): sovg'a davri yopilganda keshbekka o'tkazilgan qoldiq (foyda saqlanmaydi — «—»)
     for _ot in sovga_keshbek_otkazmalari(db, *_tashkent_yil_oraligi(year), company_id=master.company_id,
@@ -18369,11 +18405,14 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
     _ichida = sovga_davr_tekshirgich(db, company_id)
     _usta_obj = {m.id: m for m in masters}
     _qaytarish_usta = {}
+    _qaytarish_kpi = {}                    # kech186 (zip 253): qaytarish — o'sha buyurtma qotgan foizida
     for _h144 in services.davr_qaytarishlari(db, *_tashkent_yil_oraligi(year),
                                              company_id=company_id):
         if _ichida(_usta_obj.get(_h144["master_id"]), _h144["vaqt"]):
             continue
         _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
+        _qaytarish_kpi[_h144["master_id"]] = (_qaytarish_kpi.get(_h144["master_id"], 0.0)
+                                              + _h144["foyda"] * usta_foizi(_h144["order"], _usta_obj.get(_h144["master_id"])) / 100)
     _otkazma_usta = {}
     for _ot in (sovga_keshbek_otkazmalari(db, *_tashkent_yil_oraligi(year), company_id=company_id) if master_ids else []):
         _otkazma_usta[_ot.master_id] = _otkazma_usta.get(_ot.master_id, 0.0) + float(_ot.profit_amount or 0)
@@ -18383,6 +18422,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
 
         yearly_sales = 0.0
         yearly_profit = 0.0
+        _kpi253 = 0.0                      # kech186 (zip 253): Σ hodisa foydasi × o'sha hodisa qotgan foizi
         for o in orders:
             yearly_sales += float(o.total_amount or 0)
             if _ichida(m, o.completed_at):
@@ -18390,6 +18430,7 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             try:
                 profit_data = services.yakun_foydasi(db, o)
                 yearly_profit += float(profit_data.get("foyda", 0))
+                _kpi253 += float(profit_data.get("foyda", 0)) * usta_foizi(o, m) / 100
             except Exception as e:
                 db.rollback()
                 try:
@@ -18402,10 +18443,12 @@ def get_masters_kpi_report(db: Session, year: int, include_inactive: bool = Fals
             if _ichida(m, s.sold_at):
                 continue
             yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
+            _kpi253 += (float(s.total_amount or 0) - float(s.cost_amount or 0)) * usta_foizi(s, m) / 100
         yearly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
+        _kpi253 += _qaytarish_kpi.get(m.id, 0.0)
 
         _otkazma = _otkazma_usta.get(m.id, 0.0)
-        gift = yearly_profit * (m.kpi_percent or 0) / 100 + _otkazma
+        gift = _kpi253 + _otkazma
         total_gift += gift
         if not include_inactive and not m.is_active:
             nofaol_gift += gift
@@ -18670,11 +18713,16 @@ def _gift_period_sales_since(db: Session, master_id: int, start_dt, end_dt,
 
 
 def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt,
-                              company_id: int = None) -> float:
+                              company_id: int = None, usta=None) -> float:
     """Xuddi yuqoridagi kabi, lekin SAVDO emas, FOYDA — davr yopilganda
-    keshbekka aylantirish uchun ishlatiladi."""
+    keshbekka aylantirish uchun ishlatiladi.
+    kech186 (review253 M4 — egasi QARORI 04.11 «Faqat yangilari»): `usta` berilsa — FOYDA emas, KESHBEK: Σ hodisa foydasi × o'sha hodisa
+    QOTGAN foizi (`usta_foizi`; qaytarish — o'sha buyurtma foizida)."""
     import services
     from models import Order, OrderStatus, FinishedProductSale
+
+    def _k(obj):
+        return usta_foizi(obj, usta) / 100 if usta is not None else 1.0
     total = 0.0
     q1 = db.query(Order).filter(
         Order.master_id == master_id, Order.status == OrderStatus.READY,
@@ -18684,11 +18732,11 @@ def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt,
         q1 = q1.filter(Order.company_id == company_id)
     for o in q1.all():
         try:
-            total += float(services.yakun_foydasi(db, o).get("foyda", 0))    # kech102 (144-band)
+            total += float(services.yakun_foydasi(db, o).get("foyda", 0)) * _k(o)    # kech102 (144-band)
         except Exception:
             db.rollback()
     # kech102 (144-band): davr ichida bo'lgan qaytarishlar (buyurtma yakunlangandan keyin) — o'sha payt bo'yicha
-    total += sum(_h144["foyda"] for _h144 in services.davr_qaytarishlari(
+    total += sum(_h144["foyda"] * _k(_h144["order"]) for _h144 in services.davr_qaytarishlari(
         db, start_dt, end_dt, company_id=company_id, master_id=master_id, oraliq="(]"))
     q2 = db.query(FinishedProductSale).filter(
         FinishedProductSale.master_id == master_id,
@@ -18697,7 +18745,7 @@ def _gift_period_profit_since(db: Session, master_id: int, start_dt, end_dt,
     if company_id is not None:      # M5
         q2 = q2.filter(FinishedProductSale.company_id == company_id)
     for s in q2.all():
-        total += float(s.total_amount or 0) - float(s.cost_amount or 0)
+        total += (float(s.total_amount or 0) - float(s.cost_amount or 0)) * _k(s)
     return total
 
 
@@ -18946,8 +18994,8 @@ def close_gift_period(db: Session, performed_by: str = None, force: bool = False
         sales = _gift_period_sales_since(db, m.id, checkpoint, now, company_id=_cid)
         if sales <= 0.01:
             continue
-        profit = _gift_period_profit_since(db, m.id, checkpoint, now, company_id=_cid)
-        cashback_amount = profit * float(m.kpi_percent or 0) / 100
+        # kech186 (review253 M4): har hodisa o'z QOTGAN foizida (ilgari — ustaning hozirgi foizi butun davrga)
+        cashback_amount = _gift_period_profit_since(db, m.id, checkpoint, now, company_id=_cid, usta=m)
         db.add(MasterGiftPeriodRedemption(
             period_id=period.id, master_id=m.id, tier_id=None,
             gift_name="(Keshbekka o'tkazildi)", sales_amount=sales,
@@ -18996,6 +19044,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
     services._hk_tayyorla(db, orders)        # kech90 (110-band): N+1 o'rniga bir necha IN so'rovi
 
     yearly_profit = 0.0
+    jami_bonus = 0.0                       # kech186 (zip 253): Σ hodisa foydasi × o'sha hodisa qotgan foizi (`usta_foizi`)
     buyurtmalar = []
     for o in orders:
         if _in_any_period(o.completed_at):
@@ -19006,6 +19055,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
             db.rollback()
             foyda = 0.0
         yearly_profit += foyda
+        jami_bonus += foyda * usta_foizi(o, master) / 100
         buyurtmalar.append((o.order_number, foyda))
     # kech102 (144-band): shu yilda bo'lgan qaytarishlar — qaytarish PAYTI sovg'a davriga tushsa, o'sha davrda
     # (davr yopilganda `_gift_period_profit_since` hisobida), aks holda keshbekda.
@@ -19014,6 +19064,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
         if _in_any_period(_h144["vaqt"]):
             continue
         yearly_profit += _h144["foyda"]
+        jami_bonus += _h144["foyda"] * usta_foizi(_h144["order"], master) / 100
         buyurtmalar.append((f"{'✏️' if _h144['tur'] == 'tuzatish' else '↩️'} {_h144['order'].order_number}", _h144["foyda"]))
 
     _sq = db.query(FinishedProductSale).filter(
@@ -19027,8 +19078,7 @@ def get_master_yearly_cashback(db: Session, master_id: int, year: int,
         if _in_any_period(s.sold_at):
             continue
         yearly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
-
-    jami_bonus = yearly_profit * kpi_pct / 100
+        jami_bonus += (float(s.total_amount or 0) - float(s.cost_amount or 0)) * usta_foizi(s, master) / 100
 
     # kech140 (zip 168): o'tkazmalar — KPI sahifasi / oylik hisobot bilan bitta yordamchi
     conversions = sovga_keshbek_otkazmalari(db, *_tashkent_yil_oraligi(year), company_id=cid, master_id=master_id)
@@ -28056,8 +28106,9 @@ def dokon_mijoz_tasdiqla(db: Session, company_id: int, mijoz_id, data, kim: str,
             if tg_band is None:
                 u.telegram_id = m.mj_tg_id
         m.master_id = u.id
+        _bog253 = _dokon_usta_buyurtmalarini_bogla(db, company_id, m, u)
         tafsilot = (f"usta «{u.name}» (#{u.id}{', yangi' if mid is None else ''}), KPI {audit_son(eski_kpi, 2)} → "
-                    f"{audit_son(kpi, 2)} %")
+                    f"{audit_son(kpi, 2)} %" + (f"; tasdiqdan oldingi {_bog253} ta buyurtmasi ustaga bog'landi" if _bog253 else ""))
     else:
         if data:
             raise ValueError("Magazin tasdig'ida qo'shimcha maydon yo'q")
@@ -28776,6 +28827,8 @@ def ulgurji_savat_pdf_malumoti(db: Session, company_id: int, m, data, hozir_utc=
 DOKON_KUTISH_YOLI = "/api/dokon/v1/kutish"
 DOKON_KUTISH_BEKOR_YOLI = "/api/dokon/v1/kutish/bekor"
 DOKON_API_YOLLAR = DOKON_API_YOLLAR + (DOKON_KUTISH_YOLI, DOKON_KUTISH_BEKOR_YOLI)
+DOKON_KESHBEK_YOLI = "/api/dokon/v1/mijoz/keshbek"       # kech186 (zip 253): kabinet — usta keshbegi
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + (DOKON_KESHBEK_YOLI,)
 DOKON_KUTISH_MAX = 30                     # bitta hisobning faol kutishlari
 DOKON_KUTISH_URINISH_MAX = 5              # Telegram xabari shuncha marta yetmasa — «xato» (keyin urinilmaydi)
 DOKON_KUTISH_DAQIQA_MAX = 20              # yozuvchi so'rovlar (qo'shish / bekor) — hisobga daqiqasiga
@@ -29176,3 +29229,382 @@ def dokon_kutishlar_admin(db: Session, company_id: int, hozir=None) -> dict:
                                          DokonKutish.updated_at >= chegara).count())
     return {"mahsulotlar": natija, "kutayotgan": sum(g["n"] for g in natija), "yuborilgan": yuborilgan, "xato": xato,
             "tarix_kun": DOKON_KUTISH_TARIX_KUN, "tayyor_ochiq": ochiq, "tekshiruv_daqiqa": DOKON_KUTISH_TEKSHIRUV_DAQIQA}
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech186 (zip 253 — do'kon 3-bosqich «KESHBEK», egasi QARORLARI «Onlayn do'kon rejasi» 30.10 va 04.11): keshbek — ERP dagi usta KPI
+# qoidasi (`get_master_yearly_cashback`, foiz — hodisada qotgan, `usta_foizi`); ustaga BERILGANI — `UstaKeshbek`; qoldiq = BARCHA yillar
+# hisoblangani − berilganlar (olinmagan qoldiq keyingi yilga o'tadi). Berish usullari: «naqd» (tanlangan pul hisobidan — Moliya «Usta
+# KPI to'landi»), «buyurtma» (keyingi xarid to'loviga — TO'LOV, chegirma emas: buyurtmaga to'lov + o'sha «Naqd pul» dan «Usta KPI
+# to'landi» — kassada sof 0, buyurtma narxi / foydasi o'zgarmaydi), «oldin» (tizimdan oldin berilgan — kassaga ta'sir yo'q). Qoldiqdan
+# ko'p berib bo'lmaydi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+USTA_KESHBEK_TARIX_MAX = 200
+USTA_KESHBEK_SUMMA_MAX = 999_999_999_999.99
+
+
+class UstaKeshbekTopilmadi(ValueError):
+    """kech186 (zip 253): usta / keshbek yozuvi / buyurtma topilmadi (marshrut → 404)."""
+
+
+class UstaKeshbekZiddiyat(ValueError):
+    """kech186 (zip 253): qoldiqdan ko'p, buyurtma qarzidan ko'p, bog'langan yozuvni alohida o'chirish (marshrut → 409)."""
+
+
+def _keshbek_boglami_tekshir(db: Session, payment_id=None, cash_tx_id=None):
+    """Keshbek yozuviga bog'langan to'lov / kassa yozuvi alohida o'chirilmaydi — aks holda qoldiq va kassa buziladi."""
+    from models import UstaKeshbek
+    q = db.query(UstaKeshbek.id)
+    # TENANT: id lar — chaqiruvchi o'z korxonasidan olgan to'lov / kassa yozuvi; korxona — o'sha yozuvning o'zidan
+    if payment_id is not None:
+        q = q.join(Payment, Payment.id == UstaKeshbek.payment_id).join(Order, Order.id == Payment.order_id).filter(
+            UstaKeshbek.payment_id == payment_id, Order.company_id == UstaKeshbek.company_id)
+    else:
+        from models import CashTransaction as _CT253
+        q = q.join(_CT253, _CT253.id == UstaKeshbek.cash_tx_id).filter(UstaKeshbek.cash_tx_id == cash_tx_id,
+                                                                     _CT253.company_id == UstaKeshbek.company_id)
+    if q.first() is not None:
+        db.rollback()
+        raise UstaKeshbekZiddiyat("Bu yozuv ustaga berilgan keshbekka bog'langan — uni «Ustalar KPI» sahifasidagi keshbek tarixidan "
+                                  "o'chiring (to'lov va kassa yozuvi birga o'chadi)")
+
+
+def _uk_bosh_yil(db: Session, cid: int, master_id: int, joriy: int) -> int:
+    """Keshbek hisobining birinchi yili — ustaning eng birinchi «Tayyor» buyurtmasi / sotuvi / sovg'a davri o'tkazmasi (Toshkent yili)."""
+    from sqlalchemy import func as _f253
+    from models import FinishedProductSale, MasterGiftPeriodRedemption
+    vaqtlar = [
+        db.query(_f253.min(Order.completed_at)).filter(Order.master_id == master_id, Order.company_id == cid,
+                                                       Order.status == OrderStatus.READY).scalar(),
+        db.query(_f253.min(FinishedProductSale.sold_at)).filter(FinishedProductSale.master_id == master_id,
+                                                                FinishedProductSale.company_id == cid).scalar(),
+        db.query(_f253.min(MasterGiftPeriodRedemption.redeemed_at)).join(Master, Master.id == MasterGiftPeriodRedemption.master_id).filter(
+            MasterGiftPeriodRedemption.master_id == master_id, Master.company_id == cid,
+            MasterGiftPeriodRedemption.kind == "cashback_conversion").scalar(),
+    ]
+    yillar = [_tashkent_date(v).year for v in vaqtlar if v is not None]
+    return max(2020, min(min(yillar), joriy)) if yillar else joriy
+
+
+@_hisobot_keshida
+def usta_keshbek_holati(db: Session, company_id: int, master_id, tarix: bool = True) -> dict:
+    """Usta keshbegi: {"yozilgan" — barcha yillar hisoblangani (har yil butun so'mga), "berilgan", "qoldiq", "yillar": [{yil, summa}],
+    "tarix": berilganlar (yangisi birinchi, ≤ `USTA_KESHBEK_TARIX_MAX`)}. Usta yo'q / boshqa korxonaniki — `UstaKeshbekTopilmadi`."""
+    from sqlalchemy import func as _f253
+    from models import UstaKeshbek, USTA_KESHBEK_USULLARI
+    if isinstance(master_id, bool) or not isinstance(master_id, int):
+        raise UstaKeshbekTopilmadi("Usta topilmadi")
+    u = get_master(db, master_id, company_id)
+    if u is None or (company_id is not None and u.company_id != company_id):
+        raise UstaKeshbekTopilmadi("Usta topilmadi")
+    cid = u.company_id
+    joriy = _tashkent_date().year
+    yillar = []
+    for y in range(_uk_bosh_yil(db, cid, u.id, joriy), joriy + 1):
+        yillar.append({"yil": y, "summa": round(float(get_master_yearly_cashback(db, u.id, y, company_id=cid)["jami_bonus"] or 0))})
+    yozilgan = float(sum(x["summa"] for x in yillar))
+    berilgan = float(db.query(_f253.coalesce(_f253.sum(UstaKeshbek.summa), 0)).filter(
+        UstaKeshbek.company_id == cid, UstaKeshbek.master_id == u.id).scalar() or 0)
+    natija = {"master_id": u.id, "usta": u.name, "kpi_percent": float(u.kpi_percent or 0), "yozilgan": round(yozilgan, 2),
+              "berilgan": round(berilgan, 2), "qoldiq": round(yozilgan - berilgan, 2), "yillar": yillar}
+    if tarix:
+        rows = (db.query(UstaKeshbek).filter(UstaKeshbek.company_id == cid, UstaKeshbek.master_id == u.id)
+                .order_by(UstaKeshbek.sana.desc(), UstaKeshbek.id.desc()).limit(USTA_KESHBEK_TARIX_MAX).all())
+        oids = {r.order_id for r in rows if r.order_id}
+        oraqam = dict(db.query(Order.id, Order.order_number).filter(Order.id.in_(oids), Order.company_id == cid).all()) if oids else {}
+        hnom = {h.id: h.nomi for h in pul_hisoblari(db, cid, faqat_faol=False)} if any(r.hisob_id for r in rows) else {}
+        natija["tarix"] = [{"id": r.id, "summa": float(r.summa), "usul": r.usul, "usul_nomi": USTA_KESHBEK_USULLARI.get(r.usul, r.usul),
+                            "sana": r.sana.isoformat() if r.sana else None, "hisob": hnom.get(r.hisob_id),
+                            "buyurtma": oraqam.get(r.order_id), "izoh": r.izoh, "kim": r.kim} for r in rows]
+    return natija
+
+
+@_hisobot_keshida
+def usta_keshbek_qoldiqlari(db: Session, company_id: int) -> dict:
+    """KPI sahifasi ro'yxati uchun: {usta id: qoldiq} — korxonaning HAMMA ustalari. review253 L3: har yil — `get_masters_kpi_report`
+    (BITTA hisobot hamma ustaga; `gift_amount` = bot / `get_master_yearly_cashback` qoidasi, butun so'mga), usta × yil emas."""
+    from sqlalchemy import func as _f253
+    from models import UstaKeshbek
+    ustalar = db.query(Master).filter(Master.company_id == company_id).all()
+    if not ustalar:
+        return {}
+    joriy = _tashkent_date().year
+    bosh = min(_uk_bosh_yil(db, company_id, u.id, joriy) for u in ustalar)
+    yozilgan = {u.id: 0.0 for u in ustalar}
+    for y in range(bosh, joriy + 1):
+        for r in get_masters_kpi_report(db, y, include_inactive=True, company_id=company_id)["masters"]:
+            if r["id"] in yozilgan:
+                yozilgan[r["id"]] += float(r["gift_amount"] or 0)
+    berilgan = dict(db.query(UstaKeshbek.master_id, _f253.coalesce(_f253.sum(UstaKeshbek.summa), 0))
+                    .filter(UstaKeshbek.company_id == company_id).group_by(UstaKeshbek.master_id).all())
+    return {k: round(v - float(berilgan.get(k) or 0), 2) for k, v in yozilgan.items()}
+
+
+def _uk_summa(x) -> float:
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        raise ValueError("Summa son bo'lishi kerak")
+    import math as _m253
+    if not _m253.isfinite(float(x)) or float(x) <= 0:
+        raise ValueError("Summa musbat son bo'lishi kerak")
+    if float(x) > USTA_KESHBEK_SUMMA_MAX:
+        raise ValueError("Summa juda katta")
+    if abs(round(float(x), 2) - float(x)) > 1e-9:
+        raise ValueError("Summa — ko'pi bilan 2 xona kasr (tiyin)")
+    return round(float(x), 2)
+
+
+def _uk_berilgan(db: Session, company_id: int, master_id: int) -> float:
+    from sqlalchemy import func as _f253
+    from models import UstaKeshbek
+    return float(db.query(_f253.coalesce(_f253.sum(UstaKeshbek.summa), 0)).filter(
+        UstaKeshbek.company_id == company_id, UstaKeshbek.master_id == master_id).scalar() or 0)
+
+
+def usta_keshbek_ber(db: Session, company_id: int, master_id, data, kim: str, hozir=None):
+    """«Keshbek berildi»: {"summa", "usul": «naqd» | «buyurtma» | «oldin», "hisob"? (naqd — naqd / bank / karta yoki id), "buyurtma"?
+    (usul «buyurtma» — buyurtma raqami), "sana"? (usul «oldin» — «YYYY-MM-DD», bugundan keyin emas), "izoh"? (≤ 200)}. Natija: yozuv.
+    Qulf / tartib (review253 M1 / M2): hisoblangan keshbek («yozilgan» — og'ir hisobot; uning ichidagi `rollback` qulfni bo'shatmasin)
+    QULFDAN OLDIN; keyin buyurtma qulfi (101 — «buyurtma» usulida), keyin USTA qulfi (advisory 253 — usta QATORI qulflanmaydi: buyurtmaga
+    usta yozadigan amal FK tekshiruvi bilan to'qnashmaydi), keyin pul qulfi (212); qulf ostida faqat «berilgan» QAYTA o'qiladi — summa ≤
+    yozilgan − berilgan (aks holda `UstaKeshbekZiddiyat`)."""
+    from models import UstaKeshbek, CashTransaction, USTA_KESHBEK_USULLARI
+    from datetime import date as _d253, timedelta as _td253
+    _dokon_kalitlar(data, ("summa", "usul", "hisob", "buyurtma", "sana", "izoh"))
+    if isinstance(master_id, bool) or not isinstance(master_id, int):
+        raise UstaKeshbekTopilmadi("Usta topilmadi")
+    summa = _uk_summa(data.get("summa"))
+    usul = data.get("usul")
+    if usul not in ("naqd", "buyurtma", "oldin"):
+        raise ValueError("Usul: «naqd», «buyurtma» yoki «oldin»")
+    if usul != "naqd" and data.get("hisob") is not None:
+        raise ValueError("Pul hisobi faqat «naqd» usulida tanlanadi")
+    if usul != "buyurtma" and data.get("buyurtma") is not None:
+        raise ValueError("Buyurtma faqat «buyurtma to'loviga» usulida")
+    if usul != "oldin" and data.get("sana") is not None:
+        raise ValueError("Sana faqat «oldin berilgan» usulida kiritiladi")
+    izoh = _dokon_matn(data.get("izoh"), "Izoh", 200, bosh_mumkin=True) if data.get("izoh") is not None else None
+    izoh = izoh or None
+    hozir = hozir or datetime.utcnow()
+    sana = hozir
+    if usul == "oldin" and data.get("sana") is not None:
+        s = data.get("sana")
+        try:
+            if not isinstance(s, str) or len(s) != 10:
+                raise ValueError
+            _sd = _d253.fromisoformat(s)
+        except ValueError:
+            raise ValueError("Sana — «YYYY-MM-DD»")
+        if _sd > _tashkent_date(hozir):
+            raise ValueError("Sana bugundan keyin bo'lmasin")
+        if _sd.year < 2020:
+            raise ValueError("Sana 2020-yildan oldin bo'lmasin")
+        sana = datetime(_sd.year, _sd.month, _sd.day, 7, 0)          # Toshkent 12:00
+    raqam = None
+    if usul == "buyurtma":
+        raqam = data.get("buyurtma")
+        if not isinstance(raqam, str) or not raqam.strip() or len(raqam) > 30:
+            raise ValueError("Buyurtma raqamini kiriting")
+        raqam = raqam.strip()
+    u = get_master(db, master_id, company_id)
+    if u is None or u.company_id != company_id:
+        raise UstaKeshbekTopilmadi("Usta topilmadi")
+    yozilgan = usta_keshbek_holati(db, company_id, u.id, tarix=False)["yozilgan"]      # QULFDAN OLDIN (review253 M2)
+    hid = pul_hisobi_id(db, company_id, hisob=data.get("hisob") if usul == "naqd" else None) if usul != "oldin" else None
+    order = None
+    if usul == "buyurtma":
+        _oq = db.query(Order).filter(Order.company_id == company_id, Order.order_number == raqam)
+        o0 = _oq.first()
+        if o0 is None:
+            db.rollback()
+            raise UstaKeshbekTopilmadi("Buyurtma topilmadi")
+        _pul_qulfi(db, 101, o0.id)
+        db.expire_all()
+        order = _oq.first()
+        if order is None or getattr(order, "is_deleted", False) or order.status in (OrderStatus.CANCELLED, OrderStatus.DRAFT):
+            db.rollback()
+            raise UstaKeshbekZiddiyat("Bu buyurtmaga to'lov yozib bo'lmaydi (qoralama / bekor qilingan / o'chirilgan)")
+    _pul_qulfi(db, 253, u.id)
+    # takror yuborish (ikki bosish / tarmoq takrori; review253 M3): `PUL_TAKROR_SONIYA` ichida AYNAN shu usta, summa, usul, izoh VA
+    # manzil (naqd — hisob, buyurtma — buyurtma, oldin — sana) — yangi yozuv YO'Q; boshqa buyurtma / hisob / sana — yangi yozuv
+    _q = db.query(UstaKeshbek).filter(UstaKeshbek.company_id == company_id, UstaKeshbek.master_id == u.id,
+                                      UstaKeshbek.summa == summa, UstaKeshbek.usul == usul,
+                                      UstaKeshbek.created_at >= hozir - _td253(seconds=PUL_TAKROR_SONIYA))
+    _q = _q.filter(UstaKeshbek.izoh.is_(None) if izoh is None else UstaKeshbek.izoh == izoh)
+    if usul == "naqd":
+        _q = _q.filter(UstaKeshbek.hisob_id == hid)
+    elif usul == "buyurtma":
+        _q = _q.filter(UstaKeshbek.order_id == order.id)
+    else:
+        _q = _q.filter(UstaKeshbek.sana == sana)
+    _old = _q.order_by(UstaKeshbek.id.desc()).first()
+    if _old is not None:
+        db.commit()
+        _old._is_duplicate_submit = True
+        return _old
+    qoldiq0 = round(yozilgan - _uk_berilgan(db, company_id, u.id), 2)
+    if summa > qoldiq0 + 1e-6:
+        db.rollback()
+        raise UstaKeshbekZiddiyat(f"Qoldiqdan ko'p berib bo'lmaydi — qoldiq {audit_son(max(qoldiq0, 0), 2)} so'm")
+    if order is not None:
+        qarz = round(float(order.debt_amount or 0), 2)
+        if summa > qarz + 1e-6:
+            db.rollback()
+            raise UstaKeshbekZiddiyat(f"Buyurtma qarzidan ko'p — qarz {audit_son(max(qarz, 0), 2)} so'm")
+    rec = UstaKeshbek(company_id=company_id, master_id=u.id, summa=summa, usul=usul, sana=sana, izoh=izoh, kim=(kim or "")[:100],
+                      created_at=hozir)
+    _iz = f"Keshbek — usta {u.name}" + (f" ({izoh})" if izoh else "")
+    if usul in ("naqd", "buyurtma"):
+        _pul_qulfi(db, 212, company_id)
+        tx = CashTransaction(company_id=company_id, category="usta_kpi", amount=-summa, notes=_iz[:1000],
+                             performed_by=(kim or "")[:100], hisob_id=hid, created_at=hozir)
+        db.add(tx)
+        db.flush()
+        rec.cash_tx_id, rec.hisob_id = tx.id, hid
+        if order is not None:
+            pay = Payment(order_id=order.id, amount=summa, payment_type=PaymentType.PARTIAL, payment_method=PaymentMethod.CASH,
+                          received_by=(kim or "")[:100], notes=f"💸 Keshbek hisobidan — usta {u.name}" + (f" ({izoh})" if izoh else ""),
+                          hisob_id=hid, paid_at=hozir)
+            db.add(pay)
+            db.flush()
+            rec.payment_id, rec.order_id = pay.id, order.id
+            db.refresh(order)
+            _update_order_payment_status(db, order)
+            _loyiha_tolangan_yangila(db, order.project)
+    db.add(rec)
+    db.flush()
+    qoldiq = round(qoldiq0 - summa, 2)
+    matn = (f"Ustaga keshbek berildi: {u.name} — {audit_son(summa, 2)} so'm, {USTA_KESHBEK_USULLARI[usul].lower()}"
+            + (f" ({order.order_number})" if order is not None else "") + f"; qoldiq {audit_son(qoldiq, 2)} so'm"
+            + (f" — {izoh}" if izoh else ""))
+    log_activity(db, "keshbek_berildi", "master", u.id, entity_label=u.name[:100], performed_by=kim, new_value=matn[:500],
+                 company_id=company_id, commit=False)
+    db.commit()
+    rec._qoldiq = qoldiq
+    return rec
+
+
+def usta_keshbek_ochir(db: Session, company_id: int, kid, kim: str) -> bool:
+    """Berilgan keshbek yozuvini o'chirish (xato kiritilgan) — bog'langan buyurtma to'lovi va kassa yozuvi BIRGA o'chadi (buyurtma
+    to'lov holati / loyiha qayta hisoblanadi). Qulf tartibi — `usta_keshbek_ber` bilan bir xil (101 → 253 → 212)."""
+    from models import UstaKeshbek, CashTransaction, USTA_KESHBEK_USULLARI
+    if isinstance(kid, bool) or not isinstance(kid, int):
+        raise UstaKeshbekTopilmadi("Yozuv topilmadi")
+    r = db.query(UstaKeshbek).filter(UstaKeshbek.id == kid, UstaKeshbek.company_id == company_id).first()
+    if r is None:
+        raise UstaKeshbekTopilmadi("Yozuv topilmadi")
+    if r.order_id:
+        _pul_qulfi(db, 101, r.order_id)
+    _pul_qulfi(db, 253, r.master_id)
+    if r.cash_tx_id:
+        _pul_qulfi(db, 212, company_id)
+    db.expire_all()
+    r = db.query(UstaKeshbek).filter(UstaKeshbek.id == kid, UstaKeshbek.company_id == company_id).first()
+    if r is None:
+        db.rollback()
+        raise UstaKeshbekTopilmadi("Yozuv topilmadi")
+    u = db.query(Master).filter(Master.id == r.master_id, Master.company_id == company_id).first()
+    order = None
+    if r.payment_id:
+        p = (db.query(Payment).join(Order, Order.id == Payment.order_id)
+             .filter(Payment.id == r.payment_id, Order.company_id == company_id).first())
+        if p is not None:
+            order = db.query(Order).filter(Order.id == p.order_id, Order.company_id == company_id).first()
+            db.delete(p)
+    if r.cash_tx_id:
+        tx = db.query(CashTransaction).filter(CashTransaction.id == r.cash_tx_id, CashTransaction.company_id == company_id).first()
+        if tx is not None:
+            db.delete(tx)
+    _nom = u.name if u is not None else f"#{r.master_id}"
+    matn = (f"Ustaga berilgan keshbek o'chirildi: {_nom} — {audit_son(float(r.summa), 2)} so'm, "
+            f"{USTA_KESHBEK_USULLARI.get(r.usul, r.usul).lower()}" + (f" ({order.order_number})" if order is not None else ""))
+    db.delete(r)
+    db.flush()
+    if order is not None:
+        db.refresh(order)
+        _update_order_payment_status(db, order)
+        _loyiha_tolangan_yangila(db, order.project)
+    log_activity(db, "deleted", "usta_keshbek", kid, entity_label=_nom[:100], performed_by=kim, new_value=matn[:500],
+                 company_id=company_id, commit=False)
+    db.commit()
+    return True
+
+
+def usta_kpi_qotir(db: Session, company_id: int = None) -> dict:
+    """kech186 (zip 253): ustasi bor «Tayyor» buyurtma / sotuvning foizi QOTMAGAN (NULL) bo'lsa — ustaning hozirgi foizi bilan qotiradi
+    (`main._migrate_kpi_qotir253` — deploy; zaxiradan tiklash — review253 L4). Chaqiruvchining tranzaksiyasida (commit YO'Q)."""
+    from sqlalchemy import select as _sel253, update as _upd253
+    from models import FinishedProductSale as _S253
+    n = {"buyurtma": 0, "sotuv": 0}
+    _f = _sel253(Master.kpi_percent).where(Master.id == Order.master_id).scalar_subquery()
+    q = _upd253(Order).where(Order.status == OrderStatus.READY, Order.master_id.isnot(None), Order.usta_kpi_foizi.is_(None))
+    if company_id is not None:
+        q = q.where(Order.company_id == company_id)
+    n["buyurtma"] = db.execute(q.values(usta_kpi_foizi=_f).execution_options(synchronize_session=False)).rowcount or 0
+    _f2 = _sel253(Master.kpi_percent).where(Master.id == _S253.master_id).scalar_subquery()
+    q = _upd253(_S253).where(_S253.master_id.isnot(None), _S253.usta_kpi_foizi.is_(None))
+    if company_id is not None:
+        q = q.where(_S253.company_id == company_id)
+    n["sotuv"] = db.execute(q.values(usta_kpi_foizi=_f2).execution_options(synchronize_session=False)).rowcount or 0
+    return n
+
+
+def _dokon_usta_buyurtmalarini_bogla(db: Session, company_id: int, m, u) -> int:
+    """Egasi QARORI 30.10 «Tasdiqlanguncha bergan buyurtma — keshbek yoziladi … tasdiq paytida»: usta hisobi tasdiqlanganda shu hisob
+    bergan, ERP da USTASIZ qolgan (ulgurji emas, o'chirilmagan) buyurtmalarga ERP ustasi yoziladi (allaqachon «Tayyor» bo'lgani — foiz
+    shu paytda qotadi: `models._usta_kpi_qotir`). Boshqa ustaga bog'langan buyurtmaga TEGILMAYDI. Chaqiruvchining tranzaksiyasida."""
+    from models import DokonBuyurtma
+    oids = [r[0] for r in db.query(DokonBuyurtma.order_id).filter(
+        DokonBuyurtma.company_id == company_id, DokonBuyurtma.mijoz_id == m.id, DokonBuyurtma.order_id.isnot(None),
+        DokonBuyurtma.sb_ulgurji.isnot(True)).all()]
+    if not oids or not u.is_active:
+        return 0
+    n = 0
+    for o in db.query(Order).filter(Order.company_id == company_id, Order.id.in_(oids), Order.master_id.is_(None)).all():
+        if getattr(o, "is_deleted", False):
+            continue
+        o.master_id = u.id
+        n += 1
+    return n
+
+
+def dokon_mijoz_keshbek(db: Session, company_id: int, token) -> dict:
+    """Do'kon kabineti: kirgan usta keshbegi — {"holat": «tasdiqlangan» | …, "keshbek": {yozilgan, berilgan, qoldiq} (faqat tasdiqlangan,
+    ERP ustasi bor va faol), "sovga_davri": bool, "buyurtmalar": {sayt raqami: {"keshbek": so'm | None, "holat": «yozildi» | «sovga» |
+    «kutilmoqda»}}, "tarix": so'nggi 10 berilgan (sana, summa, usul nomi)}. Foyda / KPI % / ERP raqamlari — YO'Q. Magazin — {"turi"}."""
+    from models import DokonBuyurtma, USTA_KESHBEK_USULLARI
+    dokon_tekshir(db, company_id)
+    m = dokon_sessiya_mijoz(db, company_id, token)
+    natija = {"turi": m.mj_turi, "holat": m.mj_holat, "keshbek": None, "buyurtmalar": {}, "tarix": [], "sovga_davri": False}
+    if m.mj_turi != "usta" or m.mj_holat != "tasdiqlangan" or not m.master_id:
+        return natija
+    u = db.query(Master).filter(Master.id == m.master_id, Master.company_id == company_id).first()
+    if u is None or not u.is_active:
+        return natija
+    h = usta_keshbek_holati(db, company_id, u.id)
+    natija["keshbek"] = {"yozilgan": max(h["yozilgan"], 0.0), "berilgan": h["berilgan"], "qoldiq": max(h["qoldiq"], 0.0)}
+    natija["tarix"] = [{"sana": (datetime.fromisoformat(x["sana"]) + _td234(hours=5)).strftime("%d.%m.%Y") if x["sana"] else None,
+                        "summa": x["summa"], "usul": USTA_KESHBEK_USULLARI.get(x["usul"], x["usul"])} for x in h.get("tarix", [])[:10]]
+    _ichida = sovga_davr_tekshirgich(db, company_id)
+    natija["sovga_davri"] = bool(_ichida(u, datetime.utcnow()))
+    rows = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.mijoz_id == m.id,
+                                           DokonBuyurtma.order_id.isnot(None))
+            .order_by(DokonBuyurtma.created_at.desc(), DokonBuyurtma.id.desc()).limit(DOKON_MIJOZ_BUYURTMA_MAX).all())
+    orders = {o.id: o for o in db.query(Order).filter(Order.company_id == company_id,
+                                                      Order.id.in_([r.order_id for r in rows])).all()} if rows else {}
+    import services as _s253
+    for r in rows:
+        o = orders.get(r.order_id)
+        if o is None or getattr(o, "is_deleted", False) or o.master_id != u.id or r.sb_ulgurji:
+            continue
+        if o.status != OrderStatus.READY:
+            natija["buyurtmalar"][r.sb_raqam] = {"keshbek": None, "holat": "kutilmoqda"}
+        elif _ichida(u, o.completed_at):
+            natija["buyurtmalar"][r.sb_raqam] = {"keshbek": None, "holat": "sovga"}
+        else:
+            try:
+                f = float(_s253.yakun_foydasi(db, o).get("foyda", 0) or 0)
+            except Exception:              # noqa: BLE001
+                db.rollback()
+                continue
+            natija["buyurtmalar"][r.sb_raqam] = {"keshbek": round(f * usta_foizi(o, u) / 100), "holat": "yozildi"}
+    return natija

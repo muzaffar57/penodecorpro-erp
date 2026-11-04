@@ -769,6 +769,10 @@ class Order(Base):
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
     master = relationship("Master", back_populates="orders")
+    # kech186 (zip 253 — egasi QARORI 04.11 «Faqat yangilari»): usta KPI (keshbek) foizi buyurtma «Tayyor» bo'lgan paytda QOTADI —
+    # keyin ustaning foizi o'zgarsa ham shu buyurtma keshbegi o'zgarmaydi. Qo'yuvchi — `_usta_kpi_qotir` (before_flush, har yo'l);
+    # NULL — usta yo'q / «Tayyor» emas / eski yozuv (hisobda ustaning hozirgi foizi — `crud.usta_foizi`).
+    usta_kpi_foizi = Column(Float, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     deadline = Column(DateTime, nullable=True)
@@ -2398,6 +2402,8 @@ class FinishedProductSale(Base):
     # shu maydon orqali belgilanadi va oylik Usta KPI hisobiga qo'shiladi
     # (aks holda faqat Buyurtma orqali sotilgandagina KPI hisoblanardi).
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
+    # kech186 (zip 253): sotuv paytidagi usta KPI (keshbek) foizi — `Order.usta_kpi_foizi` qoidasi (`_usta_kpi_qotir`)
+    usta_kpi_foizi = Column(Float, nullable=True)
 
     finished_product = relationship("FinishedProduct")
 
@@ -3163,6 +3169,37 @@ class DokonKutish(Base):
         return f"<DokonKutish {self.id} {self.kt_kalit} {self.kt_holat} c={self.company_id}>"
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech186 (zip 253 — do'kon 3-bosqich «Keshbek», egasi QARORLARI 30.10 / 04.11): ustaga BERILGAN keshbek. Hisoblangani — ERP qoidasi
+# (`crud.get_master_yearly_cashback`, har yil), qoldiq = barcha yillar hisoblangani − shu yozuvlar (`crud.usta_keshbek_holati`).
+# usul: «naqd» — tanlangan pul hisobidan (`cash_tx_id` — Moliya «Usta KPI to'landi»); «buyurtma» — keyingi xarid to'loviga (`payment_id`
+# — buyurtmaga to'lov, `cash_tx_id` — o'sha hisobdan «Usta KPI to'landi»: kassada sof 0); «oldin» — tizimdan oldin berilgan (kassaga
+# ta'sir yo'q). Bog'langan to'lov / kassa yozuvi FAQAT shu yozuv bilan o'chiriladi (`crud.usta_keshbek_ochir`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+USTA_KESHBEK_USULLARI = {"naqd": "Naqd (kassadan)", "buyurtma": "Buyurtma to'loviga", "oldin": "Oldin berilgan"}
+
+
+class UstaKeshbek(Base):
+    __tablename__ = "usta_keshbeklar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
+    summa = Column(Numeric(14, 2), nullable=False)
+    usul = Column(String(10), nullable=False)
+    sana = Column(DateTime, nullable=False, default=datetime.utcnow)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
+    cash_tx_id = Column(Integer, ForeignKey("cash_transactions.id", ondelete="SET NULL"), nullable=True, index=True)
+    payment_id = Column(Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    izoh = Column(String(200), nullable=True)
+    kim = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<UstaKeshbek {self.id} usta={self.master_id} {self.summa} {self.usul} c={self.company_id}>"
+
+
 class DokonBuyurtma(Base):
     """kech171 (zip 237) — saytdan kelgan buyurtma (egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni»: mijoz savatni yig'ib,
     ism + telefon (+ viloyat, manzil / joylashuv) bilan buyurtma beradi → ERP da «Saytdan kelgan buyurtmalar» ro'yxati va Telegram xabari →
@@ -3645,6 +3682,9 @@ _TENANT_REFS = {
     "DokonSessiya":                [("mijoz_id", "DokonMijoz")],
     # kech185 (zip 252): «Kelganda xabar bering» — o'z korxonasining hisobiga
     "DokonKutish":                 [("mijoz_id", "DokonMijoz")],
+    # kech186 (zip 253): berilgan keshbek — usta, pul hisobi, kassa yozuvi, to'lov, buyurtma — FAQAT o'z korxonasidan
+    "UstaKeshbek":                 [("master_id", "Master"), ("hisob_id", "PulHisobi"), ("cash_tx_id", "CashTransaction"),
+                                    ("payment_id", "Payment"), ("order_id", "Order")],
 }
 
 
@@ -3775,6 +3815,43 @@ def _tm_chiqim_yoz(session):
 def _tm_q0_tozala(session, transaction):
     if transaction.parent is None:
         session.info.pop(TM_Q0_KALIT, None)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech186 (zip 253 — egasi QARORI 04.11 «Faqat yangilari»): usta KPI foizi buyurtma «Tayyor» bo'lgan / sotuv yozilgan paytda QOTADI.
+# Har yo'l (Tayyor, qisman yakun, o'chirishda yopish, usta almashtirish, sayt tasdig'i, hisob tasdig'idagi bog'lash) — shu hodisa orqali.
+# Buyurtma: «Tayyor» + usta bor — holat «Tayyor» ga o'zgarganda, usta o'zgarganda yoki hali qotmagan bo'lsa — ustaning HOZIRGI foizi;
+# «Tayyor» emas yoki ustasiz — NULL (qayta «Tayyor» bo'lsa — o'sha paytdagi foiz). Sotuv: yangi yoki usta o'zgarganda.
+# `query.update()` / xom SQL QAMRAB OLINMAYDI (bunday yo'l bilan holat / usta yozilmaydi; eski yozuvlar — `main._migrate_kpi_qotir253`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+def _kpi_tarix_ozgardimi(obj, nom) -> bool:
+    from sqlalchemy import inspect as _i253
+    try:
+        return bool(_i253(obj).attrs[nom].history.has_changes())
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+@event.listens_for(SASession, "before_flush")
+def _usta_kpi_qotir(session, flush_context, instances):
+    def _foiz(mid):
+        u = session.get(Master, mid)
+        return float(u.kpi_percent or 0) if u is not None else None
+    with session.no_autoflush:
+        for obj in list(session.new) + list(session.dirty):
+            if isinstance(obj, Order):
+                if obj.status == OrderStatus.READY and obj.master_id:
+                    if (obj.usta_kpi_foizi is None or _kpi_tarix_ozgardimi(obj, "status")
+                            or _kpi_tarix_ozgardimi(obj, "master_id")):
+                        obj.usta_kpi_foizi = _foiz(obj.master_id)
+                elif obj.usta_kpi_foizi is not None:
+                    obj.usta_kpi_foizi = None
+            elif isinstance(obj, FinishedProductSale):
+                if obj.master_id:
+                    if obj.usta_kpi_foizi is None or _kpi_tarix_ozgardimi(obj, "master_id"):
+                        obj.usta_kpi_foizi = _foiz(obj.master_id)
+                elif obj.usta_kpi_foizi is not None:
+                    obj.usta_kpi_foizi = None
 
 
 @event.listens_for(SASession, "before_flush")

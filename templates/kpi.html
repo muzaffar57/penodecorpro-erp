@@ -398,6 +398,42 @@
   </div>
 </div>
 
+<!-- ══ kech186 (zip 253): USTA KESHBEGI — qoldiq, «Keshbek berildi», tarix ══ -->
+<div id="keshbekModal" role="dialog" aria-modal="true" aria-labelledby="kb-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--white);border-radius:14px;width:540px;max-width:100%;max-height:90vh;display:flex;flex-direction:column">
+    <div style="padding:18px 22px 14px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="font-size:16px;font-weight:600;min-width:0" id="kb-title">Keshbek</div>
+      <button data-yopish class="btn btn-soft btn-icon btn-sm" onclick="closeKeshbek()" title="Yopish" aria-label="Yopish">✕</button>
+    </div>
+    <div style="padding:14px 22px 20px;overflow-y:auto;flex:1">
+      <div id="kb-holat" style="font-size:13px;color:var(--text3)">Yuklanmoqda...</div>
+      <div class="modal-section-label" style="margin-top:16px">💸 Keshbek berildi</div>
+      <div class="modal-field-box">
+        <div class="form-row">
+          <div class="form-group" style="margin:0"><label for="kb-summa">Summa (so'm)</label><input type="text" inputmode="decimal" id="kb-summa" placeholder="0" oninput="formatPriceInput(this)"></div>
+          <div class="form-group" style="margin:0"><label for="kb-usul">Qanday berildi</label>
+            <select id="kb-usul" onchange="kbUsulChiz()">
+              <option value="naqd">Naqd (kassadan)</option>
+              <option value="buyurtma">Keyingi xarid to'loviga</option>
+              <option value="oldin">Oldin berilgan (tizimdan oldin)</option>
+            </select></div>
+        </div>
+        <div class="form-group" id="kb-hisob-q"><label for="kb-hisob">Qaysi hisobdan</label>
+          <select id="kb-hisob"><option value="naqd">Naqd pul</option><option value="karta">Karta</option><option value="bank">Bank</option></select></div>
+        <div class="form-group" id="kb-buyurtma-q" style="display:none"><label for="kb-buyurtma">Buyurtma raqami</label>
+          <input type="text" id="kb-buyurtma" maxlength="30" placeholder="masalan ORD-120-1">
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">Buyurtmaga «Keshbek hisobidan» to'lov bo'lib yoziladi — narx tushirilmaydi, qarzi kamayadi.</div></div>
+        <div class="form-group" id="kb-sana-q" style="display:none"><label for="kb-sana">Qachon berilgan</label>
+          <input type="date" id="kb-sana"><div style="font-size:12px;color:var(--text3);margin-top:4px">Kassaga ta'sir qilmaydi — faqat qoldiqdan ayiriladi.</div></div>
+        <div class="form-group"><label for="kb-izoh">Izoh <span class="modal-hint">— ixtiyoriy</span></label><input type="text" id="kb-izoh" maxlength="200"></div>
+        <button class="btn btn-primary" id="kb-saqla" onclick="saveKeshbek()">Saqlash</button>
+      </div>
+      <div class="modal-section-label" style="margin-top:18px">Berilganlar tarixi</div>
+      <div id="kb-tarix"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ HODIM QO'SHISH/TAHRIRLASH MODALI ══ -->
 <div id="empModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--white);border-radius:14px;padding:24px;width:460px;max-width:100%;max-height:90vh;overflow-y:auto">
@@ -686,6 +722,7 @@ async function loadMasterKpi() {
     allMasterKpiData = d.masters;
     ustalarXato = null;
     renderMasterKpiList();
+    loadKeshbekQoldiqlari();
     const w = document.getElementById('mkInactiveWrap');     // «Ustalar: Ko'rish» ruxsati yo'q — bo'lim yo'q
     if (w) w.style.display = 'block';
   }, e => {
@@ -755,9 +792,11 @@ function renderMasterKpiList() {
       <div class="mk-sovga" style="text-align:right;min-width:90px">
         <div style="font-size:13px;font-weight:700;color:var(--m-15803d)">${fmt(m.gift_amount)}</div>
         <div style="font-size:12px;color:var(--text3)">sovg'a</div>
+        ${keshbekQoldiqlari && keshbekQoldiqlari[m.id] !== undefined ? `<div style="font-size:12px;color:var(--text2);margin-top:2px" title="Olinmagan keshbek — barcha yillar">qoldiq: <b>${fmt(keshbekQoldiqlari[m.id])}</b></div>` : ''}
       </div>
       <div class="mk-tugmalar" style="display:flex;gap:4px;flex-shrink:0" data-id="${m.id}" data-name="${escapeHtml(m.name||'')}">
         <button class="mini-btn" onclick="openMasterDetail(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Har buyurtma bo'yicha KPI" aria-label="Har buyurtma bo'yicha KPI"><i class="ti ti-list-details"></i></button>
+        <button class="mini-btn" onclick="openKeshbek(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Keshbek: qoldiq, berildi" aria-label="Keshbek: qoldiq, berildi">💸</button>
         <button class="mini-btn" onclick="editMaster(${m.id})" title="Tahrirlash" aria-label="Tahrirlash">✏️</button>
         <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" onclick="deactivateMaster(this.closest('div').dataset.id, this.closest('div').dataset.name)" title="Nofaollashtirish" aria-label="Nofaollashtirish">🚫</button>
       </div>
@@ -861,6 +900,126 @@ async function openMasterDetail(id, name) {
 }
 
 function closeMasterDetail(){ document.getElementById('masterDetailModal').style.display = 'none'; }
+
+// ── kech186 (zip 253): USTA KESHBEGI ──────────────────────────
+// Qoldiq = barcha yillar hisoblangani − berilgan (sayt kabineti va bot bilan bitta hisob). Xato — qoldiq qatori chiqmaydi (ro'yxat ishlaydi).
+let keshbekQoldiqlari = null;
+let keshbekUsta = null;
+async function loadKeshbekQoldiqlari() {
+  try {
+    const r = await fetch('/api/masters/kpi-keshbek');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || typeof d.qoldiqlar !== 'object' || d.qoldiqlar === null) return;
+    keshbekQoldiqlari = {};
+    Object.keys(d.qoldiqlar).forEach(k => { const v = Number(d.qoldiqlar[k]); if (Number.isFinite(v)) keshbekQoldiqlari[k] = v; });
+    renderMasterKpiList();
+  } catch (e) { /* qoldiq qatori shart emas */ }
+}
+function kbUsulChiz() {
+  const u = document.getElementById('kb-usul').value;
+  document.getElementById('kb-hisob-q').style.display = u === 'naqd' ? '' : 'none';
+  document.getElementById('kb-buyurtma-q').style.display = u === 'buyurtma' ? '' : 'none';
+  document.getElementById('kb-sana-q').style.display = u === 'oldin' ? '' : 'none';
+}
+function kbHolatChiz(h) {
+  const yil = (h.yillar || []).map(y => `${y.yil}: ${fmt(y.summa)}`).join(' · ');
+  document.getElementById('kb-holat').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div class="modal-field-box" style="padding:10px"><div style="font-size:12px;color:var(--text3)">Jami yozilgan</div><div style="font-weight:700;color:var(--text)">${fmt(h.yozilgan)}</div></div>
+      <div class="modal-field-box" style="padding:10px"><div style="font-size:12px;color:var(--text3)">Berilgan</div><div style="font-weight:700;color:var(--text)">${fmt(h.berilgan)}</div></div>
+      <div class="modal-field-box" style="padding:10px"><div style="font-size:12px;color:var(--text3)">Qoldiq</div><div style="font-weight:700;color:${Number(h.qoldiq) < 0 ? 'var(--m-dc2626)' : 'var(--m-15803d)'}">${fmt(h.qoldiq)}</div></div>
+    </div>
+    ${yil ? `<div style="margin-top:8px;font-size:12px;color:var(--text3)">Yillar bo'yicha: ${escapeHtml(yil)}</div>` : ''}`;
+  const tarix = h.tarix || [];
+  document.getElementById('kb-tarix').innerHTML = !tarix.length
+    ? '<div style="text-align:center;padding:14px;color:var(--text3);font-size:13px">Hali berilmagan</div>'
+    : tarix.map(x => `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border2)">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${fmt(x.summa)} so'm · ${escapeHtml(x.usul_nomi || '')}${x.buyurtma ? ' · ' + escapeHtml(x.buyurtma) : ''}${x.hisob ? ' · ' + escapeHtml(x.hisob) : ''}</div>
+          <div style="font-size:12px;color:var(--text3)">${x.sana ? tkSana(x.sana) : '—'}${x.kim ? ' · ' + escapeHtml(x.kim) : ''}${x.izoh ? ' · ' + escapeHtml(x.izoh) : ''}</div>
+        </div>
+        <button class="mini-btn" style="color:var(--m-dc2626);border-color:var(--ch-fadbd8)" data-kid="${Number(x.id)}" onclick="deleteKeshbek(this)" title="O'chirish" aria-label="O'chirish">🗑️</button>
+      </div>`).join('');
+}
+async function openKeshbek(id, name) {
+  keshbekUsta = parseInt(id);
+  document.getElementById('kb-title').textContent = `${name} — keshbek`;
+  ['kb-summa', 'kb-buyurtma', 'kb-izoh', 'kb-sana'].forEach(k => { document.getElementById(k).value = ''; });
+  document.getElementById('kb-usul').value = 'naqd';
+  kbUsulChiz();
+  document.getElementById('kb-holat').textContent = 'Yuklanmoqda...';
+  document.getElementById('kb-tarix').innerHTML = '';
+  document.getElementById('keshbekModal').style.display = 'flex';
+  const joriy = yukNavbat('usta_keshbek');
+  try {
+    const r = await fetch(`/api/masters/${keshbekUsta}/keshbek`);
+    if (!joriy()) return;
+    if (!r.ok) { document.getElementById('kb-holat').textContent = '❌ ' + await serverXatoSababi(r, "Keshbekni yuklab bo'lmadi"); return; }
+    kbHolatChiz(await r.json());
+  } catch (e) {
+    if (joriy()) document.getElementById('kb-holat').textContent = "❌ Server bilan aloqa yo'q";
+  }
+}
+async function kbYangila() {
+  if (!keshbekUsta) return;
+  try {
+    const r = await fetch(`/api/masters/${keshbekUsta}/keshbek`);
+    if (r.ok) kbHolatChiz(await r.json());
+  } catch (e) { /* oyna eski raqam bilan qoladi — keyingi ochilishda yangilanadi */ }
+}
+function closeKeshbek() { document.getElementById('keshbekModal').style.display = 'none'; keshbekUsta = null; }
+let kbYuborilmoqda = false;
+async function saveKeshbek() {
+  if (kbYuborilmoqda || !keshbekUsta) return;
+  const summa = narxniOqi(document.getElementById('kb-summa').value);
+  if (!(summa > 0)) { alert("Summani kiriting"); return; }
+  const usul = document.getElementById('kb-usul').value;
+  const tana = {summa: summa, usul: usul};
+  if (usul === 'naqd') tana.hisob = document.getElementById('kb-hisob').value;
+  if (usul === 'buyurtma') {
+    const b = document.getElementById('kb-buyurtma').value.trim();
+    if (!b) { alert("Buyurtma raqamini kiriting"); return; }
+    tana.buyurtma = b;
+  }
+  if (usul === 'oldin' && document.getElementById('kb-sana').value) tana.sana = document.getElementById('kb-sana').value;
+  const iz = document.getElementById('kb-izoh').value.trim();
+  if (iz) tana.izoh = iz;
+  kbYuborilmoqda = true;
+  const btn = document.getElementById('kb-saqla');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/masters/${keshbekUsta}/keshbek`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                 body: JSON.stringify(tana)});
+    if (!r.ok) { alert('❌ ' + await serverXatoSababi(r, "Saqlab bo'lmadi")); return; }
+    const d = await r.json();
+    ['kb-summa', 'kb-buyurtma', 'kb-izoh', 'kb-sana'].forEach(k => { document.getElementById(k).value = ''; });
+    // review253 M3: takror bosish — yangi yozuv YO'Q (bir necha soniya ichida AYNAN shu yozuv bor edi)
+    if (d && d.duplicate) alert("ℹ️ Bu yozuv hozirgina saqlangan edi — ikkinchi marta yozilmadi.");
+    await kbYangila();
+    loadKeshbekQoldiqlari();
+  } catch (e) {
+    alert("❌ Server bilan aloqa yo'q. Internetni tekshirib, qayta urinib ko'ring.");
+  } finally {
+    kbYuborilmoqda = false;
+    btn.disabled = false;
+  }
+}
+async function deleteKeshbek(btn) {
+  const kid = parseInt(btn.dataset.kid);
+  if (!kid || !confirm("Bu yozuv o'chirilsinmi? Bog'langan buyurtma to'lovi va kassa yozuvi ham o'chadi.")) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/masters/keshbek/${kid}`, {method: 'DELETE'});
+    if (!r.ok) { alert('❌ ' + await serverXatoSababi(r, "O'chirib bo'lmadi")); btn.disabled = false; return; }
+    await kbYangila();
+    loadKeshbekQoldiqlari();
+  } catch (e) {
+    alert("❌ Server bilan aloqa yo'q.");
+    btn.disabled = false;
+  }
+}
 
 const inFlightMasterKpi = new Set();
 async function saveMasterKpi(id) {
