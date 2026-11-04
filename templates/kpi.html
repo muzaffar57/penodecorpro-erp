@@ -973,7 +973,7 @@ function closeKeshbek() { document.getElementById('keshbekModal').style.display 
 let kbYuborilmoqda = false;
 async function saveKeshbek() {
   if (kbYuborilmoqda || !keshbekUsta) return;
-  const summa = narxniOqi(document.getElementById('kb-summa').value);
+  const summa = parseNum(document.getElementById('kb-summa').value);   // zip 254b (test_narx_kiritish_ui A5): pul maydoni — parseNum
   if (!(summa > 0)) { alert("Summani kiriting"); return; }
   const usul = document.getElementById('kb-usul').value;
   const tana = {summa: summa, usul: usul};
@@ -1008,7 +1008,9 @@ async function saveKeshbek() {
 }
 async function deleteKeshbek(btn) {
   const kid = parseInt(btn.dataset.kid);
-  if (!kid || !confirm("Bu yozuv o'chirilsinmi? Bog'langan buyurtma to'lovi va kassa yozuvi ham o'chadi.")) return;
+  // kech187 (zip 254b — etalon d263, test_b118_oyna S1): brauzerning xom confirm() i Telegram ichki brauzerida ishlamasligi mumkin — o'z oynamiz
+  if (!kid || !(await customConfirm("Bu yozuv o'chirilsinmi? Bog'langan buyurtma to'lovi va kassa yozuvi ham o'chadi.",
+                                    {okText: "O'chirish", danger: true}))) return;
   btn.disabled = true;
   try {
     const r = await fetch(`/api/masters/keshbek/${kid}`, {method: 'DELETE'});

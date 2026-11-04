@@ -15,15 +15,11 @@ ISHLATISH: python3 tools/test_dokon_hisob249.py
 """
 import os
 import io
-import re
 import sys
 import json
-import time
-import socket
 import tempfile
-import threading
 import contextlib
-from datetime import datetime, timedelta
+from datetime import datetime
 
 ROOT = os.environ.get("REPO") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

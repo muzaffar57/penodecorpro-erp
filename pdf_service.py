@@ -1067,7 +1067,7 @@ def generate_ulgurji_narxlar_pdf(h: dict, db=None) -> bytes:
         story.append(Paragraph("ROM KOMPLEKTLARI — 1 komplekt narxi", st["section_value"]))
         # review251 L3: tarkib — har komplekt qatorida (kapitel-bazasiz modelda kapitel / baza yo'q); umumiy izoh — faqat o'chirish imkoni
         _kb_izoh = " Kapitel va bazani o'chirsa bo'ladi — narxi «kapitel va bazasiz» qatorida." if any(k.get("kb_bor") for k in h["komplektlar"]) else ""
-        story.append(Paragraph(_x("Tarkibi — har komplekt nomi ostida." + _kb_izoh), st["note"]))
+        story.append(Paragraph(_x("Tarkibi — har komplekt nomi bilan birga yozilgan." + _kb_izoh), st["note"]))
         story.append(Spacer(1, 6))
         qatorlar = []
         for k in h["komplektlar"]:
