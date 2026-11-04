@@ -10,7 +10,7 @@
 {% block head %}
 {# kech166 (zip 231 — «Sayt katalogi» poydevori; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, 31.10 «Onlayn do'kon»): do'kon katalogi
    ERP ichida. Chapda bo'limlar, yonida tanlangan bo'limning modellari; model ochilsa — narx qatorlari (detal turi × o'lcham):
-   oddiy narx (qoplamasiz), qoplamali (bo'sh — qoplamasiz × koeffitsient, 1 000 ga yaxlitlab), ulgurji (metrli detal — 1 dona = 2 m,
+   oddiy narx (qoplamasiz), qoplamali (bo'sh — qoplamasiz × koeffitsient, butun so'mga — kech187 zip 255), ulgurji (metrli detal — 1 dona = 2 m,
    m² — 1 m², dona — 1 dona). Katakdagi qiymat o'zgarishi bilan saqlanadi. Tizim bo'limlari (Tayyor mahsulotlar, O'z o'lchamingiz
    bilan, Ulgurji) boshqa bo'limlardan yig'iladi — ularga model qo'shilmaydi. Ma'lumot — /api/sayt-katalogi (faqat Admin).
    kech168 (zip 233): «Do'kon sozlamalari» kartochkasi — buyurtmani tasdiqlash telefonlari, ish vaqti, komplekt retsepti (shtorkalar);
@@ -23,7 +23,10 @@
    yaratish, almashtirish va o'chirish (tasdiq bilan); yangi kalit faqat bir marta ko'rsatiladi (nusxa olish tugmasi bilan).
    kech178 (zip 243): «🏠 Bajarilgan ishlar (galereya)» kartochkasi — ishlar ro'yxati (yangisi birinchi), ish: nomi, joyi, oyi, saytda
    ko'rinishi, katalogdan mahsulotlar (detal yoki komplekt) va shu uydagi miqdori, rasmlari (model rasmlari qoidasi). Narx saqlanmaydi —
-   sayt katalogdan oladi. Ma'lumot — /api/sayt-katalogi/galereya. #}
+   sayt katalogdan oladi. Ma'lumot — /api/sayt-katalogi/galereya.
+   kech187 (zip 255 — egasi QARORLARI 04.11): yuqori kartochkada «1 m³ mahsulot narxi» (karniz formulasi); metrli modelda «📐 Formula
+   narxi» — asos balandlik, shu balandlikdagi blok chuqurligi, bir blokdan nechta; formulali modelning qoplamasiz / qoplamali narx
+   kataklari — faqat o'qish (server hisoblaydi: balandlik × blok × 1 m³ narxi ÷ bo'lak, butun so'm), saytda «Boshqa o'lcham» 15 … 40 sm. #}
 <style>
 .sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
 .sk-grid > div{min-width:0}
@@ -315,7 +318,15 @@
       </label>
       <button type="button" class="btn btn-outline" id="skKoeffSaqla" onclick="skKoeffSaqla()" disabled>Saqlash</button>
       <div class="sk-matn" style="flex:1 1 280px">Qoplamali narx bo'sh qoldirilgan qatorlarda qoplamali narx = qoplamasiz narx × shu
-        koeffitsient (1 000 so'mgacha yaxlitlanadi). Alohida yozilgan qoplamali narxlarga ta'sir qilmaydi.</div>
+        koeffitsient (aniq summa, butun so'mda — yaxlitlanmaydi). Alohida yozilgan qoplamali narxlarga ta'sir qilmaydi.</div>
+    </div>
+    <div class="sk-koeff sk-forma" style="margin-top:12px">
+      <label>1 m³ mahsulot narxi, so'm
+        <input type="text" inputmode="numeric" id="skKub" disabled placeholder="masalan 1 200 000">
+      </label>
+      <button type="button" class="btn btn-outline" id="skKubSaqla" onclick="skKubSaqla()" disabled>Saqlash</button>
+      <div class="sk-matn" style="flex:1 1 280px">Karniz formulasi uchun: 1 m narx = balandlik × blok chuqurligi × shu narx ÷ bir blokdan
+        chiqadigan soni. O'zgartirilsa, «📐 Formula narxi» yoqilgan hamma modellar narxi darhol qayta hisoblanadi.</div>
     </div>
     <div class="yuk-xato-qator" id="skXato" hidden></div>
   </div>
@@ -476,6 +487,10 @@ async function skYukla() {
     kf.value = d.koeff;
     kf.disabled = false;
     document.getElementById('skKoeffSaqla').disabled = false;
+    var kb = document.getElementById('skKub');               // kech187 (zip 255)
+    kb.value = (d.kub_narx === null || d.kub_narx === undefined) ? '' : sonKor(d.kub_narx, 0);
+    kb.disabled = false;
+    document.getElementById('skKubSaqla').disabled = false;
     var sel = document.getElementById('skYbQolip');
     sel.innerHTML = d.qoliplar.map(q => '<option value="' + escapeHtml(q.kod) + '">' + escapeHtml(q.nom) + '</option>').join('');
     if (!SK.bolim || !d.bolimlar.some(function (b) { return b.id === SK.bolim; })) {
@@ -581,6 +596,7 @@ function skModelHtml(m) {
     '<button type="button" class="btn btn-outline" data-msaqla="' + m.id + '">Modelni saqlash</button>' +
     '<button type="button" class="btn btn-outline" data-mochir="' + m.id + '">Modelni o\'chirish</button></div>' +
     '<div class="sk-rasmlar" data-rasmlar="' + m.id + '">' + skRasmBlokHtml(m.id) + '</div>' +
+    skFormulaHtml(m) +                                                                                       // zip 255
     '<div class="sk-jadval-quti"><table class="sk-jadval"><thead><tr><th>Detal</th><th>O\'lcham</th><th>Eni, sm</th><th>Qalinligi, sm</th>' +
     '<th>Narx (qoplamasiz)</th><th>Narx (qoplamali)</th><th>Ulgurji (qoplamasiz)</th><th>Ulgurji (qoplamali)</th><th>Ko\'rinadi</th><th></th></tr></thead><tbody>' +
     detallar.map(skDetalQator).join('') +
@@ -588,8 +604,8 @@ function skModelHtml(m) {
     '<td data-label="O\'lcham"><input type="text" data-yf="olcham" maxlength="40" placeholder="O\'rta / 15 sm"></td>' +
     '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-yf="eni_sm"></td>' +
     '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-yf="qalinligi_sm"></td>' +
-    '<td data-label="Narx (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="narx"></td>' +
-    '<td data-label="Narx (qoplamali)"><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="avto"></td>' +
+    '<td data-label="Narx (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="narx"' + (m.formula ? ' disabled placeholder="formula"' : '') + '></td>' +
+    '<td data-label="Narx (qoplamali)"><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="' + (m.formula ? 'formula" disabled' : 'avto"') + '></td>' +
     '<td data-label="Ulgurji (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="ulgurji_narx"></td>' +
     '<td data-label="Ulgurji (qoplamali)"><input type="text" inputmode="decimal" data-yf="ulgurji_qoplamali" placeholder="avto"></td>' +
     '<td class="sk-bosh-td"></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
@@ -598,7 +614,8 @@ function skModelHtml(m) {
     '<div class="sk-chegirma" data-chegirma="' + escapeHtml(String(m.id)) + '">' + skChegirmaHtml(m) + '</div>' +   // zip 234
     '<p class="sk-matn" style="margin-top:8px">Narx — ' + (m.qolip === 'komplekt' ? 'karniz, podokonnik, nalichnik uchun 1 m, kapitel va baza uchun 1 dona' :
       (m.qolip === 'm2' ? '1 m²' : (m.qolip === 'dona' ? '1 dona' : '1 m (kapitel va baza — 1 dona)'))) +
-    '. Ulgurji: metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Qoplamali narx bo\'sh — qoplamasiz × koeffitsient.</p>' +
+    '. Ulgurji: metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Qoplamali narx bo\'sh — qoplamasiz × koeffitsient.' +
+    (m.formula ? ' Bu modelda qoplamasiz va qoplamali narx formula bilan hisoblanadi (Eni — balandlik, sm).' : '') + '</p>' +
     '</div></div>';
   return h;
 }
@@ -606,8 +623,12 @@ function skModelHtml(m) {
 function skAvtoMatn(avto) { return (avto === null || avto === undefined) ? '' : escapeHtml('avto: ' + sonKor(avto, 0)); }
 
 function skDetalQator(d) {
+  var _m255 = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
+  var _f255 = !!(_m255 && _m255.formula);                    // zip 255: formulali model — narx serverdan (faqat o'qish)
   function narx(k, avto) {
+    var qulf = _f255 && (k === 'narx' || k === 'narx_qoplamali');
     return '<input type="text" inputmode="decimal" data-df="' + k + '" value="' + escapeHtml(skPul(d[k])) + '"' +
+      (qulf ? ' disabled title="Formula bilan hisoblanadi"' : '') +
       (avto !== undefined ? ' placeholder="avto"' : '') + '>' +
       (avto !== undefined ? '<div class="sk-avto" data-avto="' + k + '">' + skAvtoMatn(avto) + '</div>' : '');
   }
@@ -779,6 +800,12 @@ function skModelTinglovchilar(el) {
   el.querySelectorAll('tr[data-detal] [data-df]').forEach(function (inp) {
     inp.addEventListener('change', function () { skDetalMaydon(inp); });
   });
+  el.querySelectorAll('[data-fsaqla]').forEach(function (t) {                   // zip 255
+    t.addEventListener('click', function () { skFormulaSaqla(parseInt(t.dataset.fsaqla, 10), t, false); });
+  });
+  el.querySelectorAll('[data-fochir]').forEach(function (t) {
+    t.addEventListener('click', function () { skFormulaSaqla(parseInt(t.dataset.fochir, 10), t, true); });
+  });
   el.querySelectorAll('[data-rasmlar]').forEach(function (b) { skRasmTinglovchilar(b); });
   el.querySelectorAll('[data-chegirma]').forEach(function (q) { shtorkaTayyor(q); skChTinglovchilar(q); });   // zip 234
   el.querySelectorAll('[data-tm]').forEach(function (q) { skTmTinglovchi(q); });   // zip 238
@@ -809,6 +836,76 @@ async function skKoeffSaqla() {
   skBo('koeff');
   if (!n.ok) { showMsg('❌ Koeffitsient saqlanmadi: ' + n.sabab, 'error'); return; }
   showMsg('✓ Koeffitsient saqlandi', 'success');
+  skYukla();
+}
+
+// ── kech187 (zip 255): KARNIZ FORMULASI — 1 m³ narxi (korxona) va model formulasi (asos balandlik, blok chuqurligi, bir blokdan nechta).
+// Hisob FAQAT serverda; bu yerda faqat kiritish va natijani ko'rsatish (egasining misoli: 20 sm, 9,97 sm, 2 → 11 964).
+async function skKubSaqla() {
+  var v = String(document.getElementById('skKub').value || '').replace(/[\s\u00a0]/g, '');
+  var x = v === '' ? null : skSonOl(v);
+  if (x !== null && (isNaN(x) || x <= 0 || Math.floor(x) !== x)) { showMsg('❌ 1 m³ narxi saqlanmadi: butun son kiriting (so\'m)', 'error'); return; }
+  if (!skBandla('kub')) return;
+  var t = document.getElementById('skKubSaqla');
+  t.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/kub-narx', 'PUT', {kub_narx: x});
+  t.disabled = false;
+  skBo('kub');
+  if (!n.ok) { showMsg('❌ 1 m³ narxi saqlanmadi: ' + n.sabab, 'error'); return; }
+  var q = (n.d && n.d.qayta_hisoblandi) || 0;
+  showMsg('✓ 1 m³ narxi saqlandi' + (q ? ' — ' + q + ' ta narx qayta hisoblandi' : ''), 'success');
+  skYukla();
+}
+
+function skFormulaHtml(m) {
+  if ((SK.k.formula_qoliplar || []).indexOf(m.qolip) < 0) return '';
+  var f = m.formula || {};
+  function maydon(k, nom, qiymat, izoh) {
+    return '<label class="tor">' + escapeHtml(nom) + '<input type="text" inputmode="decimal" data-ff="' + k + '" value="' +
+      escapeHtml(qiymat === null || qiymat === undefined ? '' : String(qiymat).replace('.', ',')) + '" placeholder="' + escapeHtml(izoh) + '"></label>';
+  }
+  var namuna = '';
+  if (m.formula) {
+    var d20 = SK.k.detallar.filter(function (d) { return d.model_id === m.id && d.eni_sm === m.formula.asos_sm && d.narx !== null; })[0];
+    namuna = 'Yoqilgan: ' + sonKor(m.formula.asos_sm, 2) + ' sm balandlikda blok ' + sonKor(m.formula.blok_sm, 2) + ' sm, bir blokdan ' +
+      m.formula.bolak + ' ta' + (d20 ? ' — 1 m qoplamasiz ' + sonKor(d20.narx, 0) + ' so\'m' : '') +
+      '. Saytda «Boshqa o\'lcham» (' + sonKor(SK.k.maxsus_min, 0) + '–' + sonKor(SK.k.maxsus_max, 0) + ' sm) ochiq.';
+  } else {
+    namuna = SK.k.kub_narx ? 'O\'chiq — narxlar qo\'lda kiritiladi.' : 'Avval yuqorida «1 m³ mahsulot narxi»ni kiriting.';
+  }
+  return '<details class="sk-formula" style="margin:10px 0"' + (m.formula ? ' open' : '') + '><summary>📐 Formula narxi (karniz)</summary>' +
+    '<div class="sk-forma" style="margin-top:8px">' +
+    maydon('asos_sm', 'Asos balandlik, sm', f.asos_sm, '20') + maydon('blok_sm', 'Blok chuqurligi, sm', f.blok_sm, '9,97') +
+    maydon('bolak', 'Bir blokdan nechta', f.bolak, '2') +
+    '<button type="button" class="btn btn-outline" data-fsaqla="' + m.id + '">Formulani saqlash</button>' +
+    (m.formula ? '<button type="button" class="btn btn-outline" data-fochir="' + m.id + '">Formulani o\'chirish</button>' : '') + '</div>' +
+    '<p class="sk-matn" style="margin-top:6px">1 m qoplamasiz = balandlik × (balandlik × blok ÷ asos) × 1 m³ narxi ÷ bir blokdan nechta; ' +
+    'qoplamali = × koeffitsient. Aniq summa (butun so\'m), yaxlitlanmaydi. Har qatorda «Eni, sm» — balandlik. ' + escapeHtml(namuna) + '</p></details>';
+}
+
+async function skFormulaSaqla(mid, tugma, ochir) {
+  var quti = tugma.closest('.sk-formula');
+  var tana;
+  if (ochir) {
+    tana = {formula: null};
+  } else {
+    var f = {};
+    var xato = '';
+    quti.querySelectorAll('[data-ff]').forEach(function (inp) {
+      var x = skSonOl(inp.value);
+      if (x === null || isNaN(x)) xato = xato || 'hamma maydonni son bilan to\'ldiring';
+      f[inp.dataset.ff] = x;
+    });
+    if (xato) { showMsg('❌ Formula saqlanmadi: ' + xato, 'error'); return; }
+    tana = {formula: f};
+  }
+  if (!skBandla('formula' + mid)) return;
+  tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid, 'PUT', tana);
+  tugma.disabled = false;
+  skBo('formula' + mid);
+  if (!n.ok) { showMsg('❌ Formula saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg(ochir ? '✓ Formula o\'chirildi — narxlarni endi qo\'lda o\'zgartirish mumkin' : '✓ Formula saqlandi — narxlar qayta hisoblandi', 'success');
   skYukla();
 }
 

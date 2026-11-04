@@ -12122,6 +12122,17 @@ def api_sayt_bandlar(db: Session = Depends(get_db), current_user=Depends(auth.ru
     return _dokon_bajar(db, lambda: crud.sayt_band_tmlar(db, auth.company_id_of(current_user)))
 
 
+@app.put("/api/sayt-katalogi/kub-narx")
+def api_dokon_kub_narx(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech187 (zip 255): 1 m³ mahsulot narxi (karniz formulasi): {"kub_narx": 1 … 1 000 000 000 | null}. Saqlanganda formulali modellar
+    narxi qayta hisoblanadi. Javob: {"kub_narx", "qayta_hisoblandi"}."""
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, auth.company_id_of(current_user)))    # o'chiq korxona — avval 404
+    if not isinstance(data, dict) or set(data) != {"kub_narx"}:
+        raise HTTPException(status_code=400, detail="Faqat 'kub_narx' yuboriladi")
+    return _dokon_bajar(db, lambda: crud.dokon_kub_narx_saqla(db, auth.company_id_of(current_user), data.get("kub_narx"),
+                                                             _dokon_kim(current_user)))
+
+
 @app.put("/api/sayt-katalogi/koeff")
 def api_dokon_koeff(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """Qoplama koeffitsienti: {"koeff": 1 … 10}. Faqat qoplamali narxi bo'sh qatorlarga ta'sir qiladi."""
@@ -12527,6 +12538,18 @@ def api_dokon_v1_katalog(request: Request, db: Session = Depends(get_db)):
     amaldagi chegirma, komplekt narxlari. Ulgurji narx va tannarx — YO'Q."""
     cid = _dokon_api_korxona(request, db)
     return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_katalog(db, cid)))
+
+
+@app.get("/api/dokon/v1/maxsus-narx")
+def api_dokon_v1_maxsus_narx(request: Request, model_id: str = None, balandlik: str = None, db: Session = Depends(get_db)):
+    """kech187 (zip 255): «Boshqa o'lcham» (karniz formulasi) — saytda ko'rinadigan formulali model, balandlik 15 … 40 sm (0,1 sm) → 1 m
+    narxi (qoplamasiz / qoplamali, butun so'm; savatdagi hisob bilan AYNAN). Model / formula yo'q — 404, noto'g'ri balandlik — 400."""
+    cid = _dokon_api_korxona(request, db)
+    try:
+        return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_maxsus_narx(db, cid, model_id, balandlik)))
+    except LookupError as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.get("/api/dokon/v1/sozlamalar")
