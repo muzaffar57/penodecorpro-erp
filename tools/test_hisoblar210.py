@@ -375,23 +375,28 @@ check("P10 avans «karta» −100 000 → Karta; «oylikni yopish» «bank» −
       (_a1.status_code, _a1.text[:200], _a2.status_code, _c1.status_code, _c1.text[:200], _c2.status_code, _c2.text[:150],
        _c3.status_code, _c3.text[:200], farq(oldin, bal())))
 # Usta KPI / Ehson
+# kech189 (zip 256, egasi QARORI 05.11): «Usta KPI to'landi» endi FAQAT ustaga bog'lab (`POST /api/masters/{id}/keshbek`; kassa yo'lida
+# `usta_kpi` — 400, `tools/test_usta_kpi256.py`). Qobiliyat bayrog'i: yangi kodda shu hisob / takror tekshiruvlari «Ehson» bilan (bir xil
+# kassa yo'li), eski kodda — avvalgidek `usta_kpi` (moslangan test eski kodda ham o'tadi).
+USTA256 = any(getattr(_r, "path", None) == "/api/finance/usta-keshbek" for _r in main.app.routes)
+KAT_U = "ehson" if USTA256 else "usta_kpi"
 oldin = bal()
-_u1 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": -1359, "notes": "Tojiddin aka", "hisob": "bank"})
+_u1 = A.post("/api/finance/cash-transaction", data={"category": KAT_U, "amount": -1359, "notes": "Tojiddin aka", "hisob": "bank"})
 _u2 = A.post("/api/finance/cash-transaction", data={"category": "ehson", "amount": -5000})
 _ct = js(A.get("/api/finance/cash-transactions"))
 check("P11 «Usta KPI to'landi» «bank» → Bank −1 359; «Ehson to'landi» (hisobsiz) → Naqd pul −5 000; ro'yxatda `hisob_id`",
       _u1.status_code == 200 and _u2.status_code == 200 and teng(farq(oldin, bal()), {"bank": -1359, "naqd": -5000})
-      and any(x.get("hisob_id") == HID["bank"] and x.get("category") == "usta_kpi" for x in _ct),
+      and any(x.get("hisob_id") == HID["bank"] and x.get("category") == KAT_U for x in _ct),
       (_u1.status_code, _u2.status_code, farq(oldin, bal()), _ct[:3] if isinstance(_ct, list) else _ct))
 oldin = bal()
-_u3 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": 5000, "hisob": "bank"})
+_u3 = A.post("/api/finance/cash-transaction", data={"category": KAT_U, "amount": 5000, "hisob": "bank"})
 _u4 = A.post("/api/finance/cash-transaction", data={"category": "ehson", "amount": 0})
 check("P11b «Usta KPI / Ehson» — chiqim: musbat yoki 0 summa — 400, hisob o'zgarmaydi (review210 №7 — ilgari Bank +5 000 bo'lardi)",
       _u3.status_code == 400 and _u4.status_code == 400 and teng(farq(oldin, bal()), {}), (_u3.status_code, _u3.text[:200], _u4.status_code))
 # sinov saytida JONLI TOPILGAN (23.10 20:22): bitta bosishdan ikki yozuv (javob kechikkanda so'rov serverga ikkinchi marta yetgan)
 oldin = bal()
-_u5 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": -777, "notes": "K210 takror", "hisob": "karta"})
-_u6 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": -777, "notes": "K210 takror", "hisob": "karta"})
+_u5 = A.post("/api/finance/cash-transaction", data={"category": KAT_U, "amount": -777, "notes": "K210 takror", "hisob": "karta"})
+_u6 = A.post("/api/finance/cash-transaction", data={"category": KAT_U, "amount": -777, "notes": "K210 takror", "hisob": "karta"})
 _ct2 = js(A.get("/api/finance/cash-transactions"))
 check("P11c «Usta KPI to'landi» takror yuborildi (8 s ichida, o'sha summa / hisob / izoh) — ikkinchisi `duplicate: true`, yozuv BITTA, "
       "Karta −777 (bir marta)",
@@ -790,7 +795,7 @@ else:
                 u4["sar"] == "Naqd pul — tarix" and "13 450 000" in u4["xul"].replace(" ", " ").replace(" ", " ")
                 and any("O'tkazish: Bank → Naqd pul" in q and "+5 000 000" in q for q in u4["qator"]), u4)
           # Usta KPI — Karta dan
-          pg.click("text=− Usta KPI to'landi")
+          pg.click("text=− Ehson to'landi" if USTA256 else "text=− Usta KPI to'landi")     # kech189 (zip 256): bir xil hisob tanlovi
           pg.wait_for_timeout(300)
           u5a = pg.evaluate("""() => ({tug: [...document.querySelectorAll('#cashtx-hisob button')].map(b => b.textContent.replace(/[\\s\\u00a0\\u202f]+/g, ' ').trim()),
               on: document.querySelector('#cashtx-hisob button.on')?.dataset.turi,
@@ -822,7 +827,7 @@ else:
           u7 = pg.evaluate("() => [...document.querySelectorAll('#cashTxHistoryList .hb-tarix-q')].map(q => q.textContent.replace(/[\\s\\u00a0\\u202f]+/g, ' ').trim())")
           check("U7 «Qo'lda kiritilganlar tarixi»: qoldiqlar (3), o'tkazish, Usta KPI (hisobi bilan — Karta)",
                 sum(1 for q in u7 if q.startswith("Qoldiq —")) == 3 and any(q.startswith("O'tkazish: Bank → Naqd pul") for q in u7)
-                and any(q.startswith("Usta KPI to'landi") and "Karta" in q for q in u7), u7)
+                and any(q.startswith("Ehson to'landi" if USTA256 else "Usta KPI to'landi") and "Karta" in q for q in u7), u7)
           # boshqa sahifalarda tanlov
           _sah = {}
           for _yol, _sel in (("/suppliers", "#ap-hisob, #pay-hisob"), ("/suppliers/receive", "#ap-hisob"), ("/kunlik-xarajat", "#kx-hisob"),

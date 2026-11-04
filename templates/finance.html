@@ -575,9 +575,9 @@ html[data-theme="dark"]{
             <div style="font-size:12px;margin-top:4px;color:var(--m-b91c1c)" id="dg-supplier-n">—</div>
           </div>
           <div class="dg-box" style="background:var(--f-fffbeb);border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:var(--m-92400e);margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
-            <div style="font-size:18px;font-weight:800;color:var(--m-92400e)" id="dg-employee">—</div>
-            <div style="font-size:12px;margin-top:4px;color:var(--m-92400e)" id="dg-employee-n">oxirgi 3 oy</div>
+            <div style="font-size:12px;font-weight:600;color:var(--m-78350f);margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:var(--m-78350f)" id="dg-employee">—</div>
+            <div style="font-size:12px;margin-top:4px;color:var(--m-78350f)" id="dg-employee-n">oxirgi 3 oy</div>
           </div>
           <div class="dg-box" style="background:var(--f-fef2f2);border-radius:12px;padding:14px">
             <div style="font-size:12px;font-weight:600;color:var(--m-b91c1c);margin-bottom:6px">🏛️ Arenda/<wbr>Soliq/<wbr>Kommunal</div>
@@ -801,6 +801,7 @@ html[data-theme="dark"]{
     <div class="form-group" id="cashtx-usta-joy" style="display:none"><label for="cashtx-usta">Qaysi ustaga?</label>
       <select id="cashtx-usta" onchange="ustaKeshbekIzoh()"></select>
       <div id="cashtx-usta-izoh" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
+      <div id="cashtx-usta-bogsiz" style="display:none;margin-top:8px;padding:8px 10px;background:var(--f-fef3c7);border-radius:7px;font-size:12px;color:var(--m-78350f)"></div>
     </div>
     <div id="ehsonFetchBtnWrap" style="display:none;margin-bottom:14px">
       <button type="button" class="btn btn-green-outline btn-block" onclick="fillEhsonAmount()" style="background:var(--f-f0fdf4)">
@@ -1077,7 +1078,10 @@ async function ustaKeshbekYukla(){
   const n = ++_ustaKbNavbat;
   const sel = document.getElementById('cashtx-usta');
   const izoh = document.getElementById('cashtx-usta-izoh');
+  const bogsiz = document.getElementById('cashtx-usta-bogsiz');
+  const oldingi = sel.value;                       // review256 L1: qayta yuklanganda (409) tanlov saqlanadi
   USTA_KESHBEK = [];
+  bogsiz.style.display = 'none';
   sel.replaceChildren(new Option('Yuklanmoqda…', ''));
   sel.disabled = true;
   izoh.textContent = '';
@@ -1092,6 +1096,14 @@ async function ustaKeshbekYukla(){
     return;
   }
   if (n !== _ustaKbNavbat) return;
+  // review256 M1: ustaga bog'lanmagan eski «Usta KPI to'landi» yozuvlari — ustalar qoldig'idan ayirilmagan
+  const bs = (d.bogsiz && typeof d.bogsiz === 'object') ? d.bogsiz : null;
+  if (bs && Number.isInteger(bs.soni) && bs.soni > 0) {
+    bogsiz.textContent = `⚠️ Moliyada ustaga bog'lanmagan eski «Usta KPI to'landi» yozuvlari bor (${bs.soni} ta, jami ${pulKor(bs.jami)} so'm) — `
+      + "ular ustalarning keshbek qoldig'idan ayirilmagan. Kimga berilganini «Ustalar KPI» → «💸 Keshbek berildi» → «Oldin berilgan» bilan "
+      + "kiriting (kassaga qayta ta'sir qilmaydi) — shunda qoldiq to'g'ri bo'ladi va ikkinchi marta berib yuborilmaydi.";
+    bogsiz.style.display = 'block';
+  }
   USTA_KESHBEK = d.ustalar.filter(u => u && Number.isInteger(u.id) && typeof u.nom === 'string' && Number(u.qoldiq) > 0);
   if (!USTA_KESHBEK.length) {
     sel.replaceChildren(new Option("Keshbek qoldig'i bor usta yo'q", ''));
@@ -1099,9 +1111,14 @@ async function ustaKeshbekYukla(){
     return;
   }
   sel.replaceChildren(new Option('— ustani tanlang —', ''),
-                      ...USTA_KESHBEK.map(u => new Option(`${u.nom} — qoldiq ${pulKor(u.qoldiq)} so'm${u.faol ? '' : ' (nofaol)'}`, String(u.id))));
+                      ...USTA_KESHBEK.map(u => new Option(`${ustaKbNomi(u)} — qoldiq ${pulKor(u.qoldiq)} so'm${u.faol ? '' : ' (nofaol)'}`, String(u.id))));
   sel.disabled = false;
+  if (oldingi && USTA_KESHBEK.some(u => String(u.id) === oldingi)) sel.value = oldingi;
   ustaKeshbekIzoh();
+}
+// review256 L1: bir xil ismli ustalar — raqami bilan farqlanadi
+function ustaKbNomi(u){
+  return USTA_KESHBEK.filter(x => x.nom === u.nom).length > 1 ? `${u.nom} (#${u.id})` : u.nom;
 }
 function ustaKeshbekTanlangan(){
   const v = document.getElementById('cashtx-usta').value;
@@ -1115,8 +1132,8 @@ async function saveUstaKeshbek(raw, notes, hisob, err){
   const xato = m => { err.textContent = m; err.style.display = 'block'; };
   const u = ustaKeshbekTanlangan();
   if (!u) return xato('Ustani tanlang');
-  if (raw > Number(u.qoldiq) + 1e-6) return xato(`Qoldiqdan ko'p — ${u.nom} keshbek qoldig'i ${pulKor(u.qoldiq)} so'm`);
-  const savol = `Kassadan −${pulKor(raw)} so'm yozilsinmi?\n(Usta KPI to'landi · ${u.nom}${hisob ? ' · ' + hisobNomi(hisob) : ''})\n\n`
+  if (raw > Number(u.qoldiq) + 1e-6) return xato(`Qoldiqdan ko'p — ${ustaKbNomi(u)} keshbek qoldig'i ${pulKor(u.qoldiq)} so'm`);
+  const savol = `Kassadan −${pulKor(raw)} so'm yozilsinmi?\n(Usta KPI to'landi · ${ustaKbNomi(u)}${hisob ? ' · ' + hisobNomi(hisob) : ''})\n\n`
               + `Ustaning keshbek qoldig'i: ${pulKor(u.qoldiq)} → ${pulKor(Number(u.qoldiq) - raw)} so'm`;
   if (!(await customConfirm(savol, {okText: 'Ha, yozilsin'}))) return;
   const tana = {summa: raw, usul: 'naqd'};
@@ -1126,9 +1143,12 @@ async function saveUstaKeshbek(raw, notes, hisob, err){
     const res = await fetch(`/api/masters/${encodeURIComponent(u.id)}/keshbek`, {method: 'POST', headers: {'Content-Type': 'application/json'},
                                                                               body: JSON.stringify(tana)});
     if (res.ok) {
+      let j = {};
+      try { j = await res.json(); } catch (e) { j = {}; }
       document.getElementById('cashTxModal').style.display = 'none';
       await loadCashBalance();
       if (document.getElementById('cashTxHistoryList').style.display !== 'none') await loadCashTxHistory();
+      if (j && j.duplicate) await xabarOyna(amalTakrorIzoh(true).trim());     // review256 L2: takror yuborish — yangi yozuv yo'q
     } else {
       xato('❌ ' + await serverXatoSababi(res, 'Xato'));
       if (res.status === 409) ustaKeshbekYukla();     // qoldiq boshqa joyda o'zgargan — ro'yxat yangilanadi

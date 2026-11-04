@@ -29728,6 +29728,18 @@ def usta_keshbek_tolov_royxati(db: Session, company_id: int) -> list:
     return natija
 
 
+def usta_kpi_bogsiz(db: Session, company_id: int) -> dict:
+    """kech189 (review256 M1): ustaga BOG'LANMAGAN eski «Usta KPI to'landi» kassa yozuvlari (zip 256 dan oldin Moliya tugmasidan; hech bir
+    `usta_keshbeklar.cash_tx_id` ga ulanmagan) — {"soni", "jami"} (jami — musbat so'm). Ular usta qoldig'idan ayirilmagan: egasi QARORI
+    04.11 (zip 253) — kimga berilgani «Oldin berilgan» usuli bilan kiritiladi (kassaga qayta ta'sir yo'q)."""
+    from sqlalchemy import func as _f256
+    from models import UstaKeshbek, CashTransaction
+    _bog = db.query(UstaKeshbek.cash_tx_id).filter(UstaKeshbek.company_id == company_id, UstaKeshbek.cash_tx_id.isnot(None))
+    soni, jami = db.query(_f256.count(CashTransaction.id), _f256.coalesce(_f256.sum(CashTransaction.amount), 0)).filter(
+        CashTransaction.company_id == company_id, CashTransaction.category == "usta_kpi", ~CashTransaction.id.in_(_bog)).one()
+    return {"soni": int(soni or 0), "jami": round(-float(jami or 0), 2)}
+
+
 def _uk_summa(x) -> float:
     if isinstance(x, bool) or not isinstance(x, (int, float)):
         raise ValueError("Summa son bo'lishi kerak")

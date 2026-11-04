@@ -3748,6 +3748,9 @@ DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH (kech181, zip 248; egasi QAROR
     `GET /api/finance/usta-keshbek` → `crud.usta_keshbek_tolov_royxati`, qoldiq KPI sahifasi bilan AYNAN; ruxsat «Kassa: Yaratish»),
     saqlash — `POST /api/masters/{id}/keshbek` (usul «naqd», izoh ≤ 200; qoldiqdan ko'p — sahifada va 409). `POST /api/finance/cash-transaction`
     `usta_kpi` — 400 (hech narsa yozilmaydi); «Ehson» / boshlang'ich — avvalgidek; eski bog'lanmagan yozuvlar tarixda qoladi, o'chiriladi.
+    review256: javobda `bogsiz` (`crud.usta_kpi_bogsiz` — hech bir keshbekka ulanmagan eski `usta_kpi` yozuvlari soni / jami) — oynada
+    ogohlantirish («Oldin berilgan» bilan kiritish — egasi QARORI 04.11, zip 253); 409 dan keyin ro'yxat qayta yuklanadi (tanlov saqlanadi),
+    bir xil ismli ustalar — «(#id)», takror yuborish — `amalTakrorIzoh` xabari.
   `GET /api/dokon/v1/katalog` — `crud.dokon_api_katalog`: versiya, bugun (Toshkent); bo'limlar (FAQAT yoqilgan; id, nom, qolip,
   tizim_kaliti, tartib, qolip_nomi); modellar (yoqilgan, yoqilgan bo'limda; tartib — bo'lim → model tartibi → id, sahifadagidek): kod, nom,
   tavsif, qolip, kapitel_baza_bor, rasmlar (url, kichik, eni, boyi — `/static/uploads/dokon/…`, login siz), detallar (yoqilgan qatorlar:
@@ -5426,8 +5429,9 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   o'zgarishi — ustunlar to'g'ri almashadi; eski UI testlari (blok211 99, ui173 40, c_telefon 53, korinish203 28, sahifalar190 206) o'tadi.
 
 - (kech189, zip 256) Moliya «Usta KPI to'landi» — ustaga: `tools/test_usta_kpi256.py` (S; R — ro'yxat: maydonlar, qoldiq AYNAN, tartib,
-  ruxsat, ikkinchi korxona; K — `usta_kpi` 400, Ehson, eski yozuv; T — to'lov bir marta, 409, ro'yxatdan chiqish; U — oyna: tanlov,
-  XSS yo'q, tekshiruvlar, saqlash yo'li, Ehson, bo'sh ro'yxat, 375 px). SQ 24, TF1 24, PG 16; asl (zip 255) — 11 ta yiqiladi, qulamaydi.
+  ruxsat, ikkinchi korxona; K — `usta_kpi` 400, Ehson, eski yozuv, `bogsiz`; T — to'lov bir marta, 409, ro'yxatdan chiqish; U — oyna: tanlov,
+  XSS yo'q, tekshiruvlar, saqlash yo'li, «Bekor», 409 da qayta yuklash, server izoh xatosi, takror, kechikkan javob, boshlang'ich / Ehson,
+  ogohlantirish, bo'sh ro'yxat, 375 px). SQ 33, TF1 33, PG 18; asl (zip 255) — 13 ta yiqiladi, qulamaydi.
 - (kech187 / kech188, zip 255) Karniz formulasi: `tools/test_karniz255.py` (S — tayyorgarlik; F — formula, 1 m³ narxi; R — rad;
   M — «Boshqa o'lcham» do'kon API; B — savatda maxsus qator; Y — yaxlitlashsiz, yetkazish; T — zaxira tiklash, indeks; V — review255
   (aniq kasr, kapitel / baza qo'lda, chegirma butun so'm, balandlik ≥ 5 sm, chegara, chuqurlik, guruh nomi, saqlangan yetkazish sharti); Z — ikkinchi korxona,
@@ -8079,7 +8083,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `PUT /api/finance/transactions/{tx_id}` → `main.py:api_update_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'tahrirlash') · auth.company_id_of, auth.expense_of_company, auth.ruxsat, crud._clean_val, crud.update_expense_transaction
 - `DELETE /api/finance/transactions/{tx_id}` → `main.py:api_delete_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_expense_transaction
 - `DELETE /api/finance/transactions/{tx_id}/ozim` → `main.py:api_ozim_xarajatni_ochirish` · 🔒 auth.ruxsat('kunlik', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.log_activity
-- `GET /api/finance/usta-keshbek` → `main.py:api_finance_usta_keshbek` · 🔒 auth.ruxsat('kassa', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_tolov_royxati
+- `GET /api/finance/usta-keshbek` → `main.py:api_finance_usta_keshbek` · 🔒 auth.ruxsat('kassa', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_tolov_royxati, crud.usta_kpi_bogsiz
 - `GET /api/finance/yonalishlar` → `main.py:api_finance_yonalishlar` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.calculate_split_profit_report
 
 #### `/api/finished` (23)

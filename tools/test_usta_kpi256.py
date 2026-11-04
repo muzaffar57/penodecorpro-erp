@@ -214,8 +214,8 @@ section("R. Ro'yxat — keshbek qoldig'i bor ustalar")
 r = CA.get(YOL)
 R = js(r)
 _u = R.get("ustalar") if isinstance(R, dict) else None
-check("R1 200; javob — faqat {\"ustalar\": [...]}; har qator maydonlari AYNAN id / nom / qoldiq / faol (foiz, foyda, telefon YO'Q)",
-      r.status_code == 200 and isinstance(R, dict) and set(R) == {"ustalar"} and isinstance(_u, list) and _u
+check("R1 200; javob — faqat {\"ustalar\": [...], \"bogsiz\": {soni, jami}}; har qator maydonlari AYNAN id / nom / qoldiq / faol (foiz, foyda, telefon YO'Q)",
+      r.status_code == 200 and isinstance(R, dict) and set(R) == {"ustalar", "bogsiz"} and R.get("bogsiz") == {"soni": 0, "jami": 0.0} and isinstance(_u, list) and _u
       and all(set(x) == {"id", "nom", "qoldiq", "faol"} for x in _u), (r.status_code, r.text[:400]))
 _ids = [x.get("id") for x in (_u or [])]
 check("R2 qoldig'i bor 4 usta (nofaol ham), keshbeksiz usta va boshqa korxona ustasi YO'Q",
@@ -232,7 +232,7 @@ check("R5 ruxsat: «Kassa: Yaratish» yo'q (Moliyachi — faqat ko'rish) — 403
       _rm.status_code == 403 and _rn.status_code == 401, (_rm.status_code, _rn.status_code))
 _rb = royxat(CB)
 check("R6 ikkinchi korxona: o'z ustasi keshbeksiz — ro'yxat bo'sh (1-korxona ustalari ko'rinmaydi)",
-      _rb == {"ustalar": []}, _rb)
+      _rb == {"ustalar": [], "bogsiz": {"soni": 0, "jami": 0.0}}, _rb)
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("K. Kassa yo'li — bog'lanmagan «Usta KPI to'landi» endi yozilmaydi")
@@ -255,7 +255,11 @@ d0.commit()
 EID = _eski.id
 d0.close()
 _ct = js(CA.get("/api/finance/cash-transactions"))
+_bs1, _bs_b = royxat().get("bogsiz"), royxat(CB).get("bogsiz")
 _rd = CA.delete(f"/api/finance/cash-transactions/{EID}")
+check("K6 review256 M1: eski bog'lanmagan yozuv — ro'yxat javobida `bogsiz` {1 ta, 7 000} (boshqa korxonada — 0); o'chirilgach — 0",
+      _bs1 == {"soni": 1, "jami": 7000.0} and _bs_b == {"soni": 0, "jami": 0.0} and royxat().get("bogsiz") == {"soni": 0, "jami": 0.0},
+      (_bs1, _bs_b, royxat().get("bogsiz")))
 check("K5 eski bog'lanmagan «Usta KPI to'landi» — tarixda ko'rinadi va o'chiriladi (200)",
       any(x.get("id") == EID and x.get("category") == "usta_kpi" for x in (_ct if isinstance(_ct, list) else []))
       and _rd.status_code == 200 and bazadan(lambda d: d.get(CashTransaction, EID)) is None, (_rd.status_code, _rd.text[:200]))
@@ -273,6 +277,8 @@ check("T1 10 000 Karta dan — 200; Karta −10 000 (BIR marta), usta qoldig'i �
       r.status_code == 200 and b1["karta"] == b0["karta"] - 10000 and b1["naqd"] == b0["naqd"] and b1["bank"] == b0["bank"]
       and q1 == q0 - 10000 and _x and _x[0]["qoldiq"] == q1
       and _tx == [(-10000.0, "usta_kpi", "Keshbek — usta Bobur usta (yillik KPI sovg'asi)")], (r.status_code, r.text[:200], b0, b1, q0, q1, _x, _tx))
+check("T1b keshbekka BOG'LANGAN «Usta KPI to'landi» — `bogsiz` ga kirmaydi (0)", royxat().get("bogsiz") == {"soni": 0, "jami": 0.0},
+      royxat().get("bogsiz"))
 r = CA.post(KB.format(ID["u2"]), json={"summa": holat(ID["u2"]).get("qoldiq") + 1, "usul": "naqd", "hisob": "naqd"})
 check("T2 qoldiqdan ko'p — 409, kassa o'zgarmadi", r.status_code == 409 and bal() == b1, (r.status_code, r.text[:200]))
 _q2 = holat(ID["u2"]).get("qoldiq")
@@ -306,6 +312,8 @@ else:
     _exe = sorted(glob.glob("/opt/pw-browsers/chromium-*/chrome-linux/chrome"))
     XATOLAR = []
     SOROVLAR = []
+    GETLAR = []
+    JAVOBLAR = []
 
     def _ui():
         with sync_playwright() as pw:
@@ -316,7 +324,9 @@ else:
             pg.set_default_timeout(10000)
             pg.on("pageerror", lambda e: XATOLAR.append(str(e)[:200]))
             pg.on("dialog", lambda d: (XATOLAR.append("dialog: " + d.message[:100]), d.accept()))
-            pg.on("request", lambda q: SOROVLAR.append((q.method, q.url.replace(BASE, ""))) if q.method == "POST" else None)
+            pg.on("request", lambda q: SOROVLAR.append((q.method, q.url.replace(BASE, ""))) if q.method == "POST"
+                  else GETLAR.append(q.url.replace(BASE, "").split("?")[0]))
+            pg.on("response", lambda q: JAVOBLAR.append((q.status, q.text()[:200])) if q.request.method == "POST" and "/keshbek" in q.url else None)
             pg.goto(BASE + "/login")
             pg.fill("input[name=username]", "t256_admin")
             pg.fill("input[name=password]", PAROL)
@@ -391,6 +401,94 @@ else:
                   and b_ui1["bank"] == b_ui0["bank"] - 12345 and b_ui1["naqd"] == b_ui0["naqd"] and b_ui1["karta"] == b_ui0["karta"]
                   and _yoz[-1] == (12345.0, "naqd", "UI sovg'a") and o5["ochiq"] == "none",
                   (_savol, SOROVLAR[n_post:], b_ui0, b_ui1, _yoz[-1:], o5["ochiq"]))
+            # review256 M2-1: tasdiqda «Bekor» — so'rov YO'Q, yozuv yo'q, oyna ochiq
+            pg.click("text=− Usta KPI to'landi")
+            pg.wait_for_timeout(700)
+            pg.select_option("#cashtx-usta", str(ID["u1"]))
+            pg.fill("#cashtx-amount", "1 000")
+            n_post = len(SOROVLAR)
+            _k0 = len(_yoz)
+            b_c0 = bal()
+            pg.click("#cashTxModal >> text=Saqlash")
+            pg.wait_for_timeout(300)
+            _bekor = pg.evaluate("() => { const b = document.getElementById('ccModalCancel'); if (b && b.offsetParent !== null) { b.click(); return true; } return false; }")
+            pg.wait_for_timeout(400)
+            _yoz2 = bazadan(lambda d: d.query(UstaKeshbek).filter(UstaKeshbek.master_id == ID["u1"]).count())
+            check("U9 tasdiq oynasida «Bekor» — so'rov yuborilmadi, keshbek yozuvi / hisoblar o'zgarmadi, oyna ochiq qoldi",
+                  _bekor and SOROVLAR[n_post:] == [] and _yoz2 == _k0 and bal() == b_c0 and oyna()["ochiq"] == "flex",
+                  (_bekor, SOROVLAR[n_post:], _yoz2, _k0, oyna()["ochiq"]))
+            # review256 M2-2: oyna ochiq turganda qoldiq boshqa joyda kamaydi → 409, ro'yxat qayta yuklandi, tanlov saqlandi (L1)
+            _q_old = holat(ID["u1"]).get("qoldiq")
+            CA.post(KB.format(ID["u1"]), json={"summa": round(_q_old - 2000, 2), "usul": "oldin"})
+            n_get = len(GETLAR)
+            pg.fill("#cashtx-amount", "5 000")
+            pg.click("#cashTxModal >> text=Saqlash")
+            tasdiq()
+            pg.wait_for_timeout(1200)
+            o9 = oyna()
+            check("U10 qoldiq boshqa joyda kamaygan — server 409 matni oynada («Qoldiqdan ko'p berib bo'lmaydi»), ro'yxat QAYTA yuklandi, "
+                  "tanlov o'sha usta, yangi qoldiq (2 000) ko'rinadi, hech narsa yozilmadi",
+                  "Qoldiqdan ko'p berib bo'lmaydi" in o9["xato"] and "/api/finance/usta-keshbek" in GETLAR[n_get:]
+                  and pg.evaluate("() => document.getElementById('cashtx-usta').value") == str(ID["u1"])
+                  and any(x[0] == str(ID["u1"]) and "qoldiq 2 000 so'm" in x[1] for x in o9["opt"])
+                  and holat(ID["u1"]).get("qoldiq") == 2000, (o9, GETLAR[n_get:], holat(ID["u1"]).get("qoldiq")))
+            # review256 M2-4: server rad etgan izoh — sabab oynada
+            pg.evaluate("() => document.getElementById('cashtx-notes').removeAttribute('maxlength')")
+            pg.fill("#cashtx-notes", "x" * 201)
+            pg.fill("#cashtx-amount", "100")
+            pg.click("#cashTxModal >> text=Saqlash")
+            tasdiq()
+            pg.wait_for_timeout(900)
+            check("U11 izoh 201 belgi — server sababi oynada («Izoh» … 200), oyna ochiq", "Izoh" in oyna()["xato"] and "200" in oyna()["xato"]
+                  and oyna()["ochiq"] == "flex", oyna()["xato"])
+            # review256 L2: takror yuborish (8 s ichida AYNAN o'sha) — yangi yozuv yo'q, foydalanuvchiga xabar
+            pg.fill("#cashtx-notes", "Takror256")
+            pg.fill("#cashtx-amount", "300")
+            CA.post(KB.format(ID["u1"]), json={"summa": 300, "usul": "naqd", "hisob": "naqd", "izoh": "Takror256"})
+            _n300 = bazadan(lambda d: d.query(UstaKeshbek).filter(UstaKeshbek.izoh == "Takror256").count())
+            pg.click("#cashTxModal >> text=Saqlash")
+            tasdiq()
+            pg.wait_for_timeout(1000)
+            _xabar = pg.evaluate("() => { const m = document.getElementById('xoModal'); return (m && m.style.display === 'flex') ? "
+                                 "document.getElementById('xoMatn').textContent : 'yopiq: ' + (m ? m.style.display : 'yoq'); }")
+            pg.evaluate("() => { const b = document.getElementById('xoOk'); if (b && b.offsetParent !== null) b.click(); }")
+            pg.wait_for_timeout(300)
+            check("U12 takror yuborish — yozuv BITTA, oyna yopildi, «takror» xabari ko'rsatildi (review256 L2)",
+                  _n300 == 1 and bazadan(lambda d: d.query(UstaKeshbek).filter(UstaKeshbek.izoh == "Takror256").count()) == 1
+                  and oyna()["ochiq"] == "none" and "ikkinchi marta yozilmadi" in _xabar, lambda: (_n300, _xabar, oyna()["ochiq"], bazadan(lambda d: [(k.id, float(k.summa), k.hisob_id, k.usul, k.izoh, str(k.created_at))
+                  for k in d.query(UstaKeshbek).order_by(UstaKeshbek.id.desc()).limit(2).all()]), SOROVLAR[-2:], JAVOBLAR[-2:]))
+            # review256 M2-3: kechikkan eski javob — oyna qayta ochilganda yangi javob ustidan yozilmaydi
+            pg.evaluate("""() => { const asl = window.fetch; let n = 0; window.__f256 = asl;
+                window.fetch = function (u, o) { if (String(u).indexOf('/api/finance/usta-keshbek') >= 0 && n++ === 0) {
+                  return new Promise(r => setTimeout(() => r(new Response(JSON.stringify({ustalar: [{id: 999999, nom: 'ESKI JAVOB', qoldiq: 5, faol: true}],
+                    bogsiz: {soni: 0, jami: 0}}), {status: 200, headers: {'Content-Type': 'application/json'}})), 1500)); }
+                  return asl.apply(this, arguments); }; }""")
+            pg.click("text=− Usta KPI to'landi")
+            pg.wait_for_timeout(100)
+            pg.evaluate("() => { document.getElementById('cashTxModal').style.display = 'none'; }")
+            pg.click("text=− Usta KPI to'landi")
+            pg.wait_for_timeout(2200)
+            _opt = [x[1] for x in oyna()["opt"]]
+            pg.evaluate("() => { window.fetch = window.__f256; document.getElementById('cashTxModal').style.display = 'none'; }")
+            check("U13 oyna tez qayta ochildi — birinchi (kechikkan) javob yozilmadi, ro'yxat ikkinchi javobdan",
+                  not any("ESKI JAVOB" in x for x in _opt) and any(x.startswith("Bobur usta") for x in _opt), _opt)
+            pg.evaluate("() => openCashTxModal('boshlangich')")
+            pg.wait_for_timeout(300)
+            _bj = oyna()["joy"]
+            pg.evaluate("() => { document.getElementById('cashTxModal').style.display = 'none'; }")
+            check("U14 «Boshlang'ich balans» oynasida usta tanlovi YO'Q", _bj == "none", _bj)
+            # review256 M1: ustaga bog'lanmagan eski yozuv bor — oynada ogohlantirish (soni, jami, «Oldin berilgan»)
+            d0 = SessionLocal()
+            d0.add(CashTransaction(company_id=1, category="usta_kpi", amount=-4500, notes="Eski", performed_by="x"))
+            d0.commit()
+            d0.close()
+            pg.click("text=− Usta KPI to'landi")
+            pg.wait_for_timeout(800)
+            _ogoh = pg.evaluate("() => { const e = document.getElementById('cashtx-usta-bogsiz'); return [getComputedStyle(e).display, "
+                                "e.textContent.replace(/[\\s\\u00a0\\u202f]+/g, ' ')]; }")
+            pg.evaluate("() => { document.getElementById('cashTxModal').style.display = 'none'; }")
+            check("U15 ustaga bog'lanmagan eski yozuv bor — oynada ogohlantirish: «1 ta, jami 4 500 so'm», «Oldin berilgan»",
+                  _ogoh[0] == "block" and "1 ta, jami 4 500 so'm" in _ogoh[1] and "Oldin berilgan" in _ogoh[1], _ogoh)
             pg.click("text=− Ehson to'landi")
             pg.wait_for_timeout(400)
             o6 = oyna()

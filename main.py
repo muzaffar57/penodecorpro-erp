@@ -9726,9 +9726,12 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
 
 @app.get("/api/finance/usta-keshbek")
 def api_finance_usta_keshbek(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
-    """kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar {"ustalar": [{id, nom, qoldiq, faol}]}.
-    Ruxsat — to'lovni yozish bilan bir xil («Kassa: Yaratish»; `POST /api/masters/{id}/keshbek`)."""
-    return {"ustalar": crud.usta_keshbek_tolov_royxati(db, auth.company_id_of(current_user))}
+    """kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar {"ustalar": [{id, nom, qoldiq, faol}],
+    "bogsiz": {soni, jami}} (`bogsiz` — ustaga bog'lanmagan eski yozuvlar, review256 M1 — oynada ogohlantirish).
+    Ruxsat — to'lovni yozish bilan bir xil («Kassa: Yaratish»; `POST /api/masters/{id}/keshbek`; review256 L3 — to'lovchi qoldiqni bilishi
+    kerak, foyda / foiz / telefon berilmaydi)."""
+    cid = auth.company_id_of(current_user)
+    return {"ustalar": crud.usta_keshbek_tolov_royxati(db, cid), "bogsiz": crud.usta_kpi_bogsiz(db, cid)}
 
 
 @app.post("/api/finance/cash-transaction")
