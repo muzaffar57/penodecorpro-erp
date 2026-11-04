@@ -496,19 +496,21 @@ CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97
 r = CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
 check("V4d 1 m³ qaytarildi — K-20 20 sm 11 964", r.status_code == 200 and detal(DK[20]).get("narx") == 11964, (r.status_code, r.text[:200]))
 # L5: guruh nomida o'lcham bir marta; L6: chuqurlik — faqat ko'rinadigan qatordan (narx so'rovi = buyurtma)
+# 20 sm qatori chuqurligi mutanosib EMAS (9 sm) — yashirin qator tanlansa natija farq qiladi (mut255 F18)
+CA.put(API + f"/detallar/{DK[20]}", json={"qalinligi_sm": 9})
 CA.put(API + f"/detallar/{DK[20]}", json={"yoqilgan": False})
 _jm = js(dokon_get(f"/api/dokon/v1/maxsus-narx?model_id={MK}&balandlik=18.5"))
 r = buyurtma([{"maxsus": {"model_id": MK, "balandlik_sm": 18.5}, "qoplamali": False, "miqdor": 2}])
 _qv = bazadan(lambda d: d.query(models.DokonBuyurtmaQator).order_by(models.DokonBuyurtmaQator.id.desc()).first())
 check("V5 (L6) 20 sm qatori yashirin — chuqurlik narx so'rovida va buyurtma qatorida BIR XIL (eng yaqin ko'rinadigan qatordan)",
-      r.status_code in (200, 201) and _qv is not None and _jm.get("qalinligi_sm") is not None and _qv.qalinligi_sm == _jm.get("qalinligi_sm"),
+      r.status_code in (200, 201) and _qv is not None and _jm.get("qalinligi_sm") == 6.25 and _qv.qalinligi_sm == _jm.get("qalinligi_sm"),
       (r.status_code, _jm.get("qalinligi_sm"), _qv and _qv.qalinligi_sm))
 _gn = _qv and _qv.sbq_guruh_nomi
 check("V6 (L5) guruh nomida «18,5 sm (maxsus o'lcham)» — BIR marta", _gn and _gn.count("18,5 sm (maxsus o'lcham)") == 1, _gn)
 _sb5 = bazadan(lambda d: d.query(models.DokonBuyurtma).order_by(models.DokonBuyurtma.id.desc()).first())
 _tg = bazadan(lambda d: crud.sayt_telegram_matni(_sb5, crud._sayt_qatorlari(d, 1, _sb5.id))) if _sb5 is not None else None
 check("V6b Telegram xabarida ham bir marta", _tg and _tg.count("18,5 sm (maxsus o'lcham)") == 1, _tg)
-CA.put(API + f"/detallar/{DK[20]}", json={"yoqilgan": True})
+CA.put(API + f"/detallar/{DK[20]}", json={"yoqilgan": True, "qalinligi_sm": 6.76})
 # M4: yetkazish sharti buyurtmada saqlanadi; eski (NULL) buyurtma — eski shart
 r = buyurtma([{"detal_id": DO, "qoplamali": False, "miqdor": 2}], viloyat="fargona")
 _sbf = bazadan(lambda d: d.query(models.DokonBuyurtma).order_by(models.DokonBuyurtma.id.desc()).first())
