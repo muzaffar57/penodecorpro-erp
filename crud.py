@@ -24131,6 +24131,10 @@ def dokon_sozlamalar(db: Session, company_id: int, hozir_utc=None) -> dict:
 #     → 9 000, ya'ni 10 %; yozilgan «yangi narx» 9 500 → 9 000; egasi qarori «ikkinchisi o'zi hisoblanadi» — yozilgani saqlansin); 100 gacha
 #     yaxlitlangach asl narxdan kam bo'lmasa — 10 so'mgacha, u ham bo'lmasa — so'mning o'zi (chegirma hech qachon «yo'qolmaydi» va
 #     foizdan oshmaydi);
+#   * kech188 (zip 255 — egasi QARORI 04.11 22:20, QAYTA SO'RALMAYDI: «Chegirmada ham yaxlitlash bo'lmasin (37 620)»): yuqoridagi 100 / 10
+#     so'mga yaxlitlash OLIB TASHLANDI — chegirmali narx aniq summa, BUTUN so'mga HALF_UP (asl narxdan kam va 0 dan katta bo'lmasa —
+#     tiyingacha). «Yangi narx» — sahifa foizni (2 xona) shunday tanlaydiki, server hisobi yozilgan narxni AYNAN beradi (iloji bo'lsa);
+#     bo'lmasa ko'rishda haqiqiy narx ko'rinadi;
 #   * o'lchamlar — narx qatorlaridagi o'lcham yozilishi (tutuq belgisi / katta-kichik harfsiz — `dokon_olcham_kalit`); NULL — hamma
 #     o'lcham (keyin qo'shilganlari ham); o'lcham qatori qayta nomlansa — yangi nom (modelda yangi bo'lsa) ro'yxatga qo'shiladi, eski nom
 #     uning oxirgi qatori ketgandagina olinadi (review234 Y1: komplekt o'lchami 5 qator — bittalab nomlanadi);
@@ -24147,7 +24151,7 @@ DOKON_CHEGIRMA_FOIZ_MIN = Decimal("1")
 DOKON_CHEGIRMA_FOIZ_MAX = Decimal("99")
 DOKON_CHEGIRMA_MAX_KUN = 366
 DOKON_CHEGIRMA_OLCHAM_MAX = 50
-DOKON_CHEGIRMA_QADAMLAR = (Decimal("100"), Decimal("10"))
+DOKON_CHEGIRMA_QADAMLAR = (Decimal("1"),)            # kech188 (zip 255 — egasi QARORI 04.11): yaxlitlashsiz — butun so'm (ilgari 100, 10)
 DOKON_TANNARX_IZOH = ("Tannarx — ERP hisobi bo'yicha penoplast: 1 m = eni × qalinlik ÷ 2 ÷ blok hajmi × asosiy penoplast bloki narxi. "
                       "Qoplama loyi buyurtmada tortiladi — tannarxga kirmagan. Kapitel, baza, dona va m² detallarda tannarx hisoblanmaydi.")
 
@@ -24173,9 +24177,9 @@ def _dokon_foiz(qiymat):
 
 
 def dokon_chegirma_narx(narx, foiz):
-    """Chegirmali narx = narx × (100 − foiz) / 100, 100 so'mgacha HALF_UP (review234 O1); natija asl narxdan kam va 0 dan katta bo'lmasa —
-    10 so'mgacha, u ham bo'lmasa — so'mning o'zi (2 xona, kamida 0,01). Shunda yozilgan «yangi narx» (100 ga karrali) AYNAN saqlanadi va
-    haqiqiy chegirma foizdan ko'pi bilan 50 so'm farq qiladi."""
+    """Chegirmali narx = narx × (100 − foiz) / 100 — BUTUN so'mga HALF_UP (kech188, zip 255 — egasi QARORI 04.11: chegirmada ham
+    yaxlitlash yo'q, «aniq summa»; ilgari 100 / 10 so'mgacha); natija asl narxdan kam va 0 dan katta bo'lmasa — tiyingacha (2 xona,
+    kamida 0,01). Haqiqiy chegirma foizdan ko'pi bilan 0,5 so'm farq qiladi."""
     if narx is None or foiz is None:
         return None
     n = Decimal(str(narx))

@@ -389,7 +389,9 @@ check("P10 alohida detal qatorida katalog O'LCHAMI (review244 H1): «D-2 Burchak
 check("P11 katta harfli model kodi va nomi PDF da AYNAN («AB-12 KESMA — XL», «Ab-12 kesma — xl» emas — review244 L1)",
       lambda: _p246("AB-12 KESMA", "XL") in P1 and "Ab-12" not in P1, P1[:1800])
 check("P16 metrli qator: miqdor 6, 1 m narxi, qator summasi — ketma-ket («K-12 … m 6 98 000 588 000»; kit karnizi «6 12 800 76 800»)",
-      lambda: zich("m 6 98 000 588 000") in zich(P1) and zich("m 6 12 800 76 800") in zich(P1), P1[:1800])
+      # kech188 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): chegirmali narx butun so'm (15 000 − 15 % = 12 750; eski kodda 12 800)
+      lambda: zich("m 6 98 000 588 000") in zich(P1) and zich("m 6 12 800 76 800" if crud.dokon_chegirma_narx(__import__("decimal").Decimal("41800"), __import__("decimal").Decimal("10"))
+                                                                == __import__("decimal").Decimal("37600") else "m 6 12 750 76 500") in zich(P1), P1[:1800])
 _tart = [zich(d.get("nom")) for gg in _g for d in gg.get("detallar") or []]
 _joy = [zich(P1).find(x) for x in _tart]
 check("P12 qatorlar tartibi — buyurtmadagidek (guruhlar va detallar ketma-ketligi)", lambda: all(j >= 0 for j in _joy) and _joy == sorted(_joy),

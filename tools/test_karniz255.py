@@ -434,9 +434,17 @@ def _aniq(h, asos, blok, kub, bolak):
 
 _l1 = [(15, 14, 10.0, 2730000, 2), (20, 12, 7.55, 2298000, 2), (20, 20, 9.97, 1200000, 2), (18.5, 20, 9.97, 1200000, 2),
        (33.3, 7, 3.33, 999999, 3), (40, 17, 13.13, 1234567, 7)]
-_l1x = [(t, crud.dokon_formula_narx(_NS(formula_asos_sm=t[1], formula_blok_sm=t[2], formula_bolak=t[4]), t[0], t[3]), _aniq(*t)) for t in _l1]
+_l1x = []
+
+
+def _v1():
+    _l1x[:] = [(t, crud.dokon_formula_narx(_NS(formula_asos_sm=t[1], formula_blok_sm=t[2], formula_bolak=t[4]), t[0], t[3]), _aniq(*t))
+               for t in _l1]
+    return all(a == b for _t, a, b in _l1x) and _l1x[0][1] == 21938 and _l1x[2][1] == 11964
+
+
 check("V1 (L1) formula — aniq kasrning HALF_UP i: 14 / 10 / 15 sm / 2 730 000 → 21 938 (ilgari 21 937), egasining misoli 11 964",
-      all(a == b for _t, a, b in _l1x) and _l1x[0][1] == 21938 and _l1x[2][1] == 11964, _l1x)
+      _v1, lambda: _l1x)
 # M2: kapitel / baza (donada) — formulaga kirmaydi
 MP = js(CA.post(API + "/modellar", json={"bolim_id": BOL.get("Karnizlar"), "kod": "P-1", "nom": "Pilyastr", "kapitel_baza_bor": True})).get("id")
 DPA = js(CA.post(API + "/detallar", json={"model_id": MP, "turi": "asosiy", "olcham": "20 sm", "narx": 15000, "eni_sm": 20,
@@ -505,7 +513,8 @@ CA.put(API + f"/detallar/{DK[20]}", json={"yoqilgan": True})
 r = buyurtma([{"detal_id": DO, "qoplamali": False, "miqdor": 2}], viloyat="fargona")
 _sbf = bazadan(lambda d: d.query(models.DokonBuyurtma).order_by(models.DokonBuyurtma.id.desc()).first())
 check("V7 (M4) yangi buyurtmada shart saqlandi: «Yetkazib berish — kelishuv asosida»",
-      r.status_code in (200, 201) and _sbf is not None and _sbf.sb_yetkazish == "Yetkazib berish — kelishuv asosida", _sbf and _sbf.sb_yetkazish)
+      lambda: r.status_code in (200, 201) and _sbf is not None and _sbf.sb_yetkazish == "Yetkazib berish — kelishuv asosida",
+      lambda: _sbf and getattr(_sbf, "sb_yetkazish", "—"))
 _asl_y = crud.SAYT_YETKAZISH_YARIM
 try:
     crud.SAYT_YETKAZISH_YARIM = "Yetkazib berish — keyingi yangi shart"
@@ -516,11 +525,57 @@ finally:
 check("V7b shart keyin o'zgarsa ham shu buyurtmada — o'zi (ko'rinish, Telegram)",
       _v and _v.get("yetkazish_matni") == "Yetkazib berish — kelishuv asosida" and _t and "kelishuv asosida" in _t and "keyingi" not in _t,
       (_v and _v.get("yetkazish_matni"), _t))
-bazadan(lambda d: (d.query(models.DokonBuyurtma).filter(models.DokonBuyurtma.id == _sbf.id).update({"sb_yetkazish": None}), d.commit()))
+if hasattr(models.DokonBuyurtma, "sb_yetkazish"):
+    bazadan(lambda d: (d.query(models.DokonBuyurtma).filter(models.DokonBuyurtma.id == _sbf.id).update({"sb_yetkazish": None}), d.commit()))
 _t0 = bazadan(lambda d: crud.sayt_telegram_matni(d.get(models.DokonBuyurtma, _sbf.id), crud._sayt_qatorlari(d, 1, _sbf.id)))
 check("V7c zip 255 dan oldingi buyurtma (shart saqlanmagan) — o'sha paytdagi shart «narxining yarmini biz to'laymiz»",
       _t0 and "yarmini biz to'laymiz" in _t0, _t0)
-check("V7d Andijon (shart saqlanmagan) — «bepul»", crud.sayt_buyurtma_yetkazish(_NS(sb_yetkazish=None, sb_viloyat="andijon")) == "Yetkazib berish bepul")
+check("V7d Andijon (shart saqlanmagan) — «bepul»",
+      lambda: crud.sayt_buyurtma_yetkazish(_NS(sb_yetkazish=None, sb_viloyat="andijon")) == "Yetkazib berish bepul")
+
+# kech188 (zip 255 — egasi QARORI 04.11 22:20: «Chegirmada ham yaxlitlash bo'lmasin (37 620)»)
+check("V8 chegirmali narx — butun so'm: 41 800 − 10 % = 37 620 (ilgari 37 600); 150 000,50 − 20 % = 120 000; 99 000 − 12,5 % = 86 625",
+      lambda: crud.dokon_chegirma_narx(Decimal("41800"), Decimal("10")) == Decimal("37620")
+      and crud.dokon_chegirma_narx(Decimal("150000.50"), Decimal("20")) == Decimal("120000")
+      and crud.dokon_chegirma_narx(Decimal("99000"), Decimal("12.5")) == Decimal("86625"))
+check("V8b juda kichik narx — chegirma «yo'qolmaydi»: 1 − 30 % = 0,70 (butun so'mga yaxlitlansa 1 — asl narx); 0,01 − 50 % = 0,01",
+      lambda: crud.dokon_chegirma_narx(Decimal("1"), Decimal("30")) == Decimal("0.70")
+      and crud.dokon_chegirma_narx(Decimal("0.01"), Decimal("50")) == Decimal("0.01"))
+r = CA.put(API + f"/modellar/{MO}/chegirma", json={"foiz": 10})
+check("V8c katalogda (oddiy model 45 123): chegirmali 40 610,7 → 40 611, qoplamali avto 90 246 → 81 221,4 → 81 221",
+      r.status_code == 200 and (detal(DO).get("chegirma") or {}).get("narx") == 40611
+      and (detal(DO).get("chegirma") or {}).get("narx_qoplamali") == 81221, (r.status_code, detal(DO).get("chegirma")))
+CA.delete(API + f"/modellar/{MO}/chegirma")
+# «Yangi narx» → foiz (sahifa, sayt_katalogi.html `skChYangiFoiz`) — server hisobi yozilgan narxni AYNAN beradi (iloji bo'lsa)
+import re as _re255                                                                              # noqa: E402
+import subprocess as _sp255                                                                     # noqa: E402
+_html255 = open(os.path.join(ROOT, "templates", "sayt_katalogi.html"), encoding="utf-8").read()
+_fn255 = _re255.search(r"function skChYangiFoiz\(asl, y\) \{.*?\n\}\n", _html255, _re255.S)
+_juft255 = [(41800, 37620), (41800, 37600), (12345, 11111), (99000, 86625), (150000.5, 120000), (7, 5), (1234567, 1000000), (20900, 18810)]
+_js255 = None
+if _fn255:
+    try:
+        _js255 = json.loads(_sp255.run(["node", "-e", _fn255.group(0) + "console.log(JSON.stringify(" + json.dumps(_juft255)
+                                        + ".map(function (p) { return skChYangiFoiz(p[0], p[1]); })))"],
+                                       capture_output=True, text=True, timeout=60).stdout)
+    except Exception:                      # noqa: BLE001
+        _js255 = None
+_nat255 = []
+
+
+def _v9():
+    for (a, y), f in zip(_juft255, _js255 or []):
+        server = crud.dokon_chegirma_narx(Decimal(str(a)), Decimal(str(f)))
+        # mustaqil: 2 xonali foizlar ichida (±0,05 %) yozilgan narxni AYNAN beradigani bormi
+        f0 = (1 - Decimal(str(y)) / Decimal(str(a))) * 10000
+        bor = any(crud.dokon_chegirma_narx(Decimal(str(a)), (f0.quantize(Decimal(1), rounding="ROUND_HALF_UP") + k) / 100) == Decimal(str(y))
+                  for k in range(-5, 6))
+        _nat255.append((a, y, f, server, bor))
+    return len(_nat255) == len(_juft255) and all((x[3] == Decimal(str(x[1]))) == x[4] for x in _nat255) and sum(x[4] for x in _nat255) >= 6
+
+
+check("V9 «Yangi narx» → foiz: aniq beradigan 2 xonali foiz BOR bo'lsa — sahifa aynan shuni tanlaydi (server narxi = yozilgan narx); "
+      "yo'q bo'lsa (41 800 → 37 600) — eng yaqini (sahifa haqiqiy narxni aytadi)", lambda: _js255 is not None and _v9(), lambda: _nat255)
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("Z. Ikkinchi korxona, jurnal")

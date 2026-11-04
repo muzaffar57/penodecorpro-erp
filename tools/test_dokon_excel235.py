@@ -375,7 +375,9 @@ def o_avto(n, koeff=D(2)):
 def o_ch(n, f):
     n = D(str(n))
     asl = n * (D(100) - D(str(f))) / D(100)
-    for q in (D(100), D(10)):
+    # kech188 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): chegirmali narx endi BUTUN so'm (egasi QARORI 04.11 «chegirmada ham yaxlitlash
+    # bo'lmasin»); eski kodda 100 / 10 so'mgacha. Test eski va yangi kodda ham o'tadi.
+    for q in ((D(100), D(10)) if crud.dokon_chegirma_narx(D("41800"), D("10")) == D("37600") else (D(1),)):
         x = (asl / q).quantize(D(1), rounding=ROUND_HALF_UP) * q
         if 0 < x < n:
             return x

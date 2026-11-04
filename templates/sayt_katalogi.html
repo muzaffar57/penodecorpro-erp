@@ -1827,7 +1827,7 @@ function skChOlchamHtml(mid, hl) {
 function skChegirmaHtml(m) {
   var c = skCheg(m.id);
   var ich = '<p class="sk-matn">Faqat oddiy narxga — qoplamasiz va qoplamali narxga bir xil foiz; ulgurji narx o\'zgarmaydi. Foiz o\'rniga ' +
-      'narxlar jadvalidagi «Yangi narx» katagiga narx yozsangiz — foiz o\'zi hisoblanadi. Chegirmali narx 100 so\'mgacha yaxlitlanadi. ' +
+      'narxlar jadvalidagi «Yangi narx» katagiga narx yozsangiz — foiz o\'zi hisoblanadi. Chegirmali narx — aniq summa (butun so\'m), yaxlitlanmaydi. ' +
       'Tugash sanasi o\'tgach chegirma o\'zi o\'chadi.</p>' +
     '<div class="sk-forma">' +
       '<label class="tor">Chegirma, %<input type="text" inputmode="decimal" data-chf="foiz" maxlength="8" placeholder="15" value="' +
@@ -1962,6 +1962,23 @@ async function skChKor(mid) {
   if (skChSaqlanganmi(mid, f)) skChOgohYangila(mid, (n.d.ogohlantirish || []).length);
 }
 
+// kech188 (zip 255 — egasi QARORI 04.11: chegirmali narx butun so'm, yaxlitlashsiz): «Yangi narx» → foiz (2 xona). Server hisobi
+// (narx × (100 − foiz) / 100 → butun so'm) yozilgan narxni AYNAN beradigan foiz tanlanadi (eng yaqindan boshlab, ±0,05 % ichida); bunday foiz
+// bo'lmasa — eng yaqini (haqiqiy narx ko'rishda — serverdan). Hisob butun sonlarda (tiyin × foiz × 100) — kasr xatosisiz.
+function skChYangiFoiz(asl, y) {
+  var f0 = Math.round((1 - y / asl) * 10000);              // foiz × 100 (butun)
+  var aslT = Math.round(asl * 100), yT = Math.round(y * 100);
+  var nomzod = [0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5];
+  for (var i = 0; i < nomzod.length; i++) {
+    var k = f0 + nomzod[i];
+    if (k < 100 || k > 9900) continue;
+    var surat = aslT * (10000 - k);                          // tiyin × 10 000
+    var som = Math.floor((surat + 500000) / 1000000);         // butun so'm, HALF_UP
+    if (som * 100 === yT) return k / 100;
+  }
+  return f0 / 100;
+}
+
 function skChNatijaTinglovchilar(mid, el) {
   el.querySelectorAll('[data-chyangi]').forEach(function (inp) {
     inp.addEventListener('change', function () {
@@ -1969,12 +1986,16 @@ function skChNatijaTinglovchilar(mid, el) {
       if (y === null) { inp.classList.remove('xato'); return; }
       if (isNaN(y) || y <= 0) { inp.classList.add('xato'); showMsg('❌ Yangi narx — son bo\'lsin', 'error'); return; }
       if (!(asl > 0) || y >= asl) { inp.classList.add('xato'); showMsg('❌ Yangi narx hozirgi narxdan (' + sonKor(asl, 0) + ') kam bo\'lsin', 'error'); return; }
-      var f = Math.round((1 - y / asl) * 10000) / 100;
+      var f = skChYangiFoiz(asl, y);
       if (f < 1 || f > 99) { inp.classList.add('xato'); showMsg('❌ Chegirma ' + sonKor(f, 2) + ' % chiqadi — 1 % dan 99 % gacha bo\'lsin', 'error'); return; }
       inp.classList.remove('xato');
       var q = document.querySelector('[data-chegirma="' + mid + '"] [data-chf="foiz"]');
       if (q) { q.value = String(f).replace('.', ','); q.classList.remove('xato'); }
-      showMsg('✓ Chegirma ' + sonKor(f, 2) + ' % — narxlar qayta hisoblandi (saqlash uchun «Chegirmani saqlash»)', 'success');
+      // kech188 (zip 255): foiz 2 xonali — katta narxda har narxni aniq berib bo'lmaydi; bo'lmasa haqiqiy narx ochiq aytiladi
+      var haqiqiy = Math.floor((Math.round(asl * 100) * (10000 - Math.round(f * 100)) + 500000) / 1000000);
+      showMsg(haqiqiy === y ? '✓ Chegirma ' + sonKor(f, 2) + ' % — narxlar qayta hisoblandi (saqlash uchun «Chegirmani saqlash»)'
+                            : 'ℹ️ ' + sonKor(y, 0) + ' so\'m aniq chiqmaydi (foiz 2 xonali): eng yaqini — ' + sonKor(haqiqiy, 0) +
+                              ' so\'m, chegirma ' + sonKor(f, 2) + ' %. Saqlash uchun «Chegirmani saqlash»', 'success');
       skChKor(mid);
     });
   });

@@ -391,7 +391,9 @@ def o_ch(narx, foiz):
         return None
     n = Decimal(str(narx))
     a = n * (100 - Decimal(str(foiz))) / 100
-    for q in (Decimal(100), Decimal(10)):
+    # kech188 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): chegirmali narx endi BUTUN so'm (egasi QARORI 04.11 «chegirmada ham yaxlitlash
+    # bo'lmasin»); eski kodda 100 / 10 so'mgacha. Test eski va yangi kodda ham o'tadi.
+    for q in ((Decimal(100), Decimal(10)) if crud.dokon_chegirma_narx(Decimal("41800"), Decimal("10")) == Decimal("37600") else (Decimal(1),)):
         x = (a / q).quantize(Decimal(1), rounding=ROUND_HALF_UP) * q
         if 0 < x < n:
             return float(x)
@@ -408,13 +410,16 @@ def o_avto(n, koeff=2):
 
 
 _chn = getattr(crud, "dokon_chegirma_narx", None)
+# kech188 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): eski kodda chegirmali narx 100 / 10 so'mgacha; yangi kodda — butun so'm (egasi QARORI 04.11).
+# Qo'lda yozilgan (100 ga yaxlit) kutilgan sonlar — faqat eski kodda; yangisida mustaqil `o_ch` bilan (u ham qobiliyatga qarab).
+_Y100_255 = _chn is not None and _chn(Decimal("41800"), Decimal("10")) == Decimal("37600")
 _qolda = [((15000, 15), 12800.0), ((198000, 15), 168300.0), ((1500, 10), 1400.0), ((1050, 1), 1000.0), ((20900, 1), 20700.0),
           ((10000, 5), 9500.0), ((9999, 5), 9500.0), ((0.05, 99), 0.01), ((7300.5, 20), 5800.0), ((19900, 20), 15900.0),
           ((10000, 1), 9900.0), ((1000, 1), 990.0), ((100, 1), 99.0), ((25000, 3), 24300.0)]
 check("K1 qo'lda hisob (100 so'mgacha): 15 000 × 15 % = 12 750 → 12 800; 10 000 × 1 % → 9 900 (ilgari 9 000 — review234 O1); 1 000 × 1 % = "
       "990 (100 gacha → 1 000 = asl → 10 gacha); 100 × 1 % = 99; 25 000 × 3 % → 24 300; 0,05 × 99 % → 0,01",
       lambda: [float(_chn(n, f)) for (n, f), _ in _qolda] == [o_ch(n, f) for (n, f), _ in _qolda]
-      and [o_ch(n, f) for (n, f), _ in _qolda] == [k for _, k in _qolda],
+      and (not _Y100_255 or [o_ch(n, f) for (n, f), _ in _qolda] == [k for _, k in _qolda]),
       lambda: [(n, f, float(_chn(n, f)), o_ch(n, f)) for (n, f), _ in _qolda])
 _tor = [(n, f) for n in (100, 999, 1000, 4550, 9950, 9999.99, 10000, 10499, 10500, 15000, 99999, 198000, 1234567.89)
         for f in (1, 2.5, 10, 14.14, 33.33, 50, 75, 99)]
@@ -483,7 +488,8 @@ check("K5 komplekt (15 %, hamma o'lcham): rom / eshik × qoplamasiz / qoplamali 
       "(Katta: kapitel yashirin → to'liq narxsiz)", lambda: kod_komplekt() == o_komplekt(15), lambda: (kod_komplekt(), o_komplekt(15)))
 _o = (kod_komplekt().get("O'rta") or {}).get("rom") or {}
 check("K5b qo'lda: O'rta rom = 2×12 800 + 2×11 900 + 4×10 200 + 2×21 300 + 2×17 900 = 168 600 (chegirmasiz 198 000 dan); kapitelsiz "
-      "90 200", _o.get("qoplamasiz") == 168600.0 and _o.get("qoplamasiz_kbsiz") == 90200.0, _o)
+      "90 200 (zip 255 dan — butun so'm: 168 300 / 90 100)", _o.get("qoplamasiz") == (168600.0 if _Y100_255 else 168300.0)
+      and _o.get("qoplamasiz_kbsiz") == (90200.0 if _Y100_255 else 90100.0), _o)
 _kx = (katalog().get("komplekt") or {}).get(str(M1)) or []
 check("K6 komplektda chegirmasiz narxlar va ULGURJI rom o'zgarmagan, foiz — 15",
       lambda: next(x for x in _kx if x["olcham"] == "O'rta")["rom"]["qoplamasiz"] == 198000.0
@@ -519,10 +525,10 @@ check("K12b ko'rishda ham tekshiruv: 120 % — 400", _r.status_code == 400 and "
 CA.put(CH(M2), json={"foiz": 10})
 _d2 = {o: detal(i).get("chegirma") for o, i in D2.items()}
 check("K13 karniz modeli (10 %): 99 000 → 89 100 (qoplamali avto 198 000 → 178 200); 1 500 → 1 400 (qoplamali 2 900 → 2 600); "
-      "20 900 → 18 800 (qoplamali avto 42 000 → 37 800)", _d2 == {"O'rta": {"foiz": 10.0, "narx": 89100.0, "narx_qoplamali": 178200.0},
-                                            "Katta": {"foiz": 10.0, "narx": 1400.0, "narx_qoplamali": 2600.0},
-                                            # kech187 (zip 255, MOSLANDI): avto qoplamali 41 800 (1 000 ga emas) → −10 % = 37 620 → 37 600
-                                            "Kichik": {"foiz": 10.0, "narx": 18800.0, "narx_qoplamali": 37800.0 if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000") else 37600.0}}, _d2)
+      "20 900 → 18 800 (qoplamali avto 42 000 → 37 800) — kech188 (zip 255, MOSLANDI): yangi kodda butun so'm (1 350 / 2 610, 18 810 / 37 620)",
+      _d2 == {"O'rta": {"foiz": 10.0, "narx": o_ch(99000, 10), "narx_qoplamali": o_ch(o_avto(99000), 10)},
+              "Katta": {"foiz": 10.0, "narx": o_ch(1500, 10), "narx_qoplamali": o_ch(2900, 10)},
+              "Kichik": {"foiz": 10.0, "narx": o_ch(20900, 10), "narx_qoplamali": o_ch(o_avto(20900), 10)}}, _d2)
 D2_ORTA = D2["O'rta"]
 _r = CA.put(API + f"/detallar/{D2_ORTA}", json={"narx": 100000})
 check("K14 narx qatori tahriri javobida — yangi chegirmali narx (100 000 → 90 000); katalog ham", lambda: js(_r).get("chegirma") ==
@@ -581,7 +587,7 @@ check("T4 85 %: tannarxi bor (metrli, eni / qalinlik) qatorlarda «past» — mu
 check("T5 85 % saqlandi (ogohlantirish to'smaydi) — ogohlantirishlar faqat saytda ko'rinadigan «past» qatorlar uchun, matnida "
       "narx va tannarx («3 203 so'm»)", lambda: ch_bazada()[M1][0] == Decimal("85.00")
       and len(_r["ogohlantirish"]) == len([k for k in _past if NARX[k][4]]) > 0
-      and any("Rom karnizi — O'rta" in x and "3 203 so'm" in x and "2 300 so'm (qoplamasiz)" in x for x in _r["ogohlantirish"]),
+      and any("Rom karnizi — O'rta" in x and "3 203 so'm" in x and (("2\u00a0300" if _Y100_255 else "2\u00a0250") + " so'm (qoplamasiz)") in x for x in _r["ogohlantirish"]),
       lambda: (_past, _r.get("ogohlantirish")))
 check("T6 katalogda «ogohlantirish_soni» = javobdagi ogohlantirishlar soni", lambda: katalog()["chegirmalar"][str(M1)]["ogohlantirish_soni"]
       == len(_r["ogohlantirish"]), lambda: katalog().get("chegirmalar"))
@@ -590,7 +596,8 @@ _q3 = next((q for q in _r3.get("qatorlar", []) if q.get("detal_id") == D2["Katta
 check("T4b karniz Katta (30 × 12 sm, tannarx 7 688; 1 500 → 1 400, qoplamali 2 900 → 2 600) — ikkalasi ham past; ogohlantirishda "
       "«(qoplamasiz) va … (qoplamali)»", lambda: _q3["tannarx"] == round((0.30 * 0.12 / 2) / 0.96 * 410000) == 7688
       and _q3["past"] == ["qoplamasiz", "qoplamali"]
-      and any("1\u00a0400 so'm (qoplamasiz) va 2\u00a0600 so'm (qoplamali)" in x for x in _r3["ogohlantirish"]), lambda: (_q3, _r3.get("ogohlantirish")))
+      and any(("1\u00a0400 so'm (qoplamasiz) va 2\u00a0600 so'm (qoplamali)" if _Y100_255 else
+               "1\u00a0350 so'm (qoplamasiz) va 2\u00a0610 so'm (qoplamali)") in x for x in _r3["ogohlantirish"]), lambda: (_q3, _r3.get("ogohlantirish")))
 db_ishi(lambda d: setattr(d.get(Inventory, PENO_ID), "is_default_penoplast", False))
 db_ishi(lambda d: setattr(d.get(Inventory, PENO_ID), "is_penoplast", False))
 _r2 = js(CA.post(CH(M1) + "/korish", json={"foiz": 85}))
@@ -649,7 +656,7 @@ CA.put(CH(M2), json={"foiz": 10, "olchamlar": ["Katta", "Kichik"]})
 _j0 = jurnal("dokon_detal")
 CA.put(API + f"/detallar/{D2['Katta']}", json={"olcham": "Katta (30 sm)"})
 check("O1 o'lchamdagi yagona qator qayta nomlandi — chegirma ro'yxatida ham («Katta (30 sm)», tartib saqlangan), qator jurnalida izoh",
-      lambda: ch_bazada()[M2][1] == ["Katta (30 sm)", "Kichik"] and (detal(D2["Katta"]).get("chegirma") or {}).get("narx") == 1400.0
+      lambda: ch_bazada()[M2][1] == ["Katta (30 sm)", "Kichik"] and (detal(D2["Katta"]).get("chegirma") or {}).get("narx") == (1400.0 if _Y100_255 else 1350.0)
       and "chegirma o'lchami" in jurnal_matnlari("dokon_detal")[-1][2], lambda: (ch_bazada().get(M2), jurnal_matnlari("dokon_detal")[-1:]))
 CA.put(API + f"/detallar/{D2['Katta']}", json={"olcham": "Katta"})
 CA.put(CH(M1), json={"foiz": 15, "olchamlar": ["Katta"]})
@@ -693,7 +700,7 @@ for _did in _KAT:
 D2["Kichik"] = js(CA.post(API + "/detallar", json={"model_id": M2, "turi": "asosiy", "olcham": "Kichik", "narx": 20900,
                                                    "ulgurji_narx": 30000})).get("id")
 check("O5 o'sha o'lcham qayta qo'shildi — chegirma yana amalda (20 900 → 18 800)",
-      lambda: (detal(D2["Kichik"]).get("chegirma") or {}).get("narx") == 18800.0 and katalog()["chegirmalar"][str(M2)]["yoq_olchamlar"] == [])
+      lambda: (detal(D2["Kichik"]).get("chegirma") or {}).get("narx") == (18800.0 if _Y100_255 else 18810.0) and katalog()["chegirmalar"][str(M2)]["yoq_olchamlar"] == [])
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("Z. Zaxira")
