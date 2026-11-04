@@ -7940,7 +7940,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
             try:
                 profit_data = yakun_foydasi(db, o)
                 monthly_profit += float(profit_data.get("foyda", 0))
-                kpi_amount += float(profit_data.get("foyda", 0)) * _p253 / 100
+                kpi_amount += max(float(profit_data.get("foyda", 0)), 0.0) * _p253 / 100      # egasi QARORI 04.11: zarar — 0
             except Exception as e:
                 try:
                     import crud as _crud_log
@@ -7960,7 +7960,7 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
             _foizlar.add(_p253)
             _foizli = _foizli or _p253 > 0
             monthly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
-            kpi_amount += (float(s.total_amount or 0) - float(s.cost_amount or 0)) * _p253 / 100
+            kpi_amount += max(float(s.total_amount or 0) - float(s.cost_amount or 0), 0.0) * _p253 / 100
         monthly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
         kpi_amount += _qaytarish_kpi.get(m.id, 0.0)
         _foizli = _foizli or bool(_qaytarish_foizli.get(m.id))

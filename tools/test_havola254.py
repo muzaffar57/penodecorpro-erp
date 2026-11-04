@@ -48,7 +48,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     import crud                                    # noqa: E402
     import models                                  # noqa: E402
 from database import SessionLocal                  # noqa: E402
-from models import UserRole, User, Master, Order   # noqa: E402
+from models import UserRole, User, Order           # noqa: E402
 from production_models import Company              # noqa: E402
 from fastapi.testclient import TestClient          # noqa: E402
 
@@ -253,6 +253,8 @@ check("B4 boshqa telefon, havolasiz — havola yo'q", r.status_code == 200 and h
 d0 = SessionLocal()
 for x in d0.query(DokonBuyurtma).filter(DokonBuyurtma.sb_telefon.like("%931000001%")).all():
     x.created_at = datetime.utcnow() - timedelta(days=31)
+    if getattr(x, "havola_vaqti", None) is not None:
+        x.havola_vaqti = datetime.utcnow() - timedelta(days=31)
 d0.commit()
 d0.close()
 r = buyurtma("+998 93 100 00 01")
@@ -267,7 +269,7 @@ _bad = [buyurtma(f"+998 93 100 05 {i:02d}", havola=x) for i, x in enumerate(("AB
 check("B8 noto'g'ri / noma'lum kod (katta harf, qisqa, uzun, son, ro'yxat, topilmagan) — buyurtma QABUL (200), havola yo'q",
       [x.status_code for x in _bad] == [200] * 7 and all(hav(x) is None for x in _bad), [(x.status_code, x.text[:60], hav(x)) for x in _bad])
 _b9 = bazadan(lambda d: crud._sayt_havola_hisobi(d, 2, H1, "+998931000006", None, datetime.utcnow()))
-check("B9 boshqa korxona (2) uchun A ustasi kodi — havola yo'q", _b9 is None, _b9)
+check("B9 boshqa korxona (2) uchun A ustasi kodi — havola yo'q", _b9 == (None, None), _b9)
 CA.post(f"{API}/mijozlar/{U3}/blokla")
 r = buyurtma("+998 93 100 00 07", havola=H3)
 check("B10 bloklangan usta kodi — havola yo'q", r.status_code == 200 and hav(r) is None, hav(r))
@@ -280,6 +282,44 @@ r = buyurtma("+998 93 100 00 09", havola=H1)
 _ex = NC.post("/api/dokon/v1/buyurtmalar", headers={"X-Dokon-Kalit": KALIT, "X-Amal-Kaliti": "savat-ortiq-000254", "Content-Type": "application/json"},
               content=json.dumps({"mijoz": "Ali", "telefon": "+998 93 100 00 10", "viloyat": "andijon", "qatorlar": Q, "boshqa": 1}).encode())
 check("B12 noma'lum maydon baribir 400 (faqat «havola» qo'shildi)", _ex.status_code == 400, (_ex.status_code, _ex.text[:120]))
+
+r = buyurtma("+998 93 200 00 01", havola=H1)
+_rr = js(r).get("raqam")
+d0 = SessionLocal()
+_b = d0.query(DokonBuyurtma).filter(DokonBuyurtma.sb_raqam == _rr).first()
+_b.sb_holat = "bekor"
+d0.commit()
+d0.close()
+r = buyurtma("+998 93 200 00 01")
+check("R1 (review254 M1) havola bilan kelgan buyurtma BEKOR qilingan — telefon bo'yicha keyingisi bog'lanmaydi", hav(r) is None, hav(r))
+r0 = buyurtma("+998 93 200 00 02", havola=H1)
+d0 = SessionLocal()
+_b0 = d0.query(DokonBuyurtma).filter(DokonBuyurtma.sb_raqam == js(r0).get("raqam")).first()
+_b0.created_at = datetime.utcnow() - timedelta(days=25)
+if hasattr(_b0, "havola_vaqti"):
+    _b0.havola_vaqti = _b0.created_at
+_v0 = getattr(_b0, "havola_vaqti", None)
+d0.commit()
+d0.close()
+r1 = buyurtma("+998 93 200 00 02")
+_v1 = getattr(sb(js(r1).get("raqam")), "havola_vaqti", None)
+check("R2 (review254 M2) telefon bo'yicha bog'langan buyurtma — muddat KOD paytidan (nusxa), yangilanmaydi",
+      hav(r1) == U1 and _v1 is not None and _v0 is not None and abs((_v1 - _v0).total_seconds()) < 1, (hav(r1), _v0, _v1))
+d0 = SessionLocal()
+for x in d0.query(DokonBuyurtma).filter(DokonBuyurtma.sb_telefon == "+998932000002").all():
+    if hasattr(x, "havola_vaqti"):
+        x.havola_vaqti = datetime.utcnow() - timedelta(days=31)
+d0.commit()
+d0.close()
+r2 = buyurtma("+998 93 200 00 02")
+check("R3 (review254 M2) kod bilan buyurtmaga 30 kun to'ldi — keyingi buyurtmalar (oraliqdagilar bo'lsa ham) bog'lanmaydi", hav(r2) is None, hav(r2))
+r = buyurtma("+998 93 200 00 03", havola=H1)
+r2 = buyurtma("+998 93 200 00 03", havola=H3)               # U3 — bloklangan
+check("R4 (review254 L5) bloklangan usta kodi — telefon bo'yicha oldingi (amaldagi) havola egasi", hav(r2) == U1, hav(r2))
+_k_soni = js(keshbek(S1)).get("havola_buyurtmalar")
+_bekor = bazadan(lambda d: d.query(DokonBuyurtma).filter(DokonBuyurtma.havola_mijoz_id == U1, DokonBuyurtma.sb_holat == "bekor").count())
+_hammasi = bazadan(lambda d: d.query(DokonBuyurtma).filter(DokonBuyurtma.havola_mijoz_id == U1).count())
+check("R5 (review254 L3) kabinetdagi son — bekor qilinganlarsiz", lambda: _bekor >= 1 and _k_soni == _hammasi - _bekor, (_k_soni, _hammasi, _bekor))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("U. ERP buyurtmasiga usta")

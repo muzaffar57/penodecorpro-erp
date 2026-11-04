@@ -723,6 +723,7 @@ def add_missing_indexes():
         ("dokon_buyurtmalar", "mijoz_id"),      # kech182 (zip 249): kabinet tarixi (review249 H249-2)
         ("dokon_buyurtmalar", "havola_mijoz_id"),   # kech186 (zip 254): usta havolasi
         ("dokon_mijozlar", "mj_havola"),            # kech186 (zip 254): havola kodi bo'yicha qidiruv
+        ("dokon_buyurtmalar", "sb_telefon"),        # review254 L6: telefon bo'yicha havola / soatlik chegara
     ]
 
     from sqlalchemy import inspect

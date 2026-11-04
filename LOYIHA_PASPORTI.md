@@ -3717,7 +3717,15 @@ DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH (kech181, zip 248; egasi QAROR
     O'chirish»); «Ustalar KPI» sahifasida — «qoldiq» qatori va 💸 oynasi. (3) usta hisobi tasdiqlanganda — shu hisobning ERP da ustasiz
     qolgan (ulgurji emas) buyurtmalari ustaga bog'lanadi (`_dokon_usta_buyurtmalarini_bogla`). (4) do'kon kabineti:
     `GET /api/dokon/v1/mijoz/keshbek` (faqat tasdiqlangan faol usta — yozilgan / berilgan / qoldiq, buyurtmalar keshbegi, tarix; foyda,
-    foiz, ERP raqami YO'Q); bot «Bonuslarim» — «Olinmagan qoldiq». Usta havolasi (30 kun, oxirgi havola) — zip 254.
+    foiz, ERP raqami YO'Q); bot «Bonuslarim» — «Olinmagan qoldiq». Egasi QARORI 04.11 «Zarar — 0»: zararli buyurtma / sotuv keshbekni
+    KAMAYTIRMAYDI (`crud.usta_ulushi` = max(foyda, 0) × qotgan foiz — hamma joyda, oylik «Usta bonusi» ham; qaytarish — ayiriladi).
+  * kech186 (zip 254) — USTA HAVOLASI (egasi QARORLARI 30.10 / 04.11: 30 kun, OXIRGI havola egasiga; usta o'zi — o'ziga; ulgurjiga yo'q):
+    `dokon_mijozlar.mj_havola` (8 belgi, tasdiqlangan ustaga birinchi so'rovda — `crud.dokon_usta_havolasi`, shartli yozish),
+    `dokon_buyurtmalar.havola_mijoz_id`, `havola_vaqti` (KOD paytidan 30 kun; telefon bo'yicha bog'langanda — nusxa), `sb_telefon` indeksi.
+    Buyurtma tanasida ixtiyoriy «havola» (`_sayt_havola_hisobi`: amaldagi usta kodi; noto'g'ri / yo'q — shu telefondan kod bilan berilgan,
+    bekor qilinmagan, 30 kun ichidagi eng oxirgi; kirgan USTA — o'zi). Tasdiqda `sayt_mijoz_ustasi` — usta hisobi bermagan bo'lsa havola
+    egasi; hisob tasdig'ida havola buyurtmalari ham bog'lanadi; Telegram «🔗 Usta havolasi»; kabinet API — `havola`, `havola_buyurtmalar`
+    (bekorsiz). Do'kon: `GET /u/{kod}` → imzolangan `pd_h` (30 kun, oxirgisi), buyurtmada «havola», kabinetda havola (nusxa, Telegram).
   `GET /api/dokon/v1/katalog` — `crud.dokon_api_katalog`: versiya, bugun (Toshkent); bo'limlar (FAQAT yoqilgan; id, nom, qolip,
   tizim_kaliti, tartib, qolip_nomi); modellar (yoqilgan, yoqilgan bo'limda; tartib — bo'lim → model tartibi → id, sahifadagidek): kod, nom,
   tavsif, qolip, kapitel_baza_bor, rasmlar (url, kichik, eni, boyi — `/static/uploads/dokon/…`, login siz), detallar (yoqilgan qatorlar:
@@ -5395,6 +5403,9 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   TO'G'RI chiqqanlar: tahrir, nusxa, taklif, qoralama — yig'ilgan qatorlar avvalgidek; ochish / yopish / boshqa buyurtma / o'lcham
   o'zgarishi — ustunlar to'g'ri almashadi; eski UI testlari (blok211 99, ui173 40, c_telefon 53, korinish203 28, sahifalar190 206) o'tadi.
 
+- (kech186, zip 254) Usta havolasi: `tools/test_havola254.py` (K — kod; B — kod / telefon 30 kun / oxirgi / o'z usta / magazin / noto'g'ri
+  kod / boshqa korxona / bloklangan / takror; R — review254 (bekor, muddat nusxasi, bloklangan kod, son); U — ERP buyurtmasiga usta, ulgurji,
+  kech tasdiq; Z — zaxira, indekslar). SQ 27/0, TF1 27/0, PG 27/0; asl (zip 253) — 22 ta yiqiladi, qulamaydi.
 - (kech186, zip 253) Keshbek: `tools/test_keshbek253.py` (S — tayyorgarlik; Q — foiz qotishi: «Tayyor», yangi foiz, foiz 0, usta qo'yildi
   / almashdi, «Tayyor» dan chiqib qaytdi, sotuv, migratsiya; H — «Tayyor» javobi; B — berildi: naqd (hisob), buyurtma to'loviga (kassada sof
   0, qarz), qoldiqdan / qarzdan ko'p, bekor buyurtma, oldin berilgan, 400 lar, takror, bog'lam himoyasi, o'chirish, jurnal, bot; T — hisob
@@ -8549,7 +8560,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `dokon_api_kalitlar` — `DokonApiKalit` (`models.py`, 10) — o'z `company_id`
 - `dokon_bolimlar` — `DokonBolim` (`models.py`, 10) — o'z `company_id`
 - `dokon_buyurtma_qatorlari` — `DokonBuyurtmaQator` (`models.py`, 26) — o'z `company_id` + ota tekshiruvi (buyurtma_id→DokonBuyurtma)
-- `dokon_buyurtmalar` — `DokonBuyurtma` (`models.py`, 26) — o'z `company_id`
+- `dokon_buyurtmalar` — `DokonBuyurtma` (`models.py`, 28) — o'z `company_id`
 - `dokon_chegirmalar` — `DokonChegirma` (`models.py`, 10) — o'z `company_id`
 - `dokon_detallar` — `DokonDetal` (`models.py`, 18) — o'z `company_id`
 - `dokon_galereya` — `DokonGalereya` (`models.py`, 9) — o'z `company_id`
@@ -8557,7 +8568,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `dokon_galereya_rasmlari` — `DokonGalereyaRasm` (`models.py`, 12) — o'z `company_id` + ota tekshiruvi (galereya_id→DokonGalereya)
 - `dokon_kirishlar` — `DokonKirish` (`models.py`, 9) — o'z `company_id`
 - `dokon_kutishlar` — `DokonKutish` (`models.py`, 16) — o'z `company_id`
-- `dokon_mijozlar` — `DokonMijoz` (`models.py`, 18) — o'z `company_id`
+- `dokon_mijozlar` — `DokonMijoz` (`models.py`, 19) — o'z `company_id`
 - `dokon_modellar` — `DokonModel` (`models.py`, 13) — o'z `company_id`
 - `dokon_rasmlar` — `DokonRasm` (`models.py`, 12) — o'z `company_id`
 - `dokon_sessiyalar` — `DokonSessiya` (`models.py`, 8) — o'z `company_id`
@@ -8715,6 +8726,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_g_qaror.py` · PG — kech121, EGASI QARORLARI 02.10 (zip 138): G1-08, G3-24, G4-13, G5-05, G5-23, G6-13 (+ .webp turi).
 - `test_galereya243.py` · PG — kech178 (zip 243): «Bajarilgan ishlar» galereyasi (onlayn do'kon rejasi, 1-bosqich).
 - `test_hajm217.py` · PG — kech157 (zip 217 «Kirim bekori — blok hajmi» — egasi tanlovi 25.10: «Kirim bekori — blok hajmi (Tavsiya)»).
+- `test_havola254.py` · PG — kech186 (zip 254: do'kon 3-bosqich «Ustaning shaxsiy havolasi», ERP tomoni).
 - `test_himoya_ui.py` — kech143 (zip 171): HAQIQIY brauzer (Chromium) — himoya qatlami (A-X04, A-X06) va kech142 jonli sinovi topilmalari N2, N3, guruh «Sotish» bekor qilinishi.
 - `test_hisoblar210.py` · PG — kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, ko'rinish tasdig'i 16:1x).
 - `test_hisobot_kesh.py` · PG — kech89 darvozasi (2026-09-26, 52-band: Moliya hisobotidagi N+1 so'rovlar).
@@ -8965,5 +8977,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 339 (Python 301, JS 38).
+Jami test fayllari: 340 (Python 302, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->

@@ -3222,7 +3222,7 @@ class DokonBuyurtma(Base):
     sb_kalit = Column(String(64), nullable=False)
     sb_tana_xesh = Column(String(64), nullable=False)
     sb_mijoz = Column(String(100), nullable=False)
-    sb_telefon = Column(String(13), nullable=False)
+    sb_telefon = Column(String(13), nullable=False, index=True)     # kech186 (review254 L6): telefon bo'yicha havola / soatlik chegara
     sb_viloyat = Column(String(20), nullable=False)
     sb_manzil = Column(Text, nullable=True)
     sb_lokatsiya = Column(String(40), nullable=True)
@@ -3250,6 +3250,9 @@ class DokonBuyurtma(Base):
     # kech186 (zip 254): mijoz USTA HAVOLASI orqali kelgan (havola egasi — usta hisobi `dokon_mijozlar.id`; FK siz — hisob o'chirilmaydi).
     # Tasdiqda ERP buyurtmasiga shu usta yoziladi (o'z usta hisobi bo'lmasa, ulgurji emas) — `crud.sayt_mijoz_ustasi`. `default=` YO'Q.
     havola_mijoz_id = Column(Integer, nullable=True, index=True)
+    # review254 M1 / M2: havola KODI bilan kelgan buyurtma vaqti (30 kun shundan sanaladi); telefon bo'yicha bog'langan buyurtma — manba
+    # buyurtmaning vaqti NUSXASI (har yangi buyurtma muddatni uzaytirmaydi)
+    havola_vaqti = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"

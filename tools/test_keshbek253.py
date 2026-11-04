@@ -372,6 +372,23 @@ check("H2 qaytarish (foiz 5 → 9 dan keyin) — o'sha buyurtma QOTGAN foizida (
       (_rr.status_code, _rr.text[:200], _rf, _qr, bot_yillik(ID["u2"]), kpi_sahifa(ID["u2"]), oylik(ID["u2"])))
 kpi_put(ID["u2"], 5)
 K_U2 = bot_yillik(ID["u2"])
+d0 = SessionLocal()
+_u4 = Master(company_id=1, name="Zarar usta", phone="+998931110009", kpi_percent=10.0, is_active=True)
+d0.add(_u4)
+d0.commit()
+U4 = _u4.id
+d0.close()
+OZ = buyurtma(U4, narx=1000)
+tayyor(OZ)
+_fz = foyda(OZ)
+OP = buyurtma(U4)
+tayyor(OP)
+_kp = round(foyda(OP) * 0.10)
+_tz = [r for r in js(CA.get(f"/api/masters/{U4}/kpi-detail?year={YIL}")) or [] if r.get("order_id") == OZ]
+check("H3 (egasi QARORI 04.11 «Zarar — 0») zararli buyurtma keshbekni KAMAYTIRMAYDI — bot / KPI sahifasi / oylik / tafsilot = faqat foydali "
+      "buyurtma ulushi; tafsilot qatorida 0",
+      _fz < 0 and _kp > 0 and abs(bot_yillik(U4) - _kp) <= 1 and abs(kpi_sahifa(U4) - _kp) <= 1 and abs(oylik(U4) - _kp) <= 1
+      and _tz and _tz[0].get("kpi_amount") == 0, (_fz, _kp, bot_yillik(U4), kpi_sahifa(U4), oylik(U4), _tz))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("B. «Keshbek berildi» — usullar, chegaralar, kassa / to'lov, o'chirish")
