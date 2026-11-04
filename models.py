@@ -3092,6 +3092,9 @@ class DokonMijoz(Base):
     mj_royxat_vaqti = Column(DateTime, nullable=True)
     mj_tasdiq_vaqti = Column(DateTime, nullable=True)
     mj_tasdiqlagan = Column(String(100), nullable=True)
+    # kech186 (zip 254 — usta havolasi): ustaning shaxsiy havola kodi (8 belgi, a–z 0–9; tasodifiy, korxona ichida yagona — kod tekshiradi);
+    # birinchi marta kabinetda so'ralganda beriladi (`crud.dokon_usta_havolasi`). NULL — hali berilmagan / usta emas.
+    mj_havola = Column(String(12), nullable=True, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -3244,6 +3247,9 @@ class DokonBuyurtma(Base):
     # kech184 (zip 250): ulgurji buyurtma — tasdiqlangan magazin «Ulgurji» bo'limidan bergan (narx — ulgurji, 1 dona = 2 m); NULL / False —
     # oddiy (chakana). Bitta buyurtmada aralashmaydi. Keshbek (usta KPI) — ulgurjida YO'Q. `default=` ATAYLAB YO'Q (eski qatorlar — NULL).
     sb_ulgurji = Column(Boolean, nullable=True)
+    # kech186 (zip 254): mijoz USTA HAVOLASI orqali kelgan (havola egasi — usta hisobi `dokon_mijozlar.id`; FK siz — hisob o'chirilmaydi).
+    # Tasdiqda ERP buyurtmasiga shu usta yoziladi (o'z usta hisobi bo'lmasa, ulgurji emas) — `crud.sayt_mijoz_ustasi`. `default=` YO'Q.
+    havola_mijoz_id = Column(Integer, nullable=True, index=True)
 
     def __repr__(self):
         return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"

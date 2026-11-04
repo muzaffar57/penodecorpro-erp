@@ -25949,7 +25949,8 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
         xesh = _sayt_tana_xesh({"ulgurji": data, "hisob": int(ulgurji_hisob.id)})
         kirgan_hisob = ulgurji_hisob
     else:
-        _dokon_kalitlar(data, ("mijoz", "telefon", "viloyat", "manzil", "lokatsiya", "izoh", "qatorlar", "kutilgan_jami"))
+        _dokon_kalitlar(data, ("mijoz", "telefon", "viloyat", "manzil", "lokatsiya", "izoh", "qatorlar", "kutilgan_jami",
+                               "havola"))                                                       # kech186 (zip 254): usta havolasi kodi
         xesh = _sayt_tana_xesh(data)
     eski = (db.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_kalit == kalit).first())
     if eski is not None:
@@ -26017,13 +26018,16 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
                 f"{y['nom']} — bor {xabar_son(y['bor'], 2)} {_DOKON_BIRLIK_NOMI238.get(y['birlik'], y['birlik'])}, so'ralgan "
                 f"{xabar_son(y['kerak'], 2)}" for y in yetmaydi) + ". Savatni yangilang", yetmaydi)
         band_tugash = hozir + _td234(hours=SAYT_BAND_SOAT)
+    _havola254 = (None if ulgurji_hisob is not None
+                  else _sayt_havola_hisobi(db, company_id, data.get("havola"), telefon, kirgan_hisob, hozir))   # kech186 (zip 254)
     _eng = db.query(_f237.max(DokonBuyurtma.sb_seq)).filter(DokonBuyurtma.company_id == company_id).scalar()
     seq = int(_eng or 0) + 1
     b = DokonBuyurtma(company_id=company_id, sb_seq=seq, sb_raqam=sayt_raqami(seq), sb_kalit=kalit, sb_tana_xesh=xesh,
                       sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
                       sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir,
                       sb_band_tugash=band_tugash, mijoz_id=(kirgan_hisob.id if kirgan_hisob is not None else None),     # kech182 (zip 249) — «mijoz», «hisob» band nomlar
-                      sb_ulgurji=(True if ulgurji_hisob is not None else None))         # kech184 (zip 250)
+                      sb_ulgurji=(True if ulgurji_hisob is not None else None),         # kech184 (zip 250)
+                      havola_mijoz_id=_havola254)                                         # kech186 (zip 254)
     db.add(b)
     db.flush()
     qatorlar = []
@@ -28328,9 +28332,15 @@ def sayt_mijoz_ustasi(db: Session, company_id: int, b):
     """Sayt buyurtmasi tasdiqlanganda ERP buyurtmasiga yoziladigan usta (`Master.id`) yoki None: buyurtmani bergan hisob — usta, egasi
     tasdiqlagan (`master_id` bor), usta SHU korxonada va faol. Chaqiruvchining tranzaksiyasida (hisob qatori — o'qish)."""
     from models import DokonMijoz
-    if not getattr(b, "mijoz_id", None) or getattr(b, "sb_ulgurji", None):     # kech184 (zip 250): ulgurji narxdagi buyurtmaga keshbek YO'Q
+    if getattr(b, "sb_ulgurji", None):             # kech184 (zip 250): ulgurji narxdagi buyurtmaga keshbek YO'Q
         return None
-    m = (db.query(DokonMijoz).filter(DokonMijoz.id == b.mijoz_id, DokonMijoz.company_id == company_id).populate_existing().first())
+    m = (db.query(DokonMijoz).filter(DokonMijoz.id == b.mijoz_id, DokonMijoz.company_id == company_id).populate_existing().first()
+         if getattr(b, "mijoz_id", None) else None)
+    # kech186 (zip 254 — egasi QARORI 30.10 «Usta o'zi buyurtma bersa — o'ziga; mijoz havola orqali kelsa — havola egasiga»): buyurtmani
+    # USTA hisobi bermagan bo'lsa (mehmon / magazin chakana) — havola egasi
+    if (m is None or m.mj_turi != "usta") and getattr(b, "havola_mijoz_id", None):
+        m = (db.query(DokonMijoz).filter(DokonMijoz.id == b.havola_mijoz_id, DokonMijoz.company_id == company_id)
+             .populate_existing().first())
     # review249 H249-1: FAQAT «tasdiqlangan» usta (blokdan chiqarilib / rad etilib qayta tasdiq kutayotgan — `master_id` saqlangan bo'lsa ham
     # — KPI olmaydi; tasdiqlangach keyingi buyurtmalari bog'lanadi)
     if m is None or m.mj_turi != "usta" or not m.master_id or m.mj_holat != "tasdiqlangan":
@@ -28358,6 +28368,12 @@ def sayt_mijoz_yorligi(db: Session, company_id: int, b):
     """Telegram / ro'yxat uchun: buyurtmani bergan hisob — «👷 Usta: ism» / «🏪 Magazin: «nom», shahar» (holati bilan); mehmon — None."""
     from models import DokonMijoz
     if not getattr(b, "mijoz_id", None):
+        # kech186 (zip 254): mehmon usta havolasi orqali kelgan — «🔗 Usta havolasi: ism»
+        if getattr(b, "havola_mijoz_id", None) and not getattr(b, "sb_ulgurji", None):
+            h = db.query(DokonMijoz).filter(DokonMijoz.id == b.havola_mijoz_id, DokonMijoz.company_id == company_id).first()
+            if h is not None:
+                hl = "" if h.mj_holat == "tasdiqlangan" else f" ({DOKON_MIJOZ_HOLATLARI.get(h.mj_holat, h.mj_holat).lower()})"
+                return f"🔗 Usta havolasi: {_tg237(h.mj_ism or h.mj_tg_ism or '')}{hl}"
         return None
     m = db.query(DokonMijoz).filter(DokonMijoz.id == b.mijoz_id, DokonMijoz.company_id == company_id).first()
     if m is None or not m.mj_turi:
@@ -29556,6 +29572,14 @@ def _dokon_usta_buyurtmalarini_bogla(db: Session, company_id: int, m, u) -> int:
     oids = [r[0] for r in db.query(DokonBuyurtma.order_id).filter(
         DokonBuyurtma.company_id == company_id, DokonBuyurtma.mijoz_id == m.id, DokonBuyurtma.order_id.isnot(None),
         DokonBuyurtma.sb_ulgurji.isnot(True)).all()]
+    # kech186 (zip 254): shu usta HAVOLASI orqali kelgan buyurtmalar ham (buyurtmani boshqa USTA hisobi bermagan bo'lsa)
+    from models import DokonMijoz as _DM254
+    for oid, bmid in db.query(DokonBuyurtma.order_id, DokonBuyurtma.mijoz_id).filter(
+            DokonBuyurtma.company_id == company_id, DokonBuyurtma.havola_mijoz_id == m.id, DokonBuyurtma.order_id.isnot(None),
+            DokonBuyurtma.sb_ulgurji.isnot(True)).all():
+        if bmid and db.query(_DM254.id).filter(_DM254.id == bmid, _DM254.company_id == company_id, _DM254.mj_turi == "usta").first():
+            continue
+        oids.append(oid)
     if not oids or not u.is_active:
         return 0
     n = 0
@@ -29582,6 +29606,10 @@ def dokon_mijoz_keshbek(db: Session, company_id: int, token) -> dict:
         return natija
     h = usta_keshbek_holati(db, company_id, u.id)
     natija["keshbek"] = {"yozilgan": max(h["yozilgan"], 0.0), "berilgan": h["berilgan"], "qoldiq": max(h["qoldiq"], 0.0)}
+    # kech186 (zip 254): shaxsiy havola kodi va u orqali kelgan buyurtmalar soni (mijozlarning ismi / telefoni — YO'Q)
+    natija["havola"] = dokon_usta_havolasi(db, company_id, m)
+    natija["havola_buyurtmalar"] = int(db.query(DokonBuyurtma.id).filter(DokonBuyurtma.company_id == company_id,
+                                                                          DokonBuyurtma.havola_mijoz_id == m.id).count())
     natija["tarix"] = [{"sana": (datetime.fromisoformat(x["sana"]) + _td234(hours=5)).strftime("%d.%m.%Y") if x["sana"] else None,
                         "summa": x["summa"], "usul": USTA_KESHBEK_USULLARI.get(x["usul"], x["usul"])} for x in h.get("tarix", [])[:10]]
     _ichida = sovga_davr_tekshirgich(db, company_id)
@@ -29608,3 +29636,63 @@ def dokon_mijoz_keshbek(db: Session, company_id: int, token) -> dict:
                 continue
             natija["buyurtmalar"][r.sb_raqam] = {"keshbek": round(f * usta_foizi(o, u) / 100), "holat": "yozildi"}
     return natija
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech186 (zip 254 — do'kon 3-bosqich «Ustaning shaxsiy havolasi», egasi QARORLARI 30.10 va 04.11): usta o'z havolasini mijoziga yuboradi;
+# mijoz shu havola orqali buyurtma bersa — keshbek havola egasiga; havola orqali kirgan mijozning keyingi buyurtmalari ham 30 kun shu ustaga;
+# ikki xil havola ochilsa — OXIRGI havola egasiga. Usta o'zi buyurtma bersa — o'ziga; ulgurji buyurtmaga keshbek YO'Q.
+# Do'kon: `/u/<kod>` → imzolangan cookie (30 kun, oxirgisi ustiga) → buyurtma tanasida «havola». ERP: kod → usta hisobi
+# (`dokon_buyurtmalar.havola_mijoz_id`); kod yo'q / cookie yo'qolgan bo'lsa — shu telefondan so'nggi 30 kunda havola bilan berilgan buyurtma.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+DOKON_HAVOLA_RE = _re205.compile(r"[a-z0-9]{8}")
+DOKON_HAVOLA_KUN = 30
+_DOKON_HAVOLA_BELGILAR = "abcdefghijkmnpqrstuvwxyz23456789"        # o'xshash belgilarsiz (l / 1 / o / 0)
+
+
+def dokon_usta_havolasi(db: Session, company_id: int, m):
+    """Tasdiqlangan usta hisobining havola kodi (yo'q bo'lsa — beriladi, flush; chaqiruvchi commit qiladi / o'qish yo'lida — shu yerda
+    commit). Usta emas / tasdiqlanmagan — None."""
+    import secrets as _s254
+    from models import DokonMijoz
+    if m is None or m.mj_turi != "usta" or m.mj_holat != "tasdiqlangan":
+        return None
+    if m.mj_havola and DOKON_HAVOLA_RE.fullmatch(m.mj_havola):
+        return m.mj_havola
+    for _ in range(20):
+        kod = "".join(_s254.choice(_DOKON_HAVOLA_BELGILAR) for _ in range(8))
+        if db.query(DokonMijoz.id).filter(DokonMijoz.company_id == company_id, DokonMijoz.mj_havola == kod).first() is None:
+            break
+    else:
+        raise RuntimeError("Havola kodi topilmadi")
+    m.mj_havola = kod
+    db.commit()
+    return kod
+
+
+def _sayt_havola_hisobi(db: Session, company_id: int, kod, telefon, kirgan_hisob, hozir):
+    """Sayt buyurtmasining havola egasi (usta hisobi id) yoki None. Kirgan hisob USTA bo'lsa — None (o'zi). Kod noto'g'ri / topilmadi —
+    e'tiborsiz (mijoz savati rad etilmaydi). Kod yo'q — shu telefondan so'nggi `DOKON_HAVOLA_KUN` kunda havola bilan berilgan ENG OXIRGI
+    buyurtmaning havola egasi. Bloklangan / rad etilgan / usta bo'lmagan hisob — None."""
+    from models import DokonMijoz, DokonBuyurtma
+    if kirgan_hisob is not None and kirgan_hisob.mj_turi == "usta":
+        return None
+    hid = None
+    if isinstance(kod, str) and DOKON_HAVOLA_RE.fullmatch(kod):
+        r = (db.query(DokonMijoz.id).filter(DokonMijoz.company_id == company_id, DokonMijoz.mj_havola == kod,
+                                            DokonMijoz.mj_turi == "usta").first())
+        hid = r[0] if r else None
+    if hid is None:
+        r = (db.query(DokonBuyurtma.havola_mijoz_id).filter(
+            DokonBuyurtma.company_id == company_id, DokonBuyurtma.sb_telefon == telefon, DokonBuyurtma.havola_mijoz_id.isnot(None),
+            DokonBuyurtma.created_at > hozir - _td234(days=DOKON_HAVOLA_KUN)).order_by(DokonBuyurtma.created_at.desc(),
+                                                                                     DokonBuyurtma.id.desc()).first())
+        hid = r[0] if r else None
+    if hid is None:
+        return None
+    h = db.query(DokonMijoz).filter(DokonMijoz.id == hid, DokonMijoz.company_id == company_id).first()
+    if h is None or h.mj_turi != "usta" or h.mj_holat in ("bloklangan", "rad"):
+        return None
+    if kirgan_hisob is not None and kirgan_hisob.id == h.id:
+        return None
+    return h.id
