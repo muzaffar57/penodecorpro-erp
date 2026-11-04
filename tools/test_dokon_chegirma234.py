@@ -914,9 +914,14 @@ else:
             pg.fill(f".sk-model[data-model='{M1}'] [data-mf=nom]", "Klassik (saqlanmagan)")
             _bas = len(SOROV)
             pg.fill(CHS + " [data-chf=foiz]", "15")
-            _y = kut(pg, f"(document.querySelector(\"{CHS} [data-chnatija]\").innerText || '').replace(/\\s/g, '').indexOf('168600') >= 0")
+            # kech188 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): kutilgan qiymatlar mustaqil hisobdan (eski kodda 168 600 / 12 800 / 148 800,
+            # yangisida butun so'm)
+            _k15 = str(int(o_komplekt(15)["O'rta"]["rom"]["qoplamasiz"]))
+            _k25 = str(int(o_komplekt(25)["O'rta"]["rom"]["qoplamasiz"]))
+            _d15 = str(int(o_ch(15000, 15)))
+            _y = kut(pg, f"(document.querySelector(\"{CHS} [data-chnatija]\").innerText || '').replace(/\\s/g, '').indexOf('{_k15}') >= 0")
             check("U4 foiz 15 yozildi — ko'rish (saqlamasdan): «198 000 → 168 600» komplekt, «15 000 → 12 800»; PUT yo'q",
-                  _y and "15000→12800" in matn(pg, CHS + " [data-chnatija]").replace(" ", "").replace(" ", "")
+                  _y and ("15000→" + _d15) in matn(pg, CHS + " [data-chnatija]").replace(" ", "").replace(" ", "")
                   and not [x for x in SOROV[_bas:] if x[0] == "PUT"] and ch_bazada() == {}, matn(pg, CHS + " [data-chnatija]")[:400])
             pg.evaluate("""() => { const f = window.fetch; window.__asl_fetch = f;
                 window.fetch = (u, o) => (o && o.method === 'POST' && /chegirma\\/korish/.test(String(u)) && /"foiz":15[,}]/.test(String(o.body || '')))
@@ -926,11 +931,11 @@ else:
             pg.fill(CHS + " [data-chf=foiz]", "15")
             pg.wait_for_timeout(600)                      # 15 % so'rovi ketdi (sekin)
             pg.fill(CHS + " [data-chf=foiz]", "25")
-            _y = kut(pg, f"(document.querySelector(\"{CHS} [data-chnatija]\").innerText || '').replace(/\\s/g, '').indexOf('148800') >= 0")
+            _y = kut(pg, f"(document.querySelector(\"{CHS} [data-chnatija]\").innerText || '').replace(/\\s/g, '').indexOf('{_k25}') >= 0")
             pg.wait_for_timeout(2200)                     # sekin (eski) javob ham keldi
             _nt5 = matn(pg, CHS + " [data-chnatija]").replace("\u00a0", "").replace(" ", "")
             check("U5b sekin tarmoq: 15 % ko'rish javobi kech keldi — ekranda oxirgi (25 %) natija qoldi (komplekt 198 000 → 148 800)",
-                  _y and "148800" in _nt5 and "168600" not in _nt5, _nt5[:300])
+                  _y and _k25 in _nt5 and _k15 not in _nt5, _nt5[:300])
             pg.evaluate("() => { window.fetch = window.__asl_fetch; }")
             _kar = f"{CHS} [data-chyangi='15000']"
             pg.fill(_kar, "12000")
