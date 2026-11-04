@@ -15622,6 +15622,61 @@ async def api_dokon_v1_ulgurji_savat_pdf(request: Request, db: Session = Depends
     return _sayt_pdf_javob(pdf, "ulgurji-savat.pdf")
 
 
+# ══ kech185 (zip 252) — DO'KON: «KELGANDA XABAR BERING» (kalit + `X-Mijoz-Sessiya`; faqat kirgan hisob) ════════════════════════════════
+# Mantiq — `crud.dokon_kutish_*`: element «Tayyor mahsulotlar»da yo'q / bo'lim yopiq — 404, hozir omborda bor / 30 tadan ko'p — 409,
+# hisob chegarasi (sessiya tekshiruvidan KEYIN) — 429. Xabar — rejalashtiruvchi `dokon_kutish_ish` (do'kon boti).
+def _dokon_kutish_bajar(db, fn):
+    try:
+        return _dokon_bajar(db, fn)
+    except crud.DokonSessiyaYoq:
+        db.rollback()
+        raise _dokon_sessiya_xato()
+    except crud.DokonKutishTopilmadi as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e), headers=_DOKON_NOSTORE)
+    except crud.DokonKutishZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e), headers=_DOKON_NOSTORE)
+    except crud.DokonKutishChegara as e:
+        db.rollback()
+        raise HTTPException(status_code=429, detail=str(e), headers={**_DOKON_NOSTORE, "Retry-After": str(e.kut)})
+
+
+@app.get("/api/dokon/v1/kutish")
+def api_dokon_v1_kutish(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan hisobning «Kelganda xabar bering» ro'yxati: faollari, keyin so'nggi 30 kunda kelganlari. Sessiya yaroqsiz — 401."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    sessiya = _dokon_sessiya_ol(request)
+    return JSONResponse(_dokon_kutish_bajar(db, lambda: crud.dokon_kutish_royxati(db, cid, sessiya)), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kutish")
+async def api_dokon_v1_kutish_qosh(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — «Kelganda xabar bering» (kalit + sessiya): {"tur": "d", "detal_id"} | {"tur": "k", "model_id", "komplekt", "olcham",
+    "kapitel_baza"} → hisobning ro'yxati. Takror bosish — o'zgarmaydi."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+    natija = await _ip_ichida(_dokon_kutish_bajar, db, lambda: crud.dokon_kutish_qosh(db, cid, sessiya, data))
+    return JSONResponse(natija, headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kutish/bekor")
+async def api_dokon_v1_kutish_bekor(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kutishni bekor qilish (kalit + sessiya): {"kalit"} → hisobning ro'yxati. Boshqa hisobniki / yo'q — 404."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+    natija = await _ip_ichida(_dokon_kutish_bajar, db, lambda: crud.dokon_kutish_bekor(db, cid, sessiya, data))
+    return JSONResponse(natija, headers=_DOKON_NOSTORE)
+
+
+@app.get("/api/sayt-katalogi/kutishlar")
+def api_sayt_kutishlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Admin: «Kelganda xabar bering» — qaysi mahsulot kutilmoqda (kim, qachondan), hozirgi holati, so'nggi 30 kunda yuborilgan xabarlar."""
+    return _dokon_bajar(db, lambda: crud.dokon_kutishlar_admin(db, auth.company_id_of(current_user)))
+
+
 # ── Admin: «Usta va magazinlar» (sayt katalogi sahifasi) ──
 def _dokon_mijoz_amal(db, fn):
     try:
@@ -15847,6 +15902,53 @@ def obuna_kunlik_ish():
         db.close()
 
 
+def _dokon_kutish_yubor(chat_id, matn, tugma):
+    """«Kelganda xabar bering» xabari (review252 M2): chatga bog'liq rad (Telegram 400 — chat yo'q / 403 — botni bloklagan) — False
+    (urinish sanaladi); bot tokeni yo'q / noto'g'ri (401, 404), Telegram chegarasi (429), Telegram / tarmoq ishlamayapti (5xx, ulanish) —
+    `crud.DokonKutishToxta` (tekshiruv to'xtaydi, urinish SANALMAYDI — vaqtinchalik uzilish kutishlarni «xato» ga o'tkazmasin)."""
+    import urllib.error as _ue252
+    token = _dokon_bot_token()
+    if not token or not chat_id:
+        raise crud.DokonKutishToxta("Do'kon boti sozlanmagan")
+    try:
+        _tg_post_message(token, str(chat_id), matn, reply_markup=tugma)
+        return True
+    except _ue252.HTTPError as e:
+        if e.code in (400, 403):
+            print(f"⚠ Kelganda xabar bering: chatga yetmadi (HTTP {e.code})")
+            return False
+        raise crud.DokonKutishToxta(f"Telegram HTTP {e.code}")
+    except Exception as e:                               # noqa: BLE001 — tarmoq / vaqt tugadi
+        raise crud.DokonKutishToxta(_tg_toza(e, token))
+
+
+def dokon_kutish_ish():
+    """kech185 (zip 252) — «Kelganda xabar bering» tekshiruvi (rejalashtiruvchi, har `crud.DOKON_KUTISH_TEKSHIRUV_DAQIQA` daqiqa): sayt
+    katalogi yoqilgan har korxonada `crud.dokon_kutish_tekshir` (kelgan mahsulot — do'kon boti xabari, BIR marta). Do'kon boti sozlanmagan —
+    hech narsa qilinmaydi (kutishlar kutadi). Bitta korxona xatosi qolganlarini to'xtatmaydi."""
+    import tenant_context as _tc252
+    from production_models import Company as _Co252
+    if not _dokon_bot_token():
+        return
+    db = SessionLocal()
+    try:
+        with _tc252.system_context(db):
+            cids = [r[0] for r in db.query(_Co252.id).filter(_Co252.dokon_yoqilgan == True).order_by(_Co252.id).all()]   # noqa: E712
+        for cid in cids:
+            try:
+                _tc252.set_current_company(db, cid)
+                stat = crud.dokon_kutish_tekshir(db, cid, _dokon_kutish_yubor)
+                if stat["yuborildi"] or stat["xato"] or stat["tiklandi"] or stat.get("toxtadi"):
+                    print(f"✓ Kelganda xabar bering (korxona {cid}): {stat}")
+            except Exception as e:                       # noqa: BLE001
+                db.rollback()
+                print(f"⚠ Kelganda xabar bering tekshiruvi xatosi (korxona {cid}): {e}")
+            finally:
+                _tc252.reset_current_company(db)
+    finally:
+        db.close()
+
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler(timezone="Asia/Tashkent")
@@ -15854,6 +15956,9 @@ try:
     _scheduler.add_job(run_daily_backup, "cron", hour=23, minute=30, id="daily_backup")
     # kech111 — obuna: imtiyozdan o'tganni bloklash va egasiga eslatma (Toshkent 09:05, takrorsiz — `obuna.kunlik_tekshiruv`)
     _scheduler.add_job(obuna_kunlik_ish, "cron", hour=9, minute=5, id="obuna_tekshiruvi")
+    # kech185 (zip 252): «Kelganda xabar bering» — kelgan mahsulot haqida mijozga do'kon boti xabari (bir vaqtda bitta nusxa)
+    _scheduler.add_job(dokon_kutish_ish, "interval", minutes=crud.DOKON_KUTISH_TEKSHIRUV_DAQIQA, id="dokon_kutish", max_instances=1,
+                       coalesce=True)
     _scheduler.start()
     print("✓ Kunlik avtomatik backup rejalashtiruvchisi ishga tushdi (har kuni 23:30, Toshkent vaqti)")
 except Exception as e:

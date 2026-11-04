@@ -255,6 +255,15 @@
 @media (max-width: 700px){
   .sk-mj-forma select,.sk-mj-forma input,.sk-mj-forma .btn{flex:1 1 100%;justify-content:center}
 }
+/* kech185 (zip 252): «Kelganda xabar bering» — mahsulot bo'yicha kutayotganlar */
+.sk-kt-jami{margin-top:8px;font-size:13px;line-height:1.6}
+.sk-kt-mahsulot{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-kt-mahsulot[data-holat="omborda"]{border-color:var(--gold);background:var(--gold-tint)}
+.sk-kt-bosh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.sk-kt-bosh b{font-size:14px;overflow-wrap:anywhere}
+.sk-kt-izoh{font-size:12px;opacity:.8}
+.sk-kt-kim{margin:6px 0 0;padding-left:18px}
+.sk-kt-kim li{overflow-wrap:anywhere}
 /* kech178 (zip 243): «Bajarilgan ishlar» galereyasi — ishlar ro'yxati (asosiy rasm, nomi, joyi · oyi, saytda ko'rinishi), ochiq ish — forma,
    mahsulotlar (katalogdan model → o'lcham yoki komplekt → miqdor), rasmlar (model rasmlari uslubida; qirqilmaydi) */
 .sk-gl-ish{border:1px solid var(--border2);border-radius:var(--r-btn);margin-top:10px;background:var(--white)}
@@ -366,6 +375,18 @@
           bo'lim ochiladi. Tasdiq yoki rad haqida mijozga Telegram'da xabar boradi.</p>
         <div class="sk-mj-bot" id="skMjBot" aria-live="polite">Yuklanmoqda…</div>
         <div id="skMjRoyxat" aria-live="polite"></div>
+      </div>
+    </details>
+  </div>
+</div>
+<div class="card" style="margin-bottom:14px" id="skKt">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-kt"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🔔 Kelganda xabar bering</span><span class="sht-holat" id="skKtHolatQisqa"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Saytdagi «Tayyor mahsulotlar»da tugagan mahsulot uchun kirgan usta / magazin «Kelganda xabar bering» ni bosadi.
+          Mahsulot omborga kelib saytda qoldig'i paydo bo'lganda unga Telegram'da xabar boradi (tekshiruv har bir necha daqiqada, har kutishga
+          bir marta). Bu yerda qaysi mahsulot kutilayotganini ko'rasiz.</p>
+        <div id="skKtRoyxat" aria-live="polite"><div class="sk-bosh-holat">Yuklanmoqda…</div></div>
       </div>
     </details>
   </div>
@@ -2439,6 +2460,50 @@ async function skMjAmal(tugma) {
 }
 
 skMjYukla();
+
+// ── kech185 (zip 252): «Kelganda xabar bering» ──
+// GET /api/sayt-katalogi/kutishlar — faol kutishlar mahsulot bo'yicha (ko'p kutilgani birinchi), holati: «omborda» (keyingi tekshiruvda
+// xabar ketadi), «tugagan», «saytda_yoq» (element «Tayyor mahsulotlar»dan chiqqan — qaytsa xabar ketadi); so'nggi kunlarda yuborilganlar.
+// Faqat ko'rish (amal yo'q). Server matni — `escapeHtml`.
+SK.kt = null;
+
+function skKtHolatMatni(g) {
+  if (g.holat === 'omborda') return '✅ Omborda: ' + g.soni + ' ' + (g.birlik || '') + ' — xabar keyingi tekshiruvda ketadi';
+  if (g.holat === 'tugagan') return 'Tugagan';
+  return '«Tayyor mahsulotlar»da yo\'q (ombor bog\'lami yoki narxi yo\'q / yashirilgan)';
+}
+
+function skKtKim(k) {
+  return '<li>' + escapeHtml(k.ism || '—') + ' · ' + escapeHtml(k.telefon || '') + (k.turi_nomi ? ' · ' + escapeHtml(k.turi_nomi) : '') +
+    (k.shahar ? ', ' + escapeHtml(k.shahar) : '') + ' <span class="sk-kt-izoh">· ' + escapeHtml(skMjSana(k.sana)) + ' dan</span></li>';
+}
+
+function skKtChiz() {
+  var r = document.getElementById('skKtRoyxat');
+  if (!r) return;
+  var d = SK.kt;
+  if (!d) { r.textContent = 'Ro\'yxat olinmadi — sahifani yangilang.'; shtorkaHolat('sk-kt', '', null); return; }
+  var m = d.mahsulotlar || [];
+  shtorkaHolat('sk-kt', d.kutayotgan ? d.kutayotgan + ' ta kutish' : 'kutilayotgan yo\'q', null);
+  var html = '<div class="sk-kt-jami">So\'nggi ' + d.tarix_kun + ' kunda xabar yuborildi: <b>' + d.yuborilgan + '</b>' +
+    (d.xato ? ' · Telegram\'da yetmadi: <b>' + d.xato + '</b> (mijoz botni o\'chirgan bo\'lishi mumkin)' : '') + '</div>';
+  if (!d.tayyor_ochiq) html += '<p class="sk-matn">⚠ «Tayyor mahsulotlar» bo\'limi saytda yashirilgan — u ochilmaguncha xabar yuborilmaydi.</p>';
+  if (!m.length) { r.innerHTML = html + '<p class="sk-matn">Hozir hech kim mahsulot kutmayapti.</p>'; return; }
+  html += m.map(function (g) {
+    return '<div class="sk-kt-mahsulot" data-holat="' + escapeHtml(g.holat) + '"><div class="sk-kt-bosh"><b>' + escapeHtml(g.nom) + '</b>' +
+      '<span>' + g.n + ' kishi kutmoqda</span><span class="sk-kt-izoh">' + escapeHtml(skKtHolatMatni(g)) + '</span></div>' +
+      '<ul class="sk-kt-kim">' + (g.kutayotganlar || []).map(skKtKim).join('') + '</ul></div>';
+  }).join('');
+  r.innerHTML = html;
+}
+
+async function skKtYukla() {
+  var n = await skSorov('/api/sayt-katalogi/kutishlar', 'GET');
+  SK.kt = n.ok ? n.d : null;
+  skKtChiz();
+}
+
+skKtYukla();
 
 // ── kech178 (zip 243): «Bajarilgan ishlar» galereyasi ────────────────────────────────────────────────────────────────────────
 // SK.gl — /api/sayt-katalogi/galereya javobi; SK.glOchiq — ochiq ish (raqam yoki 'yangi'); SK.glD — ochiq ishning TAHRIR nusxasi (saqlanmagan

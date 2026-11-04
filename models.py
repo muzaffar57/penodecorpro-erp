@@ -3132,6 +3132,37 @@ class DokonSessiya(Base):
         return f"<DokonSessiya {self.id} mijoz={self.mijoz_id} c={self.company_id}>"
 
 
+class DokonKutish(Base):
+    """kech185 (zip 252) — «Kelganda xabar bering» (egasi rejasi «Onlayn do'kon rejasi» 30.10: tayyor mahsulot tugasa, mijoz tugmani
+    bosadi; omborga kelganda Telegram'da xabar oladi; egasi qaysi mahsulot kutilayotganini ko'radi). Kirgan hisob × «Tayyor mahsulotlar»
+    elementi (detal yoki komplekt) — `kt_kalit` («d|<detal_id>» | «k|<model_id>|<rom|eshik>|<1|0>|<o'lcham kaliti>»), hisob bo'yicha YAGONA
+    (qayta bosilsa — yana «kutilmoqda»). Holat: «kutilmoqda» → «yuborilmoqda» (shartli UPDATE — xabar BIR marta) → «yuborildi» | «bekor» |
+    «xato» (`DOKON_KUTISH_URINISH_MAX` urinishdan keyin). `kt_nom` — saytdagi nom NUSXASI (katalog o'zgarsa ham ro'yxat / xabar o'qiladi).
+    Zaxiraga KIRADI. Mantiq — `crud.dokon_kutish_*`. Ustun nomlari NOYOB (tools/test_html_escape.py)."""
+    __tablename__ = "dokon_kutishlar"
+    __table_args__ = (UniqueConstraint("company_id", "mijoz_id", "kt_kalit", name="uq_dokon_kutish_kalit"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    mijoz_id = Column(Integer, ForeignKey("dokon_mijozlar.id", ondelete="CASCADE"), nullable=False, index=True)
+    kt_kalit = Column(String(120), nullable=False)
+    kt_tur = Column(String(10), nullable=False)
+    detal_id = Column(Integer, nullable=True)
+    model_id = Column(Integer, nullable=True)
+    kt_komplekt = Column(String(10), nullable=True)
+    kt_olcham = Column(String(60), nullable=True)
+    kt_kb = Column(Boolean, nullable=True)
+    kt_nom = Column(String(200), nullable=False)
+    kt_holat = Column(String(12), nullable=False, default="kutilmoqda", index=True)
+    kt_urinish = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    kt_xabar_vaqti = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DokonKutish {self.id} {self.kt_kalit} {self.kt_holat} c={self.company_id}>"
+
+
 class DokonBuyurtma(Base):
     """kech171 (zip 237) — saytdan kelgan buyurtma (egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni»: mijoz savatni yig'ib,
     ism + telefon (+ viloyat, manzil / joylashuv) bilan buyurtma beradi → ERP da «Saytdan kelgan buyurtmalar» ro'yxati va Telegram xabari →
@@ -3612,6 +3643,8 @@ _TENANT_REFS = {
     "DokonMijoz":                  [("master_id", "Master")],
     "DokonKirish":                 [("mijoz_id", "DokonMijoz")],
     "DokonSessiya":                [("mijoz_id", "DokonMijoz")],
+    # kech185 (zip 252): «Kelganda xabar bering» — o'z korxonasining hisobiga
+    "DokonKutish":                 [("mijoz_id", "DokonMijoz")],
 }
 
 

@@ -11590,6 +11590,7 @@ def _reset_table_order():
         DokonBuyurtma, DokonBuyurtmaQator,
         DokonGalereya, DokonGalereyaQator, DokonGalereyaRasm,
         DokonMijoz, DokonKirish, DokonSessiya,
+        DokonKutish,
     )
     return [
         ProductionOrder,
@@ -11618,6 +11619,8 @@ def _reset_table_order():
         Yonalish,
         # kech181 (zip 248, review248 H1): saytdagi hisob ERP ustasiga (`master_id`), kirish / sessiya — hisobga ishora qiladi: o'chirishda
         # sessiya → kirish → hisob → usta; tiklashda hisob ustadan KEYIN (sessiya / kirish — tiklanmaydi)
+        # kech185 (zip 252): «Kelganda xabar bering» yozuvi hisobga ishora qiladi — hisobdan OLDIN o'chiriladi, tiklashda KEYIN
+        DokonKutish,
         DokonSessiya, DokonKirish, DokonMijoz,
         MasterGiftRedemption, MasterGift,
         MasterGiftPeriodRedemption, GiftPeriodParticipant, GiftPeriodTier, GiftPeriod,
@@ -22718,6 +22721,7 @@ def dokon_model_ochir(db: Session, model_id: int, company_id: int, kim: str):
                  + (f", galereyadan {_gl243} ta qator" if _gl243 else ""),
                  company_id=company_id, commit=False)
     urllar = [u for r in rasmlar for u in (r.fayl, r.kichik)]
+    _dokon_kutish_bekor_qil(db, company_id, model_id=m.id)      # kech185 (review252 M3): shu model kutishlari — bekor
     for d in detallar:
         db.delete(d)
     for r in rasmlar:
@@ -22880,6 +22884,7 @@ def dokon_detal_ochir(db: Session, detal_id: int, company_id: int, kim: str):
     log_activity(db, "deleted", "dokon_detal", d.id, f"Sayt narxi {m.kod if m else d.model_id}", kim,
                  old_value=_dokon_detal_matni(d) + (f"; galereyadan {_gl243} ta qator" if _gl243 else ""),
                  company_id=company_id, commit=False)
+    _dokon_kutish_bekor_qil(db, company_id, detal_id=d.id)      # kech185 (review252 M3): shu detal kutishlari — bekor
     db.flush()
     db.delete(d)
     db.commit()
@@ -28761,3 +28766,413 @@ def ulgurji_savat_pdf_malumoti(db: Session, company_id: int, m, data, hozir_utc=
             "mijoz": ulgurji_mijoz_nomi(m), "telefon": None, "viloyat_nomi": None, "holat": "savat", "holat_nomi": None,
             "items": _sayt_pdf_qatorlari([_sayt_hisob_qatori(x) for x in hisob["qatorlar"]], ulgurji=True),
             "jami": float(hisob["jami"]), "pastki": pastki, "ulgurji": True}
+
+
+# ══ kech185 (zip 252) — DO'KON: «KELGANDA XABAR BERING» (egasi rejasi «Onlayn do'kon rejasi» 30.10: «Tayyor mahsulot tugasa, mijoz
+# tugmani bosadi; omborga kelganda Telegram'da xabar oladi. Siz qaysi mahsulot kutilayotganini ko'rasiz»; «… «Kelganda xabar bering»
+# shakllarida urinishlar soni cheklanadi»). Faqat KIRGAN hisob (Telegram orqali — xabar do'kon boti chatiga); faqat «Tayyor mahsulotlar»
+# dagi element (detal yoki komplekt), saytdagi qoldig'i 1 dan kam (sahifadagi «Tugagan» bilan AYNAN). Qoldiq — `dokon_api_tayyor` dan
+# (BITTA qoida). Tekshiruv — rejalashtiruvchi (`main.dokon_kutish_ish`, har `DOKON_KUTISH_TEKSHIRUV_DAQIQA`): shartli UPDATE — xabar BIR marta.
+DOKON_KUTISH_YOLI = "/api/dokon/v1/kutish"
+DOKON_KUTISH_BEKOR_YOLI = "/api/dokon/v1/kutish/bekor"
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + (DOKON_KUTISH_YOLI, DOKON_KUTISH_BEKOR_YOLI)
+DOKON_KUTISH_MAX = 30                     # bitta hisobning faol kutishlari
+DOKON_KUTISH_URINISH_MAX = 5              # Telegram xabari shuncha marta yetmasa — «xato» (keyin urinilmaydi)
+DOKON_KUTISH_DAQIQA_MAX = 20              # yozuvchi so'rovlar (qo'shish / bekor) — hisobga daqiqasiga
+DOKON_KUTISH_TEKSHIRUV_DAQIQA = 5
+DOKON_KUTISH_QOTGAN = _td234(minutes=30)  # «yuborilmoqda» da qolib ketgan (jarayon xabar paytida to'xtagan) — qayta navbatga
+DOKON_KUTISH_TARIX_KUN = 30               # kabinet / admin: yuborilganlar shuncha kun ko'rinadi
+DOKON_KUTISH_TARIX_MAX = 50               # kabinet: so'nggi kelganlar ko'pi bilan (do'kon 100 tadan ko'p ro'yxatni rad etadi — review252-dokon L6)
+DOKON_KUTISH_PARTIYA = 300                # bitta tekshiruvda bitta korxonadan ko'pi bilan (eng eskisidan)
+DOKON_KUTISH_FAOL = ("kutilmoqda", "yuborilmoqda")
+DOKON_KUTISH_HOLATLARI = {"kutilmoqda": "Kelganda xabar beriladi", "yuborilmoqda": "Kelganda xabar beriladi",
+                          "yuborildi": "Keldi — Telegramga xabar yuborildi", "bekor": "Bekor qilingan",
+                          "xato": "Keldi, lekin Telegram xabari yetmadi"}
+_DOKON_KUTISH_CHEKLOV = _DokonApiCheklov(DOKON_KUTISH_DAQIQA_MAX, DOKON_API_OYNA_SEKUND)
+
+
+class DokonKutishTopilmadi(Exception):
+    """«Tayyor mahsulotlar»da bunday element yo'q / bo'lim yopiq / kutish topilmadi — 404."""
+
+
+class DokonKutishZiddiyat(Exception):
+    """Mahsulot hozir omborda bor / faol kutishlar chegarasi — 409."""
+
+
+class DokonKutishToxta(Exception):
+    """Tekshiruvdagi `yubor`: Telegram / bot / tarmoq UMUMAN ishlamayapti (chatga bog'liq emas) — tekshiruv to'xtaydi, urinish sanalmaydi."""
+
+
+class DokonKutishChegara(Exception):
+    """Hisobning yozuvchi so'rovlari chegarasi — 429 (`kut` — necha soniyadan keyin)."""
+
+    def __init__(self, kut):
+        super().__init__(f"So'rovlar juda ko'p — {kut} soniyadan keyin urining")
+        self.kut = kut
+
+
+def tayyor_bolimi_ochiqmi(db: Session, company_id: int) -> bool:
+    """«Tayyor mahsulotlar» tizim bo'limi saytda yoqilganmi (yo'q — eski korxona: standart bo'limlar yaratilmagan — ochiq)."""
+    from models import DokonBolim
+    row = (db.query(DokonBolim.yoqilgan).filter(DokonBolim.company_id == company_id, DokonBolim.tizim_kaliti == "tayyor").first())
+    return True if row is None else bool(row[0])
+
+
+def _dokon_kutish_k_kalit(model_id, komplekt, kb, olcham) -> str:
+    """Komplekt elementi kaliti: «k|<model>|<rom|eshik>|<1|0>|<o'lcham kaliti>» (o'lcham — `dokon_olcham_kalit`: tutuq / katta-kichik harf
+    farqi bir xil element)."""
+    k = f"k|{int(model_id)}|{komplekt}|{1 if kb else 0}|{dokon_olcham_kalit(olcham)}"
+    if len(k) > 120:                    # review252 L5: casefold uzaytirishi mumkin («ß» → «ss») — ustun 120; uzuni — xesh bilan (yagona)
+        k = k[:k.rindex("|") + 1] + "#" + _hl236.sha256(dokon_olcham_kalit(olcham).encode("utf-8")).hexdigest()[:40]
+    return k
+
+
+def _dokon_kutish_k_nomi(m, komplekt, olcham, kb) -> str:
+    """«R-18 Klassik — Rom komplekti, O'rta» (+ «, kapitel / bazasiz») — galereya qatori nomi bilan BIR XIL shakl."""
+    nom = m.kod + (f" {m.nom}" if m.nom else "")
+    nom += f" — {DOKON_KOMPLEKT_NOMI.get(komplekt, 'Komplekt')}, {olcham}"
+    if m.kapitel_baza_bor and not kb:
+        nom += ", kapitel / bazasiz"
+    return nom[:200]
+
+
+def _dokon_kutish_bekor_qil(db: Session, company_id: int, model_id=None, detal_id=None) -> int:
+    """review252 M3: katalog modeli / detali o'chirilganda uning faol kutishlari — «bekor» (chaqiruvchining tranzaksiyasida). Aks holda
+    kutish abadiy «kutilmoqda» qolib, raqami keyin boshqa mahsulotga berilsa (SQLite / tiklash) — boshqa mahsulot haqida xabar ketardi."""
+    from models import DokonKutish
+    q = db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat.in_(DOKON_KUTISH_FAOL))
+    if detal_id is not None:
+        q = q.filter(DokonKutish.kt_tur == "d", DokonKutish.detal_id == detal_id)
+    elif model_id is not None:
+        q = q.filter(DokonKutish.model_id == model_id)
+    else:
+        return 0
+    return q.update({DokonKutish.kt_holat: "bekor", DokonKutish.updated_at: _dt233.utcnow()}, synchronize_session=False)
+
+
+def dokon_kutish_holati(db: Session, company_id: int, hozir_utc=None) -> dict:
+    """«Tayyor mahsulotlar» elementlari hozirgi holati — {kalit: {"kalit", "tur" ("d" | "k"), "detal_id", "model_id", "komplekt", "olcham",
+    "kapitel_baza", "nom", "soni" (butun: detal — qoldiqning butun qismi, komplekt — nechta yig'iladi), "birlik"}}. Manba —
+    `dokon_api_tayyor` (saytdagi qoldiqning O'ZI: ERP bo'sh qoldig'i − faol sayt bandlari). Komplektda `kapitel_baza` — API dagidek (modelda
+    kapitel / baza bo'lmasa — False)."""
+    from models import DokonModel, DokonDetal
+    t = dokon_api_tayyor(db, company_id, hozir_utc)
+    mids = sorted({x["model_id"] for x in t["detallar"]} | {x["model_id"] for x in t["komplektlar"]})
+    modellar = ({m.id: m for m in db.query(DokonModel).filter(DokonModel.company_id == company_id, DokonModel.id.in_(mids)).all()}
+                if mids else {})
+    dids = sorted({x["detal_id"] for x in t["detallar"]})
+    detallar = ({d.id: d for d in db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.id.in_(dids)).all()}
+                if dids else {})
+    natija = {}
+    for x in t["detallar"]:
+        m, d = modellar.get(x["model_id"]), detallar.get(x["detal_id"])
+        if m is None or d is None:
+            continue
+        k = f"d|{d.id}"
+        natija[k] = {"kalit": k, "tur": "d", "detal_id": d.id, "model_id": m.id, "komplekt": None, "olcham": d.olcham,
+                     "kapitel_baza": None, "nom": _dokon_gl_detal_nomi(m, d)[:200],
+                     "soni": int(Decimal(str(x["qoldiq"])) // 1), "birlik": _DOKON_BIRLIK_NOMI238.get(d.birlik, d.birlik)}
+    for x in t["komplektlar"]:
+        m = modellar.get(x["model_id"])
+        if m is None:
+            continue
+        kb = bool(x["kapitel_baza"])
+        k = _dokon_kutish_k_kalit(m.id, x["komplekt"], kb, x["olcham"])
+        if k in natija:
+            continue
+        natija[k] = {"kalit": k, "tur": "k", "detal_id": None, "model_id": m.id, "komplekt": x["komplekt"], "olcham": x["olcham"],
+                     "kapitel_baza": kb, "nom": _dokon_kutish_k_nomi(m, x["komplekt"], x["olcham"], kb), "soni": int(x["soni"]),
+                     "birlik": "komplekt"}
+    return natija
+
+
+def _dokon_butun_id(qiymat, nom) -> int:
+    if isinstance(qiymat, bool) or not isinstance(qiymat, int) or not (1 <= qiymat <= 2_147_483_647):
+        raise ValueError(f"«{nom}» noto'g'ri — sahifani yangilang")
+    return qiymat
+
+
+def dokon_kutish_element_kaliti(data) -> str:
+    """Do'kon yuborgan element → kalit. Detal: {"tur": "d", "detal_id"}; komplekt: {"tur": "k", "model_id", "komplekt" (rom | eshik),
+    "olcham", "kapitel_baza" (true / false — «Tayyor mahsulotlar» API sidagi qiymat)}. Noto'g'ri — `ValueError`."""
+    _dokon_kalitlar(data, ("tur", "detal_id", "model_id", "komplekt", "olcham", "kapitel_baza"))
+    tur = data.get("tur")
+    if tur == "d":
+        if any(data.get(k) is not None for k in ("model_id", "komplekt", "olcham", "kapitel_baza")):
+            raise ValueError("Mahsulot noto'g'ri tanlangan — sahifani yangilang")
+        return f"d|{_dokon_butun_id(data.get('detal_id'), 'detal_id')}"
+    if tur == "k":
+        if data.get("detal_id") is not None:
+            raise ValueError("Mahsulot noto'g'ri tanlangan — sahifani yangilang")
+        mid = _dokon_butun_id(data.get("model_id"), "model_id")
+        kom = data.get("komplekt")
+        if kom not in DOKON_KOMPLEKT_NOMI:
+            raise ValueError("«komplekt» — rom yoki eshik")
+        ol = data.get("olcham")
+        if not isinstance(ol, str) or not ol.strip() or len(ol) > 60:
+            raise ValueError("«olcham» noto'g'ri — sahifani yangilang")
+        _dokon_surrogatsiz(ol, "olcham")
+        kb = data.get("kapitel_baza")
+        if not isinstance(kb, bool):
+            raise ValueError("«kapitel_baza» — true yoki false")
+        return _dokon_kutish_k_kalit(mid, kom, kb, ol)
+    raise ValueError("Mahsulot noto'g'ri tanlangan — sahifani yangilang")
+
+
+def _dokon_kutish_korinish(r) -> dict:
+    """Do'kon sayti ko'radigan kutish: element, nom, holat (ichki «yuborilmoqda» — «kutilmoqda»), sanalar (Toshkent). Telegram, urinishlar,
+    ERP yozuv raqami — YO'Q."""
+    h = "kutilmoqda" if r.kt_holat == "yuborilmoqda" else r.kt_holat
+    return {"kalit": r.kt_kalit, "tur": r.kt_tur, "detal_id": r.detal_id, "model_id": r.model_id, "komplekt": r.kt_komplekt,
+            "olcham": r.kt_olcham, "kapitel_baza": r.kt_kb, "nom": r.kt_nom, "holat": h, "holat_nomi": DOKON_KUTISH_HOLATLARI.get(h, h),
+            "sana": (r.created_at + _td234(hours=5)).strftime("%d.%m.%Y") if r.created_at else None,
+            "xabar_sana": (r.kt_xabar_vaqti + _td234(hours=5)).strftime("%d.%m.%Y %H:%M")
+            if (r.kt_xabar_vaqti is not None and r.kt_holat in ("yuborildi", "xato")) else None}
+
+
+def _dokon_kutish_mijoz_royxati(db: Session, company_id: int, m, hozir=None) -> dict:
+    """Hisobning kutishlari: faollari (yangisi birinchi), keyin so'nggi `DOKON_KUTISH_TARIX_KUN` kunda kelganlari; bekor qilinganlar — yo'q."""
+    from models import DokonKutish
+    hozir = hozir or _dt233.utcnow()
+    rows = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.mijoz_id == m.id,
+                                         DokonKutish.kt_holat != "bekor").all())
+    chegara = hozir - _td234(days=DOKON_KUTISH_TARIX_KUN)
+    faol = sorted((r for r in rows if r.kt_holat in DOKON_KUTISH_FAOL), key=lambda r: (r.created_at, r.id), reverse=True)
+    kelgan = sorted((r for r in rows if r.kt_holat in ("yuborildi", "xato") and (r.kt_xabar_vaqti or r.updated_at or r.created_at) >= chegara),
+                    key=lambda r: (r.kt_xabar_vaqti or r.updated_at or r.created_at, r.id), reverse=True)
+    return {"kutishlar": [_dokon_kutish_korinish(r) for r in faol + kelgan[:DOKON_KUTISH_TARIX_MAX]], "faol": len(faol),
+            "max": DOKON_KUTISH_MAX}
+
+
+def dokon_kutish_royxati(db: Session, company_id: int, token) -> dict:
+    """Do'kon sayti (kalit + sessiya): kirgan hisobning kutishlari. Sessiya yaroqsiz — `DokonSessiyaYoq`."""
+    dokon_tekshir(db, company_id)
+    m = dokon_sessiya_mijoz(db, company_id, token)
+    return _dokon_kutish_mijoz_royxati(db, company_id, m)
+
+
+def _dokon_kutish_yozuvchi(db: Session, company_id: int, token):
+    """Yozuvchi yo'l: korxona → sessiya (hisob qatori FOR UPDATE) → hisob chegarasi (sessiya tekshiruvidan KEYIN sanaladi — begona so'rov
+    hisobning chegarasini band qilolmaydi)."""
+    dokon_tekshir(db, company_id)
+    m = dokon_sessiya_mijoz(db, company_id, token, qulf=True)
+    kut = _DOKON_KUTISH_CHEKLOV.ol((company_id, m.id))
+    if kut:
+        db.rollback()
+        raise DokonKutishChegara(kut)
+    return m
+
+
+def dokon_kutish_qosh(db: Session, company_id: int, token, data, hozir=None) -> dict:
+    """«Kelganda xabar bering» bosildi: element (`dokon_kutish_element_kaliti`) «Tayyor mahsulotlar»da bo'lsin (bo'lim ochiq) — yo'q:
+    `DokonKutishTopilmadi`; hozir omborda bor (soni ≥ 1) yoki faol kutishlar `DOKON_KUTISH_MAX` ta — `DokonKutishZiddiyat`. Hisob × kalit
+    YAGONA: faol bo'lsa — o'zgarmaydi (takror bosish), yuborilgan / bekor / xato bo'lsa — yana «kutilmoqda». Qaytaradi: hisobning ro'yxati."""
+    from models import DokonKutish
+    from sqlalchemy.exc import IntegrityError as _IE252
+    hozir = hozir or _dt233.utcnow()
+    m = _dokon_kutish_yozuvchi(db, company_id, token)
+    kalit = dokon_kutish_element_kaliti(data)
+    if not tayyor_bolimi_ochiqmi(db, company_id):
+        db.rollback()
+        raise DokonKutishTopilmadi("«Tayyor mahsulotlar» bo'limi hozir yopiq")
+    x = dokon_kutish_holati(db, company_id, hozir).get(kalit)
+    if x is None:
+        db.rollback()
+        raise DokonKutishTopilmadi("Bu mahsulot «Tayyor mahsulotlar»da yo'q — sahifani yangilang")
+    if x["soni"] >= 1:
+        db.rollback()
+        raise DokonKutishZiddiyat("Bu mahsulot hozir omborda bor — savatga qo'shing")
+    r = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.mijoz_id == m.id, DokonKutish.kt_kalit == kalit)
+         .populate_existing().with_for_update().first())
+    if r is not None and r.kt_holat in DOKON_KUTISH_FAOL:
+        db.rollback()
+        return _dokon_kutish_mijoz_royxati(db, company_id, m, hozir)
+    faol = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.mijoz_id == m.id,
+                                         DokonKutish.kt_holat.in_(DOKON_KUTISH_FAOL)).count())
+    if faol >= DOKON_KUTISH_MAX:
+        db.rollback()
+        raise DokonKutishZiddiyat(f"Ko'pi bilan {DOKON_KUTISH_MAX} ta mahsulotni kutish mumkin — keraksizini bekor qiling")
+    if r is None:
+        r = DokonKutish(company_id=company_id, mijoz_id=m.id, kt_kalit=kalit, created_at=hozir)
+        db.add(r)
+    else:
+        r.created_at = hozir
+    r.kt_tur, r.detal_id, r.model_id = x["tur"], x["detal_id"], x["model_id"]
+    r.kt_komplekt, r.kt_olcham, r.kt_kb, r.kt_nom = x["komplekt"], x["olcham"], x["kapitel_baza"], x["nom"]
+    r.kt_holat, r.kt_urinish, r.kt_xabar_vaqti, r.updated_at = "kutilmoqda", 0, None, hozir
+    try:
+        db.commit()
+    except _IE252:
+        # SQLite da FOR UPDATE yo'q: bir vaqtda ikki marta bosilsa ikkinchisi yagona kalitga uriladi — birinchisi yozilgan, natija bir xil
+        db.rollback()
+        m = dokon_sessiya_mijoz(db, company_id, token)
+    return _dokon_kutish_mijoz_royxati(db, company_id, m, hozir)
+
+
+def dokon_kutish_bekor(db: Session, company_id: int, token, data, hozir=None) -> dict:
+    """Kutishni bekor qilish: {"kalit"} (shu hisobniki). Yo'q / bekor qilingan — `DokonKutishTopilmadi`; faol («kutilmoqda» yoki xabar
+    yuborilayotgan) — «bekor»; kelgan (yuborildi / xato) — o'zgarmaydi."""
+    from models import DokonKutish
+    hozir = hozir or _dt233.utcnow()
+    _dokon_kalitlar(data, ("kalit",))
+    kalit = data.get("kalit")
+    if not isinstance(kalit, str) or not (1 <= len(kalit) <= 120):
+        raise ValueError("«kalit» noto'g'ri — sahifani yangilang")
+    _dokon_surrogatsiz(kalit, "kalit")
+    m = _dokon_kutish_yozuvchi(db, company_id, token)
+    r = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.mijoz_id == m.id, DokonKutish.kt_kalit == kalit)
+         .populate_existing().with_for_update().first())
+    if r is None or r.kt_holat == "bekor":
+        db.rollback()
+        raise DokonKutishTopilmadi("Bu kutish topilmadi — sahifani yangilang")
+    if r.kt_holat in DOKON_KUTISH_FAOL:            # review252 M1: xabar yuborilayotganda ham — yetmasa qayta navbatga TUSHMAYDI
+        r.kt_holat, r.updated_at = "bekor", hozir
+        db.commit()
+    else:
+        db.rollback()
+    return _dokon_kutish_mijoz_royxati(db, company_id, m, hozir)
+
+
+def dokon_kutish_xabari(x: dict, sayt=None) -> tuple:
+    """Mijozga do'kon boti xabari (Markdown; nom — `_tg237`) va tugma («🛒 Tayyor mahsulotlar» — sayt manzili ma'lum bo'lsa)."""
+    # review252 L2: eski Markdown da qalin (*…*) ichida «\» ekranlash ishlamaydi — nom qalinsiz (tashqarida ekranlash ishlaydi)
+    matn = (f"🔔 Siz kutgan mahsulot omborga keldi!\n\n«{_tg237(x['nom'])}»\nHozir omborda: {x['soni']} {x['birlik']}\n\n"
+            f"Saytdagi «Tayyor mahsulotlar» bo'limidan buyurtma bering — mahsulot {SAYT_BAND_SOAT} soat siz uchun band qilinadi. "
+            f"Tez tugashi mumkin.")
+    tugma = {"inline_keyboard": [[{"text": "🛒 Tayyor mahsulotlar", "url": f"{sayt}/tayyor"}]]} if sayt else None
+    return matn, tugma
+
+
+def dokon_kutish_tekshir(db: Session, company_id: int, yubor, hozir=None) -> dict:
+    """Rejalashtiruvchi (bitta korxona). Avval «Tayyor mahsulotlar» holati olinadi (`dokon_kutish_holati`), keyin FAQAT hozir saytda qoldig'i
+    ≥ 1 elementlarning «kutilmoqda» kutishlari (eng eskisidan, `DOKON_KUTISH_PARTIYA` tagacha — review252 H1: avval eng eskilari olinib,
+    keyin tekshirilsa, ko'p kutish bo'lganda yangilari hech qachon ko'rilmasdi): SHARTLI UPDATE «kutilmoqda» → «yuborilmoqda» (bir vaqtda
+    ikkinchi tekshiruv — 0 qator, xabar BIR marta) → `yubor(chat_id, matn, tugma)` → «yuborildi». Chatga yetmadi (`yubor` False / istisno)
+    — qayta «kutilmoqda», urinish +1 (SQL da — review252 L3), `DOKON_KUTISH_URINISH_MAX` dan keyin «xato». Telegram / bot / tarmoq umuman
+    ishlamayapti (`yubor` `DokonKutishToxta` ko'taradi — review252 M2) — o'sha kutish urinishsiz navbatga qaytadi va tekshiruv TO'XTAYDI
+    (qolganlari keyingi safar). Bloklangan hisobning kutishlari — «bekor» (xabarsiz). Detal kutishi — o'sha model detali bo'lsa (review252 M3).
+    Do'kon o'chiq / bo'lim yashirin — hech narsa. «yuborilmoqda» da `DOKON_KUTISH_QOTGAN` dan ko'p qolgan — qayta navbatga. Bitta kutish
+    xatosi qolganlarini to'xtatmaydi (review252 L4). Qaytaradi: {"yuborildi", "qayta", "xato", "bekor", "tiklandi", "toxtadi"}."""
+    from models import DokonKutish, DokonMijoz
+    from sqlalchemy import or_ as _or252
+    hozir = hozir or _dt233.utcnow()
+    stat = {"yuborildi": 0, "qayta": 0, "xato": 0, "bekor": 0, "tiklandi": 0, "toxtadi": 0}
+    if not dokon_yoqilganmi(db, company_id):
+        return stat
+    stat["tiklandi"] = (db.query(DokonKutish)
+                        .filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat == "yuborilmoqda",
+                                _or252(DokonKutish.kt_xabar_vaqti.is_(None), DokonKutish.kt_xabar_vaqti < hozir - DOKON_KUTISH_QOTGAN))
+                        .update({DokonKutish.kt_holat: "kutilmoqda", DokonKutish.kt_xabar_vaqti: None, DokonKutish.updated_at: hozir},
+                                synchronize_session=False))
+    bloklangan = [r[0] for r in db.query(DokonMijoz.id).filter(DokonMijoz.company_id == company_id,
+                                                                DokonMijoz.mj_holat == "bloklangan").all()]
+    if bloklangan:
+        stat["bekor"] = (db.query(DokonKutish)
+                         .filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat == "kutilmoqda",
+                                 DokonKutish.mijoz_id.in_(bloklangan))
+                         .update({DokonKutish.kt_holat: "bekor", DokonKutish.updated_at: hozir}, synchronize_session=False))
+    db.commit()
+    bor = (db.query(DokonKutish.id).filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat == "kutilmoqda").first())
+    if bor is None or not tayyor_bolimi_ochiqmi(db, company_id):
+        db.rollback()
+        return stat
+    holat = {k: x for k, x in dokon_kutish_holati(db, company_id, hozir).items() if x["soni"] >= 1}
+    if not holat:
+        db.rollback()
+        return stat
+    rows = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat == "kutilmoqda",
+                                         DokonKutish.kt_kalit.in_(sorted(holat)))
+            .order_by(DokonKutish.created_at, DokonKutish.id).limit(DOKON_KUTISH_PARTIYA).all())
+    ishlar = [(r.id, r.mijoz_id, r.kt_kalit, r.model_id) for r in rows]
+    mijozlar = ({m.id: m for m in db.query(DokonMijoz).filter(DokonMijoz.company_id == company_id,
+                                                              DokonMijoz.id.in_(sorted({x[1] for x in ishlar}))).all()} if ishlar else {})
+    sayt = get_setting(db, DOKON_SAYT_URL_KALIT, None, company_id=company_id)
+    db.commit()
+    for rid, mid, kalit, model_id in ishlar:
+        m, x = mijozlar.get(mid), holat[kalit]
+        if m is None or m.mj_holat == "bloklangan" or (model_id is not None and x["model_id"] != model_id):
+            continue
+        try:
+            n = (db.query(DokonKutish)
+                 .filter(DokonKutish.id == rid, DokonKutish.company_id == company_id, DokonKutish.kt_holat == "kutilmoqda")
+                 .update({DokonKutish.kt_holat: "yuborilmoqda", DokonKutish.kt_xabar_vaqti: _dt233.utcnow(),
+                          DokonKutish.updated_at: _dt233.utcnow()}, synchronize_session=False))
+            db.commit()
+            if n != 1:
+                continue
+            matn, tugma = dokon_kutish_xabari(x, sayt)
+            try:
+                ok = bool(yubor(m.mj_tg_id, matn, tugma))
+            except DokonKutishToxta:
+                (db.query(DokonKutish).filter(DokonKutish.id == rid, DokonKutish.company_id == company_id,
+                                              DokonKutish.kt_holat == "yuborilmoqda")
+                 .update({DokonKutish.kt_holat: "kutilmoqda", DokonKutish.kt_xabar_vaqti: None, DokonKutish.updated_at: _dt233.utcnow()},
+                         synchronize_session=False))
+                db.commit()
+                stat["toxtadi"] = 1
+                break
+            except Exception:                            # noqa: BLE001 — bitta chat xatosi qolganlarini to'xtatmasin
+                ok = False
+            q = db.query(DokonKutish).filter(DokonKutish.id == rid, DokonKutish.company_id == company_id,
+                                             DokonKutish.kt_holat == "yuborilmoqda")
+            if ok:
+                stat["yuborildi"] += q.update({DokonKutish.kt_holat: "yuborildi", DokonKutish.updated_at: _dt233.utcnow()},
+                                              synchronize_session=False)
+            elif q.update({DokonKutish.kt_holat: "kutilmoqda", DokonKutish.kt_urinish: DokonKutish.kt_urinish + 1,
+                           DokonKutish.kt_xabar_vaqti: None, DokonKutish.updated_at: _dt233.utcnow()}, synchronize_session=False):
+                n_xato = (db.query(DokonKutish)
+                          .filter(DokonKutish.id == rid, DokonKutish.company_id == company_id, DokonKutish.kt_holat == "kutilmoqda",
+                                  DokonKutish.kt_urinish >= DOKON_KUTISH_URINISH_MAX)
+                          .update({DokonKutish.kt_holat: "xato"}, synchronize_session=False))
+                stat["xato" if n_xato else "qayta"] += 1
+            db.commit()
+        except Exception as e:                           # noqa: BLE001 — review252 L4: bitta kutish xatosi qolganlarini to'xtatmasin
+            db.rollback()
+            print(f"⚠ Kelganda xabar bering: kutish {rid} — {type(e).__name__}: {e}")
+    return stat
+
+
+def dokon_kutishlar_admin(db: Session, company_id: int, hozir=None) -> dict:
+    """Admin («Sayt katalogi → 🔔 Kelganda xabar bering»): faol kutishlar mahsulot bo'yicha (ko'p kutilgani birinchi) — nom, hozirgi
+    holat («omborda» — keyingi tekshiruvda xabar ketadi / «tugagan» / «saytda_yoq» — element «Tayyor mahsulotlar»dan chiqqan), kim kutmoqda
+    (ism / magazin, telefon, turi, sana); so'nggi `DOKON_KUTISH_TARIX_KUN` kunda yuborilgan va yetmagan xabarlar soni."""
+    from models import DokonKutish, DokonMijoz
+    hozir = hozir or _dt233.utcnow()
+    dokon_tekshir(db, company_id)
+    rows = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat.in_(DOKON_KUTISH_FAOL))
+            .order_by(DokonKutish.created_at, DokonKutish.id).all())
+    mids = sorted({r.mijoz_id for r in rows})
+    mijozlar = ({m.id: m for m in db.query(DokonMijoz).filter(DokonMijoz.company_id == company_id, DokonMijoz.id.in_(mids)).all()}
+                if mids else {})
+    ochiq = tayyor_bolimi_ochiqmi(db, company_id)
+    holat = dokon_kutish_holati(db, company_id, hozir) if rows else {}
+    guruh = {}
+    for r in rows:
+        g = guruh.get(r.kt_kalit)
+        if g is None:
+            g = guruh[r.kt_kalit] = {"kalit": r.kt_kalit, "tur": r.kt_tur, "nom": r.kt_nom, "kutayotganlar": []}
+        m = mijozlar.get(r.mijoz_id)
+        if m is None:
+            continue
+        g["kutayotganlar"].append({"mijoz_id": m.id, "ism": (m.mj_magazin if m.mj_turi == "magazin" and m.mj_magazin else (m.mj_ism or m.mj_tg_ism)),
+                                   "telefon": dokon_telefon_korinish(m.mj_telefon), "turi_nomi": DOKON_MIJOZ_TURLARI.get(m.mj_turi) if m.mj_turi else None,
+                                   "shahar": m.mj_shahar if m.mj_turi == "magazin" else None,
+                                   "sana": r.created_at.isoformat() if r.created_at else None})
+    natija = []
+    for g in guruh.values():
+        x = holat.get(g["kalit"])
+        if x is not None:
+            g["nom"] = x["nom"]
+        g["soni"] = x["soni"] if x is not None else None
+        g["birlik"] = x["birlik"] if x is not None else None
+        g["holat"] = "saytda_yoq" if x is None else ("omborda" if x["soni"] >= 1 else "tugagan")
+        g["n"] = len(g["kutayotganlar"])
+        natija.append(g)
+    natija.sort(key=lambda g: (-g["n"], g["nom"].casefold(), g["kalit"]))
+    chegara = hozir - _td234(days=DOKON_KUTISH_TARIX_KUN)
+    yuborilgan = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat == "yuborildi",
+                                               DokonKutish.kt_xabar_vaqti >= chegara).count())
+    xato = (db.query(DokonKutish).filter(DokonKutish.company_id == company_id, DokonKutish.kt_holat == "xato",
+                                         DokonKutish.updated_at >= chegara).count())
+    return {"mahsulotlar": natija, "kutayotgan": sum(g["n"] for g in natija), "yuborilgan": yuborilgan, "xato": xato,
+            "tarix_kun": DOKON_KUTISH_TARIX_KUN, "tayyor_ochiq": ochiq, "tekshiruv_daqiqa": DOKON_KUTISH_TEKSHIRUV_DAQIQA}
