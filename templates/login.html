@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kirish — PenoDecorPro ERP</title>
+  <title>Kirish — epserp</title>
+  <link rel="icon" type="image/svg+xml" href="/static/epserp_belgi.svg?v={{ static_version }}">
+  <link rel="apple-touch-icon" href="/static/epserp_belgi_180.png?v={{ static_version }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -75,8 +77,10 @@
       color:var(--amber);
       margin-bottom:22px;
     }
-    .brand-name{font-size:24px;font-weight:700;letter-spacing:-.3px}
-    .brand-name span{color:var(--amber)}
+    /* kech176 (zip 241 — egasi so'rovi 02.11 14:52): platforma nomi «epserp» — logotip asl ranglarda oq plitada (qorong'i rasm ustida) */
+    .brand-plita{display:inline-flex;align-items:center;background:#fff;border-radius:12px;padding:12px 18px;
+      box-shadow:0 6px 24px rgba(0,0,0,.28)}
+    .brand-plita img{display:block;height:40px;width:auto}
     .brand-sub{
       font-family:'JetBrains Mono',monospace;
       font-size:12px;color:var(--m-6b7280);margin-top:8px;
@@ -97,22 +101,20 @@
     .side-stats{background:rgba(17,17,17,.62);padding:12px 16px;border-radius:8px}
     .side-stat .l{color:#E5E7EB}
     .mobil-brend{display:none;align-items:center;gap:10px;margin-bottom:22px}
-    .mobil-brend .brand-mark{width:34px;height:34px;font-size:13px}
-    .mobil-brend b{font-size:18px;color:var(--ink)}
-    .mobil-brend b span{color:var(--amber-dark)}
+    .mobil-brend img{display:block;height:34px;width:auto}
     .parol-unutdim{margin-top:16px;font-size:13px;line-height:1.55;color:var(--m-6b7280)}
     .parol-unutdim b{color:var(--ink)}
 
     /* O'ng panel — forma */
+    /* kech176 (zip 241 — egasi QARORI 02.11), review241 L3: markazlash — `margin:auto` bilan (ilgari `align-items:center` — ekrandan baland forma tepasi
+       (telefonda logotip) kesilib, aylantirib bo'lmasdi: 844 × 390 da −29 px, blok xabari bilan −84 px) */
     .main{
       flex:1;
       display:flex;
-      align-items:center;
-      justify-content:center;
       padding:40px;
       overflow-y:auto;
     }
-    .form-wrap{width:100%;max-width:380px}
+    .form-wrap{width:100%;max-width:380px;margin:auto}
     .form-eyebrow{
       font-family:'JetBrains Mono',monospace;
       font-size:12px;color:var(--amber-dark);
@@ -177,9 +179,8 @@
 
   <div class="side">
     <div class="brand">
-      <div class="brand-mark">PD</div>
-      <div class="brand-name">Penodecor<span>Pro</span></div>
-      <div class="brand-sub">Ishlab chiqarish boshqaruv tizimi</div>
+      <div class="brand-plita"><img src="/static/epserp_logo.svg?v={{ static_version }}" alt="epserp" width="158" height="40"></div>
+      <div class="brand-sub" style="margin-top:16px">Penoplast ishlab chiqarish boshqaruv tizimi</div>
     </div>
 
     <div class="side-quote">
@@ -195,7 +196,7 @@
 
   <div class="main">
     <div class="form-wrap">
-      <div class="mobil-brend" aria-hidden="true"><div class="brand-mark">PD</div><b>Penodecor<span>Pro</span></b></div>
+      <div class="mobil-brend"><img src="/static/epserp_logo.svg?v={{ static_version }}" alt="epserp" width="134" height="34"></div>
       <div class="form-eyebrow">Tizimga kirish</div>
       <div class="form-title">Xush kelibsiz</div>
       <div class="form-sub">Davom etish uchun login va parolingizni kiriting</div>

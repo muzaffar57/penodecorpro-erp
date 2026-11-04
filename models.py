@@ -769,6 +769,10 @@ class Order(Base):
 
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
     master = relationship("Master", back_populates="orders")
+    # kech186 (zip 253 — egasi QARORI 04.11 «Faqat yangilari»): usta KPI (keshbek) foizi buyurtma «Tayyor» bo'lgan paytda QOTADI —
+    # keyin ustaning foizi o'zgarsa ham shu buyurtma keshbegi o'zgarmaydi. Qo'yuvchi — `_usta_kpi_qotir` (before_flush, har yo'l);
+    # NULL — usta yo'q / «Tayyor» emas / eski yozuv (hisobda ustaning hozirgi foizi — `crud.usta_foizi`).
+    usta_kpi_foizi = Column(Float, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     deadline = Column(DateTime, nullable=True)
@@ -1068,6 +1072,17 @@ class OrderItem(Base):
     # chaqirilganda) alohida so'rov bilan olinadi.
     product_type = relationship("ProductType")
 
+    # kech173 (zip 239 — reja «Komplekt ERP'da qanday bilinadi» 4-band, «O'z o'lchamingiz bilan» 4-band): KOMPLEKT BELGISI — saytdan kelgan
+    # komplekt (yoki «o'z o'lchami») detallarga ajralib oddiy qatorlar bo'lib tushadi; shu qatorlar bitta guruh ekanini ERP biladi:
+    # `kmp_guruh` — buyurtma ichidagi guruh raqami (1 …), `kmp_turi` — «komplekt_rom» | «komplekt_eshik» | «oz_olcham», `kmp_nomi` —
+    # sarlavha («R-18 «Klassik» — rom komplekti, O'rta, qoplamali»), `kmp_soni` — komplektlar soni (o'z o'lchamida NULL). Hisob-kitobga
+    # (narx, ombor, tannarx, foyda) TA'SIR QILMAYDI — faqat ko'rinish (buyurtma sahifasi, yuk xati, PDF, qaytarish). NULL — guruhsiz qator.
+    # Ustun nomlari NOYOB (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi).
+    kmp_guruh = Column(Integer, nullable=True)
+    kmp_turi = Column(String(20), nullable=True)
+    kmp_nomi = Column(String(200), nullable=True)
+    kmp_soni = Column(Integer, nullable=True)
+
     order = relationship("Order", back_populates="items")
     deliveries = relationship("DeliveryItem", back_populates="order_item", cascade="all, delete-orphan",
                               order_by="DeliveryItem.id")     # kech97 (114-band)
@@ -1267,6 +1282,14 @@ class ReturnItem(Base):
     # O'chirishda AYNAN shu TM larga band qaytadi. Boshqa yozuvlar — NULL (`default=` BERILMAGAN —
     # `sync_missing_columns` eski qatorlarga yozmasin, kech52 saboqi).
     mrp_ozod = Column(Text, nullable=True)
+    # kech174 (zip 240 — reja «Komplekt ERP'da qanday bilinadi» 4-band): KOMPLEKT BO'YICHA QAYTARISH — bir amalda yozilgan qaytarishlar
+    # (komplektning har detali — o'z qatori, o'z narxi / ombori bilan) bitta to'plam: `kqt_kalit` — to'plam kaliti (uuid hex, 32), `kqt_soni`
+    # — nechta komplekt qaytdi, `kqt_nomi` — komplekt nomi (buyurtma qatoridagi `kmp_nomi` nusxasi — keyin buyurtma tahrirlansa ham qoladi).
+    # O'chirish / hisob-kitob — to'plam bo'yicha (`crud.delete_komplekt_return`, `refund_komplekt`). Oddiy (detal) qaytarish — NULL.
+    # `default=` BERILMAGAN (`sync_missing_columns` eski qatorlarga yozmasin). Ustun nomlari NOYOB (tools/test_html_escape.py).
+    kqt_kalit = Column(String(40), nullable=True, index=True)
+    kqt_soni = Column(Integer, nullable=True)
+    kqt_nomi = Column(String(200), nullable=True)
 
     @property
     def mrp_ozod_miqdor(self) -> float:
@@ -2379,6 +2402,8 @@ class FinishedProductSale(Base):
     # shu maydon orqali belgilanadi va oylik Usta KPI hisobiga qo'shiladi
     # (aks holda faqat Buyurtma orqali sotilgandagina KPI hisoblanardi).
     master_id = Column(Integer, ForeignKey("masters.id"), nullable=True, index=True)
+    # kech186 (zip 253): sotuv paytidagi usta KPI (keshbek) foizi — `Order.usta_kpi_foizi` qoidasi (`_usta_kpi_qotir`)
+    usta_kpi_foizi = Column(Float, nullable=True)
 
     finished_product = relationship("FinishedProduct")
 
@@ -2852,6 +2877,560 @@ class MonthlyExpense(Base):
         return f"<MonthlyExpense {self.year}/{self.month}>"
 
 
+
+# ============================================================
+# kech166 (zip 231) — SAYT KATALOGI (onlayn do'kon poydevori)
+# ============================================================
+# Egasi QARORI («Onlayn do'kon rejasi», 30.10): do'kon katalogi va narxlari ERP ichida. Faqat platforma egasining
+# korxonasida, Platforma panelidan yoqilganda (`companies.dokon_yoqilgan`). Uch jadval, har birida o'z `company_id`
+# (ildiz jadvallar): bo'lim → model → detal (narx qatori); bog'lamlar `_TENANT_REFS` da (begona korxona bo'limi /
+# modeliga ulanmaydi). Mantiq — `crud.dokon_*`.
+
+class DokonBolim(Base):
+    """Sayt bo'limi (Karnizlar, Termopanel …). `tizim_kaliti` — tayyor / oz_olcham / ulgurji: boshqa bo'limlardan
+    yig'iladi (qolipi yo'q, o'chirilmaydi, model qo'shilmaydi). `qolip` — crud.DOKON_QOLIP_NOMI kalitlaridan."""
+    __tablename__ = "dokon_bolimlar"
+    __table_args__ = (UniqueConstraint("company_id", "tizim_kaliti", name="uq_dokon_bolim_tizim"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    nom = Column(String(80), nullable=False)
+    qolip = Column(String(20), nullable=True)
+    tizim_kaliti = Column(String(20), nullable=True)
+    tartib = Column(Integer, default=0, nullable=False)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonBolim {self.id} {self.nom}>"
+
+
+class DokonModel(Base):
+    """Sayt modeli (masalan «R-18 Klassik»). Kod korxonada yagona (katta harfda saqlanadi). `qolip` — sotish qolipi
+    (standart — bo'limniki; «Ustunlar va pilyastrlar» da pilyastr — juft metr, dumaloq ustun — butun metr)."""
+    __tablename__ = "dokon_modellar"
+    __table_args__ = (UniqueConstraint("company_id", "kod", name="uq_dokon_model_kod"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    bolim_id = Column(Integer, ForeignKey("dokon_bolimlar.id"), nullable=False, index=True)
+    kod = Column(String(30), nullable=False)
+    nom = Column(String(120), nullable=True)
+    tavsif = Column(Text, nullable=True)
+    qolip = Column(String(20), nullable=False)
+    kapitel_baza_bor = Column(Boolean, default=False, nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonModel {self.id} {self.kod}>"
+
+
+class DokonDetal(Base):
+    """Model narx qatori: detal turi (asosiy / karniz / podokonnik / nalichnik / kapitel / baza) × o'lcham.
+    Narxlar — `Numeric(12, 2)`, NULL — kiritilmagan; qoplamali NULL — qoplamasiz × koeffitsient. `birlik` — serverda
+    (kapitel / baza — dona, qolgani — model qolipidan: metr / dona / m2). Ulgurji narx: metrli detal — 1 dona (2 m),
+    m² — 1 m², dona — 1 dona."""
+    __tablename__ = "dokon_detallar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    turi = Column(String(20), nullable=False)
+    olcham = Column(String(40), nullable=False)
+    eni_sm = Column(Float, nullable=True)
+    qalinligi_sm = Column(Float, nullable=True)
+    birlik = Column(String(10), nullable=False)
+    narx = Column(Numeric(12, 2), nullable=True)
+    narx_qoplamali = Column(Numeric(12, 2), nullable=True)
+    ulgurji_narx = Column(Numeric(12, 2), nullable=True)
+    ulgurji_qoplamali = Column(Numeric(12, 2), nullable=True)
+    tartib = Column(Integer, default=0, nullable=False)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+    # kech172 (zip 238): ERP «Tayyor mahsulotlar» mahsuloti kaliti (`tm_kam_kaliti`, faqat qoplamali) — «Tayyor mahsulotlar» bo'limida
+    # shu detalning ombor qoldig'i ko'rinadi; NULL — bog'lanmagan (faqat buyurtmaga tayyorlanadi). Bitta mahsulot — bitta detalga.
+    tm_bogl_kaliti = Column(String(300), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonDetal {self.id} {self.turi} {self.olcham}>"
+
+
+class DokonRasm(Base):
+    """kech167 (zip 232) — sayt modeli rasmi. Fayllar `static/uploads/dokon/` da (Railway Volume — deployda o'chmaydi):
+    `fayl` — katta nusxa (katta tomoni ≤ 1920 px), `kichik` — ro'yxat kartochkasi uchun (≤ 640 px). Ikkalasi ham yuklashda
+    QAYTA yozilgan: joylashuv (GPS), kamera / dastur ma'lumoti, izoh, XMP — yo'q; rang sRGB ga o'tkazilgan; rasm QIRQILMAGAN.
+    Ochiq manzil (`/static/uploads/dokon/<nom>`) — login siz, faqat shu jadvalda yozuvi bor va korxonada sayt katalogi
+    yoqilgan bo'lsa. `tartib` — 1 dan; eng kichigi — asosiy rasm. Mantiq — `crud.dokon_rasm_*`, ishlov — `main.dokon_rasm_tayyorla`."""
+    __tablename__ = "dokon_rasmlar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    fayl = Column(String(120), nullable=False, unique=True)
+    kichik = Column(String(120), nullable=False, unique=True)
+    eni = Column(Integer, nullable=False)
+    boyi = Column(Integer, nullable=False)
+    hajm = Column(Integer, nullable=False)
+    turi = Column(String(10), nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonRasm {self.id} model={self.model_id}>"
+
+
+class DokonTelefon(Base):
+    """kech168 (zip 233) — buyurtma tasdig'i uchun telefon raqami (egasi QARORI 30.10: admin panelda qo'shiladi, o'chiriladi, tartibi
+    o'zgaradi, izoh yoziladi; oxirgi raqam o'chirilmaydi). `raqam` — bitta shaklda `+998XXXXXXXXX` (korxonada yagona); `doim` — ish
+    vaqtidan tashqarida (kechasi, dam olish kuni) ham ko'rinadi — kamida bittasi doim. Mantiq — `crud.dokon_telefon_*`."""
+    __tablename__ = "dokon_telefonlar"
+    __table_args__ = (UniqueConstraint("company_id", "raqam", name="uq_dokon_telefon_raqam"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    raqam = Column(String(13), nullable=False)
+    izoh = Column(String(40), nullable=True)
+    doim = Column(Boolean, default=False, nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonTelefon {self.id} {self.raqam}>"
+
+
+class DokonChegirma(Base):
+    """kech169 (zip 234) — sayt modeli chegirmasi (egasi QARORLARI «Onlayn do'kon rejasi» 30.10: admin modelni tanlab foiz yoki yangi narx
+    yozadi, xohlasa faqat ayrim o'lchamlariga; tugash sanasi ixtiyoriy — o'tsa o'zi o'chadi; qo'lda ham o'chiriladi; FAQAT oddiy narxga —
+    ulgurji o'zgarmaydi; komplektga o'zi o'tadi; tannarxdan past — faqat ogohlantirish). Modelga BITTA chegirma (yagona kalit).
+    `foiz` — 1 … 99 (2 xona); `olchamlar` — JSON ro'yxat (o'lcham yozilishlari), NULL — hamma o'lcham; `tugash` — Toshkent kuni (shu kun
+    oxirigacha amalda), NULL — muddatsiz. Mantiq — `crud.dokon_chegirma_*`."""
+    __tablename__ = "dokon_chegirmalar"
+    __table_args__ = (UniqueConstraint("company_id", "model_id", name="uq_dokon_chegirma_model"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    foiz = Column(Numeric(5, 2), nullable=False)
+    olchamlar = Column(Text, nullable=True)
+    tugash = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonChegirma {self.id} model={self.model_id} {self.foiz}%>"
+
+
+class DokonApiKalit(Base):
+    """kech170 (zip 236) — do'kon sayti (ERP dan alohida server) katalog va sozlamalarni o'qiydigan maxfiy kalit (egasi QARORLARI «Onlayn
+    do'kon rejasi» 30.10: do'kon ↔ ERP faqat server ↔ server, maxfiy kalit bilan, faqat PenoDecorPro korxonasi doirasida; korxona KALITDAN
+    aniqlanadi, so'rovdan emas; do'kon API'si eng kam huquqli — ulgurji narx, tannarx, moliya do'konga berilmaydi). Korxonaga BITTA qator
+    (yagona kalit): `api_kalit_xesh` — kalitning SHA-256 xeshi (xom kalit bazada YO'Q — faqat yaratilganda bir marta ko'rsatiladi), NULL —
+    kalit o'chirilgan; `api_kalit_boshi` — tanish uchun boshi (sahifada «pdk_AbC123…»); `oxirgi_murojaat` — oxirgi muvaffaqiyatli so'rov
+    (5 daqiqa aniqlikda). Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES` — tiklash o'chirilgan / almashtirilgan kalitni qayta tiriltirmasin;
+    sessiya jadvallari kabi), «Barcha ma'lumotlarni o'chirish» unga tegmaydi. Mantiq — `crud.dokon_api_*`. Ustun nomlari NOYOB
+    (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_api_kalitlar"
+    __table_args__ = (UniqueConstraint("company_id", name="uq_dokon_api_kalit_korxona"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    api_kalit_xesh = Column(String(64), nullable=True, unique=True)
+    api_kalit_boshi = Column(String(16), nullable=True)
+    api_yaratilgan = Column(DateTime, nullable=True)
+    api_yaratgan = Column(String(100), nullable=True)
+    oxirgi_murojaat = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonApiKalit {self.id} korxona={self.company_id}>"
+
+
+class DokonMijoz(Base):
+    """kech181 (zip 248) — do'kon saytining ro'yxatdan o'tgan mijozi: usta yoki qurilish magazini (egasi QARORLARI «Onlayn do'kon rejasi»
+    30.10: kirish parol / SMS siz — Telegram orqali, telefon Telegram akkauntidan (tasdiqlangan); birinchi kirishda usta yoki magazin
+    tanlanadi; egasi tasdiqlaydi — usta KPI % bilan ERP dagi usta hisobiga bog'lanadi, magazinga ulgurji bo'lim ochiladi).
+    `mj_tg_id` — Telegram foydalanuvchi raqami (korxonada yagona), `mj_telefon` — Telegram kontaktidan (`+998XXXXXXXXX`).
+    Holat: «yangi» (kirdi, hali so'rov yubormagan) | «kutilmoqda» | «tasdiqlangan» | «rad» (qayta so'rov yuborishi mumkin) | «bloklangan».
+    `mj_avlod` — bloklash / rad etishda oshadi: eski sessiyalar ishlamay qoladi. `master_id` — tasdiqlangan ustaning ERP dagi yozuvi
+    (usta o'chirilsa NULL). Zaxiraga KIRADI (kirish kodlari va sessiyalar — kirmaydi). Mantiq — `crud.dokon_mijoz_*`. Ustun nomlari NOYOB
+    (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_mijozlar"
+    # review248 L4: bitta ERP ustasi — bitta hisobga (baza darajasida ham: SQLite da FOR UPDATE yo'q — parallel tasdiq ikkinchisini
+    # bog'lab qo'yardi); NULL lar cheklanmaydi
+    __table_args__ = (UniqueConstraint("company_id", "mj_tg_id", name="uq_dokon_mijoz_tg"),
+                      UniqueConstraint("company_id", "master_id", name="uq_dokon_mijoz_master"))
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    mj_tg_id = Column(String(20), nullable=False)
+    mj_telefon = Column(String(13), nullable=False, index=True)
+    mj_tg_ism = Column(String(130), nullable=True)
+    mj_ism = Column(String(100), nullable=True)
+    mj_turi = Column(String(10), nullable=True)
+    mj_magazin = Column(String(120), nullable=True)
+    mj_shahar = Column(String(80), nullable=True)
+    mj_holat = Column(String(15), nullable=False, default="yangi")
+    master_id = Column(Integer, ForeignKey("masters.id", ondelete="SET NULL"), nullable=True, index=True)
+    mj_rad_sababi = Column(String(200), nullable=True)
+    mj_avlod = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    mj_royxat_vaqti = Column(DateTime, nullable=True)
+    mj_tasdiq_vaqti = Column(DateTime, nullable=True)
+    mj_tasdiqlagan = Column(String(100), nullable=True)
+    # kech186 (zip 254 — usta havolasi): ustaning shaxsiy havola kodi (8 belgi, a–z 0–9; tasodifiy, korxona ichida yagona — kod tekshiradi);
+    # birinchi marta kabinetda so'ralganda beriladi (`crud.dokon_usta_havolasi`). NULL — hali berilmagan / usta emas.
+    mj_havola = Column(String(12), nullable=True, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DokonMijoz {self.id} {self.mj_turi} {self.mj_holat} c={self.company_id}>"
+
+
+class DokonKirish(Base):
+    """kech181 (zip 248) — Telegram orqali kirish urinishi (10 daqiqa, bir marta). Do'kon sayti `kod` ni bot havolasiga
+    (`t.me/<bot>?start=k_<kod>`), `sir` ni faqat shu brauzerga beradi; bazada — ikkalasining SHA-256 xeshi. Holat: «kutilmoqda» →
+    «raqam» (bot havolasi ochildi, `kr_chat` yozildi) → «tasdiqlandi» (kontakt keldi, `mijoz_id`) → «ishlatildi» (sayt sessiya oldi).
+    Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES`)."""
+    __tablename__ = "dokon_kirishlar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    kr_kod_xesh = Column(String(64), nullable=False, unique=True)
+    kr_sir_xesh = Column(String(64), nullable=False)
+    kr_chat = Column(String(20), nullable=True, index=True)
+    kr_holat = Column(String(12), nullable=False, default="kutilmoqda")
+    mijoz_id = Column(Integer, ForeignKey("dokon_mijozlar.id", ondelete="CASCADE"), nullable=True, index=True)
+    kr_muddat = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<DokonKirish {self.id} {self.kr_holat} c={self.company_id}>"
+
+
+class DokonSessiya(Base):
+    """kech181 (zip 248) — do'kon mijozining sessiyasi (30 kun). Token («pds_» + 43 belgi) — faqat brauzer cookie sida (do'kon sayti
+    imzolaydi) va `X-Mijoz-Sessiya` sarlavhasida; bazada SHA-256 xeshi. `ss_avlod` mijozning `mj_avlod` iga teng bo'lmasa — sessiya
+    yaroqsiz. Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES`)."""
+    __tablename__ = "dokon_sessiyalar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    mijoz_id = Column(Integer, ForeignKey("dokon_mijozlar.id", ondelete="CASCADE"), nullable=False, index=True)
+    ss_xesh = Column(String(64), nullable=False, unique=True)
+    ss_avlod = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ss_oxirgi = Column(DateTime, nullable=True)
+    ss_muddat = Column(DateTime, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<DokonSessiya {self.id} mijoz={self.mijoz_id} c={self.company_id}>"
+
+
+class DokonKutish(Base):
+    """kech185 (zip 252) — «Kelganda xabar bering» (egasi rejasi «Onlayn do'kon rejasi» 30.10: tayyor mahsulot tugasa, mijoz tugmani
+    bosadi; omborga kelganda Telegram'da xabar oladi; egasi qaysi mahsulot kutilayotganini ko'radi). Kirgan hisob × «Tayyor mahsulotlar»
+    elementi (detal yoki komplekt) — `kt_kalit` («d|<detal_id>» | «k|<model_id>|<rom|eshik>|<1|0>|<o'lcham kaliti>»), hisob bo'yicha YAGONA
+    (qayta bosilsa — yana «kutilmoqda»). Holat: «kutilmoqda» → «yuborilmoqda» (shartli UPDATE — xabar BIR marta) → «yuborildi» | «bekor» |
+    «xato» (`DOKON_KUTISH_URINISH_MAX` urinishdan keyin). `kt_nom` — saytdagi nom NUSXASI (katalog o'zgarsa ham ro'yxat / xabar o'qiladi).
+    Zaxiraga KIRADI. Mantiq — `crud.dokon_kutish_*`. Ustun nomlari NOYOB (tools/test_html_escape.py)."""
+    __tablename__ = "dokon_kutishlar"
+    __table_args__ = (UniqueConstraint("company_id", "mijoz_id", "kt_kalit", name="uq_dokon_kutish_kalit"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    mijoz_id = Column(Integer, ForeignKey("dokon_mijozlar.id", ondelete="CASCADE"), nullable=False, index=True)
+    kt_kalit = Column(String(120), nullable=False)
+    kt_tur = Column(String(10), nullable=False)
+    detal_id = Column(Integer, nullable=True)
+    model_id = Column(Integer, nullable=True)
+    kt_komplekt = Column(String(10), nullable=True)
+    kt_olcham = Column(String(60), nullable=True)
+    kt_kb = Column(Boolean, nullable=True)
+    kt_nom = Column(String(200), nullable=False)
+    kt_holat = Column(String(12), nullable=False, default="kutilmoqda", index=True)
+    kt_urinish = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    kt_xabar_vaqti = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<DokonKutish {self.id} {self.kt_kalit} {self.kt_holat} c={self.company_id}>"
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech186 (zip 253 — do'kon 3-bosqich «Keshbek», egasi QARORLARI 30.10 / 04.11): ustaga BERILGAN keshbek. Hisoblangani — ERP qoidasi
+# (`crud.get_master_yearly_cashback`, har yil), qoldiq = barcha yillar hisoblangani − shu yozuvlar (`crud.usta_keshbek_holati`).
+# usul: «naqd» — tanlangan pul hisobidan (`cash_tx_id` — Moliya «Usta KPI to'landi»); «buyurtma» — keyingi xarid to'loviga (`payment_id`
+# — buyurtmaga to'lov, `cash_tx_id` — o'sha hisobdan «Usta KPI to'landi»: kassada sof 0); «oldin» — tizimdan oldin berilgan (kassaga
+# ta'sir yo'q). Bog'langan to'lov / kassa yozuvi FAQAT shu yozuv bilan o'chiriladi (`crud.usta_keshbek_ochir`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+USTA_KESHBEK_USULLARI = {"naqd": "Naqd (kassadan)", "buyurtma": "Buyurtma to'loviga", "oldin": "Oldin berilgan"}
+
+
+class UstaKeshbek(Base):
+    __tablename__ = "usta_keshbeklar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=False, index=True)
+    summa = Column(Numeric(14, 2), nullable=False)
+    usul = Column(String(10), nullable=False)
+    sana = Column(DateTime, nullable=False, default=datetime.utcnow)
+    hisob_id = Column(Integer, ForeignKey("pul_hisoblari.id"), nullable=True, index=True)
+    cash_tx_id = Column(Integer, ForeignKey("cash_transactions.id", ondelete="SET NULL"), nullable=True, index=True)
+    payment_id = Column(Integer, ForeignKey("payments.id", ondelete="SET NULL"), nullable=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    izoh = Column(String(200), nullable=True)
+    kim = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<UstaKeshbek {self.id} usta={self.master_id} {self.summa} {self.usul} c={self.company_id}>"
+
+
+class DokonBuyurtma(Base):
+    """kech171 (zip 237) — saytdan kelgan buyurtma (egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni»: mijoz savatni yig'ib,
+    ism + telefon (+ viloyat, manzil / joylashuv) bilan buyurtma beradi → ERP da «Saytdan kelgan buyurtmalar» ro'yxati va Telegram xabari →
+    xodim mijozga qo'ng'iroq qilib TASDIQLAYDI (oddiy ERP buyurtmasiga aylanadi) yoki BEKOR qiladi; narx buyurtma paytida QOTADI). Holat:
+    «yangi» | «tasdiqlandi» | «bekor» (yozuv o'chirilmaydi). Raqam — korxona bo'yicha ketma-ket (`sb_seq`, «S-0001»). `sb_kalit` — do'kon
+    yuborgan `X-Amal-Kaliti` (takror yuborilsa ikkinchi buyurtma ochilmaydi), `sb_tana_xesh` — o'sha so'rov tanasi xeshi (bir xil kalit +
+    boshqa savat — 409). `order_id` — tasdiqlangan ERP buyurtmasi (u butunlay o'chirilsa NULL; `sb_order_raqam` qoladi). Mantiq —
+    `crud.sayt_*`. Ustun nomlari NOYOB (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_buyurtmalar"
+    __table_args__ = (UniqueConstraint("company_id", "sb_seq", name="uq_dokon_buyurtma_seq"),
+                      UniqueConstraint("company_id", "sb_kalit", name="uq_dokon_buyurtma_kalit"))
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    sb_seq = Column(Integer, nullable=False)
+    sb_raqam = Column(String(20), nullable=False)
+    sb_kalit = Column(String(64), nullable=False)
+    sb_tana_xesh = Column(String(64), nullable=False)
+    sb_mijoz = Column(String(100), nullable=False)
+    sb_telefon = Column(String(13), nullable=False, index=True)     # kech186 (review254 L6): telefon bo'yicha havola / soatlik chegara
+    sb_viloyat = Column(String(20), nullable=False)
+    sb_manzil = Column(Text, nullable=True)
+    sb_lokatsiya = Column(String(40), nullable=True)
+    sb_izoh = Column(Text, nullable=True)
+    sb_jami = Column(Numeric(12, 2), nullable=False)
+    sb_chegirmasiz = Column(Numeric(12, 2), nullable=False)
+    sb_holat = Column(String(20), nullable=False, default="yangi")
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    sb_order_raqam = Column(String(30), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    tasdiqlangan = Column(DateTime, nullable=True)
+    sb_tasdiqlagan = Column(String(100), nullable=True)
+    bekor_vaqti = Column(DateTime, nullable=True)
+    sb_bekor_qilgan = Column(String(100), nullable=True)
+    sb_bekor_sababi = Column(String(200), nullable=True)
+    # kech172 (zip 238): ombordan («Tayyor mahsulotlar») qatori bo'lsa — band tugash vaqti (UTC, yaratilgandan 48 soat); «yangi» holatda
+    # va shu vaqtgacha qatorlarning `sbq_tm_kaliti` miqdori saytdagi qoldiqdan ayiriladi. NULL — band yo'q.
+    sb_band_tugash = Column(DateTime, nullable=True)
+    # kech182 (zip 249): buyurtmani bergan kirgan hisob (`dokon_mijozlar.id`; FK siz — hisob o'chirilmaydi, faqat bloklanadi); NULL — mehmon.
+    # Kabinetdagi buyurtmalar tarixi / PDF va ERP buyurtmasiga usta (KPI / keshbek) — shu bo'yicha. `default=` ATAYLAB YO'Q.
+    mijoz_id = Column(Integer, nullable=True, index=True)
+    # kech184 (zip 250): ulgurji buyurtma — tasdiqlangan magazin «Ulgurji» bo'limidan bergan (narx — ulgurji, 1 dona = 2 m); NULL / False —
+    # oddiy (chakana). Bitta buyurtmada aralashmaydi. Keshbek (usta KPI) — ulgurjida YO'Q. `default=` ATAYLAB YO'Q (eski qatorlar — NULL).
+    sb_ulgurji = Column(Boolean, nullable=True)
+    # kech186 (zip 254): mijoz USTA HAVOLASI orqali kelgan (havola egasi — usta hisobi `dokon_mijozlar.id`; FK siz — hisob o'chirilmaydi).
+    # Tasdiqda ERP buyurtmasiga shu usta yoziladi (o'z usta hisobi bo'lmasa, ulgurji emas) — `crud.sayt_mijoz_ustasi`. `default=` YO'Q.
+    havola_mijoz_id = Column(Integer, nullable=True, index=True)
+    # review254 M1 / M2: havola KODI bilan kelgan buyurtma vaqti (30 kun shundan sanaladi); telefon bo'yicha bog'langan buyurtma — manba
+    # buyurtmaning vaqti NUSXASI (har yangi buyurtma muddatni uzaytirmaydi)
+    havola_vaqti = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<DokonBuyurtma {self.sb_raqam} {self.sb_holat} c={self.company_id}>"
+
+
+class DokonBuyurtmaQator(Base):
+    """kech171 (zip 237) — sayt buyurtmasi qatori: bitta katalog detali (komplekt — retsept bo'yicha detallarga AJRATILGAN; `guruh` — do'kon
+    yuborgan qator raqami, bir komplektning detallari bitta guruhda, `sbq_guruh_nomi` — «R-18 «Klassik» — rom komplekti, O'rta, qoplamali
+    × 3»). Katalog yozuvi o'chirilishi mumkin — model / detal ma'lumoti NUSXA (FK siz `model_id`, `detal_id`). Narx QOTGAN: `narx` — 1
+    birlik (chegirmali bo'lsa — chegirmali), `asl_narx` — chegirmasiz, `summa` = narx × miqdor (2 xona)."""
+    __tablename__ = "dokon_buyurtma_qatorlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    buyurtma_id = Column(Integer, ForeignKey("dokon_buyurtmalar.id", ondelete="CASCADE"), nullable=False, index=True)
+    tartib = Column(Integer, default=0, nullable=False)
+    guruh = Column(Integer, nullable=False)
+    sbq_guruh_nomi = Column(String(200), nullable=False)
+    sbq_tur = Column(String(20), nullable=False)
+    komplekt_soni = Column(Integer, nullable=True)
+    model_id = Column(Integer, nullable=True)
+    sbq_model_kod = Column(String(30), nullable=True)
+    sbq_model_nom = Column(String(120), nullable=True)
+    detal_id = Column(Integer, nullable=True)
+    sbq_detal_turi = Column(String(20), nullable=True)
+    sbq_olcham = Column(String(40), nullable=True)
+    eni_sm = Column(Float, nullable=True)
+    qalinligi_sm = Column(Float, nullable=True)
+    sbq_birlik = Column(String(10), nullable=False)
+    qoplamali = Column(Boolean, default=False, nullable=False)
+    miqdor = Column(Float, nullable=False)
+    narx = Column(Numeric(12, 2), nullable=False)
+    asl_narx = Column(Numeric(12, 2), nullable=False)
+    chegirma_foiz = Column(Numeric(5, 2), nullable=True)
+    summa = Column(Numeric(12, 2), nullable=False)
+    sbq_nom = Column(String(150), nullable=False)
+    # review237 M1: donali qatorning penoplast sarfi uchun narx — QOPLAMASIZ chakana narx (ERP qoidasi: qoplama hajmga ta'sir qilmaydi)
+    hajm_narxi = Column(Numeric(12, 2), nullable=True)
+    # kech172 (zip 238): ombordan qator — ERP mahsuloti kaliti (katalog bog'lamining NUSXASI: bog'lam keyin o'zgarsa ham band o'z mahsulotida)
+    sbq_tm_kaliti = Column(String(300), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonBuyurtmaQator {self.id} b={self.buyurtma_id} {self.sbq_nom}>"
+
+
+class DokonGalereya(Base):
+    """kech178 (zip 243) — «Bajarilgan ishlar» galereyasining bitta ishi (egasi QARORLARI «Onlayn do'kon rejasi» 30.10: galereya — ishlar
+    ro'yxati va ish sahifasi; har ishning rasmlari, joyi, sanasi va modellari; ish sahifasida har model narxi (chegirma bo'lsa —
+    chegirmali) va shu uydagi miqdor; ishni admin panelda egasi o'zi qo'shadi — rasmlar, joyi, sana va katalogdan modellar tanlanadi,
+    shuning uchun narx va chegirma saytda o'zi yangilanadi). `gl_oy` — ish oyi (oyning 1-kuni; saytda «2026, sentyabr»), NULL — ko'rsatilmaydi. Saytda tartib — yangisi
+    birinchi (`gl_oy` kamayib, keyin raqam kamayib).
+    Qatorlari — `DokonGalereyaQator`, rasmlari — `DokonGalereyaRasm`. Mantiq — `crud.dokon_galereya_*`. Ustun nomlari NOYOB
+    (tools/test_html_escape.py har matn ustuni nomini «foydalanuvchi matni» deb oladi)."""
+    __tablename__ = "dokon_galereya"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    gl_nomi = Column(String(120), nullable=False)
+    gl_joyi = Column(String(120), nullable=True)
+    gl_oy = Column(Date, nullable=True)
+    yoqilgan = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonGalereya {self.id} {self.gl_nomi}>"
+
+
+class DokonGalereyaQator(Base):
+    """kech178 (zip 243) — galereya ishida ishlatilgan katalog mahsuloti: DETAL (model + o'lcham, `detal_id`) yoki KOMPLEKT (komplekt
+    modeli + `glq_kmp_turi` rom / eshik + `glq_kmp_olcham` + `glq_kmp_toliq` — kapitel / baza bilan) va shu uydagi miqdor (detal birligida:
+    metr / dona / m²; komplekt — dona). Narx YO'Q — sayt katalogdan oladi. Model / detal o'chirilsa — qator ham o'chiriladi."""
+    __tablename__ = "dokon_galereya_qatorlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    galereya_id = Column(Integer, ForeignKey("dokon_galereya.id"), nullable=False, index=True)
+    model_id = Column(Integer, ForeignKey("dokon_modellar.id"), nullable=False, index=True)
+    detal_id = Column(Integer, ForeignKey("dokon_detallar.id"), nullable=True, index=True)
+    glq_kmp_turi = Column(String(10), nullable=True)
+    glq_kmp_olcham = Column(String(40), nullable=True)
+    glq_kmp_toliq = Column(Boolean, nullable=True)
+    glq_miqdor = Column(Numeric(12, 3), nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+
+    def __repr__(self):
+        return f"<DokonGalereyaQator {self.id} g={self.galereya_id} m={self.model_id} d={self.detal_id}>"
+
+
+class DokonGalereyaRasm(Base):
+    """kech178 (zip 243) — galereya ishining rasmi. Fayllar, ishlov va ochiq berish — sayt modeli rasmi (`DokonRasm`, zip 232) bilan
+    BIR XIL (o'sha papka, o'sha manzil shakli, `main.dokon_rasm_tayyorla`; `crud._dokon_rasm_jadvallari` — ikkala jadval)."""
+    __tablename__ = "dokon_galereya_rasmlari"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    galereya_id = Column(Integer, ForeignKey("dokon_galereya.id"), nullable=False, index=True)
+    fayl = Column(String(120), nullable=False, unique=True)
+    kichik = Column(String(120), nullable=False, unique=True)
+    eni = Column(Integer, nullable=False)
+    boyi = Column(Integer, nullable=False)
+    hajm = Column(Integer, nullable=False)
+    turi = Column(String(10), nullable=False)
+    tartib = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(String(100), nullable=True)
+
+    def __repr__(self):
+        return f"<DokonGalereyaRasm {self.id} g={self.galereya_id}>"
+
+# ============================================================
+# kech173 (zip 239): KOMPLEKT BELGISI — sarlavha va guruhlash (PDF lar, sahifa, API — bitta qoida; sahifadagi `kmpSarlavha` /
+# `kmpBloklari` (templates/base.html) bilan AYNAN)
+# ============================================================
+KMP_TURLARI = {"komplekt_rom": "rom komplekti", "komplekt_eshik": "eshik komplekti", "oz_olcham": "o'z o'lchami"}
+KMP_MAX_GURUH = 1000
+KMP_MAX_SONI = 500
+KMP_NOMI_MAX = 200
+
+
+def kmp_sarlavha(x):
+    """Guruh sarlavhasi: komplekt — «<nomi> — 3 komplekt», o'z o'lchami — «<nomi>»; belgisiz / to'liq bo'lmagan qator — None."""
+    g, t, n = getattr(x, "kmp_guruh", None), getattr(x, "kmp_turi", None), getattr(x, "kmp_nomi", None)
+    if not g or t not in KMP_TURLARI or not n:
+        return None
+    s = getattr(x, "kmp_soni", None)
+    return f"{n} — {int(s)} komplekt" if (t != "oz_olcham" and s) else str(n)
+
+
+def kmp_dict(x) -> dict:
+    """API javobi uchun 4 maydon (sahifa guruhlaydi)."""
+    return {"kmp_guruh": getattr(x, "kmp_guruh", None), "kmp_turi": getattr(x, "kmp_turi", None),
+            "kmp_nomi": getattr(x, "kmp_nomi", None), "kmp_soni": getattr(x, "kmp_soni", None)}
+
+
+def kmp_bloklari(qatorlar, kalit=None) -> list:
+    """Qatorlar → bloklar [(sarlavha | None, turi | None, [qatorlar])]: bir guruh qatorlari (guruh, turi, nomi, soni — bir xil) BIRINCHI
+    uchragan joyida yig'iladi (tahrirda keyin qo'shilgani ham o'z komplektining tagida), guruhsiz qator — o'z blokida (sarlavhasiz),
+    tartib o'zgarmaydi. `kalit` — qatordan belgili obyektni oladi (yuk xati qatori → buyurtma qatori)."""
+    bloklar, joy = [], {}
+    for q in (qatorlar or []):
+        x = kalit(q) if kalit else q
+        s = kmp_sarlavha(x) if x is not None else None
+        if not s:
+            bloklar.append((None, None, [q]))
+            continue
+        k = (x.kmp_guruh, x.kmp_turi, x.kmp_nomi, x.kmp_soni)
+        if k not in joy:
+            joy[k] = (s, x.kmp_turi, [])
+            bloklar.append(joy[k])
+        joy[k][2].append(q)
+    return bloklar
+
+
+def kmp_pdf_bloklari(qatorlar, kalit=None) -> list:
+    """PDF uchun bloklar (review239 H1): PDF jadvalida guruh faqat sarlavha qatori bilan ajraladi — guruhdan KEYIN kelgan guruhsiz qatorlar
+    (ketma-ketlari bitta blokka) «Alohida detallar» sarlavhasi oladi (aks holda yuk xatida oddiy detal oldingi komplektning bir qismidek
+    ko'rinardi). Guruhdan oldingi guruhsiz qatorlar — sarlavhasiz (ustida hech narsa yo'q)."""
+    natija, guruh_bor = [], False
+    for s, t, qs in kmp_bloklari(qatorlar, kalit):
+        if s:
+            guruh_bor = True
+            natija.append((s, t, qs))
+        elif natija and natija[-1][1] == "alohida":
+            natija[-1][2].extend(qs)
+        elif guruh_bor:
+            natija.append((KMP_ALOHIDA, "alohida", list(qs)))
+        elif natija and natija[-1][0] is None:
+            natija[-1][2].extend(qs)
+        else:
+            natija.append((None, None, list(qs)))
+    return natija
+
+
+KMP_ALOHIDA = "Alohida detallar"
+
+
 # ============================================================
 # Helper funksiyalar
 # ============================================================
@@ -2956,6 +3535,11 @@ _TENANT_RULES = {
     "HodimIshDavri":               [("employee_id", "Employee")],
     # kech141 (zip 169, A-P05): buyurtma tuzatishi — o'z buyurtmasining korxonasidan
     "BuyurtmaTuzatish":            [("order_id", "Order")],
+    # kech171 (zip 237): sayt buyurtmasi qatori — o'z sayt buyurtmasining korxonasidan
+    "DokonBuyurtmaQator":          [("buyurtma_id", "DokonBuyurtma")],
+    # kech178 (zip 243): galereya ishi qatori va rasmi — o'z ishining korxonasidan
+    "DokonGalereyaQator":          [("galereya_id", "DokonGalereya")],
+    "DokonGalereyaRasm":           [("galereya_id", "DokonGalereya")],
 }
 
 
@@ -3090,6 +3674,26 @@ _TENANT_REFS = {
     "ExpenseTransaction":          [("yonalish_id", "Yonalish"), ("hisob_id", "PulHisobi")],
     "TransportExpense":            [("yonalish_id", "Yonalish"), ("hisob_id", "PulHisobi")],
     "ProductType":                 [("yonalish_id", "Yonalish")],
+    # kech166 (zip 231): sayt katalogi — model FAQAT o'z korxonasining bo'limiga, narx qatori — o'z modeliga
+    "DokonModel":                  [("bolim_id", "DokonBolim")],
+    "DokonDetal":                  [("model_id", "DokonModel")],
+    # kech167 (zip 232): sayt modeli rasmi — FAQAT o'z korxonasining modeliga
+    "DokonRasm":                   [("model_id", "DokonModel")],
+    # kech169 (zip 234): model chegirmasi — FAQAT o'z korxonasining modeliga
+    "DokonChegirma":               [("model_id", "DokonModel")],
+    # kech178 (zip 243): galereya qatori — FAQAT o'z korxonasining modeli / detaliga
+    "DokonGalereyaQator":          [("model_id", "DokonModel"), ("detal_id", "DokonDetal")],
+    # kech171 (zip 237): sayt buyurtmasi — tasdiqlangan buyurtmasi FAQAT o'z korxonasidan
+    "DokonBuyurtma":               [("order_id", "Order")],
+    # kech181 (zip 248): saytdagi hisob — ERP ustasi FAQAT o'z korxonasidan; kirish / sessiya — o'z korxonasining hisobiga
+    "DokonMijoz":                  [("master_id", "Master")],
+    "DokonKirish":                 [("mijoz_id", "DokonMijoz")],
+    "DokonSessiya":                [("mijoz_id", "DokonMijoz")],
+    # kech185 (zip 252): «Kelganda xabar bering» — o'z korxonasining hisobiga
+    "DokonKutish":                 [("mijoz_id", "DokonMijoz")],
+    # kech186 (zip 253): berilgan keshbek — usta, pul hisobi, kassa yozuvi, to'lov, buyurtma — FAQAT o'z korxonasidan
+    "UstaKeshbek":                 [("master_id", "Master"), ("hisob_id", "PulHisobi"), ("cash_tx_id", "CashTransaction"),
+                                    ("payment_id", "Payment"), ("order_id", "Order")],
 }
 
 
@@ -3220,6 +3824,43 @@ def _tm_chiqim_yoz(session):
 def _tm_q0_tozala(session, transaction):
     if transaction.parent is None:
         session.info.pop(TM_Q0_KALIT, None)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech186 (zip 253 — egasi QARORI 04.11 «Faqat yangilari»): usta KPI foizi buyurtma «Tayyor» bo'lgan / sotuv yozilgan paytda QOTADI.
+# Har yo'l (Tayyor, qisman yakun, o'chirishda yopish, usta almashtirish, sayt tasdig'i, hisob tasdig'idagi bog'lash) — shu hodisa orqali.
+# Buyurtma: «Tayyor» + usta bor — holat «Tayyor» ga o'zgarganda, usta o'zgarganda yoki hali qotmagan bo'lsa — ustaning HOZIRGI foizi;
+# «Tayyor» emas yoki ustasiz — NULL (qayta «Tayyor» bo'lsa — o'sha paytdagi foiz). Sotuv: yangi yoki usta o'zgarganda.
+# `query.update()` / xom SQL QAMRAB OLINMAYDI (bunday yo'l bilan holat / usta yozilmaydi; eski yozuvlar — `main._migrate_kpi_qotir253`).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+def _kpi_tarix_ozgardimi(obj, nom) -> bool:
+    from sqlalchemy import inspect as _i253
+    try:
+        return bool(_i253(obj).attrs[nom].history.has_changes())
+    except Exception:                      # noqa: BLE001
+        return False
+
+
+@event.listens_for(SASession, "before_flush")
+def _usta_kpi_qotir(session, flush_context, instances):
+    def _foiz(mid):
+        u = session.get(Master, mid)
+        return float(u.kpi_percent or 0) if u is not None else None
+    with session.no_autoflush:
+        for obj in list(session.new) + list(session.dirty):
+            if isinstance(obj, Order):
+                if obj.status == OrderStatus.READY and obj.master_id:
+                    if (obj.usta_kpi_foizi is None or _kpi_tarix_ozgardimi(obj, "status")
+                            or _kpi_tarix_ozgardimi(obj, "master_id")):
+                        obj.usta_kpi_foizi = _foiz(obj.master_id)
+                elif obj.usta_kpi_foizi is not None:
+                    obj.usta_kpi_foizi = None
+            elif isinstance(obj, FinishedProductSale):
+                if obj.master_id:
+                    if obj.usta_kpi_foizi is None or _kpi_tarix_ozgardimi(obj, "master_id"):
+                        obj.usta_kpi_foizi = _foiz(obj.master_id)
+                elif obj.usta_kpi_foizi is not None:
+                    obj.usta_kpi_foizi = None
 
 
 @event.listens_for(SASession, "before_flush")

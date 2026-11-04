@@ -106,7 +106,9 @@ FONDA = {"api_restore_order", "api_restore_project", "api_create_master", "api_p
 # ataylab SINXRON: natijasi javobda kerak yoki amalning o'zi — xabar yuborish
 SINXRON = {"api_full_stock_report", "api_low_stock_alert", "api_cron_low_stock_check", "api_platform_reset_admin_password",
            "api_backup_send_now", "api_telegram_webhook_info", "api_telegram_setup_webhook_security", "api_set_telegram_bot",
-           "api_telegram_bot_ulash"}
+           "api_telegram_bot_ulash",
+           # kech181 (zip 248, MOSLANDI): do'kon boti holati va «Botni shu saytga ulash» (getMe / getWebhookInfo / setWebhook — natija javobda)
+           "api_sayt_dokon_bot", "api_sayt_dokon_bot_ulash"}
 _src = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
 _tree = ast.parse(_src)
 
@@ -184,9 +186,9 @@ for _fn in ast.walk(_tree):
                 _s4_yoq.append(f"{_fn.name}:{_c.lineno}")
         if isinstance(_c.func, ast.Attribute) and _c.func.attr == "add_task":
             _s4_yoq.append(f"{_fn.name}:{_c.lineno} add_task")
-check("S4 HAR `_fonda(background_tasks, …)` (24 ta) — `sessiya=db` bilan (fon vazifalaridan OLDIN so'rov sessiyasi yopiladi — ulanish "
+check("S4 HAR `_fonda(background_tasks, …)` (25 ta) — `sessiya=db` bilan (fon vazifalaridan OLDIN so'rov sessiyasi yopiladi — ulanish "
       "hovuzga qaytadi); `background_tasks.add_task` faqat `_fonda` ichida; `_tm_minus_xabari` matni so'rov ichida (`_fonda_tayyorla`)",
-      _s4_jami == 24 and not _s4_yoq and callable(getattr(main, "_tm_minus_xabari", None))
+      _s4_jami == ((28 + (1 if hasattr(main.crud, "dokon_api_ulgurji") else 0)) if hasattr(main, "_dokon_bot_yubor") else 25) and not _s4_yoq   # kech181 (zip 248, MOSLANDI): + ro'yxat / tasdiq / rad   # kech171 (zip 237): + sayt buyurtmasi xabari and callable(getattr(main, "_tm_minus_xabari", None))
       and callable(getattr(main._tm_minus_xabari, "_fonda_tayyorla", None)) and callable(getattr(main, "_sessiyani_yop", None)),
       (_s4_jami, _s4_yoq[:10]))
 

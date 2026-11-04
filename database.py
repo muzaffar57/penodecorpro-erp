@@ -275,6 +275,22 @@ try:
 except Exception:
     pass
 
+
+# kech166 (zip 231c — sinov saytida JONLI tasdiqlandi 31.10, review231 №6; ESKI — `/api/rollar` da ham): so'rov tanasidagi juft
+# bo'lmagan surrogat («\ud800») pg8000 da UTF-8 ga o'girilmaydi — xato bayonot YUBORILAYOTGAN paytda chiqadi, ulanish protokoli
+# yarim holatda qoladi va hovuzga qaytgan ulanishda KEYINGI so'rovlar (boshqa foydalanuvchi / korxonaniki ham) 500 berardi
+# (O'LCHANGAN `work/k231c/probe231c.py`, asl: [500, 500, 500, 200 …]). Yechim: bayonot paytidagi `UnicodeError` — ulanish
+# «uzilgan» deb belgilanadi, SQLAlchemy uni hovuzdan chiqarib tashlaydi (keyingi so'rov yangi ulanish oladi).
+def _unicode_ulanish_xatosi(ctx):
+    try:
+        if isinstance(ctx.original_exception, UnicodeError):
+            ctx.is_disconnect = True
+    except Exception:
+        pass
+
+
+_event_yv.listen(_Engine_yv, "handle_error", _unicode_ulanish_xatosi)
+
 # 2026-09-19 — Faza 1: avtomatik tenant filtri (TENANT_FILTER=1 bo'lsa).
 # Modul o'zi standart holatda O'CHIQ — yoqilmaguncha hech narsa o'zgarmaydi.
 try:
@@ -704,6 +720,10 @@ def add_missing_indexes():
         ("payments", "order_id"), ("payments", "delivery_id"),
         ("order_attachments", "order_id"),
         ("orders", "yaratish_kaliti"),          # kech144 (zip 173): takror yaratishdan himoya kaliti
+        ("dokon_buyurtmalar", "mijoz_id"),      # kech182 (zip 249): kabinet tarixi (review249 H249-2)
+        ("dokon_buyurtmalar", "havola_mijoz_id"),   # kech186 (zip 254): usta havolasi
+        ("dokon_mijozlar", "mj_havola"),            # kech186 (zip 254): havola kodi bo'yicha qidiruv
+        ("dokon_buyurtmalar", "sb_telefon"),        # review254 L6: telefon bo'yicha havola / soatlik chegara
     ]
 
     from sqlalchemy import inspect

@@ -1752,7 +1752,8 @@ def complete_order(db: Session, order_id: int, loy_kg: Optional[float] = None) -
                     db.flush()
                     _foyda45 = float(yakun_foydasi(db, order, company_id=getattr(order, 'company_id', None))
                                      .get("foyda", 0) or 0)
-                    _pct45 = float(_usta45.kpi_percent or 0)
+                    # kech186 (zip 253): foiz — buyurtmada qotgani (`models._usta_kpi_qotir`, flush da qo'yildi)
+                    _pct45 = float(order.usta_kpi_foizi if order.usta_kpi_foizi is not None else (_usta45.kpi_percent or 0))
                     # kech140 (zip 168, egasi QARORI 11.10): sovg'a davri ishtirokchisi — bu buyurtma keshbekka kirmaydi
                     import crud as _crud_sd45
                     _davrda45 = _crud_sd45.sovga_davr_tekshirgich(db, getattr(order, 'company_id', None))(
@@ -7870,7 +7871,9 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
     # hisobotidan ham yo'qolardi (sentyabr «Usta bonusi (KPI)» 95 000 → 0, sof foyda oshardi). Usta KPI — har yakunlangan
     # buyurtma / sotuv / qaytarish hodisasidan: faolligidan qat'i nazar, o'sha oyda hodisasi bo'lsa hisoblanadi (KPI sahifasi
     # va bot ham hodisalarni sanaydi — oylar yig'indisi = yil).
-    _mq = db.query(Master).filter(Master.kpi_percent > 0)
+    # kech186 (zip 253 — egasi QARORI 04.11): foiz har hodisada QOTGAN (`crud.usta_foizi`) — hozirgi foizi 0 bo'lgan ustaning oldingi
+    # (foizli paytdagi) hodisalari ham hisoblanadi; ro'yxatga — kamida bitta hodisasi foizli usta (yoki o'tkazmasi bor).
+    _mq = db.query(Master)
     if company_id is not None:
         _mq = _mq.filter(Master.company_id == company_id)
     masters = _mq.all()
@@ -7909,11 +7912,15 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
     _ichida = _crud_sd.sovga_davr_tekshirgich(db, company_id)
     _usta_obj = {m.id: m for m in masters}
     _qaytarish_usta = {}
+    _qaytarish_kpi, _qaytarish_foizli = {}, {}          # kech186 (zip 253): qaytarish — o'sha buyurtma qotgan foizida
     for _h144 in davr_qaytarishlari(db, *_tashkent_oy_oraligi(year, month),
                                    company_id=company_id):
         if _ichida(_usta_obj.get(_h144["master_id"]), _h144["vaqt"]):
             continue
         _qaytarish_usta[_h144["master_id"]] = _qaytarish_usta.get(_h144["master_id"], 0.0) + _h144["foyda"]
+        _p253 = _crud_sd.usta_foizi(_h144["order"], _usta_obj.get(_h144["master_id"]))
+        _qaytarish_kpi[_h144["master_id"]] = _qaytarish_kpi.get(_h144["master_id"], 0.0) + _h144["foyda"] * _p253 / 100
+        _qaytarish_foizli[_h144["master_id"]] = _qaytarish_foizli.get(_h144["master_id"]) or _p253 > 0
     _otkazma_usta = {}
     for _ot in (_crud_sd.sovga_keshbek_otkazmalari(db, *_tashkent_oy_oraligi(year, month), company_id=company_id)
                 if _mids else []):
@@ -7923,10 +7930,17 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         orders = [o for o in _buyurtma_oy.get(m.id, []) if not _ichida(m, o.completed_at)]
 
         monthly_profit = 0.0
+        kpi_amount = 0.0                   # kech186 (zip 253): Σ hodisa foydasi × o'sha hodisa foizi
+        _foizli = False
+        _foizlar = set()                   # review253 L1: hodisalar foizlari (bitta bo'lsa — ko'rsatiladi, aralash — None)
         for o in orders:
+            _p253 = _crud_sd.usta_foizi(o, m)
+            _foizlar.add(_p253)
+            _foizli = _foizli or _p253 > 0
             try:
                 profit_data = yakun_foydasi(db, o)
                 monthly_profit += float(profit_data.get("foyda", 0))
+                kpi_amount += max(float(profit_data.get("foyda", 0)), 0.0) * _p253 / 100      # egasi QARORI 04.11: zarar — 0
             except Exception as e:
                 try:
                     import crud as _crud_log
@@ -7941,9 +7955,18 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         # to'g'ridan-to'g'ri xarid qilib sotsa, buyurtma ochilmagani uchun
         # KPI umuman hisoblanmay qolar edi.
         fp_sales = [s for s in _sotuv_oy.get(m.id, []) if not _ichida(m, s.sold_at)]
-        monthly_profit += sum(float(s.total_amount or 0) - float(s.cost_amount or 0) for s in fp_sales)
+        for s in fp_sales:
+            _p253 = _crud_sd.usta_foizi(s, m)
+            _foizlar.add(_p253)
+            _foizli = _foizli or _p253 > 0
+            monthly_profit += float(s.total_amount or 0) - float(s.cost_amount or 0)
+            kpi_amount += max(float(s.total_amount or 0) - float(s.cost_amount or 0), 0.0) * _p253 / 100
         monthly_profit += _qaytarish_usta.get(m.id, 0.0)      # kech102 (144-band)
+        kpi_amount += _qaytarish_kpi.get(m.id, 0.0)
+        _foizli = _foizli or bool(_qaytarish_foizli.get(m.id))
         _otkazma = _otkazma_usta.get(m.id, 0.0)
+        if not _foizli and not _otkazma:
+            continue
 
         # kech140 (zip 168, audit A-P04 — O'LCHANGAN): ilgari `monthly_profit <= 0` bo'lgan oy TASHLANARDI — oldingi oy
         # buyurtmasining qaytarishi (keyingi oyda) KPI ni kamaytirmasdi: oylar yig'indisi 255 000, KPI sahifasi (yil) va bot
@@ -7952,11 +7975,12 @@ def calculate_monthly_master_kpi(db: Session, year: int, month: int,
         if not orders and not fp_sales and m.id not in _qaytarish_usta and not _otkazma:
             continue
 
-        kpi_amount = monthly_profit * m.kpi_percent / 100 + _otkazma
+        kpi_amount = kpi_amount + _otkazma
         total += kpi_amount
         breakdown.append({
             "master_name": m.name,
-            "kpi_percent": m.kpi_percent,
+            # review253 L1: shu oy hodisalarining QOTGAN foizi (hammasida bir xil bo'lsa); aralash / faqat qaytarish — None
+            "kpi_percent": next(iter(_foizlar)) if len(_foizlar) == 1 else None,
             "monthly_profit": round(monthly_profit),
             "kpi_amount": round(kpi_amount)
         })

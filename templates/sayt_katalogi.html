@@ -1,0 +1,2995 @@
+{% extends "base.html" %}
+{% block title %}Sayt katalogi — epserp{% endblock %}
+{% block page_title %}Sayt katalogi{% endblock %}
+{% block page_sub %}Onlayn do'kon bo'limlari, modellari, rasmlari va narxlari — oddiy, qoplamali va ulgurji{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-dark" id="skYangiBolimTugma" onclick="skYangiBolimOch()">+ Yangi bo'lim</button>
+{% endblock %}
+
+{% block head %}
+{# kech166 (zip 231 — «Sayt katalogi» poydevori; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, 31.10 «Onlayn do'kon»): do'kon katalogi
+   ERP ichida. Chapda bo'limlar, yonida tanlangan bo'limning modellari; model ochilsa — narx qatorlari (detal turi × o'lcham):
+   oddiy narx (qoplamasiz), qoplamali (bo'sh — qoplamasiz × koeffitsient, 1 000 ga yaxlitlab), ulgurji (metrli detal — 1 dona = 2 m,
+   m² — 1 m², dona — 1 dona). Katakdagi qiymat o'zgarishi bilan saqlanadi. Tizim bo'limlari (Tayyor mahsulotlar, O'z o'lchamingiz
+   bilan, Ulgurji) boshqa bo'limlardan yig'iladi — ularga model qo'shilmaydi. Ma'lumot — /api/sayt-katalogi (faqat Admin).
+   kech168 (zip 233): «Do'kon sozlamalari» kartochkasi — buyurtmani tasdiqlash telefonlari, ish vaqti, komplekt retsepti (shtorkalar);
+   komplekt modelida — retsept bo'yicha komplekt narxlari (server hisobi).
+   kech169 (zip 234): model ichida «🏷 Chegirma» shtorkasi — foiz yoki «Yangi narx», o'lchamlar, tugash sanasi; natija (asl → chegirmali,
+   tannarx, «tannarxdan past» ogohlantirishi) — serverdan; model sarlavhasida «−15 %» belgisi.
+   kech170 (zip 235): «📊 Narxlarni Excel orqali o'zgartirish» kartochkasi — butun narx jadvali .xlsx ga, qaytarishda hamma qator
+   tekshiriladi va saqlashdan oldin o'zgarishlar (eski → yangi), xatolar va ogohlantirishlar ko'rsatiladi; xato bo'lsa — saqlanmaydi.
+   kech170 (zip 236): «🔑 Do'kon sayti uchun kalit (API)» kartochkasi — kalit holati (boshi, kim / qachon yaratgan, oxirgi murojaat),
+   yaratish, almashtirish va o'chirish (tasdiq bilan); yangi kalit faqat bir marta ko'rsatiladi (nusxa olish tugmasi bilan).
+   kech178 (zip 243): «🏠 Bajarilgan ishlar (galereya)» kartochkasi — ishlar ro'yxati (yangisi birinchi), ish: nomi, joyi, oyi, saytda
+   ko'rinishi, katalogdan mahsulotlar (detal yoki komplekt) va shu uydagi miqdori, rasmlari (model rasmlari qoidasi). Narx saqlanmaydi —
+   sayt katalogdan oladi. Ma'lumot — /api/sayt-katalogi/galereya. #}
+<style>
+.sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
+.sk-grid > div{min-width:0}
+.sk-royxat{display:flex;flex-direction:column;gap:6px;padding:10px}
+.sk-bolim{display:flex;align-items:center;gap:10px;min-height:var(--h-btn);box-sizing:border-box;padding:8px 12px;border:1px solid var(--border2);
+  border-radius:var(--r-btn);background:var(--white);cursor:pointer;text-align:left;width:100%;font:inherit;font-size:14px;color:var(--text)}
+.sk-bolim:hover{border-color:var(--gold)}
+.sk-bolim.tanlangan{border-color:var(--gold);background:var(--gold-tint)}
+.sk-bolim .sk-nom{font-weight:600;line-height:1.3}
+.sk-bolim .sk-izoh{font-size:12px;color:var(--text2);margin-top:2px}
+.sk-bolim .sk-son{margin-left:auto;font-size:12px;color:var(--text2);white-space:nowrap}
+.sk-belgi{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:20px;background:var(--bg);color:var(--text2);white-space:nowrap}
+.sk-belgi.oltin{background:var(--gold-tint);color:var(--gold-dark)}
+.sk-bosh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border2)}
+.sk-bosh h3{margin:0;font-size:16px}
+.sk-bosh-ong{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
+.sk-tana{padding:14px 16px}
+.sk-matn{font-size:13px;color:var(--text2);line-height:1.5}
+.sk-forma{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.sk-forma label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text2);min-width:140px;flex:1 1 140px}
+.sk-forma label.keng{flex:2 1 260px}
+.sk-forma label.tor{flex:0 1 110px;min-width:110px}
+.sk-avto{font-size:12px;color:var(--text2);margin-top:2px;white-space:nowrap}
+.sk-forma label.belgi{flex-direction:row;align-items:center;gap:6px;min-width:0;flex:0 0 auto;font-size:13px;color:var(--text)}
+.sk-forma input[type=text],.sk-forma input[type=number],.sk-forma select,.sk-forma textarea{min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;
+  font-size:var(--fs-maydon-sm);border:1px solid var(--border);border-radius:var(--r-btn);background:var(--white);color:var(--text);font-family:inherit;width:100%}
+.sk-forma textarea{padding:8px 10px;min-height:64px;resize:vertical}
+.sk-model{border:1px solid var(--border2);border-radius:var(--r-btn);margin-bottom:10px;background:var(--white)}
+.sk-model.yashirin{opacity:.72}
+.sk-model-bosh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;width:100%;min-height:var(--h-btn);box-sizing:border-box;padding:8px 12px;
+  background:none;border:none;font:inherit;cursor:pointer;text-align:left;color:var(--text)}
+.sk-model-bosh .sk-kod{font-weight:700;font-size:14px}
+.sk-model-bosh .sk-mnom{font-size:14px}
+.sk-model-bosh .sk-son{margin-left:auto;font-size:12px;color:var(--text2)}
+.sk-model-tana{display:none;border-top:1px solid var(--border2);padding:12px}
+.sk-model.ochiq .sk-model-tana{display:block}
+.sk-jadval-quti{overflow-x:auto;margin-top:12px}
+.sk-jadval{width:100%;border-collapse:collapse;min-width:860px}
+.sk-jadval th{font-size:12px;font-weight:600;color:var(--text2);padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+.sk-jadval td{padding:6px;border-bottom:1px solid var(--border2);vertical-align:middle;font-size:13px}
+.sk-jadval input[type=text],.sk-jadval input[type=number]{width:100%;min-width:72px;min-height:var(--h-sm);box-sizing:border-box;padding:0 8px;
+  font-size:var(--fs-maydon-sm);border:1px solid var(--border);border-radius:var(--r-btn);background:var(--white);color:var(--text)}
+.sk-jadval input.saqlanmoqda{border-color:var(--gold)}
+.sk-jadval input.xato{border-color:var(--m-dc2626)}
+.sk-jadval .sk-birlik{font-size:12px;color:var(--text2);white-space:nowrap}
+.sk-jadval tr.yashirin td{color:var(--text2)}
+.sk-x{background:none;border:1px solid var(--border2);border-radius:var(--r-btn);min-height:32px;min-width:32px;cursor:pointer;color:var(--m-dc2626);font-size:14px}
+/* kech172 (zip 238): detal ↔ ERP «Tayyor mahsulotlar» mahsuloti */
+.sk-tm{margin-top:4px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;white-space:normal}
+.sk-tm b{color:var(--text);font-weight:600}
+.sk-tm button{min-height:32px;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white);cursor:pointer;font-size:12px;color:var(--text)}
+.sk-tm-oyna{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;display:none;align-items:center;justify-content:center;padding:16px}
+.sk-tm-oyna.ko{display:flex}
+.sk-tm-quti{background:var(--white);border-radius:14px;width:520px;max-width:100%;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;padding:16px;box-sizing:border-box}
+.sk-tm-quti input[type=search]{width:100%;min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;margin-top:8px;border:1px solid var(--border);border-radius:var(--r-btn);background:var(--white);color:var(--text)}
+.sk-tm-royxat{overflow-y:auto;margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.sk-tm-tanlov{display:flex;justify-content:space-between;gap:10px;align-items:center;width:100%;text-align:left;padding:10px;min-height:44px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white);cursor:pointer;color:var(--text);font-size:13px}
+.sk-tm-tanlov[disabled]{opacity:.55;cursor:not-allowed}
+.sk-bosh-holat{padding:28px 16px;text-align:center;color:var(--text2);font-size:14px}
+.sk-koeff{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.sk-yangi{display:none;margin-top:12px;padding:12px;border:1px dashed var(--border);border-radius:var(--r-btn)}
+.sk-yangi.ko{display:block}
+/* kech167 (zip 232): model rasmlari — rasm QIRQILMAYDI (object-fit: contain), bo'sh chetlar — och fon (`--f-f3e8d8`, sayt dizaynidagi #EFE7DD ga yaqin);
+   mahsulot sahifasi namunasida chetlar — shu rasmning xira nusxasi. Tartib — «⠿» ushlagich bilan surib yoki ◀ ▶ tugmalari. */
+.sk-rasmlar{margin-top:14px;padding:12px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--bg)}
+.sk-rasm-bosh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sk-rasm-bosh b{font-size:14px}
+.sk-rasm-qosh{position:relative;display:inline-flex;align-items:center;gap:6px;margin-left:auto;cursor:pointer}
+.sk-rasm-qosh input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.sk-rasm-qosh.band{opacity:.6;pointer-events:none}
+.sk-rasm-royxat{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.sk-rasm{position:relative;width:148px;display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid var(--border2);
+  border-radius:var(--r-btn);background:var(--white);box-sizing:border-box}
+.sk-rasm.suril{opacity:.45;border-style:dashed}
+.sk-rasm.asosiy{border-color:var(--gold)}
+.sk-rasm-kor{display:block;width:100%;height:96px;padding:0;border:none;border-radius:6px;background:var(--f-f3e8d8);cursor:zoom-in;overflow:hidden}
+.sk-rasm-kor img{width:100%;height:100%;object-fit:contain;display:block}
+.sk-rasm-tug{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+.sk-rasm-tug button{min-height:32px;min-width:0;width:100%;padding:0;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white);
+  color:var(--text);cursor:pointer;font-size:13px}
+.sk-rasm-tug button:disabled{opacity:.4;cursor:default}
+.sk-rasm-tug .sk-rasm-ush{cursor:grab;touch-action:none;font-size:16px;line-height:1}
+.sk-rasm-tug .sk-x{min-height:32px;min-width:0}
+.sk-rasm-olcham{font-size:12px;color:var(--text2);white-space:nowrap}
+.sk-rasm-belgi{position:absolute;left:10px;top:10px;font-size:12px;font-weight:700;padding:1px 7px;border-radius:20px;background:var(--gold-btn);color:#fff}
+.sk-rasm-holat{margin-top:10px;font-size:13px;line-height:1.5}
+.sk-rasm-holat .xato{color:var(--m-dc2626)}
+.sk-namuna{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:12px}
+.sk-namuna figure{margin:0;display:flex;flex-direction:column;gap:4px}
+.sk-namuna figcaption{font-size:12px;color:var(--text2)}
+.sk-nm-karta{width:174px;height:140px;border-radius:12px;background:var(--f-f3e8d8);overflow:hidden}
+.sk-nm-karta img{width:100%;height:100%;object-fit:contain;display:block}
+.sk-nm-sahifa{position:relative;width:195px;height:200px;border-radius:12px;background:var(--f-f3e8d8);overflow:hidden}
+.sk-nm-sahifa .xira{position:absolute;inset:-12px;width:calc(100% + 24px);height:calc(100% + 24px);object-fit:cover;filter:blur(14px);opacity:.75}
+.sk-nm-sahifa .asl{position:relative;width:100%;height:100%;object-fit:contain;display:block}
+.sk-korish{position:fixed;inset:0;z-index:2000;background:rgba(10,14,22,.92);display:flex;align-items:center;justify-content:center}
+.sk-korish[hidden]{display:none}
+.sk-korish img{max-width:96vw;max-height:88vh;object-fit:contain;display:block}
+.sk-korish button{position:absolute;min-width:48px;min-height:48px;border:none;border-radius:24px;background:rgba(255,255,255,.16);color:#fff;
+  font-size:22px;cursor:pointer}
+.sk-korish .yop{top:14px;right:14px}
+.sk-korish .chap{left:10px;top:50%;transform:translateY(-50%)}
+.sk-korish .ong{right:10px;top:50%;transform:translateY(-50%)}
+.sk-korish .soni{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px}
+@media (max-width: 900px){
+  .sk-grid{grid-template-columns:1fr}
+}
+@media (max-width: 420px){
+  .sk-rasm{width:calc(50% - 5px)}
+  .sk-rasm-qosh{margin-left:0;width:100%;justify-content:center}
+}
+/* Telefon (≤ 700 px): narx qatorlari — kartochka (har katak o'z yorlig'i bilan; jadval gorizontal aylantirilmaydi) */
+@media (max-width: 700px){
+  .sk-jadval{min-width:0}
+  .sk-jadval thead{display:none}
+  .sk-jadval,.sk-jadval tbody,.sk-jadval tr,.sk-jadval td{display:block;width:100%;box-sizing:border-box}
+  .sk-jadval tr{border:1px solid var(--border2);border-radius:var(--r-btn);padding:8px 10px;margin-bottom:10px}
+  .sk-jadval td{border-bottom:none;padding:4px 0;display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px;align-items:center}
+  .sk-jadval td::before{content:attr(data-label);font-size:12px;color:var(--text2)}
+  .sk-jadval td:not([data-label]){grid-template-columns:1fr}
+  .sk-jadval td:not([data-label])::before{content:none}
+  .sk-jadval td.sk-bosh-td{display:none}
+  .sk-jadval .sk-avto{grid-column:2}
+}
+/* kech168 (zip 233): do'kon sozlamalari (telefonlar, ish vaqti, komplekt retsepti) va komplekt narxlari bloki */
+.sk-soz{display:flex;flex-direction:column;gap:8px}
+.sk-tel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r-btn);background:var(--white)}
+.sk-tel .sk-tel-raqam{font-weight:600;white-space:nowrap;min-width:150px}
+.sk-tel input[type=text]{flex:1 1 180px;min-width:0;min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;border:1px solid var(--border2);border-radius:var(--r-btn);font:inherit;font-size:14px}
+.sk-tel label.belgi{display:flex;align-items:center;gap:6px;font-size:13px}
+.sk-tel .btn{min-height:var(--h-sm)}
+.sk-tel input.xato,.sk-forma input.xato{border-color:var(--red)}
+.sk-kunlar{display:flex;flex-wrap:wrap;gap:6px}
+.sk-kunlar label{flex-direction:row !important;align-items:center;gap:4px;min-width:0 !important;flex:0 0 auto !important;font-size:13px !important;color:var(--text) !important;
+  padding:6px 10px;border:1px solid var(--border2);border-radius:20px;cursor:pointer}
+.sk-retsept{border-collapse:collapse;font-size:14px}
+.sk-retsept th,.sk-retsept td{padding:6px 10px;border-bottom:1px solid var(--border2);text-align:left}
+.sk-retsept input{width:80px;min-height:var(--h-sm);box-sizing:border-box;padding:0 8px;border:1px solid var(--border2);border-radius:var(--r-btn);font:inherit}
+.sk-komplekt{margin-top:12px}
+.sk-komplekt h4{margin:0 0 6px;font-size:14px}
+.sk-kjadval{width:100%;border-collapse:collapse;font-size:13px}
+.sk-kjadval th,.sk-kjadval td{padding:6px 8px;border-bottom:1px solid var(--border2);text-align:left;vertical-align:top}
+.sk-kjadval .sk-kn{white-space:nowrap}
+.sk-kjadval .sk-yoq{color:var(--red);font-size:12px}
+#skTelHozir{margin:6px 0 8px}
+@media (max-width: 700px){
+  .sk-kjadval,.sk-kjadval tbody{display:block}
+  .sk-kjadval thead{display:none}
+  .sk-kjadval tr{display:block;border:1px solid var(--border2);border-radius:var(--r-btn);margin-bottom:8px;padding:6px 8px}
+  .sk-kjadval td{display:flex;gap:8px;border:0;padding:4px 0}
+  .sk-kjadval td > div{min-width:0}
+  .sk-kjadval td[data-label]::before{content:attr(data-label);flex:0 0 84px;color:var(--text2);font-size:12px}
+  .sk-kjadval .sk-kn{white-space:normal}
+  .sk-tel .sk-tel-raqam{min-width:0;flex:1 1 100%}
+  .sk-tel input[type=text]{flex:1 1 100%}
+  .sk-tel label.belgi{flex:1 1 100%}
+  .sk-retsept th,.sk-retsept td{padding:6px 4px}
+  .sk-retsept input{width:60px}
+}
+@media (max-width: 420px){
+  .sk-retsept input{width:50px;padding:0 6px}
+}
+/* kech169 (zip 234): model chegirmasi — shtorka ichida forma (foiz, tugash sanasi, o'lchamlar) va natija jadvali (asl → chegirmali,
+   tannarx, «Yangi narx»); tannarxdan past — qizil (faqat ogohlantirish) */
+.sk-chegirma{margin-top:12px}
+.sk-forma input[type=date]{min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;font-size:var(--fs-maydon-sm);border:1px solid var(--border);
+  border-radius:var(--r-btn);background:var(--white);color:var(--text);font-family:inherit;width:100%}
+.sk-ch-olcham{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%;align-items:center}
+.sk-ch-olcham label{flex-direction:row !important;align-items:center;gap:4px;min-width:0 !important;flex:0 0 auto !important;font-size:13px !important;
+  color:var(--text) !important;padding:6px 10px;border:1px solid var(--border2);border-radius:20px;cursor:pointer}
+.sk-ch-olcham label.xira{opacity:.55}
+.sk-ch-natija{margin-top:10px}
+.sk-ch-ogoh{margin:0 0 8px;padding:8px 10px;border:1px solid var(--red);border-radius:var(--r-btn);color:var(--red);font-size:13px;line-height:1.5}
+.sk-ch-ogoh .sk-matn{margin-top:4px}
+.sk-belgi.qizil{background:var(--f-fee2e2);color:var(--red)}
+.sk-eski{text-decoration:line-through;color:var(--text2)}
+.sk-chjadval tr.past td{color:var(--red)}
+.sk-chjadval tr.chetda td{color:var(--text2)}
+.sk-chjadval input[type=text]{width:120px;max-width:100%;min-height:var(--h-sm);box-sizing:border-box;padding:0 8px;border:1px solid var(--border2);
+  border-radius:var(--r-btn);font:inherit;font-size:14px}
+.sk-chjadval input.xato{border-color:var(--red)}
+.sk-kn.sk-ch-kn{color:var(--gold-dark)}
+@media (max-width: 700px){
+  .sk-chjadval input[type=text]{width:100%}
+}
+/* kech170 (zip 235): narxlarni Excel orqali o'zgartirish — yuklab olish / yuklash tugmalari, ko'rish natijasi (xatolar — qizil, saqlanmaydi;
+   ogohlantirishlar — oltin, saqlashni to'smaydi; o'zgarishlar jadvali — telefonda kartochka) */
+.sk-ex-tugmalar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.sk-ex-yukla{position:relative;overflow:hidden;cursor:pointer}
+.sk-ex-yukla input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.sk-ex-yukla.band,.sk-ex-tugmalar .btn:disabled{opacity:.6;pointer-events:none}
+.sk-ex-yukla:focus-within{outline:2px solid var(--gold);outline-offset:2px}
+.sk-ex-natija{margin-top:12px}
+.sk-ex-natija:empty{display:none}
+.sk-ex-blok{margin:0 0 10px;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-ex-blok.xato{border-color:var(--red);color:var(--red)}
+.sk-ex-blok.ogoh{border-color:var(--gold);background:var(--gold-tint);color:var(--text)}
+.sk-ex-blok ul{margin:6px 0 0;padding-left:18px;max-height:260px;overflow-y:auto}
+.sk-ex-blok li{margin:2px 0;overflow-wrap:anywhere}
+.sk-ex-jadval-quti{max-height:420px;overflow:auto;border:1px solid var(--border2);border-radius:var(--r-btn)}
+.sk-ex-jadval .sk-ex-yangi{font-weight:600}
+.sk-ex-jadval .sk-ex-och{color:var(--red);font-weight:600}
+@media (max-width: 700px){
+  .sk-ex-jadval-quti{max-height:none;border:0}
+  .sk-ex-tugmalar .btn,.sk-ex-yukla{flex:1 1 100%;justify-content:center;text-align:center}
+}
+/* kech170 (zip 236): do'kon sayti kaliti (API) — holat, yangi kalit (faqat bir marta ko'rsatiladi) bloki */
+.sk-api-holat{margin-top:8px;font-size:13px;line-height:1.6}
+.sk-api-holat b{font-family:var(--mono, monospace)}
+.sk-api-yangi{margin-top:10px;padding:10px;border:1px solid var(--gold);background:var(--gold-tint);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-api-kalit-qator{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.sk-api-kalit-qator input{flex:1 1 280px;min-width:0;font-family:var(--mono, monospace);font-size:13px}
+@media (max-width: 700px){
+  .sk-api-kalit-qator .btn{flex:1 1 100%;justify-content:center}
+}
+/* kech181 (zip 248): «Usta va magazinlar (saytdan)» — bot holati, hisoblar ro'yxati, tasdiq formasi */
+.sk-mj-bot{margin-top:8px;font-size:13px;line-height:1.6}
+.sk-mj-bot .sk-ex-tugmalar{margin-top:6px}
+.sk-mj-guruh{margin-top:12px;font-size:12px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.04em}
+.sk-mj-qator{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-mj-qator[data-holat="kutilmoqda"]{border-color:var(--gold);background:var(--gold-tint)}
+.sk-mj-bosh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.sk-mj-bosh b{font-size:14px}
+.sk-mj-izoh{font-size:12px;opacity:.8}
+.sk-mj-forma{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.sk-mj-forma select{flex:1 1 220px;min-width:0}
+.sk-mj-forma input{flex:0 1 120px;min-width:0}
+.sk-mj-forma .btn{flex:0 0 auto}
+@media (max-width: 700px){
+  .sk-mj-forma select,.sk-mj-forma input,.sk-mj-forma .btn{flex:1 1 100%;justify-content:center}
+}
+/* kech185 (zip 252): «Kelganda xabar bering» — mahsulot bo'yicha kutayotganlar */
+.sk-kt-jami{margin-top:8px;font-size:13px;line-height:1.6}
+.sk-kt-mahsulot{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:var(--r-btn);font-size:13px;line-height:1.5}
+.sk-kt-mahsulot[data-holat="omborda"]{border-color:var(--gold);background:var(--gold-tint)}
+.sk-kt-bosh{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.sk-kt-bosh b{font-size:14px;overflow-wrap:anywhere}
+.sk-kt-izoh{font-size:12px;opacity:.8}
+.sk-kt-kim{margin:6px 0 0;padding-left:18px}
+.sk-kt-kim li{overflow-wrap:anywhere}
+/* kech178 (zip 243): «Bajarilgan ishlar» galereyasi — ishlar ro'yxati (asosiy rasm, nomi, joyi · oyi, saytda ko'rinishi), ochiq ish — forma,
+   mahsulotlar (katalogdan model → o'lcham yoki komplekt → miqdor), rasmlar (model rasmlari uslubida; qirqilmaydi) */
+.sk-gl-ish{border:1px solid var(--border2);border-radius:var(--r-btn);margin-top:10px;background:var(--white)}
+.sk-gl-ish.ochiq{border-color:var(--gold)}
+.sk-gl-bosh{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--h-btn);padding:8px 12px;border:none;background:none;font:inherit;
+  color:var(--text);text-align:left;cursor:pointer}
+.sk-gl-bosh img,.sk-gl-rasmsiz{flex:none;width:72px;height:54px;border-radius:6px;background:var(--f-f3e8d8);object-fit:contain;display:flex;
+  align-items:center;justify-content:center;font-size:24px}
+.sk-gl-matn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sk-gl-matn b{font-size:14px;overflow-wrap:anywhere}
+.sk-gl-belgi{align-self:flex-start;font-size:12px;font-weight:600;padding:1px 8px;border-radius:20px;border:1px solid var(--border2)}
+.sk-gl-belgi.ok{color:var(--gold-dark);border-color:var(--gold)}
+.sk-gl-belgi.ogoh{color:var(--text);border-color:var(--gold);background:var(--gold-tint)}
+.sk-gl-belgi.yoq{color:var(--text2)}
+.sk-gl-forma{padding:4px 12px 14px;border-top:1px solid var(--border2)}
+.sk-gl-forma > .sk-forma{margin-top:10px}
+.sk-forma label.sk-gl-oy{flex:1 1 170px;min-width:170px}
+.sk-gl-forma input[type=month]{min-height:var(--h-sm);box-sizing:border-box;padding:0 10px;font-size:var(--fs-maydon-sm);border:1px solid var(--border);
+  border-radius:var(--r-btn);font-family:inherit;background:var(--white);color:var(--text)}
+.sk-gl-qbosh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:14px}
+.sk-gl-qbosh b{font-size:14px}
+.sk-gl-qatorlar{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.sk-gl-qator{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--border2);border-radius:var(--r-btn)}
+.sk-gl-qnom{flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere;display:flex;flex-direction:column;gap:2px}
+.sk-gl-sabab{font-size:12px;color:var(--m-dc2626)}
+.sk-gl-miqdor{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text2)}
+.sk-gl-miqdor input{width:90px;min-height:var(--h-sm);box-sizing:border-box;padding:0 8px;border:1px solid var(--border2);border-radius:var(--r-btn);
+  font:inherit;font-size:14px;text-align:right}
+.sk-gl-miqdor input.xato,.sk-gl-tanlov input.xato{border-color:var(--red)}
+.sk-gl-tanlov{margin-top:10px;padding:10px;border:1px dashed var(--border2);border-radius:var(--r-btn)}
+.sk-gl-rtug{grid-template-columns:repeat(3,minmax(0,1fr))}
+.sk-gl-ochir{margin-left:auto;color:var(--m-dc2626)}
+@media (max-width: 700px){
+  .sk-gl-qator{flex-wrap:wrap}
+  .sk-gl-qnom{flex:1 1 100%}
+  .sk-gl-miqdor{flex:1}
+  .sk-gl-ochir{margin-left:0}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="erp-content" id="skSahifa">
+<div class="card" style="margin-bottom:14px">
+  <div class="sk-tana">
+    <div class="sk-koeff sk-forma">
+      <label class="tor">Qoplama koeffitsienti
+        <input type="text" inputmode="decimal" id="skKoeff" disabled>
+      </label>
+      <button type="button" class="btn btn-outline" id="skKoeffSaqla" onclick="skKoeffSaqla()" disabled>Saqlash</button>
+      <div class="sk-matn" style="flex:1 1 280px">Qoplamali narx bo'sh qoldirilgan qatorlarda qoplamali narx = qoplamasiz narx × shu
+        koeffitsient (1 000 so'mgacha yaxlitlanadi). Alohida yozilgan qoplamali narxlarga ta'sir qilmaydi.</div>
+    </div>
+    <div class="yuk-xato-qator" id="skXato" hidden></div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px" id="skExcel">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-excel"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">📊 Narxlarni Excel orqali o'zgartirish</span><span class="sht-holat" id="skExHolat"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Butun narx jadvalini Excel faylga yuklab oling, sariq ustunlardagi narxlarni o'zgartiring va faylni shu yerga qaytaring.
+          Hamma qator tekshiriladi va saqlashdan oldin nima o'zgarishi ko'rsatiladi; bitta xato bo'lsa ham hech narsa saqlanmaydi.
+          Faqat siz o'zgartirgan kataklar saqlanadi — shu orada ERP'da o'zgargan narxni eski fayl bosib ketmaydi.
+          Faylda ulgurji narxlar ham bor — uni begona odamga yubormang.</p>
+        <div class="sk-ex-tugmalar">
+          <button type="button" class="btn btn-outline" id="skExOl">⬇ Excel'ga yuklab olish</button>
+          <label class="btn btn-dark sk-ex-yukla" id="skExYuklaTugma">⬆ Excel'dan yuklash<input type="file" id="skExFayl" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Excel faylni tanlash"></label>
+        </div>
+        <div class="sk-ex-natija" id="skExNatija" aria-live="polite"></div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px" id="skApi">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-api"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🔑 Do'kon sayti uchun kalit (API)</span><span class="sht-holat" id="skApiHolatQisqa"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Do'kon sayti ERP'dan katalogni shu maxfiy kalit bilan o'qiydi: saytda ko'rinadigan bo'limlar, modellar, rasmlar,
+          chakana narxlar, chegirmalar, komplekt narxlari, telefon raqamlari va ish vaqti. Ulgurji narx, tannarx va moliya ma'lumotlari
+          do'konga berilmaydi. Kalitni faqat do'kon sayti serverining sozlamalariga yozing — hech kimga yubormang.</p>
+        <div class="sk-api-holat" id="skApiHolat" aria-live="polite">Yuklanmoqda…</div>
+        <div class="sk-ex-tugmalar" id="skApiTugmalar"></div>
+        <div id="skApiYangi"></div>
+      </div>
+    </details>
+  </div>
+</div>
+<div class="card" style="margin-bottom:14px" id="skGl">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-gl"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🏠 Bajarilgan ishlar (galereya)</span><span class="sht-holat" id="skGlHolat"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Saytdagi «Bajarilgan ishlar» bo'limi: mahsulotlaringiz o'rnatilgan uylar. Har ishga rasmlar, joyi, oyi va katalogdan
+          ishlatilgan mahsulotlar (miqdori bilan) qo'shiladi — mijoz ishni ochib, shu modellarni bir bosishda savatga soladi. Narx va chegirma
+          katalogdan olinadi, alohida yozilmaydi. Rasmsiz yoki yashirilgan ish saytda ko'rinmaydi.</p>
+        <div class="sk-ex-tugmalar"><button type="button" class="btn btn-dark" id="skGlYangi">+ Yangi ish</button></div>
+        <div id="skGlRoyxat" aria-live="polite"><div class="sk-bosh-holat">Yuklanmoqda…</div></div>
+      </div>
+    </details>
+  </div>
+</div>
+<div class="card" style="margin-bottom:14px" id="skMj">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-mj"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">👷 Usta va magazinlar (saytdan)</span><span class="sht-holat" id="skMjHolatQisqa"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Usta va qurilish magazinlari saytga Telegram orqali kiradi (telefon raqami Telegramdan olinadi) va so'rov yuboradi.
+          Shu yerda tasdiqlaysiz: usta — ERP'dagi ustaga bog'lanadi va KPI foizi qo'yiladi (keshbek shu foizdan); magazinga — ulgurji
+          bo'lim ochiladi. Tasdiq yoki rad haqida mijozga Telegram'da xabar boradi.</p>
+        <div class="sk-mj-bot" id="skMjBot" aria-live="polite">Yuklanmoqda…</div>
+        <div id="skMjRoyxat" aria-live="polite"></div>
+      </div>
+    </details>
+  </div>
+</div>
+<div class="card" style="margin-bottom:14px" id="skKt">
+  <div class="sk-tana">
+    <details class="sht" data-sht="sk-kt"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🔔 Kelganda xabar bering</span><span class="sht-holat" id="skKtHolatQisqa"></span></summary>
+      <div class="sht-ich">
+        <p class="sk-matn">Saytdagi «Tayyor mahsulotlar»da tugagan mahsulot uchun kirgan usta / magazin «Kelganda xabar bering» ni bosadi.
+          Mahsulot omborga kelib saytda qoldig'i paydo bo'lganda unga Telegram'da xabar boradi (tekshiruv har bir necha daqiqada, har kutishga
+          bir marta). Bu yerda qaysi mahsulot kutilayotganini ko'rasiz.</p>
+        <div id="skKtRoyxat" aria-live="polite"><div class="sk-bosh-holat">Yuklanmoqda…</div></div>
+      </div>
+    </details>
+  </div>
+</div>
+<div class="card" style="margin-bottom:14px" id="skSoz">
+  <div class="sk-tana" id="skSozIch"><div class="sk-bosh-holat">Do'kon sozlamalari yuklanmoqda…</div></div>
+</div>
+
+<div class="card sk-yangi" id="skYangiBolim">
+  <div class="sk-forma">
+    <label class="keng">Yangi bo'lim nomi
+      <input type="text" id="skYbNom" maxlength="80" placeholder="Masalan: Arkalar">
+    </label>
+    <label>Sotish qolipi
+      <select id="skYbQolip"></select>
+    </label>
+    <button type="button" class="btn btn-dark" id="skYbSaqla" onclick="skBolimYarat()">Qo'shish</button>
+    <button type="button" class="btn btn-outline" onclick="skYangiBolimYop()">Bekor</button>
+  </div>
+</div>
+
+<div class="sk-grid">
+  <div class="card">
+    <div class="sk-royxat" id="skBolimlar"><div class="sk-bosh-holat">Yuklanmoqda…</div></div>
+  </div>
+  <div class="card" id="skOng">
+    <div class="sk-bosh-holat">Yuklanmoqda…</div>
+  </div>
+</div>
+</div>
+<div class="sk-korish" id="skKorish" hidden role="dialog" aria-modal="true" aria-label="Rasmni ko'rish">
+  <img id="skKorRasm" alt="">
+  <button type="button" class="yop" id="skKorYop" aria-label="Yopish" data-yopish>✕</button>
+  <button type="button" class="chap" id="skKorChap" aria-label="Oldingi rasm">‹</button>
+  <button type="button" class="ong" id="skKorOng" aria-label="Keyingi rasm">›</button>
+  <div class="soni" id="skKorSoni"></div>
+</div>
+<!-- kech172 (zip 238): detalni ERP «Tayyor mahsulotlar» mahsulotiga bog'lash -->
+<div class="sk-tm-oyna" id="skTmOyna" role="dialog" aria-modal="true" aria-labelledby="skTmSarlavha">
+  <div class="sk-tm-quti">
+    <div style="display:flex;align-items:center;gap:8px"><b id="skTmSarlavha" style="flex:1;font-size:15px">Omborga bog'lash</b>
+      <button type="button" class="sk-x" id="skTmYop" data-yopish aria-label="Yopish" style="color:var(--text)">✕</button></div>
+    <div class="sk-matn" id="skTmIzoh" style="margin-top:6px"></div>
+    <input type="search" id="skTmQidir" placeholder="Qidirish: mahsulot nomi" maxlength="60" autocomplete="off" data-no-capitalize data-no-i18n>
+    <div class="sk-tm-royxat" id="skTmRoyxat"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// kech166 (zip 231) — Sayt katalogi. Holat: SK.k — /api/sayt-katalogi javobi; SK.bolim — tanlangan bo'lim; SK.ochiq — ochiq modellar.
+// kech167 (zip 232): SK.k.rasmlar — model rasmlari (tartib bo'yicha; birinchisi — asosiy); SK.rholat — modelning oxirgi yuklash natijasi;
+// SK.kor — to'liq ekranda ko'rilayotgan rasm. Rasm amalidan keyin FAQAT shu modelning rasm bloki qayta chiziladi (narx kataklariga
+// yozilayotgan matn yo'qolmaydi — review231 №4 saboqi).
+var SK = {k: null, bolim: null, ochiq: {}, band: {}, navbat: {}, rholat: {}, kor: null};
+var SK_XOTIRA = 'sk:bolim';
+
+function skXotiraOl() { try { return parseInt(localStorage.getItem(SK_XOTIRA) || '', 10) || null; } catch (e) { return null; } }
+function skXotiraYoz(v) { try { localStorage.setItem(SK_XOTIRA, String(v)); } catch (e) { /* xotira yopiq — shu sahifada */ } }
+
+function skPul(x) { return (x === null || x === undefined) ? '' : String(x); }
+function skSonKor(x) { return (x === null || x === undefined) ? '—' : sonKor(x, 0); }
+
+function skQolipNomi(kod) {
+  var q = (SK.k && SK.k.qoliplar || []).filter(function (x) { return x.kod === kod; })[0];
+  return q ? q.nom : kod;
+}
+function skTuriNomi(kod) {
+  var t = (SK.k && SK.k.turlar || []).filter(function (x) { return x.kod === kod; })[0];
+  return t ? t.nom : kod;
+}
+function skBirlikMatn(b) { return b === 'metr' ? '1 m' : (b === 'm2' ? '1 m²' : '1 dona'); }
+function skUlgurjiMatn(b) { return b === 'metr' ? '1 dona = 2 m' : (b === 'm2' ? '1 m²' : '1 dona'); }
+
+function skXatoKor(matn) {
+  var el = document.getElementById('skXato');
+  el.textContent = matn || '';
+  el.hidden = !matn;
+}
+
+async function skYukla() {
+  await yukBlok('sayt_katalogi', '/api/sayt-katalogi', function (d) {
+    SK.k = d;
+    skXatoKor('');
+    var kf = document.getElementById('skKoeff');
+    kf.value = d.koeff;
+    kf.disabled = false;
+    document.getElementById('skKoeffSaqla').disabled = false;
+    var sel = document.getElementById('skYbQolip');
+    sel.innerHTML = d.qoliplar.map(q => '<option value="' + escapeHtml(q.kod) + '">' + escapeHtml(q.nom) + '</option>').join('');
+    if (!SK.bolim || !d.bolimlar.some(function (b) { return b.id === SK.bolim; })) {
+      var x = skXotiraOl();
+      SK.bolim = (x && d.bolimlar.some(function (b) { return b.id === x; })) ? x : (d.bolimlar[0] ? d.bolimlar[0].id : null);
+    }
+    skChiz();
+    if (!SK.sozChizildi || SK.sozQayta) { SK.sozChizildi = true; SK.sozQayta = false; skSozChiz(); }   // zip 233
+  }, function (e) {
+    var matn = yukXatoMatn('Sayt katalogi', e);
+    skXatoKor(matn);
+    if (!SK.k) {
+      yukRoyxatXato('skBolimlar', matn);
+      document.getElementById('skOng').innerHTML = '';
+    }
+  });
+}
+
+function skChiz() { skBolimlarChiz(); skOngChiz(); }
+
+function skBolimlarChiz() {
+  var el = document.getElementById('skBolimlar');
+  var b = SK.k.bolimlar;
+  if (!b.length) { el.innerHTML = '<div class="sk-bosh-holat">Bo\'lim yo\'q — «+ Yangi bo\'lim» bilan qo\'shing.</div>'; return; }
+  el.innerHTML = b.map(function (x) {
+    var soni = SK.k.modellar.filter(function (m) { return m.bolim_id === x.id; }).length;
+    var izoh = x.tizim_kaliti ? 'Tizim bo\'limi' : escapeHtml(x.qolip_nomi || '');
+    return '<button type="button" class="sk-bolim' + (x.id === SK.bolim ? ' tanlangan' : '') + '" data-id="' + x.id + '">' +
+      '<div><div class="sk-nom">' + escapeHtml(x.nom) + (x.yoqilgan ? '' : ' <span class="sk-belgi">yashirin</span>') + '</div>' +
+      '<div class="sk-izoh">' + izoh + '</div></div>' +
+      (x.tizim_kaliti ? '' : '<span class="sk-son">' + soni + ' ta model</span>') + '</button>';
+  }).join('');
+  el.querySelectorAll('.sk-bolim').forEach(function (t) {
+    t.addEventListener('click', function () {
+      SK.bolim = parseInt(t.dataset.id, 10);
+      skXotiraYoz(SK.bolim);
+      skChiz();
+    });
+  });
+}
+
+function skBolim() { return SK.k.bolimlar.filter(function (b) { return b.id === SK.bolim; })[0] || null; }
+
+function skOngChiz() {
+  var el = document.getElementById('skOng');
+  var b = skBolim();
+  if (!b) { el.innerHTML = '<div class="sk-bosh-holat">Bo\'lim tanlang.</div>'; return; }
+  var qolipSel = b.tizim_kaliti ? '' :
+    '<label>Sotish qolipi<select id="skBQolip">' + SK.k.qoliplar.map(q => '<option value="' + escapeHtml(q.kod) + '"' + (q.kod === b.qolip ? ' selected' : '') + '>' + escapeHtml(q.nom) + '</option>').join('') + '</select></label>';
+  var h = '<div class="sk-bosh"><h3>' + escapeHtml(b.nom) + '</h3>' +
+    (b.tizim_kaliti ? '<span class="sk-belgi oltin">Tizim bo\'limi</span>' : '<span class="sk-belgi">' + escapeHtml(b.qolip_nomi || '') + '</span>') +
+    '<div class="sk-bosh-ong">' +
+    (b.tizim_kaliti ? '' : '<button type="button" class="btn btn-dark" onclick="skYangiModelOch()">+ Model</button>') +
+    (b.tizim_kaliti ? '' : '<button type="button" class="btn btn-outline" onclick="skBolimOchir(' + b.id + ')">O\'chirish</button>') +
+    '</div></div>';
+  h += '<div class="sk-tana"><div class="sk-forma">' +
+    '<label class="keng">Bo\'lim nomi<input type="text" id="skBNom" maxlength="80" value="' + escapeHtml(b.nom) + '"></label>' + qolipSel +
+    '<label class="tor">Tartib<input type="number" id="skBTartib" min="0" max="10000" step="1" value="' + escapeHtml(String(b.tartib)) + '"></label>' +
+    '<label class="belgi"><input type="checkbox" id="skBYoq"' + (b.yoqilgan ? ' checked' : '') + '> Saytda ko\'rinadi</label>' +
+    '<button type="button" class="btn btn-outline" id="skBSaqla" onclick="skBolimSaqla(' + b.id + ')">Saqlash</button></div>';
+  if (b.tizim_kaliti) {
+    h += '<p class="sk-matn" style="margin-top:12px">' + escapeHtml(b.qolip_nomi || '') + ' — bu bo\'lim boshqa bo\'limlardagi modellardan va ERP ' +
+      'omboridan o\'zi yig\'iladi, unga model qo\'shilmaydi. Nomini, tartibini va saytda ko\'rinishini o\'zgartirish mumkin.</p></div>';
+    el.innerHTML = h;
+    return;
+  }
+  h += '<div class="sk-yangi" id="skYangiModel"><div class="sk-forma">' +
+    '<label>Model kodi<input type="text" id="skYmKod" maxlength="30" placeholder="R-18"></label>' +
+    '<label class="keng">Nomi (ixtiyoriy)<input type="text" id="skYmNom" maxlength="120" placeholder="Klassik"></label>' +
+    '<label>Sotish qolipi<select id="skYmQolip">' + SK.k.qoliplar.map(q => '<option value="' + escapeHtml(q.kod) + '"' + (q.kod === b.qolip ? ' selected' : '') + '>' + escapeHtml(q.nom) + '</option>').join('') + '</select></label>' +
+    '<label class="belgi"><input type="checkbox" id="skYmKb"> Kapitel va baza bor</label>' +
+    '<button type="button" class="btn btn-dark" id="skYmSaqla" onclick="skModelYarat(' + b.id + ')">Qo\'shish</button>' +
+    '<button type="button" class="btn btn-outline" onclick="skYangiModelYop()">Bekor</button></div></div>';
+  var modellar = SK.k.modellar.filter(function (m) { return m.bolim_id === b.id; });
+  h += '<div style="margin-top:14px">' + (modellar.length ? modellar.map(skModelHtml).join('') :
+    '<div class="sk-bosh-holat">Bu bo\'limda hali model yo\'q — «+ Model» bilan qo\'shing.</div>') + '</div></div>';
+  el.innerHTML = h;
+  skModelTinglovchilar(el);
+}
+
+function skModelHtml(m) {
+  var detallar = SK.k.detallar.filter(function (d) { return d.model_id === m.id; });
+  var narxsiz = detallar.filter(function (d) { return d.narx === null; }).length;
+  var turlar = m.qolip === 'komplekt' ? SK.k.komplekt_turlari : SK.k.oddiy_turlari;
+  turlar = turlar.filter(function (t) { return (t !== 'kapitel' && t !== 'baza') || m.kapitel_baza_bor; });
+  var boshqaBolim = SK.k.bolimlar.filter(function (b) { return !b.tizim_kaliti; });
+  var h = '<div class="sk-model' + (SK.ochiq[m.id] ? ' ochiq' : '') + (m.yoqilgan ? '' : ' yashirin') + '" data-model="' + m.id + '">' +
+    '<button type="button" class="sk-model-bosh" data-och="' + m.id + '"><span class="sk-kod">' + escapeHtml(m.kod) + '</span>' +
+    '<span class="sk-mnom">' + escapeHtml(m.nom || '') + '</span>' +
+    (m.yoqilgan ? '' : '<span class="sk-belgi">yashirin</span>') +
+    '<span class="sk-belgi">' + escapeHtml(skQolipNomi(m.qolip)) + '</span>' +
+    '<span data-chbelgi="' + escapeHtml(String(m.id)) + '">' + skChegirmaBelgiHtml(m.id) + '</span>' +   // zip 234
+    '<span class="sk-son">' + escapeHtml(skModelSoniMatn(m.id)) + '</span></button>' +
+    '<div class="sk-model-tana"><div class="sk-forma">' +
+    '<label>Kodi<input type="text" data-mf="kod" maxlength="30" value="' + escapeHtml(m.kod) + '"></label>' +
+    '<label class="keng">Nomi<input type="text" data-mf="nom" maxlength="120" value="' + escapeHtml(m.nom || '') + '"></label>' +
+    '<label>Bo\'limi<select data-mf="bolim_id">' + boshqaBolim.map(b => '<option value="' + b.id + '"' + (b.id === m.bolim_id ? ' selected' : '') + '>' + escapeHtml(b.nom) + '</option>').join('') + '</select></label>' +
+    '<label>Sotish qolipi<select data-mf="qolip">' + SK.k.qoliplar.map(q => '<option value="' + escapeHtml(q.kod) + '"' + (q.kod === m.qolip ? ' selected' : '') + '>' + escapeHtml(q.nom) + '</option>').join('') + '</select></label>' +
+    '<label class="tor">Tartib<input type="number" data-mf="tartib" min="0" max="10000" step="1" value="' + escapeHtml(String(m.tartib)) + '"></label>' +
+    '<label class="belgi"><input type="checkbox" data-mf="kapitel_baza_bor"' + (m.kapitel_baza_bor ? ' checked' : '') + '> Kapitel va baza bor</label>' +
+    '<label class="belgi"><input type="checkbox" data-mf="yoqilgan"' + (m.yoqilgan ? ' checked' : '') + '> Saytda ko\'rinadi</label>' +
+    '<label class="keng" style="flex-basis:100%">Tavsif (ixtiyoriy)<textarea data-mf="tavsif" maxlength="2000">' + escapeHtml(m.tavsif || '') + '</textarea></label>' +
+    '<button type="button" class="btn btn-outline" data-msaqla="' + m.id + '">Modelni saqlash</button>' +
+    '<button type="button" class="btn btn-outline" data-mochir="' + m.id + '">Modelni o\'chirish</button></div>' +
+    '<div class="sk-rasmlar" data-rasmlar="' + m.id + '">' + skRasmBlokHtml(m.id) + '</div>' +
+    '<div class="sk-jadval-quti"><table class="sk-jadval"><thead><tr><th>Detal</th><th>O\'lcham</th><th>Eni, sm</th><th>Qalinligi, sm</th>' +
+    '<th>Narx (qoplamasiz)</th><th>Narx (qoplamali)</th><th>Ulgurji (qoplamasiz)</th><th>Ulgurji (qoplamali)</th><th>Ko\'rinadi</th><th></th></tr></thead><tbody>' +
+    detallar.map(skDetalQator).join('') +
+    '<tr data-yangi="' + m.id + '"><td data-label="Detal"><select data-yf="turi">' + turlar.map(t => '<option value="' + escapeHtml(t) + '">' + escapeHtml(skTuriNomi(t)) + '</option>').join('') + '</select></td>' +
+    '<td data-label="O\'lcham"><input type="text" data-yf="olcham" maxlength="40" placeholder="O\'rta / 15 sm"></td>' +
+    '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-yf="eni_sm"></td>' +
+    '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-yf="qalinligi_sm"></td>' +
+    '<td data-label="Narx (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="narx"></td>' +
+    '<td data-label="Narx (qoplamali)"><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="avto"></td>' +
+    '<td data-label="Ulgurji (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="ulgurji_narx"></td>' +
+    '<td data-label="Ulgurji (qoplamali)"><input type="text" inputmode="decimal" data-yf="ulgurji_qoplamali" placeholder="avto"></td>' +
+    '<td class="sk-bosh-td"></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
+    '</tbody></table></div>' +
+    (m.qolip === 'komplekt' ? '<div class="sk-komplekt" data-komplekt="' + escapeHtml(String(m.id)) + '">' + skKomplektHtml(m) + '</div>' : '') +
+    '<div class="sk-chegirma" data-chegirma="' + escapeHtml(String(m.id)) + '">' + skChegirmaHtml(m) + '</div>' +   // zip 234
+    '<p class="sk-matn" style="margin-top:8px">Narx — ' + (m.qolip === 'komplekt' ? 'karniz, podokonnik, nalichnik uchun 1 m, kapitel va baza uchun 1 dona' :
+      (m.qolip === 'm2' ? '1 m²' : (m.qolip === 'dona' ? '1 dona' : '1 m (kapitel va baza — 1 dona)'))) +
+    '. Ulgurji: metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Qoplamali narx bo\'sh — qoplamasiz × koeffitsient.</p>' +
+    '</div></div>';
+  return h;
+}
+
+function skAvtoMatn(avto) { return (avto === null || avto === undefined) ? '' : escapeHtml('avto: ' + sonKor(avto, 0)); }
+
+function skDetalQator(d) {
+  function narx(k, avto) {
+    return '<input type="text" inputmode="decimal" data-df="' + k + '" value="' + escapeHtml(skPul(d[k])) + '"' +
+      (avto !== undefined ? ' placeholder="avto"' : '') + '>' +
+      (avto !== undefined ? '<div class="sk-avto" data-avto="' + k + '">' + skAvtoMatn(avto) + '</div>' : '');
+  }
+  return '<tr data-detal="' + d.id + '"' + (d.yoqilgan ? '' : ' class="yashirin"') + '>' +
+    '<td data-label="Detal"><div>' + escapeHtml(d.turi_nomi) + '<div class="sk-birlik">' + escapeHtml(skBirlikMatn(d.birlik)) + ' · ulgurji ' + escapeHtml(skUlgurjiMatn(d.birlik)) + '</div>' +
+    '<div class="sk-tm" data-tm="' + d.id + '">' + skTmHtml(d) + '</div></div></td>' +   // zip 238
+    '<td data-label="O\'lcham"><input type="text" data-df="olcham" maxlength="40" value="' + escapeHtml(d.olcham) + '"></td>' +
+    '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-df="eni_sm" value="' + escapeHtml(skPul(d.eni_sm)) + '"></td>' +
+    '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-df="qalinligi_sm" value="' + escapeHtml(skPul(d.qalinligi_sm)) + '"></td>' +
+    '<td data-label="Narx (qoplamasiz)">' + narx('narx') + '</td>' +
+    '<td data-label="Narx (qoplamali)">' + narx('narx_qoplamali', d.narx_qoplamali_avto) + '</td>' +
+    '<td data-label="Ulgurji (qoplamasiz)">' + narx('ulgurji_narx') + '</td>' +
+    '<td data-label="Ulgurji (qoplamali)">' + narx('ulgurji_qoplamali', d.ulgurji_qoplamali_avto) + '</td>' +
+    '<td data-label="Ko\'rinadi"><input type="checkbox" data-df="yoqilgan"' + (d.yoqilgan ? ' checked' : '') + ' aria-label="Saytda ko\'rinadi"></td>' +
+    '<td><button type="button" class="sk-x" data-dochir="' + d.id + '" title="Qatorni o\'chirish" aria-label="Qatorni o\'chirish">✕</button></td></tr>';
+}
+
+// ── kech172 (zip 238): «TAYYOR MAHSULOTLAR» — katalog detali ↔ ERP «Tayyor mahsulotlar» mahsuloti (omborga bog'lash). Ro'yxat — server
+// (qoplamali, brak emas, metr / dona; saytdagi qoldiq = ERP bo'sh − sayt bandi). Bog'lash / uzishdan keyin FAQAT «🏭» qismlari qayta
+// chiziladi (narx kataklariga yozilayotgan matn yo'qolmaydi). Bitta mahsulot — bitta detalga (boshqasiga bog'langani — tanlab bo'lmaydi).
+function skBirlikQisqa(b) { return b === 'metr' ? 'm' : (b === 'm2' ? 'm²' : 'dona'); }
+function skTmTop(kalit) { return ((SK.k && SK.k.tm_mahsulotlar) || []).filter(function (x) { return x.kalit === kalit; })[0] || null; }
+function skTmHtml(d) {
+  if (!d || (d.birlik === 'm2' && !d.tm_kaliti)) return '';
+  if (d.tm_kaliti && !d.tm_mos) {
+    // review238 M2: model qolipi o'zgargan — bog'lam birligi mos emas (saytda omborda sotilmaydi); uzish tugmasi doim bor
+    return '<span>' + escapeHtml('⚠️ Ombor bog\'lami ishlamaydi — detal birligi o\'zgargan (mahsulot ' +
+      ((skTmTop(d.tm_kaliti) || {}).nom || 'ERP da topilmadi') + ')') + '</span><button type="button" data-tmuz="' + d.id + '">Uzish</button>';
+  }
+  if (d.tm_kaliti) {
+    var p = skTmTop(d.tm_kaliti);
+    var matn = p ? ('🏭 <b>' + escapeHtml(p.nom) + '</b> · saytda ' + escapeHtml(sonKor(p.qoldiq, 2) + ' ' + skBirlikQisqa(p.birlik)) +
+                    (p.sayt_band > 0 ? escapeHtml(' (band ' + sonKor(p.sayt_band, 2) + ')') : ''))
+                 : escapeHtml('🏭 ERP mahsuloti topilmadi (nomi o\'zgargan yoki o\'chirilgan) — qayta bog\'lang');
+    return '<span>' + matn + '</span><button type="button" data-tmbog="' + d.id + '">O\'zgartirish</button>' +
+      '<button type="button" data-tmuz="' + d.id + '">Uzish</button>';
+  }
+  return '<button type="button" data-tmbog="' + d.id + '">🏭 Omborga bog\'lash</button>';
+}
+function skTmYangila() {
+  document.querySelectorAll('[data-tm]').forEach(function (q) {
+    var id = parseInt(q.dataset.tm, 10);
+    var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+    if (d) q.innerHTML = skTmHtml(d);
+  });
+}
+function skTmTinglovchi(q) {
+  q.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.tmbog) skTmOch(parseInt(b.dataset.tmbog, 10));
+    else if (b.dataset.tmuz) skTmUz(parseInt(b.dataset.tmuz, 10));
+  });
+}
+function skTmTanlovHtml(p, d) {
+  var band = p.detal_id !== null && p.detal_id !== undefined && p.detal_id !== d.id;
+  var tanlangan = p.kalit === d.tm_kaliti;
+  var olcham = (p.eni && p.qalinligi) ? (sonKor(p.eni, 2) + '×' + sonKor(p.qalinligi, 2) + ' sm · ') : '';
+  var izoh = olcham + p.partiyalar + ' partiya' + (band ? ' · boshqa detalga bog\'langan' : (tanlangan ? ' · hozir bog\'langan' : '')) +
+    (p.sayt_band > 0 ? ' · saytda band ' + sonKor(p.sayt_band, 2) : '');
+  return '<button type="button" class="sk-tm-tanlov" data-tmk="' + escapeHtml(p.kalit) + '"' + ((band || tanlangan) ? ' disabled' : '') + '>' +
+    '<span><b>' + escapeHtml(p.nom) + '</b><br><span class="sk-birlik">' + escapeHtml(izoh) + '</span></span>' +
+    '<span style="white-space:nowrap">' + escapeHtml(sonKor(p.qoldiq, 2) + ' ' + skBirlikQisqa(p.birlik)) + '</span></button>';
+}
+function skTmRoyxatHtml() {
+  var d = SK.k.detallar.filter(function (x) { return x.id === SK.tmDetal; })[0];
+  if (!d) return '';
+  var q = String(document.getElementById('skTmQidir').value || '').trim().toLocaleLowerCase();
+  var r = (SK.k.tm_mahsulotlar || []).filter(function (p) {
+    return p.birlik === d.birlik && (!q || String(p.nom || '').toLocaleLowerCase().indexOf(q) >= 0);
+  });
+  if (!r.length) {
+    return '<div class="sk-bosh-holat">' + escapeHtml(q ? 'Bu qidiruv bo\'yicha mahsulot yo\'q'
+      : 'ERP «Tayyor mahsulotlar»da mos mahsulot yo\'q (qoplamali, ' + (d.birlik === 'metr' ? 'metrli' : 'donali') + ')') + '</div>';
+  }
+  return r.map(p => skTmTanlovHtml(p, d)).join('');
+}
+function skTmTayyorla() {
+  if (SK.tmTayyor) return;
+  SK.tmTayyor = true;
+  document.getElementById('skTmYop').addEventListener('click', skTmYop);
+  document.getElementById('skTmQidir').addEventListener('input', function () {
+    document.getElementById('skTmRoyxat').innerHTML = skTmRoyxatHtml();
+  });
+  document.getElementById('skTmRoyxat').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tmk]');
+    if (b && !b.disabled) skTmTanla(b.dataset.tmk);
+  });
+}
+async function skTmOch(id) {
+  var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+  if (!d) return;
+  skTmTayyorla();
+  SK.tmDetal = id;
+  var m = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
+  document.getElementById('skTmSarlavha').textContent = 'Omborga bog\'lash — ' + (m ? m.kod + ' · ' : '') + d.turi_nomi + ', ' + d.olcham;
+  document.getElementById('skTmIzoh').textContent = '«Tayyor mahsulotlar» bo\'limida shu detalning ombor qoldig\'i ko\'rinadi: faqat qoplamali ' +
+    'partiyalar (brak va 2-nav — yo\'q). Saytdan kelgan buyurtma ombordagi mahsulotni ' + ((SK.k && SK.k.band_soat) || 48) + ' soat band qiladi.';
+  document.getElementById('skTmQidir').value = '';
+  document.getElementById('skTmRoyxat').innerHTML = skTmRoyxatHtml();
+  document.getElementById('skTmOyna').classList.add('ko');
+  setTimeout(function () { try { document.getElementById('skTmQidir').focus(); } catch (e) { /* oyna yopilgan */ } }, 30);
+  var n = await skSorov('/api/sayt-katalogi/tm-mahsulotlar', 'GET');
+  if (n.ok && n.d && SK.tmDetal === id) {
+    SK.k.tm_mahsulotlar = n.d.mahsulotlar || [];
+    document.getElementById('skTmRoyxat').innerHTML = skTmRoyxatHtml();
+    skTmYangila();
+  }
+}
+function skTmYop() {
+  SK.tmDetal = null;
+  document.getElementById('skTmOyna').classList.remove('ko');
+}
+async function skTmSaqla(id, kalit) {
+  if (!skBandla('tm' + id)) return false;
+  var n = await skSorov('/api/sayt-katalogi/detallar/' + id + '/tm', 'PUT', {tm_kaliti: kalit});
+  skBo('tm' + id);
+  if (!n.ok) { showMsg('❌ ' + (kalit === null ? 'Uzilmadi: ' : 'Bog\'lanmadi: ') + n.sabab, 'error'); return false; }
+  var j = n.d || {};
+  if (j.detal) SK.k.detallar = SK.k.detallar.map(function (x) { return x.id === j.detal.id ? j.detal : x; });
+  if (j.mahsulotlar) SK.k.tm_mahsulotlar = j.mahsulotlar;
+  skTmYangila();
+  showMsg(kalit === null ? '✓ Ombor bog\'lami uzildi' : '✓ Omborga bog\'landi', 'success');
+  return true;
+}
+async function skTmTanla(kalit) {
+  var id = SK.tmDetal;
+  if (!id) return;
+  if (await skTmSaqla(id, kalit)) skTmYop();
+}
+async function skTmUz(id) {
+  var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+  if (!d) return;
+  if (!(await customConfirm('Ombor bog\'lamini uzish', d.turi_nomi + ' — ' + d.olcham +
+      ': «Tayyor mahsulotlar» bo\'limida bu detal ko\'rinmay qoladi. Uzilsinmi?'))) return;
+  await skTmSaqla(id, null);
+}
+
+function skSonOl(v) {
+  // Bo'sh — null (kiritilmagan); boshqasi — son (server tekshiradi). Vergul — nuqta.
+  var s = String(v === undefined || v === null ? '' : v).trim().replace(/\s+/g, '').replace(',', '.');
+  if (s === '') return null;
+  var x = Number(s);
+  return isFinite(x) ? x : NaN;
+}
+
+function skModelTinglovchilar(el) {
+  el.querySelectorAll('[data-och]').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var id = parseInt(t.dataset.och, 10);
+      SK.ochiq[id] = !SK.ochiq[id];
+      t.closest('.sk-model').classList.toggle('ochiq', !!SK.ochiq[id]);
+      var cd = SK.ochiq[id] && document.querySelector('[data-chegirma="' + id + '"] details.sht');   // zip 234: ochiq chegirma — narxlar
+      if (cd && cd.open) skChKor(id);
+    });
+  });
+  el.querySelectorAll('[data-msaqla]').forEach(function (t) {
+    t.addEventListener('click', function () { skModelSaqla(parseInt(t.dataset.msaqla, 10), t); });
+  });
+  el.querySelectorAll('[data-mochir]').forEach(function (t) {
+    t.addEventListener('click', function () { skModelOchir(parseInt(t.dataset.mochir, 10)); });
+  });
+  el.querySelectorAll('[data-dyarat]').forEach(function (t) {
+    t.addEventListener('click', function () { skDetalYarat(parseInt(t.dataset.dyarat, 10), t); });
+  });
+  el.querySelectorAll('[data-dochir]').forEach(function (t) {
+    t.addEventListener('click', function () { skDetalOchir(parseInt(t.dataset.dochir, 10)); });
+  });
+  el.querySelectorAll('tr[data-detal] [data-df]').forEach(function (inp) {
+    inp.addEventListener('change', function () { skDetalMaydon(inp); });
+  });
+  el.querySelectorAll('[data-rasmlar]').forEach(function (b) { skRasmTinglovchilar(b); });
+  el.querySelectorAll('[data-chegirma]').forEach(function (q) { shtorkaTayyor(q); skChTinglovchilar(q); });   // zip 234
+  el.querySelectorAll('[data-tm]').forEach(function (q) { skTmTinglovchi(q); });   // zip 238
+}
+
+async function skSorov(url, usul, tana) {
+  var sozlama = {method: usul, cache: 'no-store', headers: {'Content-Type': 'application/json'}};   // zip 233: keshdan javob olinmasin
+  if (tana !== undefined) sozlama.body = JSON.stringify(tana);
+  var r;
+  try { r = await fetch(url, sozlama); } catch (e) { return {ok: false, sabab: await amalSababi(e)}; }
+  if (!r.ok) return {ok: false, sabab: await amalSababi(r)};
+  var d = null;
+  try { d = await r.json(); } catch (e) { d = null; }
+  return {ok: true, d: d};
+}
+
+function skBandla(kalit) { if (SK.band[kalit]) return false; SK.band[kalit] = true; return true; }
+function skBo(kalit) { delete SK.band[kalit]; }
+
+async function skKoeffSaqla() {
+  var x = skSonOl(document.getElementById('skKoeff').value);
+  if (x === null || isNaN(x)) { showMsg('❌ Koeffitsient saqlanmadi: son kiriting (1 dan 10 gacha)', 'error'); return; }
+  if (!skBandla('koeff')) return;
+  var t = document.getElementById('skKoeffSaqla');
+  t.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/koeff', 'PUT', {koeff: x});
+  t.disabled = false;
+  skBo('koeff');
+  if (!n.ok) { showMsg('❌ Koeffitsient saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Koeffitsient saqlandi', 'success');
+  skYukla();
+}
+
+function skYangiBolimOch() { document.getElementById('skYangiBolim').classList.add('ko'); document.getElementById('skYbNom').focus(); }
+function skYangiBolimYop() { document.getElementById('skYangiBolim').classList.remove('ko'); }
+
+async function skBolimYarat() {
+  var nom = document.getElementById('skYbNom').value;
+  if (!nom.trim()) { showMsg('❌ Bo\'lim qo\'shilmadi: nomini yozing', 'error'); return; }
+  if (!skBandla('ybolim')) return;
+  var t = document.getElementById('skYbSaqla');
+  t.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/bolimlar', 'POST', {nom: nom, qolip: document.getElementById('skYbQolip').value});
+  t.disabled = false;
+  skBo('ybolim');
+  if (!n.ok) { showMsg('❌ Bo\'lim qo\'shilmadi: ' + n.sabab, 'error'); return; }
+  document.getElementById('skYbNom').value = '';
+  skYangiBolimYop();
+  SK.bolim = n.d.id;
+  skXotiraYoz(SK.bolim);
+  showMsg('✓ Bo\'lim qo\'shildi', 'success');
+  skYukla();
+}
+
+async function skBolimSaqla(id) {
+  var b = skBolim();
+  if (!b || b.id !== id) return;
+  var tartib = skSonOl(document.getElementById('skBTartib').value);
+  if (tartib === null || isNaN(tartib)) { showMsg('❌ Bo\'lim saqlanmadi: tartib — butun son', 'error'); return; }
+  var tana = {nom: document.getElementById('skBNom').value, tartib: tartib, yoqilgan: document.getElementById('skBYoq').checked};
+  var q = document.getElementById('skBQolip');
+  if (q && q.value !== b.qolip) tana.qolip = q.value;
+  if (!skBandla('bolim' + id)) return;
+  var t = document.getElementById('skBSaqla');
+  t.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/bolimlar/' + id, 'PUT', tana);
+  if (t) t.disabled = false;
+  skBo('bolim' + id);
+  if (!n.ok) { showMsg('❌ Bo\'lim saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Bo\'lim saqlandi', 'success');
+  skYukla();
+}
+
+async function skBolimOchir(id) {
+  var b = skBolim();
+  if (!b || b.id !== id) return;
+  if (!(await customConfirm('Bo\'limni o\'chirish', '«' + b.nom + '» bo\'limi o\'chirilsinmi?'))) return;
+  if (!skBandla('bolim' + id)) return;
+  var n = await skSorov('/api/sayt-katalogi/bolimlar/' + id, 'DELETE');
+  skBo('bolim' + id);
+  if (!n.ok) { showMsg('❌ Bo\'lim o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  SK.bolim = null;
+  showMsg('✓ Bo\'lim o\'chirildi', 'success');
+  skYukla();
+}
+
+function skYangiModelOch() { var x = document.getElementById('skYangiModel'); if (x) { x.classList.add('ko'); document.getElementById('skYmKod').focus(); } }
+function skYangiModelYop() { var x = document.getElementById('skYangiModel'); if (x) x.classList.remove('ko'); }
+
+async function skModelYarat(bolimId) {
+  var kod = document.getElementById('skYmKod').value;
+  if (!kod.trim()) { showMsg('❌ Model qo\'shilmadi: kodini yozing', 'error'); return; }
+  if (!skBandla('ymodel')) return;
+  var t = document.getElementById('skYmSaqla');
+  t.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/modellar', 'POST', {
+    bolim_id: bolimId, kod: kod, nom: document.getElementById('skYmNom').value || null,
+    qolip: document.getElementById('skYmQolip').value, kapitel_baza_bor: document.getElementById('skYmKb').checked});
+  if (t) t.disabled = false;
+  skBo('ymodel');
+  if (!n.ok) { showMsg('❌ Model qo\'shilmadi: ' + n.sabab, 'error'); return; }
+  SK.ochiq[n.d.id] = true;
+  showMsg('✓ Model qo\'shildi', 'success');
+  skYukla();
+}
+
+async function skModelSaqla(id, tugma) {
+  var quti = document.querySelector('.sk-model[data-model="' + id + '"]');
+  if (!quti) return;
+  function f(k) { return quti.querySelector('[data-mf="' + k + '"]'); }
+  var tartib = skSonOl(f('tartib').value);
+  if (tartib === null || isNaN(tartib)) { showMsg('❌ Model saqlanmadi: tartib — butun son', 'error'); return; }
+  var tana = {kod: f('kod').value, nom: f('nom').value || null, bolim_id: parseInt(f('bolim_id').value, 10),
+              qolip: f('qolip').value, tartib: tartib, kapitel_baza_bor: f('kapitel_baza_bor').checked,
+              yoqilgan: f('yoqilgan').checked, tavsif: f('tavsif').value || null};
+  if (!skBandla('model' + id)) return;
+  tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + id, 'PUT', tana);
+  tugma.disabled = false;
+  skBo('model' + id);
+  if (!n.ok) { showMsg('❌ Model saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Model saqlandi', 'success');
+  skYukla();
+}
+
+async function skModelOchir(id) {
+  var m = SK.k.modellar.filter(function (x) { return x.id === id; })[0];
+  if (!m) return;
+  var soni = SK.k.detallar.filter(function (d) { return d.model_id === id; }).length;
+  var rsoni = skRasmlari(id).length;
+  var qism = [];
+  if (soni) qism.push(soni + ' ta narx qatori');
+  if (rsoni) qism.push(rsoni + ' ta rasmi');
+  if (!(await customConfirm('Modelni o\'chirish', m.kod + ' modeli' + (qism.length ? ' va uning ' + qism.join(', ') : '') + ' o\'chirilsinmi?' +
+                                 skGlOgoh(id, null)))) return;
+  if (!skBandla('model' + id)) return;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + id, 'DELETE');
+  skBo('model' + id);
+  if (!n.ok) { showMsg('❌ Model o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  delete SK.ochiq[id];
+  showMsg('✓ Model o\'chirildi', 'success');
+  skYukla();
+  if (SK.gl) skGlYukla();
+}
+
+async function skDetalYarat(modelId, tugma) {
+  var tr = document.querySelector('tr[data-yangi="' + modelId + '"]');
+  if (!tr) return;
+  function f(k) { return tr.querySelector('[data-yf="' + k + '"]'); }
+  var tana = {model_id: modelId, turi: f('turi').value, olcham: f('olcham').value};
+  var sonlar = ['eni_sm', 'qalinligi_sm', 'narx', 'narx_qoplamali', 'ulgurji_narx', 'ulgurji_qoplamali'];
+  for (var i = 0; i < sonlar.length; i++) {
+    var x = skSonOl(f(sonlar[i]).value);
+    if (isNaN(x)) { showMsg('❌ Qator qo\'shilmadi: son noto\'g\'ri', 'error'); return; }
+    tana[sonlar[i]] = x;
+  }
+  if (!tana.olcham.trim()) { showMsg('❌ Qator qo\'shilmadi: o\'lchamni yozing (masalan «O\'rta» yoki «15 sm»)', 'error'); return; }
+  if (!skBandla('ydetal' + modelId)) return;
+  tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/detallar', 'POST', tana);
+  tugma.disabled = false;
+  skBo('ydetal' + modelId);
+  if (!n.ok) { showMsg('❌ Qator qo\'shilmadi: ' + n.sabab, 'error'); return; }
+  SK.ochiq[modelId] = true;
+  showMsg('✓ Narx qatori qo\'shildi', 'success');
+  skYukla();
+}
+
+async function skDetalMaydon(inp) {
+  // review231 №4: saqlangandan keyin FAQAT shu katak va shu qatordagi avto narx yozuvlari yangilanadi (qator qayta chizilmaydi —
+  // boshqa katakka yozilayotgan matn va kursor yo'qolmaydi). Saqlanayotganda katak yana o'zgarsa — tugagach oxirgi qiymat yuboriladi.
+  var tr = inp.closest('tr[data-detal]');
+  if (!tr) return;
+  var id = parseInt(tr.dataset.detal, 10);
+  var k = inp.dataset.df;
+  var kalit = 'detal' + id + ':' + k;
+  if (SK.band[kalit]) { SK.navbat[kalit] = true; return; }
+  var qiymat;
+  if (k === 'yoqilgan') qiymat = inp.checked;
+  else if (k === 'olcham') {
+    qiymat = inp.value;
+    if (!qiymat.trim()) { inp.classList.add('xato'); showMsg('❌ Saqlanmadi: o\'lcham bo\'sh bo\'lmasin', 'error'); return; }
+  } else {
+    qiymat = skSonOl(inp.value);
+    if (isNaN(qiymat)) { inp.classList.add('xato'); showMsg('❌ Saqlanmadi: son noto\'g\'ri', 'error'); return; }
+  }
+  var tana = {};
+  tana[k] = qiymat;
+  skBandla(kalit);
+  var yuborildi = k === 'yoqilgan' ? inp.checked : inp.value;
+  inp.classList.remove('xato');
+  inp.classList.add('saqlanmoqda');
+  var n = await skSorov('/api/sayt-katalogi/detallar/' + id, 'PUT', tana);
+  inp.classList.remove('saqlanmoqda');
+  skBo(kalit);
+  if (SK.navbat[kalit]) {
+    delete SK.navbat[kalit];
+    if (inp.isConnected) { skDetalMaydon(inp); return; }
+  }
+  if (!n.ok) { inp.classList.add('xato'); showMsg('❌ Saqlanmadi: ' + n.sabab, 'error'); return; }
+  var d = n.d;
+  var eskiOl234 = (SK.k.detallar.filter(function (x) { return x.id === id; })[0] || {}).olcham;   // zip 234
+  SK.k.detallar = SK.k.detallar.map(function (x) { return x.id === id ? d : x; });
+  if (!inp.isConnected) return;
+  var hozir = k === 'yoqilgan' ? inp.checked : inp.value;
+  if (hozir === yuborildi) {               // foydalanuvchi shu orada yana yozmagan bo'lsa — server qiymati (yaxlitlangan, tozalangan)
+    if (k === 'yoqilgan') inp.checked = !!d.yoqilgan;
+    else if (k === 'olcham') inp.value = d.olcham;
+    else inp.value = skPul(d[k]);
+  }
+  [['narx_qoplamali', d.narx_qoplamali_avto], ['ulgurji_qoplamali', d.ulgurji_qoplamali_avto]].forEach(function (j) {
+    var x = tr.querySelector('[data-avto="' + j[0] + '"]');
+    if (x) x.innerHTML = skAvtoMatn(j[1]);
+  });
+  tr.classList.toggle('yashirin', !d.yoqilgan);
+  skModelSoniYangila(d.model_id);
+  var m233 = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
+  if (m233 && m233.qolip === 'komplekt') skKomplektYangila(d.model_id);   // zip 233: komplekt narxlari — server hisobi
+  skChDetaldan(d.model_id, k === 'olcham' ? eskiOl234 : null, d.olcham);   // zip 234: chegirma bloki (o'lchamlar, narxlar, belgi)
+}
+
+function skModelSoniMatn(modelId) {
+  var dl = SK.k.detallar.filter(function (d) { return d.model_id === modelId; });
+  var narxsiz = dl.filter(function (d) { return d.narx === null; }).length;
+  var rs = skRasmlari(modelId).length;
+  return (rs ? rs + ' ta rasm' : 'rasm yo\'q') + ' · ' + dl.length + ' ta narx qatori' + (narxsiz ? ' · ' + narxsiz + ' tasida narx yo\'q' : '');
+}
+
+function skModelSoniYangila(modelId) {
+  var quti = document.querySelector('.sk-model[data-model="' + modelId + '"] .sk-model-bosh .sk-son');
+  if (!quti) return;
+  quti.textContent = skModelSoniMatn(modelId);
+}
+
+// ── kech167 (zip 232): model rasmlari ─────────────────────────────────────────────────────────────────────────────
+function skRasmlari(modelId) {
+  return ((SK.k && SK.k.rasmlar) || []).filter(function (r) { return r.model_id === modelId; })
+    .sort(function (a, b) { return (a.tartib - b.tartib) || (a.id - b.id); });
+}
+function skRasmMax() { return (SK.k && SK.k.rasm_max) || 10; }
+function skHajmMatn(b) { return b >= 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+
+function skRasmBlokHtml(modelId) {
+  var rs = skRasmlari(modelId);
+  var max = skRasmMax();
+  var band = !!SK.band['rasm' + modelId];
+  var h = '<div class="sk-rasm-bosh"><b>Rasmlar</b><span class="sk-matn">' + escapeHtml(String(rs.length)) + ' / ' + escapeHtml(String(max)) +
+    (rs.length ? ' · birinchisi — asosiy (saytda kartochkada shu chiqadi)' : ' · saytda rasmsiz model «Rasm» belgisi bilan ko\'rinadi') + '</span>' +
+    (rs.length < max ? '<label class="btn btn-outline sk-rasm-qosh' + (band ? ' band' : '') + '">📷 Rasm qo\'shish' +
+      '<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-rfayl="' + modelId + '"' + (band ? ' disabled' : '') +
+      ' aria-label="Rasm qo\'shish — telefondan yoki kompyuterdan"></label>' : '') + '</div>';
+  if (rs.length) {
+    h += '<div class="sk-rasm-royxat" data-rroyxat="' + modelId + '">' + rs.map((r, i) =>
+      '<div class="sk-rasm' + (i === 0 ? ' asosiy' : '') + '" data-rasm="' + r.id + '">' +
+      '<button type="button" class="sk-rasm-kor" data-rkor="' + r.id + '" aria-label="' + escapeHtml((i + 1) + '-rasmni kattalashtirish') + '">' +
+      '<img src="' + escapeHtml(r.kichik) + '" alt="" loading="lazy"></button>' +
+      (i === 0 ? '<span class="sk-rasm-belgi">Asosiy</span>' : '') +
+      '<div class="sk-rasm-tug">' +
+      '<button type="button" class="sk-rasm-ush" data-rush="' + r.id + '" title="Surib tartibini o\'zgartiring" aria-label="Surish"' + (band ? ' disabled' : '') + '>⠿</button>' +
+      '<button type="button" data-rsur="' + r.id + '" data-yon="-1" title="Oldinga" aria-label="Oldinga"' + (i === 0 || band ? ' disabled' : '') + '>◀</button>' +
+      '<button type="button" data-rsur="' + r.id + '" data-yon="1" title="Orqaga" aria-label="Orqaga"' + (i === rs.length - 1 || band ? ' disabled' : '') + '>▶</button>' +
+      '<button type="button" class="sk-x" data-rochir="' + r.id + '" title="Rasmni o\'chirish" aria-label="Rasmni o\'chirish"' + (band ? ' disabled' : '') + '>✕</button></div>' +
+      '<span class="sk-rasm-olcham">' + escapeHtml(r.eni + ' × ' + r.boyi + ' · ' + skHajmMatn(r.hajm)) + '</span></div>').join('') + '</div>';
+    var a = rs[0];
+    h += '<div class="sk-namuna"><figure><div class="sk-nm-karta"><img src="' + escapeHtml(a.kichik) + '" alt=""></div>' +
+      '<figcaption>Saytda: ro\'yxat kartochkasi</figcaption></figure>' +
+      '<figure><div class="sk-nm-sahifa"><img class="xira" src="' + escapeHtml(a.kichik) + '" alt="" aria-hidden="true">' +
+      '<img class="asl" src="' + escapeHtml(a.url) + '" alt=""></div><figcaption>Saytda: mahsulot sahifasi</figcaption></figure></div>';
+  }
+  var ho = SK.rholat[modelId];
+  if (ho) {
+    h += '<div class="sk-rasm-holat" role="status">' + (ho.matn ? '<div>' + escapeHtml(ho.matn) + '</div>' : '') +
+      (ho.xatolar || []).map(x => '<div class="xato">❌ ' + escapeHtml(x.nom + ': ' + x.xato) + '</div>').join('') + '</div>';
+  }
+  h += '<p class="sk-matn" style="margin-top:10px">Rasm qirqilmaydi — saytda butunligicha ko\'rinadi, bo\'sh chetlar och fon bilan to\'ladi. ' +
+    'JPG, PNG yoki WEBP, 25 MB gacha; joylashuv (GPS) va boshqa yashirin ma\'lumot o\'chiriladi, katta rasm 1920 pikselgacha kichraytiriladi. ' +
+    'Tartib — «⠿» ni surib yoki ◀ ▶ bilan.</p>';
+  return h;
+}
+
+function skRasmBlokChiz(modelId) {
+  var b = document.querySelector('[data-rasmlar="' + modelId + '"]');
+  if (!b) return;
+  b.innerHTML = skRasmBlokHtml(modelId);
+  skRasmTinglovchilar(b);
+  skModelSoniYangila(modelId);
+  // review232 №11: ◀ ▶ dan keyin klaviatura fokusi o'sha rasmning tugmasida qoladi (qayta chizishda yo'qolmasin)
+  var f = SK.rfokus;
+  if (f && f.model === modelId && !SK.band['rasm' + modelId]) {
+    SK.rfokus = null;
+    var t = [b.querySelector('[data-rsur="' + f.id + '"][data-yon="' + f.yon + '"]'),
+             b.querySelector('[data-rsur="' + f.id + '"][data-yon="' + (-f.yon) + '"]'),
+             b.querySelector('[data-rkor="' + f.id + '"]')].filter(function (x) { return x && !x.disabled; })[0];
+    if (t) t.focus();
+  }
+}
+
+function skRasmTinglovchilar(b) {
+  var inp = b.querySelector('[data-rfayl]');
+  if (inp) inp.addEventListener('change', function () {
+    var fl = Array.prototype.slice.call(inp.files || []);
+    inp.value = '';
+    skRasmYukla(parseInt(inp.dataset.rfayl, 10), fl);
+  });
+  b.querySelectorAll('[data-rkor]').forEach(function (t) {
+    t.addEventListener('click', function () { skKorOch(parseInt(t.dataset.rkor, 10)); });
+  });
+  b.querySelectorAll('[data-rsur]').forEach(function (t) {
+    t.addEventListener('click', function () { skRasmSur(parseInt(t.dataset.rsur, 10), parseInt(t.dataset.yon, 10)); });
+  });
+  b.querySelectorAll('[data-rochir]').forEach(function (t) {
+    t.addEventListener('click', function () { skRasmOchir(parseInt(t.dataset.rochir, 10)); });
+  });
+  b.querySelectorAll('[data-rush]').forEach(function (t) {
+    t.addEventListener('pointerdown', function (e) { skRasmUshla(e, t); });
+  });
+}
+
+async function skRasmYukla(modelId, fayllar) {
+  var kalit = 'rasm' + modelId;
+  if (!fayllar.length || SK.band[kalit]) return;
+  var max = skRasmMax();
+  var joy = max - skRasmlari(modelId).length;
+  if (joy <= 0) { showMsg('❌ Rasm qo\'shilmadi: modelda ' + max + ' ta rasm bor — ko\'pi shu. Avval keraksizini o\'chiring', 'error'); return; }
+  skBandla(kalit);
+  var navbat = fayllar.slice(0, joy);
+  var xatolar = [];
+  fayllar.slice(joy).forEach(function (f) { xatolar.push({nom: f.name, xato: 'sig\'madi — bir modelga ko\'pi bilan ' + max + ' ta rasm'}); });
+  var qoshildi = 0;
+  for (var i = 0; i < navbat.length; i++) {
+    var f = navbat[i];
+    SK.rholat[modelId] = {matn: (i + 1) + ' / ' + navbat.length + ' yuklanmoqda: ' + f.name, xatolar: xatolar};
+    skRasmBlokChiz(modelId);
+    if (f.size > 25 * 1024 * 1024) { xatolar.push({nom: f.name, xato: 'fayl hajmi 25 MB dan katta'}); continue; }
+    var fd = new FormData();
+    fd.append('fayl', f, f.name);
+    var r;
+    try { r = await fetch('/api/sayt-katalogi/modellar/' + modelId + '/rasmlar', {method: 'POST', body: fd}); }
+    catch (e) { xatolar.push({nom: f.name, xato: await amalSababi(e)}); continue; }
+    if (!r.ok) {
+      var holat = r.status;
+      xatolar.push({nom: f.name, xato: await amalSababi(r)});
+      if (holat === 404 || holat === 401 || holat === 403) break;      // model / sahifa yo'q — qolganini yubormaymiz
+      continue;
+    }
+    var d = null;
+    try { d = await r.json(); } catch (e) { d = null; }
+    if (d && d.id) { SK.k.rasmlar.push(d); qoshildi++; }
+  }
+  skBo(kalit);
+  SK.rholat[modelId] = {matn: qoshildi ? '✓ ' + qoshildi + ' ta rasm qo\'shildi' : '', xatolar: xatolar};
+  skRasmBlokChiz(modelId);
+  if (xatolar.length) showMsg('❌ ' + xatolar.length + ' ta rasm qo\'shilmadi — har birining sababi «Rasmlar» blokida yozilgan', 'error');
+  else showMsg('✓ ' + qoshildi + ' ta rasm qo\'shildi', 'success');
+}
+
+async function skRasmOchir(id) {
+  var r = (SK.k.rasmlar || []).filter(function (x) { return x.id === id; })[0];
+  if (!r) return;
+  var kalit = 'rasm' + r.model_id;
+  if (SK.band[kalit]) return;
+  var rs = skRasmlari(r.model_id);
+  var joy = rs.indexOf(r) + 1;
+  if (!(await customConfirm('Rasmni o\'chirish', joy + '-rasm o\'chirilsinmi?' + (joy === 1 && rs.length > 1 ? ' Asosiy rasm keyingisi bo\'ladi.' : '')))) return;
+  if (!skBandla(kalit)) return;
+  skRasmBlokChiz(r.model_id);
+  var n = await skSorov('/api/sayt-katalogi/rasmlar/' + id, 'DELETE');
+  skBo(kalit);
+  if (n.ok) {
+    SK.k.rasmlar = SK.k.rasmlar.filter(function (x) { return x.id !== id; });
+    delete SK.rholat[r.model_id];
+  }
+  skRasmBlokChiz(r.model_id);
+  if (!n.ok) { showMsg('❌ Rasm o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Rasm o\'chirildi', 'success');
+}
+
+function skRasmSur(id, yon) {
+  var r = (SK.k.rasmlar || []).filter(function (x) { return x.id === id; })[0];
+  if (!r) return;
+  var ids = skRasmlari(r.model_id).map(function (x) { return x.id; });
+  var i = ids.indexOf(id);
+  var j = i + yon;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  ids[i] = ids[j];
+  ids[j] = id;
+  var fokusda = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.rsur;
+  SK.rfokus = fokusda ? {model: r.model_id, id: id, yon: yon} : null;
+  skRasmTartibYubor(r.model_id, ids);
+}
+
+async function skRasmTartibYubor(modelId, ids) {
+  var kalit = 'rasm' + modelId;
+  if (!skBandla(kalit)) { skRasmBlokChiz(modelId); return; }
+  // Yangi tartib darhol ko'rsatiladi (surilgan rasm joyiga qaytib sakramasin); server rad etsa — avvalgisi qaytariladi
+  var eski = skRasmlari(modelId).map(function (x) { return [x, x.tartib]; });
+  eski.forEach(function (j) { var i = ids.indexOf(j[0].id); if (i >= 0) j[0].tartib = i + 1; });
+  skRasmBlokChiz(modelId);
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + modelId + '/rasmlar', 'PUT', {tartib: ids});
+  skBo(kalit);
+  if (n.ok && n.d && Array.isArray(n.d.rasmlar)) {
+    SK.k.rasmlar = SK.k.rasmlar.filter(function (x) { return x.model_id !== modelId; }).concat(n.d.rasmlar);
+  } else {
+    eski.forEach(function (j) { j[0].tartib = j[1]; });
+  }
+  delete SK.rholat[modelId];
+  skRasmBlokChiz(modelId);
+  if (!n.ok) { showMsg('❌ Tartib saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Rasmlar tartibi saqlandi', 'success');
+}
+
+function skRasmUshla(e, ush) {
+  // Sichqoncha va barmoq (Pointer Events): «⠿» ushlab suriladi, qo'yib yuborilganda yangi tartib serverga. Ushlagichda touch-action:none —
+  // sahifa aylanmaydi; boshqa joyda (rasm ustida) barmoq sahifani odatdagidek aylantiradi. Hodisalar `document` da tinglanadi:
+  // surilayotgan kartochka DOM da ko'chirilganda brauzer «pointer capture» ni yo'qotadi (O'LCHANGAN — Chromium, zip 232).
+  var karta = ush.closest('.sk-rasm');
+  var royxat = karta ? karta.parentElement : null;
+  if (!royxat || ush.disabled) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;          // review232 №12: faqat chap tugma
+  var modelId = parseInt(royxat.dataset.rroyxat, 10);
+  if (SK.band['rasm' + modelId]) return;
+  e.preventDefault();
+  var pid = e.pointerId;
+  function tartibi() { return Array.prototype.map.call(royxat.querySelectorAll('.sk-rasm'), function (x) { return parseInt(x.dataset.rasm, 10); }); }
+  var bosh = tartibi();
+  karta.classList.add('suril');
+  function harakat(ev) {
+    if (ev.pointerId !== pid) return;
+    ev.preventDefault();
+    var el = document.elementFromPoint(ev.clientX, ev.clientY);
+    var t = el && el.closest ? el.closest('.sk-rasm') : null;
+    if (!t || t === karta || t.parentElement !== royxat) return;
+    var q = t.getBoundingClientRect();
+    var joy = ev.clientX < q.left + q.width / 2 ? t : t.nextSibling;
+    if (joy !== karta && karta.nextSibling !== joy) royxat.insertBefore(karta, joy);
+  }
+  function tugadi(ev) {
+    if (ev.pointerId !== pid) return;
+    document.removeEventListener('pointermove', harakat);
+    document.removeEventListener('pointerup', tugadi);
+    document.removeEventListener('pointercancel', tugadi);
+    karta.classList.remove('suril');
+    var yangi = tartibi();
+    if (yangi.join(',') !== bosh.join(',')) skRasmTartibYubor(modelId, yangi);
+    else skRasmBlokChiz(modelId);
+  }
+  document.addEventListener('pointermove', harakat);
+  document.addEventListener('pointerup', tugadi);
+  document.addEventListener('pointercancel', tugadi);
+}
+
+// To'liq ekranda ko'rish (rasm butunligicha — qirqilmaydi)
+function skKorChiz() {
+  var k = SK.kor;
+  var rs = k ? skRasmlari(k.model) : [];
+  var oyna = document.getElementById('skKorish');
+  if (!k || !rs.length) { oyna.hidden = true; SK.kor = null; return; }
+  if (k.i >= rs.length) k.i = rs.length - 1;
+  document.getElementById('skKorRasm').src = rs[k.i].url;
+  document.getElementById('skKorSoni').textContent = (k.i + 1) + ' / ' + rs.length + ' · ' + rs[k.i].eni + ' × ' + rs[k.i].boyi;
+  document.getElementById('skKorChap').hidden = rs.length < 2;
+  document.getElementById('skKorOng').hidden = rs.length < 2;
+  oyna.hidden = false;
+}
+function skKorOch(id) {
+  var r = (SK.k.rasmlar || []).filter(function (x) { return x.id === id; })[0];
+  if (!r) return;
+  SK.korQaytar = document.activeElement;                            // review232 №11: yopilganda fokus shu tugmaga qaytadi
+  SK.kor = {model: r.model_id, i: skRasmlari(r.model_id).indexOf(r)};
+  skKorChiz();
+  document.getElementById('skKorYop').focus();
+}
+function skKorYop() {
+  SK.kor = null;
+  document.getElementById('skKorish').hidden = true;
+  var q = SK.korQaytar;
+  SK.korQaytar = null;
+  if (q && q.isConnected && typeof q.focus === 'function') q.focus();
+}
+function skKorSur(yon) {
+  if (!SK.kor) return;
+  var n = skRasmlari(SK.kor.model).length;
+  if (!n) return;
+  SK.kor.i = (SK.kor.i + yon + n) % n;
+  skKorChiz();
+}
+document.getElementById('skKorYop').addEventListener('click', skKorYop);
+document.getElementById('skKorChap').addEventListener('click', function () { skKorSur(-1); });
+document.getElementById('skKorOng').addEventListener('click', function () { skKorSur(1); });
+document.getElementById('skKorish').addEventListener('click', function (e) { if (e.target === this) skKorYop(); });
+document.addEventListener('keydown', function (e) {
+  if (!SK.kor) return;
+  if (e.key === 'Tab') {                                            // fokus oynadan chiqmaydi (aria-modal)
+    var t = ['skKorYop', 'skKorChap', 'skKorOng'].map(function (x) { return document.getElementById(x); })
+      .filter(function (x) { return !x.hidden; });
+    var i = t.indexOf(document.activeElement);
+    e.preventDefault();
+    t[(i + (e.shiftKey ? -1 : 1) + t.length) % t.length].focus();
+    return;
+  }
+  if (e.key === 'Escape') skKorYop();
+  else if (e.key === 'ArrowLeft') skKorSur(-1);
+  else if (e.key === 'ArrowRight') skKorSur(1);
+});
+
+async function skDetalOchir(id) {
+  var d = SK.k.detallar.filter(function (x) { return x.id === id; })[0];
+  if (!d) return;
+  if (!(await customConfirm('Narx qatorini o\'chirish', d.turi_nomi + ' — ' + d.olcham + ' qatori o\'chirilsinmi?' + skGlOgoh(null, id)))) return;
+  if (!skBandla('detal' + id)) return;
+  var n = await skSorov('/api/sayt-katalogi/detallar/' + id, 'DELETE');
+  skBo('detal' + id);
+  if (!n.ok) { showMsg('❌ Qator o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Qator o\'chirildi', 'success');
+  skYukla();
+  if (SK.gl) skGlYukla();
+}
+
+
+// ── kech168 (zip 233): DO'KON SOZLAMALARI — tasdiqlash telefonlari, ish vaqti, komplekt retsepti; komplekt narxlari bloki ─────────
+// Kartochka (3 shtorka va ulardagi formalar) FAQAT birinchi yuklashda chiziladi. Keyin hech qachon butunlay qayta chizilmaydi
+// (review233 №1 / №2 / №7): telefon amalidan keyin — faqat «hozir saytda» qatori, sarlavha holati, korxona raqamlari tugmasi va
+// (qo'shish / o'chirish / tartibda) raqamlar ro'yxati; ro'yxat qayta chizilishidan OLDIN yozilgan izohlar saqlanadi va kutiladi
+// (`skTelKut`), fokus o'z joyiga qaytadi. Ish vaqti / retsept saqlangach — faqat sarlavha holati (formadagi qiymat o'zi saqlangan).
+// Komplekt narxlari — server hisobi (/api/sayt-katalogi → komplekt; narx katagi saqlangach shu modelning bloki
+// GET …/modellar/{id}/komplekt bilan yangilanadi, eski javob yangisini bosib ketmaydi — SK.knavbat).
+var SK_KUNLAR = [[1, 'Du'], [2, 'Se'], [3, 'Ch'], [4, 'Pa'], [5, 'Ju'], [6, 'Sh'], [7, 'Ya']];
+
+function skSoz() { return (SK.k && SK.k.sozlamalar) || null; }
+// review233 №3: o'lcham kaliti — tutuq belgisi variantlari («O'rta» / «O’rta» / «Oʻrta») bitta (server `dokon_olcham_kalit` bilan bir xil)
+function skOlchamKalit(x) { return String(x || '').replace(/[’‘ʻʼ`´′]/g, '\'').toLocaleLowerCase(); }
+
+function skSozChiz() {
+  var s = skSoz();
+  var el = document.getElementById('skSozIch');
+  if (!s || !el) return;
+  el.innerHTML = '<div class="sk-soz">' +
+    shtorkaHtml('sk-soz-tel', '📞 Buyurtmani tasdiqlash telefonlari', '', null, skTelHtml()) +
+    shtorkaHtml('sk-soz-ish', '🕗 Ish vaqti', s.ish_vaqti_matni, null, skIshHtml(s)) +
+    shtorkaHtml('sk-soz-retsept', '🧩 Komplekt retsepti', 'standart o\'lcham: ' + s.komplekt_olcham, null, skRetseptHtml(s)) +
+    '</div>';
+  shtorkaTayyor(el);
+  skSozTinglovchilar();
+  skTelYangila(true);
+}
+
+function skTelHtml() {
+  return '<p class="sk-matn">Saytdagi buyurtma tasdig\'i sahifasida, PDF va sayt pastida shu raqamlar chiqadi (bosilsa — qo\'ng\'iroq). ' +
+    'Ish vaqtida — hammasi; ish vaqtidan tashqarida va dam olish kunida — faqat «Ish vaqtidan tashqarida ham» belgilanganlari. ' +
+    'Oxirgi raqam o\'chirilmaydi.</p>' +
+    '<div class="sk-matn" id="skTelHozir"></div>' +
+    '<div class="sk-soz" id="skTelRoyxat"></div>' +
+    '<div class="sk-forma" id="skTelForma" style="margin-top:8px">' +
+      '<label>Yangi raqam<input type="text" inputmode="tel" id="skTelRaqam" maxlength="40" placeholder="+998 97 999 57 57"></label>' +
+      '<label class="keng">Izoh (ixtiyoriy)<input type="text" id="skTelIzoh" maxlength="40" placeholder="Menejer"></label>' +
+      '<label class="belgi"><input type="checkbox" id="skTelDoim"> Ish vaqtidan tashqarida ham</label>' +
+      '<button type="button" class="btn btn-dark" id="skTelQosh">Qo\'shish</button></div>' +
+    '<div id="skTelKx" style="margin-top:8px"></div>';
+}
+
+function skTelRoyxatHtml(tel) {
+  return tel.map((t, i) => '<div class="sk-tel" data-tel="' + escapeHtml(String(t.id)) + '">' +
+    '<span class="sk-tel-raqam">' + escapeHtml(t.korinish) + '</span>' +
+    '<input type="text" data-tf="izoh" maxlength="40" placeholder="Izoh (masalan: Menejer)" aria-label="' + escapeHtml('Izoh — ' + t.korinish) + '" value="' + escapeHtml(t.izoh || '') + '">' +
+    '<label class="belgi"><input type="checkbox" data-tf="doim"' + (t.doim ? ' checked' : '') + '> Ish vaqtidan tashqarida ham</label>' +
+    '<button type="button" class="btn btn-outline" data-tsur="-1" aria-label="Yuqoriga"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+    '<button type="button" class="btn btn-outline" data-tsur="1" aria-label="Pastga"' + (i === tel.length - 1 ? ' disabled' : '') + '>▼</button>' +
+    '<button type="button" class="btn btn-outline" data-tochir="1">O\'chirish</button></div>').join('');
+}
+
+// Telefon bo'limining o'zgaruvchan qismlari. `royxatHam` — raqamlar ro'yxati ham (faqat qo'shish / o'chirish / tartibdan keyin).
+function skTelYangila(royxatHam, fokus) {
+  var s = skSoz();
+  if (!s || !document.getElementById('skTelRoyxat')) return;
+  var tel = s.telefonlar || [], kor = s.korinadigan_telefonlar || [], kx = s.korxona_telefonlari || [], max = s.telefon_max || 10;
+  shtorkaHolat('sk-soz-tel', tel.length ? tel.length + ' ta raqam' : 'raqam yo\'q', tel.length ? null : true);
+  document.getElementById('skTelHozir').textContent = (s.hozir_ish_vaqti ? 'Hozir ish vaqti (Toshkent)' : 'Hozir ish vaqtidan tashqari (Toshkent)') +
+    ' — saytda ' + (kor.length ? kor.map(t => t.korinish).join(', ') : 'raqam yo\'q');
+  document.getElementById('skTelForma').hidden = tel.length >= max;
+  var kxEl = document.getElementById('skTelKx');
+  kxEl.innerHTML = (kx.length && tel.length + kx.length <= max) ? '<button type="button" class="btn btn-outline" id="skTelKorxona">' +
+    escapeHtml('Korxona sozlamalaridagi raqamlarni qo\'shish: ' + kx.map(t => t.korinish).join(', ')) + '</button>' : '';
+  var kb = document.getElementById('skTelKorxona');
+  if (kb) kb.addEventListener('click', skTelKorxona);
+  if (!royxatHam) return;
+  var r = document.getElementById('skTelRoyxat');
+  r.innerHTML = skTelRoyxatHtml(tel);
+  r.querySelectorAll('.sk-tel[data-tel]').forEach(function (q) {
+    var id = parseInt(q.dataset.tel, 10);
+    q.querySelector('[data-tf="izoh"]').addEventListener('change', function (e) { skTelMaydon(id, 'izoh', e.target); });
+    q.querySelector('[data-tf="doim"]').addEventListener('change', function (e) { skTelMaydon(id, 'doim', e.target); });
+    q.querySelectorAll('[data-tsur]').forEach(function (b) {
+      b.addEventListener('click', function () { skTelSur(id, parseInt(b.dataset.tsur, 10), b); });
+    });
+    q.querySelector('[data-tochir]').addEventListener('click', function () { skTelOchir(id); });
+  });
+  if (fokus) { var f = document.querySelector(fokus); if (f) f.focus(); }
+}
+
+function skIshHtml(s) {
+  var ish = s.ish_vaqti || {kunlar: [], boshi: '08:00', oxiri: '18:00'};
+  return '<p class="sk-matn">«Buyurtma qabul qilindi» sahifasida va PDF da yoziladi; telefonlar shu vaqtga qarab ko\'rsatiladi. Vaqt — Toshkent.</p>' +
+    '<div class="sk-forma"><div class="sk-kunlar" role="group" aria-label="Ish kunlari">' + SK_KUNLAR.map(k => '<label><input type="checkbox" data-kun="' +
+      escapeHtml(String(k[0])) + '"' + (ish.kunlar.indexOf(k[0]) >= 0 ? ' checked' : '') + '> ' + escapeHtml(k[1]) + '</label>').join('') + '</div>' +
+    '<label class="tor">Boshlanishi<input type="time" id="skIshBoshi" step="60" value="' + escapeHtml(ish.boshi) + '"></label>' +
+    '<label class="tor">Tugashi<input type="time" id="skIshOxiri" step="60" value="' + escapeHtml(ish.oxiri) + '"></label>' +
+    '<label class="keng">Qo\'shimcha yozuv (ixtiyoriy)<input type="text" id="skIshIzoh" maxlength="200" placeholder="Telefon orqali ma\'lumot — 22:00 gacha" value="' +
+      escapeHtml(s.ish_izoh || '') + '"></label>' +
+    '<button type="button" class="btn btn-outline" id="skIshSaqla">Saqlash</button></div>';
+}
+
+function skRetseptHtml(s) {
+  var r = s.retsept, tr = s.retsept_turlari, metr = s.metrli_turlar || [];
+  var turlar = tr.rom;
+  return '<p class="sk-matn">1 komplektga qaysi detaldan qancha kiradi (uchala o\'lchamda bir xil). Komplekt narxi = detallar narxi × shu miqdor. ' +
+    'Rom metrlari juft bo\'ladi — ulgurjida rom komplekti donada (1 dona = 2 m). Eshikda podokonnik yo\'q.</p>' +
+    '<table class="sk-retsept"><thead><tr><th>Detal</th><th>Rom</th><th>Eshik</th></tr></thead><tbody>' +
+    turlar.map(t => '<tr><td>' + escapeHtml(skTuriNomi(t) + (metr.indexOf(t) >= 0 ? ', m' : ', dona')) + '</td>' +
+      '<td><input type="text" inputmode="numeric" data-rk="rom" data-rt="' + escapeHtml(t) + '" aria-label="' + escapeHtml('Rom — ' + skTuriNomi(t)) + '" value="' + escapeHtml(String(r.rom[t])) + '"></td>' +
+      '<td>' + (tr.eshik.indexOf(t) >= 0 ? '<input type="text" inputmode="numeric" data-rk="eshik" data-rt="' + escapeHtml(t) + '" aria-label="' + escapeHtml('Eshik — ' + skTuriNomi(t)) + '" value="' +
+        escapeHtml(String(r.eshik[t])) + '">' : '—') + '</td></tr>').join('') +
+    '</tbody></table>' +
+    '<div class="sk-forma" style="margin-top:8px"><label>Komplekt bo\'limining standart o\'lchami<input type="text" id="skKOlcham" maxlength="40" value="' +
+      escapeHtml(s.komplekt_olcham || '') + '"></label>' +
+    '<button type="button" class="btn btn-outline" id="skRetseptSaqla">Saqlash</button>' +
+    '<button type="button" class="btn btn-outline" id="skRetseptStandart">Egasi jadvali (2 · 2 · 4 / 2 · 5)</button></div>' +
+    '<p class="sk-matn">Saytda komplekt bo\'limi shu o\'lcham tanlangan holda ochiladi (o\'lcham nomi narx qatorlaridagi «O\'lcham» bilan bir xil yozilsin).</p>';
+}
+
+function skSozTinglovchilar() {
+  document.getElementById('skTelQosh').addEventListener('click', skTelQosh);
+  document.getElementById('skTelRaqam').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); skTelQosh(); } });
+  document.getElementById('skIshSaqla').addEventListener('click', skIshSaqla);
+  document.getElementById('skRetseptSaqla').addEventListener('click', function () { skRetseptSaqla(false); });
+  document.getElementById('skRetseptStandart').addEventListener('click', function () { skRetseptSaqla(true); });
+}
+
+async function skSozQaytaOl() {
+  // sozlama amalidan keyin: server holati — SK.k.sozlamalar yangilanadi (qaysi qism qayta chizilishini chaqiruvchi hal qiladi)
+  var n = await skSorov('/api/sayt-katalogi', 'GET');
+  if (n.ok && n.d && n.d.sozlamalar && SK.k) SK.k.sozlamalar = n.d.sozlamalar;
+  return n;
+}
+
+// review233 №2: ro'yxat qayta chizilishidan OLDIN — saqlanmagan izohlar yuboriladi va hamma telefon so'rovi tugashi kutiladi
+async function skTelKut() {
+  var s = skSoz();
+  if (!s) return;
+  document.querySelectorAll('#skTelRoyxat .sk-tel[data-tel]').forEach(function (q) {
+    var id = parseInt(q.dataset.tel, 10), inp = q.querySelector('[data-tf="izoh"]');
+    var t = s.telefonlar.filter(x => x.id === id)[0];
+    if (t && inp && inp.value !== (t.izoh || '') && !inp.classList.contains('xato')) skTelMaydon(id, 'izoh', inp);
+  });
+  for (var i = 0; i < 300 && Object.keys(SK.band).some(k => /^tel\d+:/.test(k)); i++) await new Promise(r => setTimeout(r, 50));
+}
+
+function skFokusKaliti() {
+  var a = document.activeElement, q = a && a.closest && a.closest('.sk-tel[data-tel]');
+  if (!q) return null;
+  var k = a.dataset.tf ? '[data-tf="' + a.dataset.tf + '"]' : (a.dataset.tsur ? '[data-tsur="' + a.dataset.tsur + '"]' : (a.dataset.tochir ? '[data-tochir]' : null));
+  return k ? '.sk-tel[data-tel="' + q.dataset.tel + '"] ' + k : null;
+}
+
+async function skTelQosh() {
+  var raqam = document.getElementById('skTelRaqam');
+  if (!raqam.value.trim()) { raqam.classList.add('xato'); showMsg('❌ Raqam kiriting', 'error'); return; }
+  if (!skBandla('telqosh')) return;
+  var b = document.getElementById('skTelQosh');
+  b.disabled = true;
+  var tana = {raqam: raqam.value, doim: document.getElementById('skTelDoim').checked};
+  var iz = document.getElementById('skTelIzoh').value;
+  if (iz.trim()) tana.izoh = iz;
+  var n = await skSorov('/api/sayt-katalogi/telefonlar', 'POST', tana);
+  b.disabled = false;
+  if (!n.ok) {
+    skBo('telqosh');
+    raqam.classList.add('xato');
+    showMsg('❌ Raqam qo\'shilmadi: ' + n.sabab, 'error');
+    return;
+  }
+  raqam.classList.remove('xato');
+  if (raqam.value === tana.raqam) raqam.value = '';
+  if (document.getElementById('skTelIzoh').value === iz) document.getElementById('skTelIzoh').value = '';
+  document.getElementById('skTelDoim').checked = false;
+  showMsg('✓ Raqam qo\'shildi: ' + n.d.korinish + (n.d.doim && !tana.doim ? ' (birinchi raqam — ish vaqtidan tashqarida ham ko\'rinadi)' : ''), 'success');
+  await skTelKut();
+  var fk = skFokusKaliti();
+  await skSozQaytaOl();
+  skBo('telqosh');
+  skTelYangila(true, fk);
+}
+
+async function skTelKorxona() {
+  var s = skSoz();
+  var kx = (s && s.korxona_telefonlari) || [];
+  if (!kx.length || !skBandla('telqosh')) return;
+  var b = document.getElementById('skTelKorxona');
+  if (b) b.disabled = true;
+  var qoshildi = 0, xato = [];
+  for (var i = 0; i < kx.length; i++) {
+    var n = await skSorov('/api/sayt-katalogi/telefonlar', 'POST', {raqam: kx[i].raqam});
+    if (n.ok) qoshildi++; else xato.push(kx[i].korinish + ' — ' + n.sabab);
+  }
+  if (qoshildi) showMsg('✓ ' + qoshildi + ' ta raqam qo\'shildi', 'success');
+  if (xato.length) showMsg('❌ Qo\'shilmadi: ' + xato.join('; '), 'error');
+  await skTelKut();
+  await skSozQaytaOl();
+  skBo('telqosh');
+  skTelYangila(true, '#skTelRaqam');
+}
+
+async function skTelMaydon(id, k, inp) {
+  var kalit = 'tel' + id + ':' + k;
+  if (SK.band[kalit]) { SK.navbat[kalit] = true; return; }
+  skBandla(kalit);
+  var tana = {};
+  tana[k] = k === 'doim' ? inp.checked : inp.value;
+  inp.classList.remove('xato');
+  var n = await skSorov('/api/sayt-katalogi/telefonlar/' + id, 'PUT', tana);
+  skBo(kalit);
+  if (SK.navbat[kalit]) { delete SK.navbat[kalit]; if (inp.isConnected) { skTelMaydon(id, k, inp); return; } }
+  if (!n.ok) {
+    if (k === 'doim') inp.checked = !inp.checked;
+    else inp.classList.add('xato');
+    showMsg('❌ Saqlanmadi: ' + n.sabab, 'error');
+    return;
+  }
+  var s = skSoz();
+  if (s) s.telefonlar = s.telefonlar.map(t => t.id === id ? n.d : t);
+  if (k === 'doim') {                            // «hozir saytda» qatori o'zgaradi — ro'yxat va formalar qayta chizilmaydi
+    await skSozQaytaOl();
+    skTelYangila(false);
+    return;
+  }
+  if (inp.isConnected && inp.value === tana.izoh && document.activeElement !== inp) inp.value = n.d.izoh || '';
+}
+
+async function skTelSur(id, qadam, tugma) {
+  var s = skSoz();
+  if (!s || !skBandla('teltartib')) return;
+  await skTelKut();
+  s = skSoz();
+  var ids = s.telefonlar.map(t => t.id);
+  var i = ids.indexOf(id), j = i + qadam;
+  if (i < 0 || j < 0 || j >= ids.length) { skBo('teltartib'); return; }
+  ids.splice(j, 0, ids.splice(i, 1)[0]);
+  if (tugma) tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/telefonlar', 'PUT', {tartib: ids});
+  if (!n.ok) { skBo('teltartib'); if (tugma) tugma.disabled = false; showMsg('❌ Tartib saqlanmadi: ' + n.sabab, 'error'); return; }
+  await skSozQaytaOl();
+  skBo('teltartib');
+  var j2 = skSoz().telefonlar.map(t => t.id).indexOf(id);
+  var oxir = skSoz().telefonlar.length - 1;
+  // fokus — o'sha raqamning o'sha yo'nalishdagi tugmasi; chekkaga yetgan bo'lsa (o'chiq) — teskarisi
+  var yon = ((qadam < 0 && j2 === 0) || (qadam > 0 && j2 === oxir)) ? -qadam : qadam;
+  skTelYangila(true, '.sk-tel[data-tel="' + id + '"] [data-tsur="' + yon + '"]');
+}
+
+async function skTelOchir(id) {
+  var s = skSoz();
+  var t = s && s.telefonlar.filter(x => x.id === id)[0];
+  if (!t) return;
+  if (!(await customConfirm('Raqamni o\'chirish', t.korinish + ' raqami saytdan olib tashlansinmi?'))) return;
+  if (!skBandla('tel' + id)) return;
+  var n = await skSorov('/api/sayt-katalogi/telefonlar/' + id, 'DELETE');
+  skBo('tel' + id);
+  if (!n.ok) { showMsg('❌ Raqam o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Raqam o\'chirildi', 'success');
+  var ids = s.telefonlar.map(x => x.id), i = ids.indexOf(id);
+  var keyingi = ids[i + 1] || ids[i - 1];
+  await skTelKut();
+  await skSozQaytaOl();
+  skTelYangila(true, keyingi ? '.sk-tel[data-tel="' + keyingi + '"] [data-tochir]' : '#skTelRaqam');   // review233 №4: fokus yo'qolmasin
+}
+
+async function skIshSaqla() {
+  var kunlar = [];
+  document.querySelectorAll('#skSozIch [data-kun]').forEach(function (c) { if (c.checked) kunlar.push(parseInt(c.dataset.kun, 10)); });
+  var boshi = document.getElementById('skIshBoshi'), oxiri = document.getElementById('skIshOxiri');
+  var iz = document.getElementById('skIshIzoh').value;
+  if (!kunlar.length) { showMsg('❌ Kamida bitta ish kunini belgilang', 'error'); return; }
+  if (!skBandla('ish')) return;
+  var b = document.getElementById('skIshSaqla');
+  b.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/ish-vaqti', 'PUT', {kunlar: kunlar, boshi: boshi.value, oxiri: oxiri.value, izoh: iz.trim() ? iz : null});
+  skBo('ish');
+  b.disabled = false;
+  if (!n.ok) { showMsg('❌ Ish vaqti saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Ish vaqti saqlandi', 'success');
+  await skSozQaytaOl();
+  shtorkaHolat('sk-soz-ish', skSoz().ish_vaqti_matni, null);
+  skTelYangila(false);                           // hozir ko'rinadigan raqamlar ish vaqtiga bog'liq
+}
+
+async function skRetseptSaqla(standart) {
+  var s = skSoz();
+  if (!s) return;
+  var r = {rom: {}, eshik: {}}, xato = null;
+  if (standart) r = JSON.parse(JSON.stringify(s.retsept_standart));
+  else {
+    document.querySelectorAll('#skSozIch [data-rk]').forEach(function (inp) {
+      var t = inp.value.trim().replace(',', '.');
+      var x = /^\d{1,3}(\.0+)?$/.test(t) ? parseInt(t, 10) : NaN;
+      inp.classList.toggle('xato', isNaN(x));
+      if (isNaN(x)) xato = xato || (inp.getAttribute('aria-label') + ': butun son kiriting');
+      r[inp.dataset.rk][inp.dataset.rt] = x;
+    });
+  }
+  if (xato) { showMsg('❌ Retsept saqlanmadi: ' + xato, 'error'); return; }
+  var ol = document.getElementById('skKOlcham').value;
+  if (!skBandla('retsept')) return;
+  var b = document.getElementById(standart ? 'skRetseptStandart' : 'skRetseptSaqla');
+  b.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/komplekt', 'PUT', {retsept: r, olcham: ol});
+  skBo('retsept');
+  b.disabled = false;
+  if (!n.ok) { showMsg('❌ Retsept saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Komplekt retsepti saqlandi', 'success');
+  if (standart) {                                // jadval qiymatlari formaga (faqat «Egasi jadvali» tugmasida — forma serverdan)
+    document.querySelectorAll('#skSozIch [data-rk]').forEach(function (inp) { inp.value = String(n.d.retsept[inp.dataset.rk][inp.dataset.rt]); inp.classList.remove('xato'); });
+  }
+  shtorkaHolat('sk-soz-retsept', 'standart o\'lcham: ' + n.d.olcham, null);
+  skYukla();                                     // komplekt narxlari hamma modelda o'zgaradi (sozlamalar kartochkasi qayta chizilmaydi)
+}
+
+function skKomplektNarx(x) { return (x === null || x === undefined) ? '—' : sonKor(x, 0); }
+
+function skKomplektHtml(m) {
+  var s = skSoz();
+  var royxat = (SK.k.komplekt || {})[String(m.id)] || [];
+  if (!s) return '';
+  var standart = skOlchamKalit(s.komplekt_olcham);
+  var h = '<h4>Komplekt narxlari (retsept bo\'yicha)</h4>';
+  if (!royxat.length) return h + '<p class="sk-matn">Narx qatori yo\'q — karniz, podokonnik, nalichnik (va kapitel, baza) qatorlarini o\'lcham bilan qo\'shing.</p>';
+  function katak(v, kb, ch, foiz) {
+    if (!v) return '—';
+    var q = '<div class="sk-kn">' + escapeHtml('qoplamasiz ' + skKomplektNarx(v.qoplamasiz) + ' · qoplamali ' + skKomplektNarx(v.qoplamali)) + '</div>';
+    if (kb) q += '<div class="sk-kn sk-matn">' + escapeHtml('kapitel / bazasiz: ' + skKomplektNarx(v.qoplamasiz_kbsiz) + ' · ' + skKomplektNarx(v.qoplamali_kbsiz)) + '</div>';
+    // zip 234: chegirma (amalda, shu o'lchamga) — chegirmali detallar yig'indisi
+    if (ch) {
+      q += '<div class="sk-kn sk-ch-kn">' + escapeHtml('chegirmali (−' + skFoizKor(foiz) + ' %): qoplamasiz ' + skKomplektNarx(ch.qoplamasiz) + ' · qoplamali ' + skKomplektNarx(ch.qoplamali)) + '</div>';
+      if (kb) q += '<div class="sk-kn sk-ch-kn">' + escapeHtml('chegirmali, kapitel / bazasiz: ' + skKomplektNarx(ch.qoplamasiz_kbsiz) + ' · ' + skKomplektNarx(ch.qoplamali_kbsiz)) + '</div>';
+    }
+    if (v.yetishmaydi && v.yetishmaydi.length) q += '<div class="sk-yoq">' + escapeHtml('Yetishmaydi: ' + v.yetishmaydi.join('; ')) + '</div>';
+    return '<div>' + q + '</div>';            // zip 234 (review234 O3): telefonda qatorlar ustma-ust (bitta flex bola)
+  }
+  var kb = !!m.kapitel_baza_bor;
+  h += '<div class="sk-jadval-quti"><table class="sk-kjadval"><thead><tr><th>O\'lcham</th><th>Rom (1 komplekt)</th><th>Eshik (1 komplekt)</th><th>Ulgurji rom (1 komplekt)</th></tr></thead><tbody>' +
+    royxat.map(x => '<tr><td data-label="O\'lcham"><b>' + escapeHtml(x.olcham) + '</b>' + (skOlchamKalit(x.olcham) === standart ? ' <span class="sk-belgi oltin">standart</span>' : '') + '</td>' +
+      '<td data-label="Rom">' + katak(x.rom, kb, x.chegirma && x.chegirma.rom, x.chegirma && x.chegirma.foiz) + '</td>' +
+      '<td data-label="Eshik">' + katak(x.eshik, kb, x.chegirma && x.chegirma.eshik, x.chegirma && x.chegirma.foiz) + '</td>' +
+      '<td data-label="Ulgurji rom">' + katak(x.ulgurji_rom, kb) + '</td></tr>').join('') + '</tbody></table></div>';
+  if (!royxat.some(x => skOlchamKalit(x.olcham) === standart)) {
+    h += '<p class="sk-yoq">' + escapeHtml('Standart o\'lcham «' + s.komplekt_olcham + '» bu modelda yo\'q — saytda model birinchi o\'lchami bilan ochiladi') + '</p>';
+  }
+  return h;
+}
+
+async function skKomplektYangila(modelId) {
+  SK.knavbat = SK.knavbat || {};
+  var nomer = (SK.knavbat[modelId] || 0) + 1;
+  SK.knavbat[modelId] = nomer;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + modelId + '/komplekt', 'GET');
+  if (SK.knavbat[modelId] !== nomer || !n.ok || !n.d) return;     // eski javob yangisini bosib ketmasin
+  SK.k.komplekt = SK.k.komplekt || {};
+  SK.k.komplekt[String(modelId)] = n.d.komplekt;
+  var quti = document.querySelector('[data-komplekt="' + modelId + '"]');
+  var m = SK.k.modellar.filter(x => x.id === modelId)[0];
+  if (quti && m) quti.innerHTML = skKomplektHtml(m);
+}
+
+// ── kech169 (zip 234): MODEL CHEGIRMASI (egasi QARORLARI 30.10). SK.k.chegirmalar — {model_id: saqlangan chegirma}; SK.chNo — ko'rish
+// so'rovlari tartibi (eski javob yangisini bosib ketmasin). Chegirma amalidan keyin FAQAT shu modelning chegirma bloki, sarlavha belgisi
+// va komplekt bloki yangilanadi (narx kataklaridagi yozilayotgan matn yo'qolmaydi). Chegirmali narxlar, tannarx va ogohlantirishlar —
+// SERVERDAN (`/chegirma/korish` — saqlamasdan ko'rish); sahifa faqat «Yangi narx» ni foizga o'giradi.
+function skCheg(mid) { return ((SK.k && SK.k.chegirmalar) || {})[String(mid)] || null; }
+function skFoizKor(f) { return sonKor(f, 2); }
+
+function skChegirmaBelgiHtml(mid) {
+  var c = skCheg(mid);
+  if (!c) return '';
+  if (!c.faol) return '<span class="sk-belgi">chegirma tugagan</span>';
+  return '<span class="sk-belgi oltin">' + escapeHtml('−' + skFoizKor(c.foiz) + ' %' + (c.tugash_matni ? ' · ' + c.tugash_matni : '')) + '</span>' +
+    (c.ogohlantirish_soni ? ' <span class="sk-belgi qizil">⚠ tannarxdan past</span>' : '');
+}
+
+function skChHolatMatn(mid) {
+  var c = skCheg(mid);
+  if (!c) return 'yo\'q';
+  if (!c.faol) return 'muddati tugagan' + (c.tugash_matni ? ' (' + c.tugash_matni + ' edi)' : '');
+  return '−' + skFoizKor(c.foiz) + ' %' + (c.tugash_matni ? ', ' + c.tugash_matni : ', muddatsiz') +
+    (c.ogohlantirish_soni ? ' · tannarxdan past' : '');
+}
+
+function skChOlchamlar(mid) {
+  // modeldagi o'lchamlar (narx qatorlari tartibida, birinchi yozilishi; «O'rta» = «O’rta» — skOlchamKalit)
+  var bor = {}, r = [];
+  SK.k.detallar.filter(function (d) { return d.model_id === mid; }).forEach(function (d) {
+    var k = skOlchamKalit(d.olcham);
+    if (!bor[k]) { bor[k] = true; r.push({kalit: k, olcham: d.olcham}); }
+  });
+  return r;
+}
+
+function skChOlchamHolati(mid, saqlangan) {
+  // {hammasi, tanlangan: {kalit: true}} — `saqlangan` bo'lsa saqlangan chegirmadan, aks holda formadagi belgilardan
+  var c = skCheg(mid);
+  var q = document.querySelector('[data-cholcham="' + mid + '"]');
+  if (saqlangan || !q) {
+    var h = {hammasi: !c || c.olchamlar === null, tanlangan: {}};
+    if (c && c.olchamlar) c.olchamlar.forEach(function (o) { h.tanlangan[skOlchamKalit(o)] = true; });
+    return h;
+  }
+  var hm = q.querySelector('[data-chf="hammasi"]');
+  var h2 = {hammasi: !!(hm && hm.checked), tanlangan: {}};
+  q.querySelectorAll('[data-cho]').forEach(function (x) { if (x.checked) h2.tanlangan[skOlchamKalit(x.dataset.cho)] = true; });
+  return h2;
+}
+
+function skChOlchamYorliq(o, holat) {
+  var bel = holat.hammasi || !!holat.tanlangan[o.kalit];
+  return '<label' + (holat.hammasi ? ' class="xira"' : '') + '><input type="checkbox" data-cho="' + escapeHtml(o.olcham) + '"' +
+    (bel ? ' checked' : '') + (holat.hammasi ? ' disabled' : '') + '> ' + escapeHtml(o.olcham) + '</label>';
+}
+
+function skChOlchamHtml(mid, hl) {
+  var c = skCheg(mid);
+  var ol = skChOlchamlar(mid);
+  return '<label><input type="checkbox" data-chf="hammasi"' + (hl.hammasi ? ' checked' : '') + '> Hamma o\'lchamlar</label>' +
+    ol.map(o => skChOlchamYorliq(o, hl)).join('') +
+    ((c && c.olchamlar && !c.olchamlar.length) ? '<span class="sk-yoq">Saqlangan chegirma hech qaysi o\'lchamga tegishli emas — o\'lcham tanlab qayta saqlang</span>' : '') +
+    ((c && c.yoq_olchamlar && c.yoq_olchamlar.length) ? '<span class="sk-yoq">' + escapeHtml('Narx qatori qolmagan o\'lcham: ' + c.yoq_olchamlar.join(', ')) + '</span>' : '');
+}
+
+function skChegirmaHtml(m) {
+  var c = skCheg(m.id);
+  var ich = '<p class="sk-matn">Faqat oddiy narxga — qoplamasiz va qoplamali narxga bir xil foiz; ulgurji narx o\'zgarmaydi. Foiz o\'rniga ' +
+      'narxlar jadvalidagi «Yangi narx» katagiga narx yozsangiz — foiz o\'zi hisoblanadi. Chegirmali narx 100 so\'mgacha yaxlitlanadi. ' +
+      'Tugash sanasi o\'tgach chegirma o\'zi o\'chadi.</p>' +
+    '<div class="sk-forma">' +
+      '<label class="tor">Chegirma, %<input type="text" inputmode="decimal" data-chf="foiz" maxlength="8" placeholder="15" value="' +
+        escapeHtml(c ? String(c.foiz).replace('.', ',') : '') + '"></label>' +
+      '<label class="tor">Tugash sanasi (ixtiyoriy)<input type="date" data-chf="tugash" min="' + escapeHtml(SK.k.bugun || '') + '" value="' +
+        escapeHtml(c && c.tugash ? c.tugash : '') + '"></label>' +   // review234 P1: tugagani ham — jimgina muddatsiz bo'lmasin
+      '<div class="sk-ch-olcham" role="group" aria-label="Qaysi o\'lchamlarga" data-cholcham="' + escapeHtml(String(m.id)) + '">' +
+        skChOlchamHtml(m.id, skChOlchamHolati(m.id, true)) + '</div>' +
+      '<button type="button" class="btn btn-dark" data-chsaqla="' + escapeHtml(String(m.id)) + '">Chegirmani saqlash</button>' +
+      (c ? '<button type="button" class="btn btn-outline" data-chochir="' + escapeHtml(String(m.id)) + '">Chegirmani o\'chirish</button>' : '') +
+    '</div>' +
+    (c && !c.faol ? '<p class="sk-yoq">' + escapeHtml('Muddati tugagan' + (c.tugash_matni ? ' (' + c.tugash_matni + ' edi)' : '') +
+      ' — saytda chegirma ko\'rinmaydi. Yangi tugash sanasi bilan qayta saqlang yoki o\'chiring.') + '</p>' : '') +
+    '<div class="sk-ch-natija" data-chnatija="' + escapeHtml(String(m.id)) + '"><div class="sk-matn">Yuklanmoqda…</div></div>';
+  var c2 = skCheg(m.id);
+  return shtorkaHtml('sk-ch-' + m.id, '🏷 Chegirma', skChHolatMatn(m.id), (c2 && c2.faol && c2.ogohlantirish_soni) ? true : null, ich);
+}
+
+function skNarxJuft(asl, ch) {
+  if (asl === null || asl === undefined) return '—';
+  if (ch === null || ch === undefined) return escapeHtml(sonKor(asl, 0));
+  return '<span class="sk-eski">' + escapeHtml(sonKor(asl, 0)) + '</span> → <b>' + escapeHtml(sonKor(ch, 0)) + '</b>';
+}
+
+function skChQatorHtml(r, bor) {
+  var izoh = !r.yoqilgan ? 'saytda yashirin' : (r.narx === null ? 'narx kiritilmagan' : (bor && !r.tegishli ? 'bu o\'lchamga chegirma yo\'q' : ''));
+  var cls = (r.past && r.past.length ? 'past' : '') + ((!r.yoqilgan || (bor && !r.tegishli)) ? ' chetda' : '');
+  return '<tr class="' + cls.trim() + '"><td data-label="Detal"><div>' + escapeHtml(r.turi_nomi) +
+      (izoh ? '<div class="sk-matn">' + escapeHtml(izoh) + '</div>' : '') + '</div></td>' +
+    '<td data-label="O\'lcham">' + escapeHtml(r.olcham) + '</td>' +
+    '<td data-label="Qoplamasiz"><div>' + skNarxJuft(r.narx, r.chegirmali) + ((r.past || []).indexOf('qoplamasiz') >= 0 ? ' ⚠' : '') + '</div></td>' +
+    '<td data-label="Qoplamali"><div>' + skNarxJuft(r.qoplamali, r.qoplamali_chegirmali) + ((r.past || []).indexOf('qoplamali') >= 0 ? ' ⚠' : '') + '</div></td>' +
+    '<td data-label="Tannarx (1 m)"><div>' + (r.tannarx === null ? '<span class="sk-matn">' + escapeHtml(r.tannarx_sabab || '—') + '</span>' :
+      escapeHtml(sonKor(r.tannarx, 0))) + '</div></td>' +
+    '<td data-label="Yangi narx"><div>' + (r.narx !== null ? '<input type="text" inputmode="decimal" data-chyangi="' + escapeHtml(String(r.narx)) +
+      '" aria-label="' + escapeHtml('Yangi narx — ' + r.turi_nomi + ', ' + r.olcham) + '" placeholder="' + escapeHtml(sonKor(r.narx, 0)) + '">' : '') +
+    '</div></td></tr>';
+}
+
+function skChKomplektQator(x, bor) {
+  var ch = x.chegirma || {};
+  function katak(kom) {
+    var v = x[kom] || {}, c = ch[kom] || {};
+    return '<div><div class="sk-kn">qoplamasiz ' + skNarxJuft(v.qoplamasiz, ch[kom] ? c.qoplamasiz : null) + '</div>' +
+      '<div class="sk-kn">qoplamali ' + skNarxJuft(v.qoplamali, ch[kom] ? c.qoplamali : null) + '</div></div>';
+  }
+  var rom = (x.rom || {}).qoplamasiz;
+  return '<tr' + (bor && !x.chegirma ? ' class="chetda"' : '') + '><td data-label="O\'lcham"><b>' + escapeHtml(x.olcham) + '</b>' +
+      (bor && !x.chegirma ? '<div class="sk-matn">chegirma yo\'q</div>' : '') + '</td>' +
+    '<td data-label="Rom">' + katak('rom') + '</td><td data-label="Eshik">' + katak('eshik') + '</td>' +
+    '<td data-label="Yangi narx (rom)"><div>' + (rom !== null && rom !== undefined ? '<input type="text" inputmode="decimal" data-chyangi="' +
+      escapeHtml(String(rom)) + '" aria-label="' + escapeHtml('Yangi narx — rom komplekti, ' + x.olcham) + '" placeholder="' + escapeHtml(sonKor(rom, 0)) + '">' : '') +
+    '</div></td></tr>';
+}
+
+function skChNatijaHtml(mid, d) {
+  var q = d.qatorlar || [];
+  if (!q.length) return '<div class="sk-matn">Narx qatori yo\'q — avval narxlarni kiriting.</div>';
+  var bor = !!d.chegirma;
+  var h = '';
+  if (d.ogohlantirish && d.ogohlantirish.length) {
+    h += '<div class="sk-ch-ogoh">' + d.ogohlantirish.map(function (x) { return '⚠ ' + escapeHtml(x); }).join('<br>') +
+      '<div class="sk-matn">Faqat ogohlantirish — saqlash to\'silmaydi (masalan, eski qoldiqni arzonga chiqarish uchun).</div></div>';
+  }
+  h += '<div class="sk-jadval-quti"><table class="sk-kjadval sk-chjadval"><thead><tr><th>Detal</th><th>O\'lcham</th><th>Qoplamasiz</th>' +
+    '<th>Qoplamali</th><th>Tannarx (1 m)</th><th>Yangi narx</th></tr></thead><tbody>' +
+    q.map(r => skChQatorHtml(r, bor)).join('') + '</tbody></table></div>';
+  var k = d.komplekt || [];
+  if (k.length) {
+    h += '<h4 style="margin:12px 0 6px;font-size:14px">Komplekt (1 komplekt, retsept bo\'yicha)</h4>' +
+      '<div class="sk-jadval-quti"><table class="sk-kjadval sk-chjadval"><thead><tr><th>O\'lcham</th><th>Rom</th><th>Eshik</th><th>Yangi narx (rom)</th></tr></thead><tbody>' +
+      k.map(x => skChKomplektQator(x, bor)).join('') + '</tbody></table></div>' +
+      '<p class="sk-matn">Komplekt narxi — chegirmali detallar yig\'indisi, shuning uchun komplektga yozilgan yangi narxdan bir oz farq qilishi mumkin.</p>';
+  }
+  h += '<p class="sk-matn">' + escapeHtml(d.tannarx_izoh || '') + '</p>';
+  return h;
+}
+
+function skChForma(mid) {
+  var q = document.querySelector('[data-chegirma="' + mid + '"]');
+  if (!q || !q.querySelector('[data-chf="foiz"]')) return null;
+  var hm = q.querySelector('[data-chf="hammasi"]');
+  var ol = (hm && hm.checked) ? null : Array.prototype.slice.call(q.querySelectorAll('[data-cho]'))
+    .filter(function (x) { return x.checked; }).map(function (x) { return x.dataset.cho; });
+  return {quti: q, foiz: skSonOl(q.querySelector('[data-chf="foiz"]').value), olchamlar: ol,
+          tugash: q.querySelector('[data-chf="tugash"]').value || null};
+}
+
+function skChSaqlanganmi(mid, f) {
+  // forma = saqlangan chegirma (o'lchamlar — kalit bo'yicha)
+  var c = skCheg(mid);
+  if (!c || !c.faol || Number(c.foiz) !== f.foiz || (c.tugash || null) !== f.tugash) return false;
+  if ((c.olchamlar === null) !== (f.olchamlar === null)) return false;
+  if (c.olchamlar === null) return true;
+  var a = c.olchamlar.map(skOlchamKalit).sort().join('\n'), b = f.olchamlar.map(skOlchamKalit).sort().join('\n');
+  return a === b;
+}
+
+function skChOgohYangila(mid, soni) {
+  var c = skCheg(mid);
+  if (!c) return;
+  c.ogohlantirish_soni = soni;
+  var b = document.querySelector('[data-chbelgi="' + mid + '"]');
+  if (b) b.innerHTML = skChegirmaBelgiHtml(mid);
+  shtorkaHolat('sk-ch-' + mid, skChHolatMatn(mid), soni ? true : null);
+}
+
+function skChKorRejala(mid) {
+  SK.chT = SK.chT || {};
+  clearTimeout(SK.chT[mid]);
+  SK.chT[mid] = setTimeout(function () { skChKor(mid); }, 350);
+}
+
+async function skChKor(mid) {
+  var f = skChForma(mid);
+  if (!f) return;
+  var el = f.quti.querySelector('[data-chnatija]');
+  SK.chNo = SK.chNo || {};
+  var nomer = (SK.chNo[mid] || 0) + 1;
+  SK.chNo[mid] = nomer;
+  var foizInp = f.quti.querySelector('[data-chf="foiz"]');
+  if (isNaN(f.foiz)) { foizInp.classList.add('xato'); el.innerHTML = '<div class="sk-yoq">Foiz — son bo\'lsin (masalan 15 yoki 12,5)</div>'; return; }
+  foizInp.classList.remove('xato');
+  if (f.olchamlar && !f.olchamlar.length) { el.innerHTML = '<div class="sk-yoq">Kamida bitta o\'lchamni tanlang yoki «Hamma o\'lchamlar» ni belgilang</div>'; return; }
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma/korish', 'POST', {foiz: f.foiz, olchamlar: f.olchamlar, tugash: f.tugash});
+  if (SK.chNo[mid] !== nomer) return;              // eski javob yangisini bosib ketmasin
+  var q2 = document.querySelector('[data-chegirma="' + mid + '"] [data-chnatija]');
+  if (!q2) return;
+  if (!n.ok || !n.d) { q2.innerHTML = '<div class="sk-yoq">' + escapeHtml(n.sabab || 'javob yo\'q') + '</div>'; return; }
+  q2.innerHTML = skChNatijaHtml(mid, n.d);
+  skChNatijaTinglovchilar(mid, q2);
+  if (skChSaqlanganmi(mid, f)) skChOgohYangila(mid, (n.d.ogohlantirish || []).length);
+}
+
+function skChNatijaTinglovchilar(mid, el) {
+  el.querySelectorAll('[data-chyangi]').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      var asl = Number(inp.dataset.chyangi), y = skSonOl(inp.value);
+      if (y === null) { inp.classList.remove('xato'); return; }
+      if (isNaN(y) || y <= 0) { inp.classList.add('xato'); showMsg('❌ Yangi narx — son bo\'lsin', 'error'); return; }
+      if (!(asl > 0) || y >= asl) { inp.classList.add('xato'); showMsg('❌ Yangi narx hozirgi narxdan (' + sonKor(asl, 0) + ') kam bo\'lsin', 'error'); return; }
+      var f = Math.round((1 - y / asl) * 10000) / 100;
+      if (f < 1 || f > 99) { inp.classList.add('xato'); showMsg('❌ Chegirma ' + sonKor(f, 2) + ' % chiqadi — 1 % dan 99 % gacha bo\'lsin', 'error'); return; }
+      inp.classList.remove('xato');
+      var q = document.querySelector('[data-chegirma="' + mid + '"] [data-chf="foiz"]');
+      if (q) { q.value = String(f).replace('.', ','); q.classList.remove('xato'); }
+      showMsg('✓ Chegirma ' + sonKor(f, 2) + ' % — narxlar qayta hisoblandi (saqlash uchun «Chegirmani saqlash»)', 'success');
+      skChKor(mid);
+    });
+  });
+}
+
+function skChOlchamChiz(mid, saqlangan, holat) {
+  var q = document.querySelector('[data-cholcham="' + mid + '"]');
+  if (!q) return;
+  q.innerHTML = skChOlchamHtml(mid, holat || skChOlchamHolati(mid, saqlangan));
+  skChOlchamTinglovchilar(mid, q);
+}
+
+function skChOlchamTinglovchilar(mid, q) {
+  var hm = q.querySelector('[data-chf="hammasi"]');
+  if (hm) hm.addEventListener('change', function () { skChOlchamChiz(mid, false); skChKorRejala(mid); });
+  q.querySelectorAll('[data-cho]').forEach(function (x) { x.addEventListener('change', function () { skChKorRejala(mid); }); });
+}
+
+function skChTinglovchilar(q) {
+  var mid = parseInt(q.dataset.chegirma, 10);
+  var d = q.querySelector('details.sht');
+  if (d) d.addEventListener('toggle', function () { if (d.open && SK.ochiq[mid]) skChKor(mid); });
+  var foiz = q.querySelector('[data-chf="foiz"]');
+  if (foiz) {
+    foiz.addEventListener('input', function () { skChKorRejala(mid); });
+    foiz.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var b = q.querySelector('[data-chsaqla]'); if (b) skChSaqla(mid, b); } });
+  }
+  var t = q.querySelector('[data-chf="tugash"]');
+  if (t) t.addEventListener('change', function () { skChKorRejala(mid); });
+  var ol = q.querySelector('[data-cholcham]');
+  if (ol) skChOlchamTinglovchilar(mid, ol);
+  var s = q.querySelector('[data-chsaqla]');
+  if (s) s.addEventListener('click', function () { skChSaqla(mid, s); });
+  var o = q.querySelector('[data-chochir]');
+  if (o) o.addEventListener('click', function () { skChOchir(mid); });
+}
+
+function skChBlokChiz(mid, d) {
+  var q = document.querySelector('[data-chegirma="' + mid + '"]');
+  var m = SK.k.modellar.filter(function (x) { return x.id === mid; })[0];
+  if (!q || !m) return;
+  var eski = q.querySelector('details.sht'), ochiq = !!(eski && eski.open);
+  q.innerHTML = skChegirmaHtml(m);
+  shtorkaTayyor(q);
+  var yangi = q.querySelector('details.sht');
+  if (ochiq && yangi && !yangi.open) shtorkaOch(yangi, true);
+  skChTinglovchilar(q);
+  var el = q.querySelector('[data-chnatija]');
+  if (d && el) { el.innerHTML = skChNatijaHtml(mid, d); skChNatijaTinglovchilar(mid, el); }
+  else if (yangi && yangi.open) skChKor(mid);
+}
+
+function skChJavob(mid, d) {
+  // saqlangan holat (PUT javobi yoki o'chirilgandan keyin null) → SK.k va shu modelning bloklari
+  SK.k.chegirmalar = SK.k.chegirmalar || {};
+  if (d && d.chegirma) SK.k.chegirmalar[String(mid)] = Object.assign({}, d.chegirma, {ogohlantirish_soni: (d.ogohlantirish || []).length});
+  else delete SK.k.chegirmalar[String(mid)];
+  var m = SK.k.modellar.filter(function (x) { return x.id === mid; })[0];
+  if (d && m && m.qolip === 'komplekt') { SK.k.komplekt = SK.k.komplekt || {}; SK.k.komplekt[String(mid)] = d.komplekt || []; }
+  skChBlokChiz(mid, d);
+  var b = document.querySelector('[data-chbelgi="' + mid + '"]');
+  if (b) b.innerHTML = skChegirmaBelgiHtml(mid);
+  var kq = document.querySelector('[data-komplekt="' + mid + '"]');
+  if (kq && m && d) kq.innerHTML = skKomplektHtml(m);
+}
+
+async function skChSaqla(mid, tugma) {
+  var f = skChForma(mid);
+  if (!f) return;
+  var foizInp = f.quti.querySelector('[data-chf="foiz"]');
+  if (f.foiz === null || isNaN(f.foiz)) {
+    foizInp.classList.add('xato');
+    showMsg('❌ Chegirma saqlanmadi: foizni yozing (masalan 15) yoki jadvaldagi «Yangi narx» katagiga narx', 'error');
+    return;
+  }
+  if (f.olchamlar && !f.olchamlar.length) { showMsg('❌ Chegirma saqlanmadi: kamida bitta o\'lchamni tanlang', 'error'); return; }
+  if (!skBandla('ch' + mid)) return;
+  tugma.disabled = true;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma', 'PUT', {foiz: f.foiz, olchamlar: f.olchamlar, tugash: f.tugash});
+  tugma.disabled = false;
+  skBo('ch' + mid);
+  if (!n.ok || !n.d) { showMsg('❌ Chegirma saqlanmadi: ' + (n.sabab || 'javob yo\'q'), 'error'); return; }
+  var og = n.d.ogohlantirish || [];
+  skChJavob(mid, n.d);
+  showMsg(og.length ? '⚠ Chegirma saqlandi, lekin narx tannarxdan past:\n' + og.join('\n') : '✓ Chegirma saqlandi', og.length ? 'error' : 'success');
+  var s = document.querySelector('[data-chegirma="' + mid + '"] [data-chsaqla]');
+  if (s) s.focus();
+}
+
+async function skChOchir(mid) {
+  var m = SK.k.modellar.filter(function (x) { return x.id === mid; })[0];
+  if (!m || !skCheg(mid)) return;
+  if (!(await customConfirm('Chegirmani o\'chirish', m.kod + ' modelining chegirmasi o\'chirilsinmi? Saytda oddiy narx ko\'rinadi.'))) return;
+  if (!skBandla('ch' + mid)) return;
+  var n = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma', 'DELETE');
+  skBo('ch' + mid);
+  if (!n.ok) { showMsg('❌ Chegirma o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Chegirma o\'chirildi', 'success');
+  skChJavob(mid, null);
+  if (m.qolip === 'komplekt') skKomplektYangila(mid);
+  var f = document.querySelector('[data-chegirma="' + mid + '"] [data-chf="foiz"]');
+  if (f) f.focus();
+}
+
+async function skChDetaldan(mid, eskiOl, yangiOl) {
+  // narx qatori saqlangach. O'lcham qayta nomlangan bo'lsa (`eskiOl`) — o'lchamlar guruhi FORMA holatidan (saqlanmagan belgilar
+  // yo'qolmaydi; eski nom belgilangan bo'lsa — yangisi ham; review234 P3), saqlangan chegirma — serverdan (o'lcham ro'yxati ko'chgan
+  // bo'lishi mumkin). Ochiq blok — narxlar qayta (forma qiymatlari bilan); yopiq bo'lsa ham saqlangan amaldagi chegirmaning «⚠ tannarxdan
+  // past» belgisi yangilanadi (review234 P2).
+  var q = document.querySelector('[data-chegirma="' + mid + '"]');
+  if (!q) return;
+  var c = skCheg(mid);
+  if (eskiOl !== null && eskiOl !== undefined) {
+    var h = skChOlchamHolati(mid, false);
+    if (h.tanlangan[skOlchamKalit(eskiOl)]) h.tanlangan[skOlchamKalit(yangiOl)] = true;
+    if (c && c.olchamlar) {
+      var n = await skSorov('/api/sayt-katalogi', 'GET');
+      if (n.ok && n.d && n.d.chegirmalar) SK.k.chegirmalar = n.d.chegirmalar;
+      c = skCheg(mid);
+    }
+    skChOlchamChiz(mid, false, h);
+  }
+  var d = q.querySelector('details.sht');
+  if (d && d.open) { skChKorRejala(mid); return; }
+  if (!c || !c.faol) return;
+  var r = await skSorov('/api/sayt-katalogi/modellar/' + mid + '/chegirma/korish', 'POST', {foiz: c.foiz, olchamlar: c.olchamlar, tugash: c.tugash});
+  if (r.ok && r.d && skCheg(mid) === c) skChOgohYangila(mid, (r.d.ogohlantirish || []).length);
+}
+
+
+// ── kech170 (zip 235): narxlarni Excel orqali o'zgartirish ──
+// «⬇ Excel'ga yuklab olish» — GET /api/sayt-katalogi/excel (fetch → fayl; xato bo'lsa sahifa almashmaydi, sababi ko'rsatiladi).
+// «⬆ Excel'dan yuklash» — POST …/excel/korish (fayl): server HAMMA qatorni tekshiradi va nima o'zgarishini qaytaradi (hech narsa
+// yozilmaydi); natija shu kartochkada: xatolar (bo'lsa — «Saqlash» yo'q), ogohlantirishlar, o'zgarishlar jadvali (har o'zgargan narx —
+// bitta qator). «Saqlash» — POST …/excel/saqla (ko'rilgan eski → yangi juftlari): oraliqda boshqa oynada o'zgargan narx bo'lsa — 409,
+// hech narsa yozilmaydi; natija noma'lum bo'lib qayta bosilsa — ikki marta yozilmaydi (server joriy = yangi qatorni o'tkazadi).
+// Saqlangach katalog qayta yuklanadi. SK.ex — oxirgi ko'rish javobi (saqlanmagan). Saqlash davomida yangi fayl yuklash va «Bekor qilish»
+// yopiq (review235 O2: aks holda saqlash baribir bajarilib, natijasi ko'rinmasdi, yangi ko'rish esa eski narx bilan 409 olardi).
+SK.ex = null;
+
+function skExNarx(x) { return (x === null || x === undefined) ? '—' : sonKor(x, 2); }
+function skExXatoLi(x) { return '<li>' + escapeHtml(x) + '</li>'; }
+
+function skExMaydonQatori(o, f) {
+  var yangiNarx = (f.yangi === null || f.yangi === undefined) ? '<span class="sk-ex-och">o\'chiriladi</span>'
+    : '<span class="sk-ex-yangi">' + escapeHtml(sonKor(f.yangi, 2)) + '</span>';
+  return '<tr><td data-label="Qator">' + escapeHtml(String(o.qator)) + '</td>' +
+    '<td data-label="Detal"><div>' + escapeHtml(o.kod + ' · ' + o.turi_nomi + ' · ' + o.olcham) +
+      (o.yoqilgan ? '' : ' <span class="sk-belgi">yashirin</span>') + '</div></td>' +
+    '<td data-label="Narx"><div>' + escapeHtml(f.nomi) + '</div></td>' +
+    '<td data-label="Eski" class="sk-kn">' + escapeHtml(skExNarx(f.eski)) + '</td>' +
+    '<td data-label="Yangi" class="sk-kn">' + yangiNarx + '</td></tr>';
+}
+function skExQatorlar(o) { return (o.maydonlar || []).map(f => skExMaydonQatori(o, f)).join(''); }
+
+function skExChiz() {
+  var d = SK.ex;
+  var nat = document.getElementById('skExNatija');
+  if (!nat) return;
+  if (!d) { nat.innerHTML = ''; shtorkaHolat('sk-excel', '', null); return; }
+  var oz = d.ozgarishlar || [];
+  var xt = d.xatolar || [];
+  var og = d.ogohlantirishlar || [];
+  var h = '<div class="sk-matn">«' + escapeHtml(d.varaq) + '» varag\'ida ' + escapeHtml(sonKor(d.qatorlar, 0)) + ' ta qator: ' +
+    escapeHtml(sonKor(oz.length, 0)) + ' tasida narx o\'zgaradi, ' + escapeHtml(sonKor(d.ozgarmagan, 0)) + ' tasi o\'zgarmaydi' +
+    (d.xatoli_qatorlar ? ', ' + escapeHtml(sonKor(d.xatoli_qatorlar, 0)) + ' tasida xato' : '') +
+    (d.faylda_yoq ? '; ERP\'dagi yana ' + escapeHtml(sonKor(d.faylda_yoq, 0)) + ' ta narx qatori faylda yo\'q — ular o\'zgarmaydi' : '') + '.</div>';
+  if (xt.length) {
+    h += '<div class="sk-ex-blok xato" style="margin-top:10px"><b>❌ Xatolar: ' + escapeHtml(sonKor(d.xatolar_soni, 0)) +
+      ' ta — hech narsa saqlanmaydi.</b> Xatolarni Excel\'da tuzatib, faylni qayta yuklang.<ul>' + xt.map(x => skExXatoLi(x)).join('') + '</ul>' +
+      (d.xatolar_soni > xt.length ? '<div>… va yana ' + escapeHtml(sonKor(d.xatolar_soni - xt.length, 0)) + ' ta</div>' : '') + '</div>';
+  }
+  if (og.length) {
+    h += '<div class="sk-ex-blok ogoh" style="margin-top:10px"><b>⚠ Tekshiring</b> (saqlashni to\'smaydi):<ul>' +
+      og.map(x => skExXatoLi(x)).join('') + '</ul></div>';
+  }
+  if (oz.length) {
+    h += '<div class="sk-ex-jadval-quti" style="margin-top:10px"><table class="sk-kjadval sk-ex-jadval"><thead><tr><th>Qator</th>' +
+      '<th>Model · detal · o\'lcham</th><th>Narx</th><th>Eski</th><th>Yangi</th></tr></thead><tbody>' +
+      oz.map(o => skExQatorlar(o)).join('') + '</tbody></table></div>';
+  }
+  h += '<div class="sk-ex-tugmalar">';
+  if (!xt.length && oz.length) h += '<button type="button" class="btn btn-dark" id="skExSaqla">✓ Saqlash (' + escapeHtml(sonKor(oz.length, 0)) + ' ta qator)</button>';
+  if (!xt.length && !oz.length) h += '<span class="sk-matn">Faylda o\'zgargan narx yo\'q — saqlanadigan narsa yo\'q.</span>';
+  h += '<button type="button" class="btn btn-outline" id="skExBekor">' + ((oz.length || xt.length) ? 'Bekor qilish' : 'Yopish') + '</button></div>';
+  nat.innerHTML = h;
+  if (xt.length) shtorkaHolat('sk-excel', sonKor(d.xatolar_soni, 0) + ' ta xato — saqlanmadi', true);
+  else shtorkaHolat('sk-excel', oz.length ? sonKor(oz.length, 0) + ' ta qator hali saqlanmagan' : '', null);
+  var s = document.getElementById('skExSaqla');
+  if (s) s.addEventListener('click', skExSaqla);
+  document.getElementById('skExBekor').addEventListener('click', function () { if (SK.band.ex_saqla) return; SK.ex = null; skExChiz(); });
+}
+
+async function skExOl() {
+  if (!skBandla('ex_ol')) return;
+  var t = document.getElementById('skExOl');
+  t.disabled = true;
+  var r = null;
+  var sabab = '';
+  var blob = null;
+  try { r = await fetch('/api/sayt-katalogi/excel', {cache: 'no-store'}); } catch (e) { sabab = await amalSababi(e); }
+  if (r && !r.ok) sabab = await amalSababi(r);
+  if (r && r.ok) { try { blob = await r.blob(); } catch (e) { sabab = await amalSababi(e); } }
+  t.disabled = false;
+  skBo('ex_ol');
+  if (!blob) { showMsg('❌ Excel fayl olinmadi: ' + sabab, 'error'); return; }
+  var faylNomi = 'sayt_narxlari.xlsx';
+  var m = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '');
+  if (m) faylNomi = m[1];
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = faylNomi;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  showMsg('✓ Excel fayl yuklab olindi: ' + faylNomi, 'success');
+}
+
+async function skExYukla(fayl) {
+  var inp = document.getElementById('skExFayl');
+  if (!fayl) return;
+  if (SK.band.ex_saqla) { inp.value = ''; showMsg('⏳ Narxlar saqlanmoqda — tugashini kuting, keyin yangi fayl yuklang', 'error'); return; }
+  if (!skBandla('ex_yukla')) { inp.value = ''; return; }
+  var lb = document.getElementById('skExYuklaTugma');
+  var nat = document.getElementById('skExNatija');
+  lb.classList.add('band');
+  inp.disabled = true;
+  SK.ex = null;
+  shtorkaHolat('sk-excel', '', null);
+  nat.innerHTML = '<div class="sk-matn">Fayl tekshirilmoqda…</div>';
+  var fd = new FormData();
+  fd.append('fayl', fayl);
+  var r = null;
+  var d = null;
+  var sabab = '';
+  try { r = await fetch('/api/sayt-katalogi/excel/korish', {method: 'POST', body: fd, cache: 'no-store'}); } catch (e) { sabab = await amalSababi(e); }
+  if (r && !r.ok) sabab = await amalSababi(r);
+  if (r && r.ok) { try { d = await r.json(); } catch (e) { sabab = 'server javobi o\'qilmadi — qayta urinib ko\'ring'; } }
+  lb.classList.remove('band');
+  inp.disabled = false;
+  inp.value = '';
+  skBo('ex_yukla');
+  if (!d) {
+    nat.innerHTML = '<div class="sk-ex-blok xato">❌ Fayl qabul qilinmadi: ' + escapeHtml(sabab) + '</div>';
+    shtorkaHolat('sk-excel', 'fayl qabul qilinmadi', true);
+    return;
+  }
+  SK.ex = d;
+  skExChiz();
+}
+
+async function skExSaqla() {
+  var d = SK.ex;
+  if (!d || !(d.ozgarishlar || []).length || (d.xatolar || []).length) return;
+  if (!skBandla('ex_saqla')) return;
+  var t = document.getElementById('skExSaqla');
+  var bk = document.getElementById('skExBekor');
+  var lb = document.getElementById('skExYuklaTugma');
+  if (t) t.disabled = true;
+  if (bk) bk.disabled = true;
+  lb.classList.add('band');
+  document.getElementById('skExFayl').disabled = true;
+  var tana = {ozgarishlar: d.ozgarishlar.map(o => ({id: o.id, kimlik: o.kimlik, eski: o.eski, yangi: o.yangi}))};
+  var r = null;
+  var j = null;
+  var sabab = '';
+  try {
+    r = await fetch('/api/sayt-katalogi/excel/saqla', {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'},
+                                                       body: JSON.stringify(tana)});
+  } catch (e) { sabab = await amalSababi(e); }
+  if (r && !r.ok) sabab = await amalSababi(r);
+  if (r && r.ok) { try { j = await r.json(); } catch (e) { j = {}; } }
+  skBo('ex_saqla');
+  if (bk) bk.disabled = false;
+  lb.classList.remove('band');
+  document.getElementById('skExFayl').disabled = false;
+  if (SK.ex !== d) { if (r && r.ok) skYukla(); return; }   // oraliqda boshqa fayl yuklandi / bekor qilindi — katalog baribir yangilanadi
+  if (!r || !r.ok) {
+    if (t) t.disabled = false;
+    if (!r || r.status >= 500) {
+      showMsg('⚠️ Saqlash natijasi noma\'lum: ' + sabab + '. Qayta bossangiz — ikki marta yozilmaydi.', 'error');
+      return;
+    }
+    if (t && r.status !== 401) t.remove();       // 409 / 400 — shu ko'rish bilan qayta saqlab bo'lmaydi: faylni qayta yuklash kerak
+    var nat = document.getElementById('skExNatija');
+    if (nat) nat.insertAdjacentHTML('afterbegin', '<div class="sk-ex-blok xato">❌ Saqlanmadi: ' + escapeHtml(sabab) + '</div>');
+    shtorkaHolat('sk-excel', 'saqlanmadi', true);
+    showMsg('❌ Narxlar saqlanmadi: ' + sabab, 'error');
+    return;
+  }
+  SK.ex = null;
+  skExChiz();
+  var soni = (j && j.saqlandi) || 0;
+  var avval = (j && j.avval_saqlangan) || 0;
+  showMsg('✓ ' + sonKor(soni, 0) + ' ta qator narxi saqlandi' + (avval ? ' (' + sonKor(avval, 0) + ' tasi avval saqlangan ekan)' : ''), 'success');
+  shtorkaHolat('sk-excel', sonKor(soni + avval, 0) + ' ta qator saqlandi', false);
+  skYukla();
+}
+
+document.getElementById('skExOl').addEventListener('click', skExOl);
+document.getElementById('skExFayl').addEventListener('change', function () { skExYukla(this.files && this.files[0]); });
+shtorkaTayyor(document.getElementById('skExcel'));
+
+
+// ── kech170 (zip 236): do'kon sayti kaliti (API) ──
+// Holat — GET /api/sayt-katalogi/api-kalit (xom kalit ham, xeshi ham kelmaydi). «Kalit yaratish» — POST (birinchi kalit); «Yangi kalit» —
+// tasdiqdan keyin POST {"almashtir": true} (eskisi darhol ishlamay qoladi); «O'chirish» — tasdiqdan keyin DELETE. Xom kalit FAQAT yaratish
+// javobida keladi va shu kartochkada (SK.apiKalit) «Yopish» bosilguncha turadi — sahifa yangilansa qayta ko'rsatilmaydi. Natija noma'lum
+// (tarmoq uzildi) — holat qayta o'qiladi: kalit yaratilgan bo'lsa ham u ko'rsatilmaydi, egasi yangisini yaratadi.
+// review236 M2: sariq blok faqat holatdagi kalit boshi ko'rsatilayotgan kalitga mos bo'lsa chiziladi (almashtirish / o'chirish javobi
+// yo'qolsa yoki boshqa oynada o'zgarsa — o'lik kalit «yangi» deb ko'rsatilmasin). Almashtirishda sahifa ko'rgan kalit boshi yuboriladi
+// (`eski_boshi`; boshqa oynada o'zgargan bo'lsa — 409, review236 L2).
+// Kalit maydoni va boshi — `data-no-capitalize` (umumiy «birinchi harf katta» qoidasi maydondan chiqqanda «Pdk_…» qilib qo'yardi — O'LCHANGAN,
+// U5) va `data-no-i18n` (Kirill ko'rinishida kalit harflari o'girilmasin).
+SK.api = null;
+SK.apiKalit = null;
+
+function skApiChiz() {
+  var h = document.getElementById('skApiHolat');
+  var t = document.getElementById('skApiTugmalar');
+  var y = document.getElementById('skApiYangi');
+  if (!h || !t || !y) return;
+  var a = SK.api;
+  if (SK.apiKalit && !(a && a.bor && a.boshi === SK.apiKalit.slice(0, 10))) SK.apiKalit = null;
+  if (!a) {
+    h.textContent = 'Kalit holati olinmadi — sahifani yangilang.';
+    t.innerHTML = '';
+    shtorkaHolat('sk-api', '', null);
+  } else if (a.bor) {
+    h.innerHTML = 'Kalit bor: <b data-no-i18n>' + escapeHtml(a.boshi + '…') + '</b> · yaratilgan ' + escapeHtml(a.yaratilgan || '—') +
+      (a.yaratgan ? ' (' + escapeHtml(a.yaratgan) + ')' : '') + '<br>Do\'kon sayti oxirgi marta murojaat qilgan: ' +
+      escapeHtml(a.oxirgi_murojaat || 'hali murojaat qilmagan') + skApiYollarHtml(a);
+    t.innerHTML = '<button type="button" class="btn btn-outline" id="skApiAlmashtir">♻ Yangi kalit (eskisi o\'chadi)</button>' +
+      '<button type="button" class="btn btn-outline" id="skApiOchir">O\'chirish</button>';
+    shtorkaHolat('sk-api', 'kalit bor', null);
+  } else {
+    h.innerHTML = escapeHtml('Kalit yo\'q — do\'kon sayti ERP\'dan katalogni o\'qiy olmaydi.') + skApiYollarHtml(a);
+    t.innerHTML = '<button type="button" class="btn btn-dark" id="skApiYarat">🔑 Kalit yaratish</button>';
+    shtorkaHolat('sk-api', 'kalit yo\'q', null);
+  }
+  if (SK.apiKalit) {
+    y.innerHTML = '<div class="sk-api-yangi"><b>Yangi kalit — faqat hozir ko\'rsatiladi.</b> Uni nusxalab, do\'kon sayti serverining ' +
+      'sozlamalariga yozing (sarlavha: <b data-no-i18n>' + escapeHtml((a && a.sarlavha) || 'X-Dokon-Kalit') + '</b>). Sahifa yopilsa yoki yangilansa, ' +
+      'kalitni qayta ko\'rib bo\'lmaydi — faqat yangisini yaratish mumkin.' +
+      '<div class="sk-api-kalit-qator"><input type="text" id="skApiKalit" readonly data-no-capitalize data-no-i18n spellcheck="false" ' +
+      'autocomplete="off" aria-label="Yangi do\'kon kaliti" value="' +
+      escapeHtml(SK.apiKalit) + '"><button type="button" class="btn btn-dark" id="skApiNusxa">📋 Nusxa olish</button>' +
+      '<button type="button" class="btn btn-outline" id="skApiYop">Yopish</button></div></div>';
+    document.getElementById('skApiNusxa').addEventListener('click', skApiNusxa);
+    document.getElementById('skApiYop').addEventListener('click', function () { SK.apiKalit = null; skApiChiz(); });
+  } else {
+    y.innerHTML = '';
+  }
+  var b = document.getElementById('skApiYarat');
+  if (b) b.addEventListener('click', function () { skApiYarat(false); });
+  b = document.getElementById('skApiAlmashtir');
+  if (b) b.addEventListener('click', function () { skApiYarat(true); });
+  b = document.getElementById('skApiOchir');
+  if (b) b.addEventListener('click', skApiOchir);
+}
+
+function skApiYollarHtml(a) {
+  var yollar = (a && a.yollar) || [];
+  if (!yollar.length) return '';
+  return '<br>Do\'kon sayti so\'raydigan manzillar: ' + yollar.map(y => skApiYolHtml(y)).join(', ') +
+    (a.daqiqa_max ? ' · daqiqasiga ko\'pi bilan ' + escapeHtml(String(a.daqiqa_max)) + ' ta so\'rov' : '') +
+    (a.buyurtma_daqiqa_max ? ' (buyurtma yuborish — ' + escapeHtml(String(a.buyurtma_daqiqa_max)) + ' ta)' : '');   // review237 L6
+}
+function skApiYolHtml(y) { return '<code data-no-i18n>' + escapeHtml(y) + '</code>'; }
+
+async function skApiYukla() {
+  var n = await skSorov('/api/sayt-katalogi/api-kalit', 'GET');
+  SK.api = n.ok ? n.d : null;
+  skApiChiz();
+}
+
+function skApiTugmalarYop(yop) {
+  document.querySelectorAll('#skApiTugmalar .btn').forEach(function (x) { x.disabled = yop; });
+}
+
+async function skApiYarat(almashtir) {
+  if (almashtir && !(await customConfirm('Yangi kalit', 'Yangi kalit yaratilsinmi? Eski kalit darhol ishlamay qoladi — do\'kon sayti ' +
+      'serveriga yangi kalitni yozmaguningizcha sayt ERP\'dan katalogni o\'qiy olmaydi.'))) return;
+  if (!skBandla('api')) return;
+  skApiTugmalarYop(true);
+  var n = await skSorov('/api/sayt-katalogi/api-kalit', 'POST', almashtir ? {almashtir: true, eski_boshi: (SK.api && SK.api.boshi) || null} : {});
+  skBo('api');
+  if (n.ok && n.d && n.d.kalit) {
+    SK.apiKalit = n.d.kalit;
+    delete n.d.kalit;
+    SK.api = n.d;
+    skApiChiz();
+    showMsg('✓ Kalit yaratildi — nusxalab oling', 'success');
+    var k = document.getElementById('skApiKalit');
+    if (k) { k.focus(); k.select(); }
+    return;
+  }
+  showMsg('❌ Kalit yaratilmadi: ' + (n.ok ? 'server kalitni qaytarmadi' : n.sabab), 'error');
+  await skApiYukla();
+}
+
+async function skApiOchir() {
+  if (!(await customConfirm('Kalitni o\'chirish', 'Do\'kon kaliti o\'chirilsinmi? Do\'kon sayti darhol ERP\'dan katalogni o\'qiy olmay qoladi.'))) return;
+  if (!skBandla('api')) return;
+  skApiTugmalarYop(true);
+  var n = await skSorov('/api/sayt-katalogi/api-kalit', 'DELETE');
+  skBo('api');
+  if (n.ok) { SK.apiKalit = null; showMsg('✓ Kalit o\'chirildi', 'success'); }
+  else showMsg('❌ Kalit o\'chirilmadi: ' + n.sabab, 'error');
+  await skApiYukla();
+}
+
+async function skApiNusxa() {
+  var k = document.getElementById('skApiKalit');
+  if (!k) return;
+  var ok = false;
+  try { await navigator.clipboard.writeText(k.value); ok = true; } catch (e) { ok = false; }
+  if (!ok) {
+    k.focus();
+    k.select();
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  }
+  showMsg(ok ? '✓ Kalit nusxalandi' : 'Kalit belgilandi — Ctrl+C (telefonda — «Nusxa olish») bilan nusxalang', ok ? 'success' : 'info');
+}
+
+skApiYukla();
+
+// ── kech181 (zip 248): «Usta va magazinlar (saytdan)» ──
+// Hisoblar — GET /api/sayt-katalogi/mijozlar (kutilayotganlar birinchi), bot holati — GET /api/sayt-katalogi/dokon-bot (token qiymati
+// kelmaydi). Tasdiq: usta — ERP ustasi (telefon / Telegram mos kelsa — taklif birinchi) yoki «Yangi usta» + KPI % (SHART, 0 dan katta);
+// magazin — tasdiqning o'zi. Rad (sabab ixtiyoriy), bloklash, blokdan chiqarish — tasdiq oynasi bilan. Har amaldan keyin ro'yxat qayta
+// o'qiladi (boshqa oynada o'zgargan bo'lsa server 409 beradi — sababi ko'rsatiladi). Server matni — `escapeHtml`.
+SK.mj = null;
+SK.mjBot = null;
+
+function skMjSana(iso) { return iso ? (tkSanaVaqt(iso) || '—') : '—'; }   // server vaqti — zonasiz UTC; ko'rinish — Toshkent
+
+function skMjBotChiz() {
+  var h = document.getElementById('skMjBot');
+  if (!h) return;
+  var b = SK.mjBot;
+  if (!b) { h.textContent = 'Bot holati olinmadi — sahifani yangilang.'; return; }
+  var html;
+  if (!b.token_bor) {
+    html = '🤖 Do\'kon boti ulanmagan: serverda <b data-no-i18n>DOKON_BOT_TOKEN</b> o\'zgaruvchisi yo\'q — usta va magazinlar hozircha saytga kira olmaydi.';
+  } else {
+    html = '🤖 Bot: <b data-no-i18n>' + escapeHtml(b.bot ? '@' + b.bot : 'nomi olinmadi') + '</b> · ' +
+      (b.ulangan ? '✓ shu saytga ulangan' : (b.webhook ? '⚠ boshqa manzilga ulangan: <span data-no-i18n>' + escapeHtml(b.webhook) + '</span>'
+        : '⚠ hali hech qayerga ulanmagan')) +
+      (b.oxirgi_xato ? '<br>Oxirgi xato: ' + escapeHtml(b.oxirgi_xato) : '') +
+      (b.sayt ? '<br>Do\'kon sayti: <span data-no-i18n>' + escapeHtml(b.sayt) + '</span>' : '');
+    if (!b.ulangan) {
+      html += '<div class="sk-ex-tugmalar"><button type="button" class="btn btn-dark" id="skMjBotUla">🔗 Botni shu saytga ulash</button>' +
+        (b.webhook && b.muhit === 'production' ? '<button type="button" class="btn btn-outline" id="skMjBotMajburiy">Baribir ulash</button>' : '') +
+        '</div>';
+    }
+  }
+  h.innerHTML = html;
+  var t = document.getElementById('skMjBotUla');
+  if (t) t.addEventListener('click', function () { skMjBotUla(false); });
+  t = document.getElementById('skMjBotMajburiy');
+  if (t) t.addEventListener('click', function () { skMjBotUla(true); });
+}
+
+function skMjUstaTanlov(x) {
+  var u = (SK.mj && SK.mj.ustalar) || [];
+  var tk = x.taklif;
+  var opt = '<option value="">— ERP\'dagi ustani tanlang —</option>';
+  if (tk) opt += '<option value="' + tk.id + '" selected>' + escapeHtml(tk.nomi + ' · ' + (tk.telefon || '') + ' (mos keldi)') + '</option>';
+  u.forEach(function (a) {
+    if (tk && a.id === tk.id) return;
+    if (a.band) return;
+    opt += '<option value="' + a.id + '">' + escapeHtml(a.nomi + ' · ' + (a.telefon || '') + (a.faol ? '' : ' (nofaol)')) + '</option>';
+  });
+  opt += '<option value="yangi"' + (tk ? '' : ' selected') + '>➕ Yangi usta (ism va telefon — saytdagidek)</option>';
+  return '<select data-mj-usta aria-label="ERP ustasi">' + opt + '</select>' +
+    '<input type="text" inputmode="decimal" data-mj-kpi placeholder="KPI %" aria-label="KPI foizi" value="' +
+    (tk && tk.kpi > 0 ? escapeHtml(String(tk.kpi).replace('.', ',')) : '') + '">';
+}
+
+function skMjQator(x) {
+  var bosh = '<div class="sk-mj-bosh"><b>' + escapeHtml(x.ism || '—') + '</b><span>' + escapeHtml(x.telefon_korinish || '') + '</span>' +
+    '<span>' + escapeHtml(x.turi_nomi || 'tanlanmagan') + '</span>' +
+    (x.turi === 'magazin' ? '<span>🏪 ' + escapeHtml((x.magazin || '') + (x.shahar ? ', ' + x.shahar : '')) + '</span>' : '') +
+    '<span class="sk-mj-izoh">' + escapeHtml(x.holat_nomi || x.holat) + ' · ' + escapeHtml(skMjSana(x.royxat_vaqti || x.yaratilgan)) + '</span></div>';
+  var tafsil = '';
+  if (x.holat === 'tasdiqlangan' && x.turi === 'usta' && x.taklif) {
+    tafsil = '<div class="sk-mj-izoh">ERP ustasi: ' + escapeHtml(x.taklif.nomi) + ' · KPI ' + escapeHtml(sonKor(x.taklif.kpi, 2)) + ' %</div>';
+  }
+  if (x.holat === 'tasdiqlangan' && x.tasdiqlagan) {
+    tafsil += '<div class="sk-mj-izoh">Tasdiqladi: ' + escapeHtml(x.tasdiqlagan) + ' · ' + escapeHtml(skMjSana(x.tasdiq_vaqti)) + '</div>';
+  }
+  if (x.holat === 'rad' && x.rad_sababi) tafsil += '<div class="sk-mj-izoh">Rad sababi: ' + escapeHtml(x.rad_sababi) + '</div>';
+  var forma = '';
+  if (x.holat === 'kutilmoqda') {
+    forma = '<div class="sk-mj-forma">' + (x.turi === 'usta' ? skMjUstaTanlov(x) : '') +
+      '<button type="button" class="btn btn-dark" data-mj-amal="tasdiqla">✓ Tasdiqlash</button></div>' +
+      '<div class="sk-mj-forma"><input type="text" data-mj-sabab maxlength="200" placeholder="Rad sababi (ixtiyoriy)" aria-label="Rad sababi">' +
+      '<button type="button" class="btn btn-outline" data-mj-amal="rad">Rad etish</button>' +
+      '<button type="button" class="btn btn-outline" data-mj-amal="blokla">Bloklash</button></div>';
+  } else if (x.holat === 'bloklangan') {
+    forma = '<div class="sk-mj-forma"><button type="button" class="btn btn-outline" data-mj-amal="ochish">Blokdan chiqarish</button></div>';
+  } else {
+    forma = '<div class="sk-mj-forma"><button type="button" class="btn btn-outline" data-mj-amal="blokla">Bloklash</button></div>';
+  }
+  return '<div class="sk-mj-qator" data-mj-id="' + x.id + '" data-holat="' + escapeHtml(x.holat) + '">' + bosh + tafsil + forma + '</div>';
+}
+
+function skMjChiz() {
+  var r = document.getElementById('skMjRoyxat');
+  if (!r) return;
+  var d = SK.mj;
+  if (!d) { r.textContent = 'Ro\'yxat olinmadi — sahifani yangilang.'; shtorkaHolat('sk-mj', '', null); return; }
+  var m = d.mijozlar || [];
+  shtorkaHolat('sk-mj', d.kutilmoqda ? d.kutilmoqda + ' ta so\'rov kutmoqda' : (m.length ? m.length + ' ta hisob' : 'hisob yo\'q'),
+    d.kutilmoqda ? 'muammo' : null);
+  if (!m.length) { r.innerHTML = '<p class="sk-matn">Hali hech kim ro\'yxatdan o\'tmagan.</p>'; return; }
+  var guruhlar = [['kutilmoqda', 'Tasdiq kutayotganlar'], ['tasdiqlangan', 'Tasdiqlanganlar'], ['yangi', 'Kirgan, so\'rov yubormagan'],
+    ['rad', 'Rad etilganlar'], ['bloklangan', 'Bloklanganlar']];
+  var html = '';
+  guruhlar.forEach(function (g) {
+    var q = m.filter(function (x) { return x.holat === g[0]; });
+    if (!q.length) return;
+    html += '<div class="sk-mj-guruh">' + escapeHtml(g[1]) + ' (' + q.length + ')</div>' + q.map(skMjQator).join('');
+  });
+  r.innerHTML = html;
+  r.querySelectorAll('[data-mj-amal]').forEach(function (b) {
+    b.addEventListener('click', function () { skMjAmal(b); });
+  });
+}
+
+async function skMjYukla() {
+  var n = await skSorov('/api/sayt-katalogi/mijozlar', 'GET');
+  SK.mj = n.ok ? n.d : null;
+  skMjChiz();
+  var b = await skSorov('/api/sayt-katalogi/dokon-bot', 'GET');
+  SK.mjBot = b.ok ? b.d : null;
+  skMjBotChiz();
+}
+
+async function skMjBotUla(majburiy) {
+  if (majburiy && !(await customConfirm('Botni ulash', 'Bot hozir boshqa manzilga ulangan. Shu saytga ulansa, o\'sha yerdagi bot ishlamay ' +
+      'qoladi. Davom etilsinmi?', {danger: true}))) return;
+  if (!skBandla('mjbot')) return;
+  document.querySelectorAll('#skMjBot .btn').forEach(function (x) { x.disabled = true; });
+  var n = await skSorov('/api/sayt-katalogi/dokon-bot/ulash', 'POST', majburiy ? {majburiy: true} : {});
+  skBo('mjbot');
+  if (n.ok) { SK.mjBot = n.d; showMsg('✓ Bot shu saytga ulandi', 'success'); skMjBotChiz(); return; }
+  showMsg('❌ Bot ulanmadi: ' + n.sabab, 'error');
+  await skMjYukla();
+}
+
+async function skMjAmal(tugma) {
+  var q = tugma.closest('[data-mj-id]');
+  if (!q) return;
+  var id = parseInt(q.getAttribute('data-mj-id'), 10);
+  var amal = tugma.getAttribute('data-mj-amal');
+  var x = ((SK.mj && SK.mj.mijozlar) || []).filter(function (a) { return a.id === id; })[0];
+  if (!x) return;
+  var tana = {};
+  var savol = null;
+  if (amal === 'tasdiqla' && x.turi === 'usta') {
+    var u = q.querySelector('[data-mj-usta]').value;
+    var kpiMatn = (q.querySelector('[data-mj-kpi]').value || '').trim().replace(',', '.');
+    var kpi = kpiMatn === '' ? NaN : Number(kpiMatn);
+    if (!u) { showMsg('❌ ERP\'dagi ustani tanlang yoki «Yangi usta» ni belgilang', 'error'); return; }
+    if (!isFinite(kpi) || kpi <= 0 || kpi > 100) { showMsg('❌ KPI foizini kiriting (0 dan katta, 100 gacha) — 0 % bilan usta tasdiqlanmaydi', 'error'); return; }
+    tana = {kpi: kpi};
+    if (u === 'yangi') tana.yangi_usta = true; else tana.master_id = parseInt(u, 10);
+  } else if (amal === 'rad') {
+    var sabab = (q.querySelector('[data-mj-sabab]').value || '').trim();
+    if (sabab) tana.sabab = sabab;
+    savol = ['So\'rovni rad etish', (x.ism || '') + ' so\'rovi rad etilsinmi? Unga Telegram\'da xabar boradi.'];
+  } else if (amal === 'blokla') {
+    savol = ['Bloklash', (x.ism || '') + ' bloklansinmi? U saytdan darhol chiqadi va qayta kira olmaydi.'];
+  } else if (amal === 'ochish') {
+    savol = ['Blokdan chiqarish', (x.ism || '') + ' blokdan chiqarilsinmi? Keyin uni qayta tasdiqlash kerak bo\'ladi.'];
+  }
+  if (savol && !(await customConfirm(savol[0], savol[1], amal === 'ochish' ? {} : {danger: true}))) return;
+  if (!skBandla('mj' + id)) return;
+  q.querySelectorAll('.btn').forEach(function (b) { b.disabled = true; });
+  // yo'llar — har amal ALOHIDA yozilgan (tools/test_pasport B2 — har /api/ havola marshrutga mos bo'lsin)
+  var yol = {tasdiqla: '/api/sayt-katalogi/mijozlar/' + id + '/tasdiqla', rad: '/api/sayt-katalogi/mijozlar/' + id + '/rad',
+    blokla: '/api/sayt-katalogi/mijozlar/' + id + '/blokla', ochish: '/api/sayt-katalogi/mijozlar/' + id + '/ochish'}[amal];
+  if (!yol) return;
+  var n = await skSorov(yol, 'POST', (amal === 'blokla' || amal === 'ochish') ? undefined : tana);
+  skBo('mj' + id);
+  var nomi = {tasdiqla: 'tasdiqlandi', rad: 'rad etildi', blokla: 'bloklandi', ochish: 'blokdan chiqarildi'}[amal];
+  if (n.ok) showMsg('✓ ' + (x.ism || 'Hisob') + ' — ' + nomi, 'success');
+  else showMsg('❌ Bajarilmadi: ' + n.sabab, 'error');
+  await skMjYukla();
+}
+
+skMjYukla();
+
+// ── kech185 (zip 252): «Kelganda xabar bering» ──
+// GET /api/sayt-katalogi/kutishlar — faol kutishlar mahsulot bo'yicha (ko'p kutilgani birinchi), holati: «omborda» (keyingi tekshiruvda
+// xabar ketadi), «tugagan», «saytda_yoq» (element «Tayyor mahsulotlar»dan chiqqan — qaytsa xabar ketadi); so'nggi kunlarda yuborilganlar.
+// Faqat ko'rish (amal yo'q). Server matni — `escapeHtml`.
+SK.kt = null;
+
+function skKtHolatMatni(g) {
+  if (g.holat === 'omborda') return '✅ Omborda: ' + g.soni + ' ' + (g.birlik || '') + ' — xabar keyingi tekshiruvda ketadi';
+  if (g.holat === 'tugagan') return 'Tugagan';
+  return '«Tayyor mahsulotlar»da yo\'q (ombor bog\'lami yoki narxi yo\'q / yashirilgan)';
+}
+
+function skKtKim(k) {
+  return '<li>' + escapeHtml(k.ism || '—') + ' · ' + escapeHtml(k.telefon || '') + (k.turi_nomi ? ' · ' + escapeHtml(k.turi_nomi) : '') +
+    (k.shahar ? ', ' + escapeHtml(k.shahar) : '') + ' <span class="sk-kt-izoh">· ' + escapeHtml(skMjSana(k.sana)) + ' dan</span></li>';
+}
+
+function skKtChiz() {
+  var r = document.getElementById('skKtRoyxat');
+  if (!r) return;
+  var d = SK.kt;
+  if (!d) { r.textContent = 'Ro\'yxat olinmadi — sahifani yangilang.'; shtorkaHolat('sk-kt', '', null); return; }
+  var m = d.mahsulotlar || [];
+  shtorkaHolat('sk-kt', d.kutayotgan ? d.kutayotgan + ' ta kutish' : 'kutilayotgan yo\'q', null);
+  var html = '<div class="sk-kt-jami">So\'nggi ' + d.tarix_kun + ' kunda xabar yuborildi: <b>' + d.yuborilgan + '</b>' +
+    (d.xato ? ' · Telegram\'da yetmadi: <b>' + d.xato + '</b> (mijoz botni o\'chirgan bo\'lishi mumkin)' : '') + '</div>';
+  if (!d.tayyor_ochiq) html += '<p class="sk-matn">⚠ «Tayyor mahsulotlar» bo\'limi saytda yashirilgan — u ochilmaguncha xabar yuborilmaydi.</p>';
+  if (!m.length) { r.innerHTML = html + '<p class="sk-matn">Hozir hech kim mahsulot kutmayapti.</p>'; return; }
+  html += m.map(function (g) {
+    return '<div class="sk-kt-mahsulot" data-holat="' + escapeHtml(g.holat) + '"><div class="sk-kt-bosh"><b>' + escapeHtml(g.nom) + '</b>' +
+      '<span>' + g.n + ' kishi kutmoqda</span><span class="sk-kt-izoh">' + escapeHtml(skKtHolatMatni(g)) + '</span></div>' +
+      '<ul class="sk-kt-kim">' + (g.kutayotganlar || []).map(skKtKim).join('') + '</ul></div>';
+  }).join('');
+  r.innerHTML = html;
+}
+
+async function skKtYukla() {
+  var n = await skSorov('/api/sayt-katalogi/kutishlar', 'GET');
+  SK.kt = n.ok ? n.d : null;
+  skKtChiz();
+}
+
+skKtYukla();
+
+// ── kech178 (zip 243): «Bajarilgan ishlar» galereyasi ────────────────────────────────────────────────────────────────────────
+// SK.gl — /api/sayt-katalogi/galereya javobi; SK.glOchiq — ochiq ish (raqam yoki 'yangi'); SK.glD — ochiq ishning TAHRIR nusxasi (saqlanmagan
+// o'zgarishlar shu yerda; rasm amallari faqat rasm blokini qayta chizadi — yozilayotgan matn yo'qolmaydi); SK.glAsl — ochilgandagi holat
+// (boshqa ishga o'tishda saqlanmagan o'zgarish bormi). Qator: detal ({detal_id, miqdor}) yoki komplekt ({model_id, komplekt_turi,
+// komplekt_olcham, komplekt_toliq, miqdor}); nom va «saytda ko'rinmaydi» sababi — serverdan.
+var SK_GL_KOMPLEKT = {rom: 'Rom komplekti', eshik: 'Eshik komplekti'};
+
+function skGlBirlikMatn(b) { return b === 'metr' ? 'm' : (b === 'm2' ? 'm²' : (b === 'komplekt' ? 'komplekt' : 'dona')); }
+function skGlTopModel(id) { return ((SK.k && SK.k.modellar) || []).filter(function (m) { return m.id === id; })[0] || null; }
+function skGlTopDetal(id) { return ((SK.k && SK.k.detallar) || []).filter(function (d) { return d.id === id; })[0] || null; }
+function skGlIsh(id) { return ((SK.gl && SK.gl.galereya) || []).filter(function (g) { return g.id === id; })[0] || null; }
+
+async function skGlYukla(ochiq) {
+  var n = await skSorov('/api/sayt-katalogi/galereya', 'GET');
+  var quti = document.getElementById('skGlRoyxat');
+  if (!n.ok) { if (quti) quti.innerHTML = '<div class="yuk-xato-qator">' + escapeHtml('Galereya yuklanmadi: ' + n.sabab) + '</div>'; return; }
+  SK.gl = n.d;
+  if (ochiq !== undefined) skGlOchSoz(ochiq);
+  else if (SK.glOchiq !== null && SK.glOchiq !== undefined && SK.glOchiq !== 'yangi' && !skGlIsh(SK.glOchiq)) skGlOchSoz(null);
+  skGlChiz();
+}
+
+function skGlNusxa(g) {
+  return {id: g ? g.id : null, nomi: g ? (g.nomi || '') : '', joyi: g ? (g.joyi || '') : '', oy: g ? (g.oy || '') : '',
+          yoqilgan: g ? !!g.yoqilgan : true,
+          qatorlar: g ? g.qatorlar.map(function (q) {
+            return {detal_id: q.detal_id, model_id: q.model_id, komplekt_turi: q.komplekt_turi, komplekt_olcham: q.komplekt_olcham,
+                    komplekt_toliq: q.komplekt_toliq, miqdor: q.miqdor, nom: q.nom, birlik: q.birlik, sabab: q.sabab};
+          }) : []};
+}
+function skGlKalit(d) {
+  return d ? JSON.stringify([d.nomi.trim(), d.joyi.trim(), d.oy, d.yoqilgan, d.qatorlar.map(function (q) {
+    return [q.detal_id, q.model_id, q.komplekt_turi, q.komplekt_olcham, q.komplekt_toliq, String(q.miqdor)]; })]) : '';
+}
+function skGlOchSoz(id) {
+  SK.glOchiq = id;
+  var g = (id === 'yangi' || id === null) ? null : skGlIsh(id);
+  SK.glD = (id === null) ? null : skGlNusxa(g);
+  SK.glAsl = skGlKalit(SK.glD);
+}
+function skGlOzgargan() { return !!SK.glD && skGlKalit(SK.glD) !== SK.glAsl; }
+
+async function skGlOch(id) {
+  if (SK.glOchiq === id) { id = null; }
+  if (skGlOzgargan() && !(await customConfirm('Saqlanmagan o\'zgarish', 'Ochiq ishdagi o\'zgarishlar saqlanmagan. Ular bekor qilinsinmi?'))) return;
+  skGlOchSoz(id);
+  skGlChiz();
+  var b = document.querySelector('[data-glish="' + (id === null ? '' : id) + '"] .sk-gl-forma input');
+  if (b) b.focus();
+}
+
+function skGlChiz() {
+  var quti = document.getElementById('skGlRoyxat');
+  if (!quti || !SK.gl) return;
+  var ishlar = SK.gl.galereya || [];
+  var holat = document.getElementById('skGlHolat');
+  if (holat) holat.textContent = ishlar.length ? ishlar.length + ' ta ish' : '';
+  var h = '';
+  if (SK.glOchiq === 'yangi') h += '<div class="sk-gl-ish ochiq" data-glish="yangi">' + skGlFormaHtml(SK.glD, null) + '</div>';
+  if (!ishlar.length && SK.glOchiq !== 'yangi') h += '<div class="sk-bosh-holat">Hali ish qo\'shilmagan. «+ Yangi ish» ni bosing.</div>';
+  ishlar.forEach(function (g) {
+    var och = SK.glOchiq === g.id;
+    h += '<div class="sk-gl-ish' + (och ? ' ochiq' : '') + '" data-glish="' + g.id + '">' +
+      '<button type="button" class="sk-gl-bosh" data-glbosh="' + g.id + '" aria-expanded="' + (och ? 'true' : 'false') + '">' +
+      skGlBoshHtml(g, och) + '</button>' + (och ? skGlFormaHtml(SK.glD, g) : '') + '</div>';
+  });
+  quti.innerHTML = h;
+  quti.querySelectorAll('[data-glbosh]').forEach(function (t) {
+    t.addEventListener('click', function () { skGlOch(parseInt(t.dataset.glbosh, 10)); });
+  });
+  var f = quti.querySelector('.sk-gl-forma');
+  if (f) skGlFormaTinglovchilar(f);
+  var rb = quti.querySelector('[data-glrasm]');
+  if (rb) skGlRasmTinglovchilar(rb);
+}
+
+function skGlBoshHtml(g, och) {
+  var meta = [g.joyi, g.oy_matni, g.rasmlar.length + ' ta rasm', g.qatorlar.length + ' ta mahsulot'].filter(Boolean).join(' · ');
+  var belgi = g.saytda ? (g.eslatma.length ? '<span class="sk-gl-belgi ogoh">⚠ ' + escapeHtml(g.eslatma.join(', ')) + '</span>'
+                                           : '<span class="sk-gl-belgi ok">Saytda</span>')
+                       : '<span class="sk-gl-belgi yoq">Saytda ko\'rinmaydi: ' + escapeHtml(g.eslatma.join(', ')) + '</span>';
+  return (g.rasmlar.length ? '<img src="' + escapeHtml(g.rasmlar[0].kichik) + '" alt="" loading="lazy">' : '<span class="sk-gl-rasmsiz" aria-hidden="true">🏠</span>') +
+    '<span class="sk-gl-matn"><b>' + escapeHtml(g.nomi) + '</b><span class="sk-matn">' + escapeHtml(meta) + '</span>' + belgi + '</span>' +
+    '<span class="sht-str" aria-hidden="true">' + (och ? '▼' : '▶') + '</span>';
+}
+
+function skGlModelOptionlar() {
+  var bolimlar = (SK.k && SK.k.bolimlar) || [];
+  var modellar = (SK.k && SK.k.modellar) || [];
+  return '<option value="">— model tanlang —</option>' +
+    bolimlar.filter(b => !b.tizim_kaliti && modellar.some(m => m.bolim_id === b.id)).map(b =>
+      '<optgroup label="' + escapeHtml(b.nom) + '">' + modellar.filter(m => m.bolim_id === b.id).map(m =>
+        '<option value="' + m.id + '">' + escapeHtml(m.kod + (m.nom ? ' ' + m.nom : '')) + '</option>').join('') + '</optgroup>').join('');
+}
+
+// Tanlangan model uchun variantlar: har detal (turi · o'lcham, birligi bilan); komplekt modelida — rom / eshik komplekti × o'lcham ham
+function skGlVariantlar(m) {
+  if (!m) return [];
+  var ds = ((SK.k && SK.k.detallar) || []).filter(function (d) { return d.model_id === m.id; })
+    .sort(function (a, b) { return (a.tartib - b.tartib) || (a.id - b.id); });
+  var v = [];
+  if (m.qolip === 'komplekt') {
+    var korilgan = {};
+    ds.forEach(function (d) {
+      var k = skOlchamKalit(d.olcham);
+      if (korilgan[k]) return;
+      korilgan[k] = true;
+      ['rom', 'eshik'].forEach(function (t) {
+        v.push({kalit: 'k:' + t + ':' + d.olcham, matn: SK_GL_KOMPLEKT[t] + ' · ' + d.olcham, turi: t, olcham: d.olcham, birlik: 'komplekt'});
+      });
+    });
+  }
+  ds.forEach(function (d) {
+    v.push({kalit: 'd:' + d.id, matn: (d.turi_nomi || d.turi) + ' · ' + d.olcham + (d.yoqilgan ? '' : ' (yashirilgan)'), detal: d, birlik: d.birlik});
+  });
+  return v;
+}
+
+// review243 M1: miqdor — do'kon buyurtmasi qoidasi (server `_sayt_miqdor`): juft metr — 2, 4, 6 …; butun metr / dona / komplekt — butun; m² — 2 xona
+function skGlQoida(m, birlik, turi) {
+  if (birlik === 'komplekt') return 'komplekt, butun son';
+  if (birlik === 'm2') return 'm², 2 xonagacha';
+  if (birlik === 'dona') return 'dona, butun son';
+  if (m && (m.qolip === 'juft_metr' || (m.qolip === 'komplekt' && ['karniz', 'podokonnik', 'nalichnik'].indexOf(turi) >= 0))) return 'm, juft: 2, 4, 6 …';
+  return 'm, butun son';
+}
+
+function skGlQatorNomi(q) {
+  var m = skGlTopModel(q.model_id);
+  if (q.detal_id) {
+    var d = skGlTopDetal(q.detal_id);
+    if (!m || !d) return q.nom || '?';
+    return (d.turi === 'asosiy' ? m.kod + (m.nom ? ' ' + m.nom : '') : (d.turi_nomi || d.turi) + ' ' + m.kod) + ' · ' + d.olcham;
+  }
+  if (!m) return q.nom || '?';
+  return m.kod + (m.nom ? ' ' + m.nom : '') + ' — ' + (SK_GL_KOMPLEKT[q.komplekt_turi] || 'Komplekt') + ', ' + q.komplekt_olcham +
+    (m.kapitel_baza_bor && q.komplekt_toliq === false ? ', kapitel / bazasiz' : '');
+}
+
+function skGlQatorHtml(q, i, band) {
+    var nom = skGlQatorNomi(q);
+    return '<div class="sk-gl-qator">' +
+      '<span class="sk-gl-qnom">' + escapeHtml(nom) + (q.sabab ? '<span class="sk-gl-sabab">⚠ Saytda ko\'rinmaydi: ' + escapeHtml(q.sabab) + '</span>' : '') + '</span>' +
+      '<label class="sk-gl-miqdor">' +
+      '<input type="text" inputmode="decimal" data-glmiqdor="' + i + '" value="' + escapeHtml(String(q.miqdor)) + '" aria-label="' + escapeHtml(nom + ' — miqdor') + '">' +
+      '<span>' + escapeHtml(skGlBirlikMatn(q.birlik)) + '</span></label>' +
+      '<button type="button" class="sk-x" data-glqochir="' + i + '" aria-label="' + escapeHtml(nom + ' — ro\'yxatdan olib tashlash') + '"' + (band ? ' disabled' : '') + '>✕</button></div>';
+}
+
+function skGlFormaHtml(d, g) {
+  var id = g ? g.id : 'yangi';
+  var band = !!SK.band['gl' + id];
+  var maxQ = (SK.gl && SK.gl.qator_max) || 30;
+  var h = '<div class="sk-gl-forma" data-glforma="' + id + '">' +
+    '<div class="sk-forma">' +
+    '<label class="keng">Ish nomi<input type="text" data-glm="nomi" maxlength="120" placeholder="Masalan: Ikki qavatli uy fasadi" value="' + escapeHtml(d.nomi) + '"></label>' +
+    '<label>Joyi<input type="text" data-glm="joyi" maxlength="120" placeholder="Masalan: Asaka tumani" value="' + escapeHtml(d.joyi) + '"></label>' +
+    '<label class="sk-gl-oy">Oyi<input type="month" data-glm="oy" min="2000-01" max="2100-12" value="' + escapeHtml(d.oy || '') + '"></label>' +
+    '<label class="belgi"><input type="checkbox" data-glm="yoqilgan"' + (d.yoqilgan ? ' checked' : '') + '> Saytda ko\'rinadi</label>' +
+    '</div>' +
+    '<div class="sk-gl-qbosh"><b>Ishlatilgan mahsulotlar</b><span class="sk-matn">' + escapeHtml(d.qatorlar.length + ' / ' + maxQ) +
+    ' · narx saytda katalogdan olinadi (chegirma bo\'lsa — chegirmali); miqdor — shu uyda ishlatilgani</span></div>';
+  if (d.qatorlar.length) {
+    h += '<div class="sk-gl-qatorlar">' + d.qatorlar.map((q, i) => skGlQatorHtml(q, i, band)).join('') + '</div>';
+  }
+  if (d.qatorlar.length < maxQ) {
+    h += '<div class="sk-forma sk-gl-tanlov">' +
+      '<label class="keng">Katalogdan model<select data-gltm>' + skGlModelOptionlar() + '</select></label>' +
+      '<label class="keng">O\'lcham yoki komplekt<select data-gltv disabled><option value="">— avval model —</option></select></label>' +
+      '<label class="belgi" data-gltk hidden><input type="checkbox" data-gltkb checked> Kapitel / baza bilan</label>' +
+      '<label class="sk-gl-oy"><span>Miqdor <span data-gltb></span></span><input type="text" inputmode="decimal" data-gltq placeholder="0"></label>' +
+      '<button type="button" class="btn btn-outline" data-gltqosh' + (band ? ' disabled' : '') + '>+ Qo\'shish</button></div>';
+  }
+  h += '<div class="sk-ex-tugmalar">' +
+    '<button type="button" class="btn btn-dark" data-glsaqla' + (band ? ' disabled' : '') + '>' + (g ? 'Saqlash' : 'Ishni qo\'shish') + '</button>' +
+    '<button type="button" class="btn btn-outline" data-glbekor' + (band ? ' disabled' : '') + '>Bekor</button>' +
+    (g ? '<button type="button" class="btn btn-outline sk-gl-ochir" data-glochir' + (band ? ' disabled' : '') + '>🗑 Ishni o\'chirish</button>' : '') +
+    '</div>';
+  h += g ? '<div class="sk-rasmlar" data-glrasm="' + g.id + '">' + skGlRasmHtml(g) + '</div>'
+         : '<p class="sk-matn" style="margin-top:10px">Rasmlar — ish qo\'shilgandan keyin (shu yerning o\'zida).</p>';
+  return h + '</div>';
+}
+
+function skGlFormaTinglovchilar(f) {
+  var id = f.dataset.glforma;
+  f.querySelectorAll('[data-glm]').forEach(function (inp) {
+    var ish = function () {
+      if (!SK.glD) return;
+      var k = inp.dataset.glm;
+      SK.glD[k] = inp.type === 'checkbox' ? inp.checked : inp.value;
+    };
+    inp.addEventListener('input', ish);
+    inp.addEventListener('change', ish);
+  });
+  f.querySelectorAll('[data-glmiqdor]').forEach(function (inp) {
+    inp.addEventListener('input', function () {
+      var q = SK.glD && SK.glD.qatorlar[parseInt(inp.dataset.glmiqdor, 10)];
+      if (!q) return;
+      var x = skSonOl(inp.value);
+      q.miqdor = (x === null || isNaN(x)) ? inp.value : x;
+      inp.classList.toggle('xato', x === null || isNaN(x) || x <= 0);
+    });
+  });
+  f.querySelectorAll('[data-glqochir]').forEach(function (t) {
+    t.addEventListener('click', function () {
+      if (!SK.glD) return;
+      var i = parseInt(t.dataset.glqochir, 10);
+      SK.glD.qatorlar.splice(i, 1);
+      skGlChiz();
+      // review243 L6: fokus — keyingi qatorning ✕ (oxirgisi bo'lsa — oldingisi), qator qolmasa — model tanlovi
+      var f2 = document.querySelectorAll('.sk-gl-forma [data-glqochir]');
+      var nishon = f2[Math.min(i, f2.length - 1)] || document.querySelector('.sk-gl-forma [data-gltm]');
+      if (nishon) nishon.focus();
+    });
+  });
+  var sm = f.querySelector('[data-gltm]'), sv = f.querySelector('[data-gltv]');
+  var kb = f.querySelector('[data-gltk]'), bl = f.querySelector('[data-gltb]');
+  function variantChiz() {
+    var m = skGlTopModel(parseInt(sm.value, 10));
+    var vs = skGlVariantlar(m);
+    sv.innerHTML = m ? (vs.length ? vs.map((v, i) => '<option value="' + i + '">' + escapeHtml(v.matn) + '</option>').join('')
+                                  : '<option value="">— modelda o\'lcham yo\'q —</option>')
+                     : '<option value="">— avval model —</option>';
+    sv.disabled = !m || !vs.length;
+    belgiChiz();
+  }
+  function belgiChiz() {
+    var m = skGlTopModel(parseInt(sm.value, 10));
+    var v = skGlVariantlar(m)[parseInt(sv.value, 10)];
+    kb.hidden = !(v && v.turi && m && m.kapitel_baza_bor);
+    bl.textContent = v ? '(' + skGlQoida(m, v.birlik, v.detal ? v.detal.turi : null) + ')' : '';
+  }
+  if (sm) {
+    sm.addEventListener('change', variantChiz);
+    sv.addEventListener('change', belgiChiz);
+    f.querySelector('[data-gltqosh]').addEventListener('click', function () {
+      var m = skGlTopModel(parseInt(sm.value, 10));
+      var v = skGlVariantlar(m)[parseInt(sv.value, 10)];
+      if (!m || !v) { showMsg('❌ Avval model va o\'lcham (yoki komplekt) tanlang', 'error'); return; }
+      var qi = f.querySelector('[data-gltq]');
+      var x = skSonOl(qi.value);
+      if (x === null || isNaN(x) || x <= 0) { qi.classList.add('xato'); showMsg('❌ Shu uyda ishlatilgan miqdorni kiriting (0 dan katta)', 'error'); qi.focus(); return; }
+      var q = v.detal ? {detal_id: v.detal.id, model_id: m.id, komplekt_turi: null, komplekt_olcham: null, komplekt_toliq: null, miqdor: x, birlik: v.birlik, sabab: null}
+                      : {detal_id: null, model_id: m.id, komplekt_turi: v.turi, komplekt_olcham: v.olcham,
+                         komplekt_toliq: m.kapitel_baza_bor ? !!f.querySelector('[data-gltkb]').checked : false, miqdor: x, birlik: 'komplekt', sabab: null};
+      var takror = SK.glD.qatorlar.some(function (z) {
+        return q.detal_id ? z.detal_id === q.detal_id
+                          : (!z.detal_id && z.model_id === q.model_id && z.komplekt_turi === q.komplekt_turi &&
+                             skOlchamKalit(z.komplekt_olcham) === skOlchamKalit(q.komplekt_olcham) && !!z.komplekt_toliq === !!q.komplekt_toliq);
+      });
+      if (takror) { showMsg('❌ Bu mahsulot ro\'yxatda bor — miqdorini o\'zgartiring', 'error'); return; }
+      SK.glD.qatorlar.push(q);
+      skGlChiz();
+      var yangi = document.querySelector('.sk-gl-forma [data-gltm]');
+      if (yangi) yangi.focus();
+    });
+  }
+  f.querySelector('[data-glsaqla]').addEventListener('click', function () { skGlSaqla(id === 'yangi' ? null : parseInt(id, 10)); });
+  f.querySelector('[data-glbekor]').addEventListener('click', function () { skGlOchSoz(null); skGlChiz(); });
+  var och = f.querySelector('[data-glochir]');
+  if (och) och.addEventListener('click', function () { skGlOchir(parseInt(id, 10)); });
+}
+
+async function skGlSaqla(id) {
+  var d = SK.glD;
+  if (!d) return;
+  var kalit = 'gl' + (id || 'yangi');
+  if (!d.nomi.trim()) { showMsg('❌ Ish nomini yozing', 'error'); var n0 = document.querySelector('.sk-gl-forma [data-glm="nomi"]'); if (n0) n0.focus(); return; }
+  var yomon = d.qatorlar.filter(function (q) { return typeof q.miqdor !== 'number' || !(q.miqdor > 0); });
+  if (yomon.length) { showMsg('❌ Miqdor noto\'g\'ri: ' + skGlQatorNomi(yomon[0]), 'error'); return; }
+  var tana = {nomi: d.nomi, joyi: d.joyi, oy: d.oy || null, yoqilgan: d.yoqilgan, qatorlar: d.qatorlar.map(function (q) {
+    return q.detal_id ? {detal_id: q.detal_id, miqdor: q.miqdor}
+                      : {model_id: q.model_id, komplekt_turi: q.komplekt_turi, komplekt_olcham: q.komplekt_olcham,
+                         komplekt_toliq: !!q.komplekt_toliq, miqdor: q.miqdor};
+  })};
+  if (!skBandla(kalit)) return;
+  skGlChiz();
+  var n = await skSorov(id ? '/api/sayt-katalogi/galereya/' + id : '/api/sayt-katalogi/galereya', id ? 'PUT' : 'POST', tana);
+  skBo(kalit);
+  if (!n.ok) { skGlChiz(); showMsg('❌ Ish saqlanmadi: ' + n.sabab, 'error'); return; }
+  var yangiId = (n.d && n.d.id) || id;
+  SK.glD = null;
+  await skGlYukla(yangiId);
+  showMsg(id ? '✓ Ish saqlandi' : '✓ Ish qo\'shildi — endi rasmlarini qo\'shing', 'success');
+}
+
+async function skGlOchir(id) {
+  var g = skGlIsh(id);
+  if (!g) return;
+  if (!(await customConfirm('Ishni o\'chirish', '«' + g.nomi + '» galereyadan o\'chirilsinmi? Rasmlari (' + g.rasmlar.length + ' ta) ham o\'chadi.'))) return;
+  if (!skBandla('gl' + id)) return;
+  skGlChiz();
+  var n = await skSorov('/api/sayt-katalogi/galereya/' + id, 'DELETE');
+  skBo('gl' + id);
+  if (!n.ok) { skGlChiz(); showMsg('❌ Ish o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  skGlOchSoz(null);
+  await skGlYukla();
+  showMsg('✓ Ish o\'chirildi', 'success');
+}
+
+// Ish rasmlari — model rasmlari qoidasi (qirqilmaydi, JPG / PNG / WEBP, 25 MB, ketma-ket yuklash); tartib — ◀ ▶
+function skGlRasmHtml(g) {
+  var max = (SK.gl && SK.gl.rasm_max) || 10;
+  var band = !!SK.band['glr' + g.id];
+  var rs = g.rasmlar;
+  var h = '<div class="sk-rasm-bosh"><b>Rasmlar</b><span class="sk-matn">' + escapeHtml(rs.length + ' / ' + max) +
+    (rs.length ? ' · birinchisi — asosiy (galereya ro\'yxatida shu chiqadi)' : ' · rasmsiz ish saytda ko\'rinmaydi') + '</span>' +
+    (rs.length < max ? '<label class="btn btn-outline sk-rasm-qosh' + (band ? ' band' : '') + '">📷 Rasm qo\'shish' +
+      '<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-glrfayl="' + g.id + '"' + (band ? ' disabled' : '') +
+      ' aria-label="Ish rasmini qo\'shish — telefondan yoki kompyuterdan"></label>' : '') + '</div>';
+  if (rs.length) {
+    h += '<div class="sk-rasm-royxat">' + rs.map((r, i) =>
+      '<div class="sk-rasm' + (i === 0 ? ' asosiy' : '') + '">' +
+        '<a class="sk-rasm-kor" href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener" aria-label="' + escapeHtml((i + 1) + '-rasmni to\'liq ochish') + '">' +
+        '<img src="' + escapeHtml(r.kichik) + '" alt="" loading="lazy"></a>' +
+        (i === 0 ? '<span class="sk-rasm-belgi">Asosiy</span>' : '') +
+        '<div class="sk-rasm-tug sk-gl-rtug">' +
+        '<button type="button" data-glrsur="' + r.id + '" data-yon="-1" aria-label="Oldinga"' + (i === 0 || band ? ' disabled' : '') + '>◀</button>' +
+        '<button type="button" data-glrsur="' + r.id + '" data-yon="1" aria-label="Orqaga"' + (i === rs.length - 1 || band ? ' disabled' : '') + '>▶</button>' +
+        '<button type="button" class="sk-x" data-glrochir="' + r.id + '" aria-label="Rasmni o\'chirish"' + (band ? ' disabled' : '') + '>✕</button></div>' +
+        '<span class="sk-rasm-olcham">' + escapeHtml(r.eni + ' × ' + r.boyi + ' · ' + skHajmMatn(r.hajm)) + '</span></div>').join('') + '</div>';
+  }
+  var ho = SK.rholat['gl' + g.id];
+  if (ho) {
+    h += '<div class="sk-rasm-holat" role="status">' + (ho.matn ? '<div>' + escapeHtml(ho.matn) + '</div>' : '') +
+      (ho.xatolar || []).map(x => '<div class="xato">❌ ' + escapeHtml(x.nom + ': ' + x.xato) + '</div>').join('') + '</div>';
+  }
+  return h;
+}
+
+function skGlRasmChiz(gid) {
+  var b = document.querySelector('[data-glrasm="' + gid + '"]');
+  var g = skGlIsh(gid);
+  if (!b || !g) return;
+  b.innerHTML = skGlRasmHtml(g);
+  skGlRasmTinglovchilar(b);
+  skGlBoshYangila(g);
+}
+
+// review243 L2: ish sarlavhasi (asosiy rasm, rasmlar soni, «saytda» belgisi) — rasm qo'shilgach / o'chirilgach / surilgach ham (forma
+// qayta chizilmaydi — yozilayotgan matn yo'qolmaydi)
+function skGlBoshYangila(g) {
+  var t = document.querySelector('[data-glbosh="' + g.id + '"]');
+  if (!t) return;
+  var rasmsiz = g.rasmlar.length === 0;
+  g.eslatma = (g.eslatma || []).filter(function (x) { return x !== 'rasm yo\'q'; });
+  if (rasmsiz) g.eslatma.unshift('rasm yo\'q');
+  g.saytda = !!g.yoqilgan && !rasmsiz;
+  t.innerHTML = skGlBoshHtml(g, true);
+}
+
+function skGlRasmTinglovchilar(b) {
+  var gid = parseInt(b.dataset.glrasm, 10);
+  var inp = b.querySelector('[data-glrfayl]');
+  if (inp) inp.addEventListener('change', function () {
+    var fl = Array.prototype.slice.call(inp.files || []);
+    inp.value = '';
+    skGlRasmYukla(gid, fl);
+  });
+  b.querySelectorAll('[data-glrsur]').forEach(function (t) {
+    t.addEventListener('click', function () { skGlRasmSur(gid, parseInt(t.dataset.glrsur, 10), parseInt(t.dataset.yon, 10)); });
+  });
+  b.querySelectorAll('[data-glrochir]').forEach(function (t) {
+    t.addEventListener('click', function () { skGlRasmOchir(gid, parseInt(t.dataset.glrochir, 10)); });
+  });
+}
+
+async function skGlRasmYukla(gid, fayllar) {
+  var g = skGlIsh(gid);
+  var kalit = 'glr' + gid;
+  if (!g || !fayllar.length || SK.band[kalit]) return;
+  var max = (SK.gl && SK.gl.rasm_max) || 10;
+  var joy = max - g.rasmlar.length;
+  if (joy <= 0) { showMsg('❌ Rasm qo\'shilmadi: ishda ' + max + ' ta rasm bor — ko\'pi shu. Avval keraksizini o\'chiring', 'error'); return; }
+  skBandla(kalit);
+  var navbat = fayllar.slice(0, joy);
+  var xatolar = [];
+  fayllar.slice(joy).forEach(function (f) { xatolar.push({nom: f.name, xato: 'sig\'madi — bir ishga ko\'pi bilan ' + max + ' ta rasm'}); });
+  var qoshildi = 0;
+  for (var i = 0; i < navbat.length; i++) {
+    var f = navbat[i];
+    SK.rholat[kalit.replace('glr', 'gl')] = {matn: (i + 1) + ' / ' + navbat.length + ' yuklanmoqda: ' + f.name, xatolar: xatolar};
+    skGlRasmChiz(gid);
+    if (f.size > 25 * 1024 * 1024) { xatolar.push({nom: f.name, xato: 'fayl hajmi 25 MB dan katta'}); continue; }
+    var fd = new FormData();
+    fd.append('fayl', f, f.name);
+    var r;
+    try { r = await fetch('/api/sayt-katalogi/galereya/' + gid + '/rasmlar', {method: 'POST', body: fd}); }
+    catch (e) { xatolar.push({nom: f.name, xato: await amalSababi(e)}); continue; }
+    if (!r.ok) {
+      var holat = r.status;
+      xatolar.push({nom: f.name, xato: await amalSababi(r)});
+      if (holat === 404 || holat === 401 || holat === 403) break;
+      continue;
+    }
+    var d = null;
+    try { d = await r.json(); } catch (e) { d = null; }
+    var gg = skGlIsh(gid);
+    if (d && d.id && gg) {               // review243 L1: ro'yxat yuklash paytida yangilangan bo'lsa — rasm allaqachon bor
+      if (!gg.rasmlar.some(function (x) { return x.id === d.id; })) gg.rasmlar.push(d);
+      qoshildi++;
+    }
+  }
+  skBo(kalit);
+  SK.rholat['gl' + gid] = {matn: qoshildi ? '✓ ' + qoshildi + ' ta rasm qo\'shildi' : '', xatolar: xatolar};
+  skGlRasmChiz(gid);
+  if (xatolar.length) showMsg('❌ ' + xatolar.length + ' ta rasm qo\'shilmadi — har birining sababi «Rasmlar» blokida yozilgan', 'error');
+  else showMsg('✓ ' + qoshildi + ' ta rasm qo\'shildi', 'success');
+}
+
+async function skGlRasmOchir(gid, rid) {
+  var g = skGlIsh(gid);
+  var kalit = 'glr' + gid;
+  if (!g || SK.band[kalit]) return;
+  var joy = g.rasmlar.map(function (x) { return x.id; }).indexOf(rid) + 1;
+  if (joy < 1) return;
+  if (!(await customConfirm('Rasmni o\'chirish', joy + '-rasm o\'chirilsinmi?' + (joy === 1 && g.rasmlar.length > 1 ? ' Asosiy rasm keyingisi bo\'ladi.' : '')))) return;
+  if (!skBandla(kalit)) return;
+  skGlRasmChiz(gid);
+  var n = await skSorov('/api/sayt-katalogi/galereya-rasmlari/' + rid, 'DELETE');
+  skBo(kalit);
+  var gg = skGlIsh(gid);
+  if (n.ok && gg) { gg.rasmlar = gg.rasmlar.filter(function (x) { return x.id !== rid; }); delete SK.rholat['gl' + gid]; }
+  skGlRasmChiz(gid);
+  if (!n.ok) { showMsg('❌ Rasm o\'chirilmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Rasm o\'chirildi', 'success');
+}
+
+async function skGlRasmSur(gid, rid, yon) {
+  var g = skGlIsh(gid);
+  var kalit = 'glr' + gid;
+  if (!g || SK.band[kalit]) return;
+  var ids = g.rasmlar.map(function (x) { return x.id; });
+  var i = ids.indexOf(rid), j = i + yon;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  ids[i] = ids[j];
+  ids[j] = rid;
+  if (!skBandla(kalit)) return;
+  var eski = g.rasmlar.slice();
+  g.rasmlar = ids.map(function (x) { return eski.filter(function (r) { return r.id === x; })[0]; });
+  skGlRasmChiz(gid);
+  var n = await skSorov('/api/sayt-katalogi/galereya/' + gid + '/rasmlar', 'PUT', {tartib: ids});
+  skBo(kalit);
+  var gg = skGlIsh(gid);
+  if (gg) gg.rasmlar = (n.ok && n.d && Array.isArray(n.d.rasmlar)) ? n.d.rasmlar : eski;
+  skGlRasmChiz(gid);
+  var t = document.querySelector('[data-glrasm="' + gid + '"] [data-glrsur="' + rid + '"][data-yon="' + yon + '"]') ||
+          document.querySelector('[data-glrasm="' + gid + '"] [data-glrsur="' + rid + '"]');
+  if (t && !t.disabled) t.focus();
+  if (!n.ok) { showMsg('❌ Tartib saqlanmadi: ' + n.sabab, 'error'); return; }
+  showMsg('✓ Rasmlar tartibi saqlandi', 'success');
+}
+
+// review243 L6: saqlanmagan ish bilan sahifadan chiqilsa — brauzer so'raydi (orders.html / rollar.html naqshi)
+window.addEventListener('beforeunload', function (e) {
+  if (skGlOzgargan()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// review243 M2: katalogdan model / o'lcham o'chirilsa — galereyadagi qatorlari ham o'chadi (tasdiq oynasida aytiladi)
+function skGlIshlatgan(modelId, detalId) {
+  return ((SK.gl && SK.gl.galereya) || []).filter(function (g) {
+    return g.qatorlar.some(function (q) { return modelId ? q.model_id === modelId : q.detal_id === detalId; });
+  }).length;
+}
+function skGlOgoh(modelId, detalId) {
+  var n = skGlIshlatgan(modelId, detalId);
+  return n ? ' «Bajarilgan ishlar» galereyasidagi ' + n + ' ta ishdan ham olib tashlanadi (ishning o\'zi qoladi).' : '';
+}
+
+function skGlTayyorla() {
+  var y = document.getElementById('skGlYangi');
+  if (y) y.addEventListener('click', async function () {
+    if (SK.glOchiq === 'yangi') return;
+    if (skGlOzgargan() && !(await customConfirm('Saqlanmagan o\'zgarish', 'Ochiq ishdagi o\'zgarishlar saqlanmagan. Ular bekor qilinsinmi?'))) return;
+    var sh = document.querySelector('[data-sht="sk-gl"]');
+    if (sh && !sh.open && typeof shtorkaOch === 'function') shtorkaOch(sh, true);
+    skGlOchSoz('yangi');
+    skGlChiz();
+    var n = document.querySelector('[data-glish="yangi"] [data-glm="nomi"]');
+    if (n) n.focus();
+  });
+  skGlYukla();
+}
+
+// kech178 (zip 243): galereya — katalog (SK.k) yuklangach (mahsulot tanlovi katalogdan)
+skYukla().then(function () { skGlTayyorla(); });
+</script>
+{% endblock %}

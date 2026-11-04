@@ -3040,6 +3040,33 @@ def _migrate_platforma_obuna():
 _migrate_platforma_obuna()
 
 
+def _migrate_dokon_ustuni():
+    """kech166 (zip 231) — IDEMPOTENT, PG va SQLite: `companies.dokon_yoqilgan` (sayt katalogi belgisi). Odatda
+    `database.sync_missing_columns()` qo'shadi (NULL, standart qiymatsiz); yo'q bo'lsa shu yerda. TO'LDIRISH YO'Q: NULL —
+    o'chiq (hamma mavjud korxona avvalgidek ishlaydi; egasi Platforma panelidan o'z korxonasida yoqadi)."""
+    from sqlalchemy import text, inspect as _insp
+    from database import engine
+    try:
+        _i = _insp(engine)
+        if "companies" not in set(_i.get_table_names()):
+            return
+        if "dokon_yoqilgan" in {c["name"] for c in _i.get_columns("companies")}:
+            return
+    except Exception as e:
+        print(f"⚠ companies.dokon_yoqilgan tekshiruvi o'tkazib yuborildi: {e}")
+        return
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN dokon_yoqilgan BOOLEAN"))
+            conn.commit()
+        print("✓ companies.dokon_yoqilgan qo'shildi")
+    except Exception as e:
+        print(f"⚠ companies.dokon_yoqilgan qo'shilmadi: {e}")
+
+
+_migrate_dokon_ustuni()
+
+
 _YONALISH_JADVALLARI = ("employees", "expense_transactions", "transport_expenses", "inventory_receipts",
                         "product_types")
 
@@ -3779,6 +3806,37 @@ def _migrate_ish_davrlari():
 _migrate_ish_davrlari()
 
 
+def _migrate_kpi_qotir253():
+    """kech186 (zip 253 — egasi QARORI 04.11 «KPI foizi — faqat yangilari») — IDEMPOTENT, PostgreSQL va SQLite. Ustunlar
+    `orders.usta_kpi_foizi`, `finished_product_sales.usta_kpi_foizi` — `sync_missing_columns` (NULL). Bu yerda: ustasi bor «Tayyor»
+    buyurtmalar va ustaga biriktirilgan sotuvlarning foizi QOTMAGAN (NULL) bo'lsa — ustaning HOZIRGI foizi bilan qotiriladi (shu kodgacha
+    hisob shu foiz bilan edi — raqamlar o'zgarmaydi; keyin foiz o'zgarsa faqat yangi «Tayyor» lar yangi foizda). Yangi yozuvlar —
+    `models._usta_kpi_qotir` (before_flush). Korxonalar bo'yicha (tizim so'rovi), bitta tranzaksiya; xato — hech narsa o'zgarmaydi."""
+    from sqlalchemy import select as _sel253, update as _upd253, and_ as _and253
+    from database import engine as _e253
+    from models import Order as _O253, OrderStatus as _OS253, Master as _M253, FinishedProductSale as _S253
+    _n = {"buyurtma": 0, "sotuv": 0}
+    try:
+        with _e253.begin() as conn:
+            _f = _sel253(_M253.kpi_percent).where(_M253.id == _O253.master_id).scalar_subquery()
+            r = conn.execute(_upd253(_O253).where(_and253(_O253.status == _OS253.READY, _O253.master_id.isnot(None),
+                                                            _O253.usta_kpi_foizi.is_(None)))
+                             .values(usta_kpi_foizi=_f).execution_options(synchronize_session=False))
+            _n["buyurtma"] = r.rowcount or 0
+            _f2 = _sel253(_M253.kpi_percent).where(_M253.id == _S253.master_id).scalar_subquery()
+            r = conn.execute(_upd253(_S253).where(_and253(_S253.master_id.isnot(None), _S253.usta_kpi_foizi.is_(None)))
+                             .values(usta_kpi_foizi=_f2).execution_options(synchronize_session=False))
+            _n["sotuv"] = r.rowcount or 0
+        if _n["buyurtma"] or _n["sotuv"]:
+            print(f"✓ Usta KPI foizi qotirildi: {_n['buyurtma']} ta «Tayyor» buyurtma, {_n['sotuv']} ta sotuv")
+    except Exception as e:
+        print(f"⚠ Usta KPI foizini qotirish o'tkazib yuborildi: {e}")
+    return _n
+
+
+_migrate_kpi_qotir253()
+
+
 def _migrate_himoya143():
     """kech143 (zip 171, AUDIT A-X09): bazadagi XOM sessiya tokenlari — SHA-256 xeshga (`auth.sessiya_tokenlarini_xeshla`;
     cookie o'zgarmaydi — hech kim chiqib ketmaydi), eski tuzsiz SHA-256 parol / PIN xeshlari — bcrypt bilan o'ralgan
@@ -3822,6 +3880,7 @@ _XOMASHYO_MARSHRUTLARI = frozenset({
     ("main", "api_create_item"),
     ("main", "api_create_order"),
     ("main", "api_create_return"),
+    ("main", "api_create_komplekt_return"),          # kech174 (zip 240): har detal — `create_return_item`
     ("main", "api_delete_delivery"),
     ("main", "api_delete_finished"),
     ("main", "api_delete_finished_loss"),
@@ -3842,6 +3901,7 @@ _XOMASHYO_MARSHRUTLARI = frozenset({
     ("main", "api_restore_order"),
     ("main", "api_restore_project"),
     ("main", "api_return_brak_taqdir"),
+    ("main", "api_sayt_tasdiqla"),                 # kech171 (zip 237): sayt buyurtmasi → ERP buyurtmasi (ombordan yechadi)
     ("main", "api_sell_finished_product"),
     ("main", "api_sell_finished_products_batch"),
     ("main", "api_set_default_penoplast"),
@@ -3890,7 +3950,8 @@ def _xomashyo_navbati_marshrut(request: Request, db: Session = Depends(get_db)):
         crud.xomashyo_navbati(db, _cid)
 
 
-app = FastAPI(title="PenoDecorPro ERP", description="Ishlab chiqarish boshqaruv tizimi", version="1.0.0", debug=False,
+app = FastAPI(title="epserp", description="Ishlab chiqarish boshqaruv tizimi",   # kech176 (zip 241 — egasi QARORI 02.11): platforma nomi
+              version="1.0.0", debug=False,
               dependencies=[Depends(_xomashyo_navbati_marshrut)],
               docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -3915,6 +3976,10 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # kech180 (zip 247): do'kon API si (`/api/dokon/v1/…`) — kalitli, mijozga xos javob: o'zi Cache-Control bermagan har javob (400 / 409 /
+    # 413 / 404 / 405 xatolari) — `no-store` (200 / 304 ning `private, no-cache` i, 401 / PDF ning `no-store` i — o'zgarmaydi)
+    if request.url.path.startswith("/api/dokon/") and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -3997,7 +4062,8 @@ MANBA_RAD_XABARI = ("So'rov boshqa saytdan keldi — xavfsizlik uchun rad etildi
 
 
 def _manba_istisnomi(yol: str) -> bool:
-    return yol == "/telegram/webhook" or yol.startswith("/telegram/webhook/")
+    # kech181 (zip 248): + do'kon boti webhooki (server-server; sir sarlavhasi bilan)
+    return yol == "/telegram/webhook" or yol.startswith("/telegram/webhook/") or yol == "/telegram/dokon"
 
 
 def manba_rad_sababi(usul: str, yol: str, sarlavhalar) -> Optional[str]:
@@ -4136,6 +4202,13 @@ async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
         content={"detail": "Boshqa korxonaning ma'lumoti bilan bog'lab bo'lmaydi. "
                            "Amal bekor qilindi."},
     )
+
+
+# kech166 (zip 231c): so'rovdagi buzilgan Unicode («\\ud800») bazaga yozilayotganda `UnicodeError` — 400 (avval 500 + ErrorLog);
+# ulanish `database._unicode_ulanish_xatosi` bilan hovuzdan chiqarilgan — keyingi so'rovlar buzilmaydi.
+@app.exception_handler(UnicodeError)
+async def buzilgan_unicode_handler(request: Request, exc: UnicodeError):
+    return JSONResponse(status_code=400, content={"detail": "So'rovda buzilgan belgi bor — matnni qayta yozing"})
 
 
 from starlette.exceptions import HTTPException as _StarletteHTTPException
@@ -4785,6 +4858,16 @@ class ReliableStaticFiles(StaticFiles):
 app.mount("/static", ReliableStaticFiles(directory=static_dir), name="static")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+@app.head("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    """kech180 (zip 247): `/favicon.ico` — platforma belgisi (PNG; sahifalar `<link rel="icon">` bilan SVG beradi, lekin brauzer, Telegram
+    havola ko'rinishi, PDF ko'ruvchi kabi mijozlar ildizdagi `/favicon.ico` ni so'raydi — ilgari 404). Loginsiz, 7 kun kesh."""
+    from fastapi.responses import FileResponse as _FR247
+    return _FR247(os.path.join(static_dir, "epserp_belgi_180.png"), media_type="image/png",
+                  headers={"Cache-Control": "public, max-age=604800"})
+
+
 # ============================================================
 # kech111 — YUKLANGAN FAYLLAR HIMOYASI (egasi QARORI kech110, qo'shimcha qamrov 1)
 # ============================================================
@@ -4847,10 +4930,29 @@ def yuklama_korxonanikimi(db, papka, fayl, company_id):
     return False
 
 
+def _dokon_ochiq_rasm(fayl, db):
+    """kech167 (zip 232 — egasi QARORI: sayt katalogi rasmlari hammaga ochiq ALOHIDA papkada): `/static/uploads/dokon/<nom>`
+    LOGIN SIZ beriladi — faqat fayl nomi `crud._DOKON_RASM_URL` shaklida, sayt rasmi YOZUVIDA bor va o'sha korxonada sayt katalogi
+    yoqilgan bo'lsa (`crud.dokon_rasm_ochiqmi`); aks holda 404 (borligi oshkor qilinmaydi). Boshqa papkalar — avvalgidek
+    (kirgan xodim, o'z korxonasi). Kesh — 1 soat (review232 №9: o'chirilgan rasm / o'chirilgan do'kon keshda uzoq qolmasin;
+    ETag / Last-Modified bilan qayta tekshiruv arzon)."""
+    from fastapi.responses import FileResponse as _FR232
+    url = f"/static/uploads/{crud.DOKON_RASM_PAPKA}/{fayl}"
+    yol = crud.dokon_rasm_yoli(url)
+    if not yol or not os.path.isfile(yol) or not crud.dokon_rasm_ochiqmi(db, url):
+        raise HTTPException(status_code=404, detail="Rasm topilmadi")
+    turi = "image/png" if yol.endswith(".png") else "image/jpeg"
+    return _FR232(yol, media_type=turi, headers={"Cache-Control": "public, max-age=3600",
+                                                  "Content-Disposition": "inline"})
+
+
 @app.get("/static/uploads/{papka}/{fayl}")
 def yuklangan_fayl(papka: str, fayl: str, request: Request, o: Optional[str] = None, db: Session = Depends(get_db)):
     from fastapi.responses import FileResponse as _FileResp
     import mimetypes as _mt
+    # kech167 (zip 232): sayt katalogi rasmlari — OCHIQ (login siz, `_dokon_ochiq_rasm` shartlari bilan)
+    if papka == crud.DOKON_RASM_PAPKA:
+        return _dokon_ochiq_rasm(fayl, db)
     user = auth.get_current_user(request, db)          # bloklangan korxona — 403 belgi bilan (kirish sahifasiga)
     if not user:
         raise HTTPException(status_code=401, detail="Iltimos, tizimga kiring")
@@ -5253,8 +5355,11 @@ def api_permanent_delete_order(order_id: int, db: Session = Depends(get_db), cur
     who = current_user.full_name or current_user.username
     # kech99 (probe103 qoldig'i I, O'LCHANGAN): o'chirish `commit` qilingach audit yozuvida xato bo'lsa buyurtma IZSIZ
     # o'chardi (audit yo'q). Endi o'chirish va audit BITTA tranzaksiyada.
-    with crud.bitta_tranzaksiya(db):
-        _ok = crud.permanent_delete_order(db, order_id, performed_by=who)
+    try:
+        with crud.bitta_tranzaksiya(db):
+            _ok = crud.permanent_delete_order(db, order_id, performed_by=who)
+    except crud.UstaKeshbekZiddiyat as e:            # kech186 (review253 H1): keshbek hisobidan to'lovli buyurtma
+        raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi (avval yumshoq o'chirilgan bo'lishi kerak)")
     return {"status": "ok"}
@@ -5867,6 +5972,10 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         # kech126 (zip 148): «📝 Takliflar» tugmasidagi son — rasmiylashtirilmagan takliflar (ko'rish ruxsati bilan)
         "takliflar_soni": (crud.taklif_faol_soni(db, auth.company_id_of(current_user))
                            if current_user.ruxsat("buyurtma", "korish") else 0),
+        # kech171 (zip 237): «🛒 Saytdan» — faqat sayt katalogi yoqilgan korxonada (ko'rish ruxsati bilan), son — tasdiqlanmaganlari
+        "sayt_bor": bool(current_user.ruxsat("buyurtma", "korish") and crud.dokon_yoqilganmi(db, auth.company_id_of(current_user))),
+        "sayt_soni": (crud.sayt_yangi_soni(db, auth.company_id_of(current_user))
+                      if current_user.ruxsat("buyurtma", "korish") else 0),
     })
 
 
@@ -7203,6 +7312,58 @@ def api_set_ehson_percent(percent: float = Form(...), db: Session = Depends(get_
     return {"status": "ok", "ehson_percent": percent}
 
 
+# ══ kech186 (zip 253) — USTA KESHBEGI: qoldiq, «Keshbek berildi», tarix ══════════════════════════════════════════════════════════════════
+def _keshbek_bajar(db, fn):
+    try:
+        return fn()
+    except crud.UstaKeshbekTopilmadi as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
+    except crud.UstaKeshbekZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/masters/kpi-keshbek")
+def api_masters_keshbek_qoldiqlari(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
+    """Har usta keshbek qoldig'i (barcha yillar hisoblangani − berilgan): {"qoldiqlar": {usta id: so'm}}."""
+    cid = auth.company_id_of(current_user)
+    return {"qoldiqlar": {str(k): v for k, v in crud.usta_keshbek_qoldiqlari(db, cid).items()}}
+
+
+@app.get("/api/masters/{master_id}/keshbek")
+def api_master_keshbek(master_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                       current_user=Depends(auth.ruxsat("kpi", "korish"))):
+    """Usta keshbegi: yozilgan (yillar bo'yicha), berilgan, qoldiq, berilganlar tarixi."""
+    cid = auth.company_id_of(current_user)
+    return _keshbek_bajar(db, lambda: crud.usta_keshbek_holati(db, cid, master_id))
+
+
+@app.post("/api/masters/{master_id}/keshbek")
+def api_master_keshbek_ber(master_id: int = _Path213(..., ge=1, le=2_147_483_647), data: dict = Body(...),
+                           db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
+    """«Keshbek berildi»: {"summa", "usul": naqd | buyurtma | oldin, "hisob"?, "buyurtma"?, "sana"?, "izoh"?} — qoldiqdan ko'p — 409."""
+    cid = auth.company_id_of(current_user)
+    kim = current_user.full_name or current_user.username
+    rec = _keshbek_bajar(db, lambda: crud.usta_keshbek_ber(db, cid, master_id, data, kim))
+    # review253 L5: javobda faqat yozuv natijasi (hisob tafsiloti — «Ustalar KPI: Ko'rish» bilan GET da)
+    return {"status": "ok", "id": rec.id, "duplicate": bool(getattr(rec, "_is_duplicate_submit", False)),
+            "qoldiq": getattr(rec, "_qoldiq", None)}
+
+
+@app.delete("/api/masters/keshbek/{kid}")
+def api_master_keshbek_ochir(kid: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.ruxsat("kassa", "ochirish"))):
+    """Berilgan keshbek yozuvini o'chirish — bog'langan buyurtma to'lovi va kassa yozuvi birga o'chadi."""
+    cid = auth.company_id_of(current_user)
+    kim = current_user.full_name or current_user.username
+    _keshbek_bajar(db, lambda: crud.usta_keshbek_ochir(db, cid, kid, kim))
+    return {"status": "ok"}
+
+
 @app.get("/api/masters/kpi-report")
 def api_masters_kpi_report(year: Optional[int] = None, include_inactive: bool = False,
                             db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kpi", "korish"))):
@@ -8440,6 +8601,7 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
             "recipe_id": i.recipe_id,
             "finished_product_id": i.finished_product_id,
             "product_type_id": getattr(i, 'product_type_id', None),
+            **crud.kmp_dict(i),          # kech173 (zip 239): komplekt belgisi (sahifa guruhlaydi, tahrir formasi qaytaradi)
             "order_qty_normalized": i.order_qty_normalized,
             "delivery_unit": i.delivery_unit,
             "price_per_unit_final": round(float(i.total_price or 0) / i.order_qty_normalized) if i.order_qty_normalized else 0,
@@ -9024,8 +9186,12 @@ def api_delete_order(order_id: int, actual_loy_kg: Optional[str] = None, db: Ses
         # so'rovidan OLDIN, bazaga yozib qo'yamiz — aks holda FK xatosi chiqadi.
         db.flush()
 
-        if not crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username),
-                                 jurnal_matni=_jurnal_matni209):
+        try:
+            _ok253 = crud.delete_order(db, order_id, soft=should_soft_delete, performed_by=(current_user.full_name or current_user.username),
+                                       jurnal_matni=_jurnal_matni209)
+        except crud.UstaKeshbekZiddiyat as e:        # kech186 (review253 H1): himoya (odatda `ochirishda_yumshoqmi` yumshoq qiladi)
+            raise HTTPException(status_code=409, detail=str(e))
+        if not _ok253:
             raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
 
     if log:
@@ -9549,7 +9715,11 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
     _cid = auth.company_id_of(current_user)
     if not auth.cash_transaction_of_company(db, tx_id, _cid):
         raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
-    if not crud.delete_cash_transaction(db, tx_id, company_id=_cid):
+    try:
+        _ok253 = crud.delete_cash_transaction(db, tx_id, company_id=_cid)
+    except crud.UstaKeshbekZiddiyat as e:            # kech186 (zip 253): keshbekka bog'langan «Usta KPI to'landi»
+        raise HTTPException(status_code=409, detail=str(e))
+    if not _ok253:
         raise HTTPException(status_code=404, detail="Kassa yozuvi topilmadi")
     return {"status": "ok"}
 
@@ -10073,7 +10243,7 @@ def api_order_pdf(order_id: int, db: Session = Depends(get_db), current_user=Dep
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "message": "PenoDecorPro ERP ishlamoqda!"}
+    return {"status": "ok", "message": "epserp ishlamoqda!"}   # kech176 (zip 241 — egasi QARORI 02.11): platforma nomi
 
 
 @app.get("/returns", response_class=HTMLResponse)
@@ -10163,11 +10333,20 @@ def api_tanlov_buyurtma_detallari(order_id: int, db: Session = Depends(get_db),
     items = []
     for i in order.items:
         q = {"id": i.id, "name": i.name, "is_coated": bool(i.is_coated),
-             "order_qty_normalized": i.order_qty_normalized, "delivery_unit": i.delivery_unit}
+             "order_qty_normalized": i.order_qty_normalized, "delivery_unit": i.delivery_unit,
+             **crud.kmp_dict(i)}         # kech173 (zip 239): qaytarish tanlovida komplekt guruhi
         if _narx:
             q["refund_price_per_unit"] = crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef)
         items.append(q)
-    return {"id": order.id, "raqam": order.order_number, "items": items}
+    # kech174 (zip 240): komplekt guruhlari — eng ko'pi bilan nechta BUTUN komplekt qaytarish mumkin (oyna «🧩 Butun komplekt» tanlovi)
+    komplektlar = []
+    for _g240 in sorted({i.kmp_guruh for i in order.items if i.kmp_guruh and i.kmp_turi in crud.KQT_KOMPLEKT_TURLARI}):
+        try:
+            _m240 = crud.kmp_qaytar_max(db, order, _g240)
+        except ValueError:
+            _m240 = 0
+        komplektlar.append({"kmp_guruh": _g240, "qaytar_max": _m240})
+    return {"id": order.id, "raqam": order.order_number, "items": items, "komplektlar": komplektlar}
 
 
 @app.get("/api/tanlov/loyihalar/{project_id}/detallar")
@@ -10251,7 +10430,10 @@ def api_create_return(request: Request, response: Response, data: dict = Body(..
     # yoki mavjud bo'lmagan buyurtma 500 berardi, begona detal esa A
     # omborini kamaytirardi (o'lchangan).
     _cid = auth.company_id_of(current_user)
-    if not auth.order_of_company(db, data.order_id, _cid):
+    # kech175 (zip 240c): qoralama / bekor qilingan buyurtma — tanlov ro'yxatlari va komplekt qaytarish (zip 240) qoidasi bilan BIR xil — 404
+    # (ilgari qaytarish / brak yozilardi — O'LCHANGAN). O'chirilgan buyurtma — `crud.create_return_item` o'z qoidasi (ATAYLAB).
+    _o240c = auth.order_of_company(db, data.order_id, _cid)
+    if not _o240c or _o240c.status in (OrderStatus.DRAFT, OrderStatus.CANCELLED):
         raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
     if data.order_item_id:
         from models import OrderItem as _OI_r
@@ -10276,6 +10458,98 @@ def api_create_return(request: Request, response: Response, data: dict = Body(..
     return javob
 
 
+# ════ kech174 (zip 240 — reja «Komplekt ERP'da qanday bilinadi» 4-band): KOMPLEKT BO'YICHA QAYTARISH ════
+# `POST /api/returns/komplekt` — {order_id, kmp_guruh, soni, reason?, notes?, hisob?: «hozir» | «keyin», payment_method?}: komplektning har
+# detali o'z qaytarish yozuvi bilan, BITTA tranzaksiyada (`crud.create_komplekt_return`); `X-Amal-Kaliti` — takror so'rov ikkinchi to'plam
+# yozmaydi. «hozir» — «Qaytarishlar: Tahrirlash» ruxsati SHART (ro'yxatdagi «💰 Hisob-kitob qilish» bilan bir qoida). Pul raqamlari javobda
+# — faqat «Tannarx va foyda: Ko'rish» ruxsati borga (oyna qoidasi). `GET /api/returns/komplekt/reja` — oldindan ko'rish (hech narsa yozmaydi;
+# o'sha qoida — `crud.kqt_tekshir`).
+def _kqt_pulsiz(javob: dict) -> dict:
+    """Tannarx ruxsatisiz foydalanuvchiga — pul raqamlarisiz javob."""
+    j = {k: v for k, v in javob.items() if k not in ("jami", "naqd_qaytarildi", "kelishilgan_kamaydi")}
+    j["qaytarishlar"] = [{k: v for k, v in x.items() if k != "refund_amount"} for x in javob.get("qaytarishlar", [])]
+    return j
+
+
+def _qaytarish_hisob_xabari(naqd: float, kam: float) -> str:
+    """Hisob-kitob natijasi matni (bitta qaytarish va komplekt — BIR xil): sonlar alohida (minglik ajratgich — bo'shliq)."""
+    def _som(v):
+        return services.son_korinish(v, 0)        # kech151 (zip 192): ilgari oddiy bo'shliq
+    if naqd >= 0.01:
+        return (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
+                f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
+    return (f"Kelishilgan summa {_som(kam)} so'mga kamaydi — qarzdan chegirildi, naqd pul "
+            f"qaytarilmadi (mijoz ortiqcha to'lamagan).")
+
+
+@app.post("/api/returns/komplekt")
+def api_create_komplekt_return(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
+                               current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    kalit = _amal_kaliti(request)
+    try:
+        t = crud.kqt_tana(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if t["hisob"] == "hozir" and not current_user.ruxsat("qaytarish", "tahrirlash"):
+        raise HTTPException(status_code=403, detail="Hisob-kitob uchun «Qaytarishlar: Tahrirlash» ruxsati kerak — «keyin» tanlang")
+    _cid = auth.company_id_of(current_user)
+    # review240 M2: buyurtma — tanlov / reja marshrutlari qoidasi (shu korxona, o'chirilmagan, qoralama / bekor qilingan emas), aks holda 404
+    from models import Order as _O240, OrderStatus as _OS240
+    if not db.query(_O240.id).filter(_O240.id == t["order_id"], _O240.company_id == _cid, _O240.is_deleted.isnot(True),
+                                     _O240.status.notin_([_OS240.DRAFT, _OS240.CANCELLED])).first():
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    who = current_user.full_name or current_user.username
+    _narx = bool(current_user.ruxsat("tannarx", "korish"))
+
+    def _bajar():
+        try:
+            with crud.bitta_tranzaksiya(db):
+                natija = crud.create_komplekt_return(db, t["order_id"], t["guruh"], t["soni"], reason=t["reason"], notes=t["notes"],
+                                                     hisob=t["hisob"], usul=t["usul"], company_id=_cid, performed_by=who)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        xabar = (f"«{natija['nomi']}» — {natija['soni']} komplekt qaytarildi ({len(natija['qaytarishlar'])} ta detal tayyor mahsulotlar "
+                 f"omboriga).")
+        if natija["hisob"] == "hozir":
+            # review240 L2: tannarx ruxsatisiz — summasiz matn (javobdagi pul raqamlari kabi)
+            xabar += " " + (_qaytarish_hisob_xabari(natija["naqd_qaytarildi"], natija["kelishilgan_kamaydi"]) if _narx
+                            else "Hisob-kitob qilindi (summa buyurtmaning kelishilgan summasidan chegirildi).")
+        natija["xabar"] = xabar
+        return natija if _narx else _kqt_pulsiz(natija)
+    javob, _ = _amal_bajar(db, current_user, response, "qaytarish_komplekt", kalit, _bajar)
+    return javob
+
+
+@app.get("/api/returns/komplekt/reja")
+def api_komplekt_qaytarish_reja(order_id: int, kmp_guruh: int, soni: int, db: Session = Depends(get_db),
+                                current_user=Depends(auth.ruxsat("qaytarish", "yaratish"))):
+    """«Yangi qaytarish» → «🧩 Butun komplekt»: N komplektda qaysi detaldan qancha qaytadi (narx — faqat tannarx ruxsati bilan)."""
+    from models import Order as _O, OrderStatus as _OS
+    _cid = auth.company_id_of(current_user)
+    order = db.query(_O).filter(_O.id == order_id, _O.company_id == _cid, _O.is_deleted.isnot(True),
+                                _O.status.notin_([_OS.DRAFT, _OS.CANCELLED])).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Buyurtma topilmadi")
+    try:
+        reja = crud.kqt_tekshir(db, order, kmp_guruh, soni)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _narx = bool(current_user.ruxsat("tannarx", "korish"))
+    _qkoef = crud.qaytarish_narx_koeffitsienti(db, order) if _narx else None
+    qatorlar = []
+    for i, m in reja["qatorlar"]:
+        q = {"order_item_id": i.id, "name": i.name, "quantity": m, "unit": i.delivery_unit}
+        if _narx:
+            q["summa"] = crud._som_butun(crud.qaytarish_birlik_narxi(db, order, i, koef=_qkoef) * m)
+        qatorlar.append(q)
+    javob = {"nomi": reja["nomi"], "sarlavha": reja["sarlavha"], "kmp_soni": reja["kmp_soni"], "soni": reja["soni"],
+             "qaytar_max": reja["qaytar_max"], "qatorlar": qatorlar}
+    if _narx:
+        javob["jami"] = crud._pul2(sum(q["summa"] for q in qatorlar))
+    return javob
+
+
 @app.get("/api/returns")
 def api_get_returns(order_id: Optional[int] = None, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "korish"))):
     return crud.get_return_items(db, order_id=order_id, company_id=auth.company_id_of(current_user))
@@ -10287,8 +10561,8 @@ def api_return_stats(db: Session = Depends(get_db), current_user=Depends(auth.ru
 
 
 @app.post("/api/returns/{return_id}/refund")
-def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: Session = Depends(get_db),
-                      current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
+def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, komplekt: Optional[str] = None,
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "tahrirlash"))):
     # kech155 (zip 210): `payment_method` — pul qanday qaytarildi (naqd / plastik / o'tkazma → «Naqd pul» / «Karta» / «Bank»);
     # berilmasa — naqd (avvalgidek). Noto'g'ri — 400.
     if payment_method is not None and payment_method not in ("naqd", "plastik", "o'tkazma"):
@@ -10297,6 +10571,25 @@ def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: 
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
     who = current_user.full_name or current_user.username
+    # kech174 (zip 240): `komplekt=1` — komplekt qaytarishi to'plamining hisob-kitob qilinmagan HAMMA yozuvi, BITTA tranzaksiyada (yozuv
+    # to'plamda bo'lmasa — faqat o'zi). Berilmasa — avvalgidek bitta yozuv.
+    # kech174 (zip 240b, etalon d248 — test_loy_query K): so'rov parametri MATN, qat'iy «1» (son turi «1.0» / «01» ni ham 1 deb olardi)
+    if komplekt is not None and komplekt != "1":
+        raise HTTPException(status_code=400, detail="'komplekt' — faqat 1")
+    if komplekt == "1":
+        try:
+            with crud.bitta_tranzaksiya(db):
+                _kn = crud.refund_komplekt(db, return_id, auth.company_id_of(current_user), refunded_by=who, usul=payment_method)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        if not _kn:
+            raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+        # review240 L1: hammasi avval hisob-kitob qilingan (ikki marta bosish) — hech narsa o'zgarmadi, shuni aytamiz
+        return {"status": "ok", "is_refunded": True, "komplekt": _kn["soni"], "naqd_qaytarildi": _kn["naqd_qaytarildi"],
+                "kelishilgan_kamaydi": _kn["kelishilgan_kamaydi"],
+                "xabar": (_qaytarish_hisob_xabari(_kn["naqd_qaytarildi"], _kn["kelishilgan_kamaydi"]) if _kn["soni"]
+                          else "Bu komplekt qaytarishi avval hisob-kitob qilingan — hech narsa o'zgarmadi.")}
     # kech42: brak — 400 (mijozga pul qaytarilmaydi); javobda nima bo'lgani
     # (qarzdan chegirildimi, naqd qancha) — UI shuni ko'rsatadi.
     try:
@@ -10311,23 +10604,40 @@ def api_mark_refunded(return_id: int, payment_method: Optional[str] = None, db: 
     kam = float(item.refund_agreed_delta or 0)
     # Sonlar alohida (minglik ajratgich — bo'shliq); ilgari butun matnga `.replace(",", " ")`
     # qo'llanib, gapdagi vergul ham yo'qolardi (JONLI kech42: "chegirildi  naqd").
-    def _som(v):
-        return services.son_korinish(v, 0)        # kech151 (zip 192): ilgari oddiy bo'shliq
-    if naqd >= 0.01:
-        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi; mijozga {_som(naqd)} so'm naqd "
-                 f"qaytarilgan deb yozildi (u ortiqcha to'lagan qism).")
-    else:
-        xabar = (f"Kelishilgan summa {_som(kam)} so'mga kamaydi — qarzdan chegirildi, naqd pul "
-                 f"qaytarilmadi (mijoz ortiqcha to'lamagan).")
+    # kech174 (zip 240): matn — `_qaytarish_hisob_xabari` (komplekt hisob-kitobi bilan bir xil)
+    xabar = _qaytarish_hisob_xabari(naqd, kam)
     return {"status": "ok", "is_refunded": item.is_refunded, "naqd_qaytarildi": naqd,
             "kelishilgan_kamaydi": kam, "xabar": xabar}
 
 
 @app.delete("/api/returns/{return_id}")
-def api_delete_return(return_id: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("qaytarish", "ochirish"))):
+def api_delete_return(return_id: int, komplekt: Optional[str] = None, db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("qaytarish", "ochirish"))):
     # M2: obyekt FAQAT joriy korxonadan topiladi (aks holda 404).
     if not auth.return_of_company(db, return_id, auth.company_id_of(current_user)):
         raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+    # kech174 (zip 240): komplekt qaytarishi (bir amalda yozilgan bir necha detal) — faqat BUTUNLIGICHA, `komplekt=1` bilan, BITTA
+    # tranzaksiyada (`crud.delete_komplekt_return`). Kalitsiz (eski ochiq sahifa — «bitta yozuv» deb so'ragan) — 409, hech narsa
+    # o'zgarmaydi: komplektning bir detalini jim o'chirib «yarim komplekt» qoldirmaymiz.
+    # kech174 (zip 240b, etalon d248 — test_loy_query K): so'rov parametri MATN, qat'iy «1» (son turi «1.0» / «01» ni ham 1 deb olardi)
+    if komplekt is not None and komplekt != "1":
+        raise HTTPException(status_code=400, detail="'komplekt' — faqat 1")
+    _kqt, _kqt_n = crud.kqt_sanogi(db, return_id, auth.company_id_of(current_user))
+    if _kqt and _kqt_n > 1:
+        if komplekt != "1":
+            raise HTTPException(status_code=409, detail={
+                "message": f"Bu yozuv — komplekt qaytarishining bir qismi ({_kqt_n} ta detal): faqat butunligicha o'chiriladi. Sahifani "
+                           f"yangilab qayta bosing.", "komplekt": _kqt_n})
+        try:
+            with crud.bitta_tranzaksiya(db):
+                natija = crud.delete_komplekt_return(db, return_id, auth.company_id_of(current_user),
+                                                     performed_by=current_user.full_name or current_user.username)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+        if not natija:
+            raise HTTPException(status_code=404, detail="Qaytarish topilmadi")
+        return {"status": "ok", **natija}
     # kech40 (22-band): o'chirish hammasini orqaga qaytaradi (ombor, pul — foydalanuvchi
     # qarori B); orqaga qaytarib bo'lmasa `ValueError` → 400 aniq sabab bilan, hech narsa
     # o'zgarmaydi (qulf ham bo'shatiladi).
@@ -10601,8 +10911,11 @@ def api_delete_payment(payment_id: int, db: Session = Depends(get_db), current_u
     who = current_user.full_name or current_user.username
     # kech99 (probe103 qoldig'i H, O'LCHANGAN): audit ("deleted") o'zi `commit` qilinib, keyin to'lov o'chirishda xato
     # bo'lsa — to'lov QOLARDI, audit esa "o'chirildi" derdi; qayta urinish ikkinchi audit yozardi. Endi BITTA tranzaksiya.
-    with crud.bitta_tranzaksiya(db):
-        _ok = crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user))
+    try:
+        with crud.bitta_tranzaksiya(db):
+            _ok = crud.delete_payment(db, payment_id, performed_by=who, company_id=auth.company_id_of(current_user))
+    except crud.UstaKeshbekZiddiyat as e:            # kech186 (zip 253): keshbek hisobidan to'lov — keshbek tarixidan o'chiriladi
+        raise HTTPException(status_code=409, detail=str(e))
     if not _ok:
         raise HTTPException(status_code=404, detail="To'lov topilmadi")
     return {"status": "ok"}
@@ -11619,6 +11932,876 @@ def api_set_categories(codes: str = Form(""), bosh: str = Form(""), v: str = For
 # kech117 (A2) — YO'NALISHLAR (egasi QARORLARI kech114 00:08): ro'yxat — hamma xodim (tanlovlar uchun);
 # qo'shish / nomini o'zgartirish / yashirish / o'chirish — faqat admin (Sozlamalar sahifasi).
 # ============================================================
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech166 (zip 231) — SAYT KATALOGI (onlayn do'kon poydevori). FAQAT Admin; korxonada belgi yoqilmagan bo'lsa — 404
+# (boshqa korxonalarga hech narsa ko'rinmaydi). Mantiq — `crud.dokon_*`. Belgi — Platforma panelidan
+# (`POST /api/platform/companies/{id}/dokon`, faqat platforma egasining korxonasi).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_DOKON_YOPIQ_MATN = "Sayt katalogi bu korxonada yoqilmagan"
+
+
+def _dokon_kim(current_user):
+    return current_user.full_name or current_user.username
+
+
+def _dokon_bajar(db, fn):
+    """crud chaqiruvi: `DokonYopiq` — 404, `ValueError` — 400, son o'girish xatosi / korxona qo'riqchisi — 400 (review231 №2),
+    bir vaqtda ikki marta saqlash (yagona kalit) — 409."""
+    from sqlalchemy.exc import IntegrityError as _IE
+    from sqlalchemy.orm.exc import StaleDataError as _SDE232
+    from models import TenantMismatchError as _TME
+    try:
+        return fn()
+    except crud.DokonYopiq:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    except UnicodeError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Matnda buzilgan belgi bor — qayta yozing")
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except (ArithmeticError, _TME):
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Qiymat noto'g'ri")
+    except _IE:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Shu yozuv hozirgina boshqa oynada saqlandi — sahifani yangilang")
+    except _SDE232:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Shu yozuv hozirgina boshqa oynada o'zgardi — sahifani yangilang")
+
+
+def _sayt_katalogi_bormi(user):
+    """Menyu uchun: foydalanuvchi korxonasida sayt katalogi yoqilganmi. Xato bo'lsa — False (sahifa buzilmaydi)."""
+    if not user:
+        return False
+    try:
+        from database import SessionLocal as _SL
+        _d = _SL()
+        try:
+            return crud.dokon_yoqilganmi(_d, auth.company_id_of(user))
+        finally:
+            _d.close()
+    except Exception:
+        return False
+
+
+templates.env.globals["sayt_katalogi_bormi"] = _sayt_katalogi_bormi
+
+
+@app.get("/sayt-katalogi", response_class=HTMLResponse)
+def sayt_katalogi_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Sayt katalogi — bo'limlar, modellar, narxlar (oddiy / qoplamali / ulgurji)."""
+    if not crud.dokon_yoqilganmi(db, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    return templates.TemplateResponse(request, "sayt_katalogi.html",
+                                      {"current_user": current_user, "active_page": "sayt_katalogi"})
+
+
+@app.get("/api/sayt-katalogi")
+def api_sayt_katalogi(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butun katalog: koeffitsient, bo'limlar, modellar, detallar (narx qatorlari)."""
+    return _dokon_bajar(db, lambda: crud.dokon_katalog(db, auth.company_id_of(current_user)))
+
+
+@app.post("/api/sayt-katalogi/bolimlar")
+def api_dokon_bolim_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Yangi bo'lim: {"nom", "qolip"} (+ "yoqilgan")."""
+    b = _dokon_bajar(db, lambda: crud.dokon_bolim_yarat(db, auth.company_id_of(current_user), data,
+                                                       _dokon_kim(current_user)))
+    return crud.dokon_bolim_dict(b)
+
+
+@app.put("/api/sayt-katalogi/bolimlar/{bolim_id}")
+def api_dokon_bolim_yangila(data: dict = Body(...), bolim_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Bo'limni tahrirlash: "nom", "qolip" (oddiy, bo'sh bo'lim), "tartib", "yoqilgan"."""
+    b = _dokon_bajar(db, lambda: crud.dokon_bolim_yangila(db, bolim_id, auth.company_id_of(current_user), data,
+                                                         _dokon_kim(current_user)))
+    if b is None:
+        raise HTTPException(status_code=404, detail="Bo'lim topilmadi")
+    return crud.dokon_bolim_dict(b)
+
+
+@app.delete("/api/sayt-katalogi/bolimlar/{bolim_id}")
+def api_dokon_bolim_ochir(bolim_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Bo'sh oddiy bo'limni o'chiradi (tizim bo'limi / modellari bor — 400)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_bolim_ochir(db, bolim_id, auth.company_id_of(current_user),
+                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Bo'lim topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/sayt-katalogi/modellar")
+def api_dokon_model_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Yangi model: {"bolim_id", "kod"} (+ "nom", "tavsif", "qolip", "kapitel_baza_bor", "yoqilgan")."""
+    m = _dokon_bajar(db, lambda: crud.dokon_model_yarat(db, auth.company_id_of(current_user), data,
+                                                       _dokon_kim(current_user)))
+    return crud.dokon_model_dict(m)
+
+
+@app.put("/api/sayt-katalogi/modellar/{model_id}")
+def api_dokon_model_yangila(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Modelni tahrirlash (qolip o'zgarsa — detallar birligi ham)."""
+    m = _dokon_bajar(db, lambda: crud.dokon_model_yangila(db, model_id, auth.company_id_of(current_user), data,
+                                                         _dokon_kim(current_user)))
+    if m is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return crud.dokon_model_dict(m)
+
+
+@app.delete("/api/sayt-katalogi/modellar/{model_id}")
+def api_dokon_model_ochir(model_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Modelni narx qatorlari bilan o'chiradi."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_model_ochir(db, model_id, auth.company_id_of(current_user),
+                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/sayt-katalogi/detallar")
+def api_dokon_detal_yarat(data: dict = Body(...), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Modelga narx qatori: {"model_id", "turi", "olcham"} + o'lcham sonlari va narxlar."""
+    cid = auth.company_id_of(current_user)
+    d = _dokon_bajar(db, lambda: crud.dokon_detal_yarat(db, cid, data, _dokon_kim(current_user)))
+    return crud.dokon_detal_javobi(db, cid, d)                    # kech169 (zip 234): chegirmali narxlar bilan
+
+
+@app.put("/api/sayt-katalogi/detallar/{detal_id}")
+def api_dokon_detal_yangila(data: dict = Body(...), detal_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Narx qatorini tahrirlash (o'lcham, eni / qalinligi, narxlar, tartib, yoqilgan)."""
+    cid = auth.company_id_of(current_user)
+    d = _dokon_bajar(db, lambda: crud.dokon_detal_yangila(db, detal_id, cid, data, _dokon_kim(current_user)))
+    if d is None:
+        raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
+    return crud.dokon_detal_javobi(db, cid, d)                    # kech169 (zip 234): chegirmali narxlar bilan
+
+
+@app.delete("/api/sayt-katalogi/detallar/{detal_id}")
+def api_dokon_detal_ochir(detal_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    ok = _dokon_bajar(db, lambda: crud.dokon_detal_ochir(db, detal_id, auth.company_id_of(current_user),
+                                                        _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
+    return {"status": "ok"}
+
+
+# kech172 (zip 238): katalog detali ↔ ERP «Tayyor mahsulotlar» mahsuloti (FAQAT Admin; belgi o'chiq — 404)
+@app.get("/api/sayt-katalogi/tm-mahsulotlar")
+def api_dokon_tm_mahsulotlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """«Omborga bog'lash» ro'yxati: qoplamali, brak bo'lmagan, metr / dona ERP mahsulotlari — nom, o'lcham, ERP qoldig'i, sayt bandi."""
+    cid = auth.company_id_of(current_user)
+    return _dokon_bajar(db, lambda: (crud.dokon_tekshir(db, cid), {"mahsulotlar": crud.dokon_tm_mahsulotlar(db, cid)})[1])
+
+
+@app.put("/api/sayt-katalogi/detallar/{detal_id}/tm")
+def api_dokon_detal_tm(data: dict = Body(...), detal_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                       current_user=Depends(auth.admin_only)):
+    """Detalni ERP mahsulotiga bog'lash ({"tm_kaliti": "…"}) yoki uzish ({"tm_kaliti": null})."""
+    cid = auth.company_id_of(current_user)
+    d = _dokon_bajar(db, lambda: crud.dokon_detal_tm_bogla(db, detal_id, cid, data, _dokon_kim(current_user)))
+    if d is None:
+        raise HTTPException(status_code=404, detail="Narx qatori topilmadi")
+    return {"detal": crud.dokon_detal_javobi(db, cid, d), "mahsulotlar": crud.dokon_tm_mahsulotlar(db, cid)}
+
+
+@app.get("/api/sayt-bandlar")
+def api_sayt_bandlar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "korish"))):
+    """«Tayyor mahsulotlar» sahifasi: saytdan kelgan buyurtmalarning faol (48 soatlik) bandlari — partiyalar, miqdor, sayt raqamlari."""
+    return _dokon_bajar(db, lambda: crud.sayt_band_tmlar(db, auth.company_id_of(current_user)))
+
+
+@app.put("/api/sayt-katalogi/koeff")
+def api_dokon_koeff(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Qoplama koeffitsienti: {"koeff": 1 … 10}. Faqat qoplamali narxi bo'sh qatorlarga ta'sir qiladi."""
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, auth.company_id_of(current_user)))    # o'chiq korxona — avval 404
+    if not isinstance(data, dict) or set(data) != {"koeff"}:
+        raise HTTPException(status_code=400, detail="Faqat 'koeff' yuboriladi")
+    k = _dokon_bajar(db, lambda: crud.dokon_koeff_saqla(db, auth.company_id_of(current_user), data.get("koeff"),
+                                                       _dokon_kim(current_user)))
+    return {"koeff": float(k)}
+
+
+def _dokon_rasm_fayl_yukla(db, fayl, yozuv, topilmadi_matni):
+    """kech178 (zip 243): sayt rasmi yuklash ketma-ketligi (zip 232 — model rasmi; zip 243 — galereya rasmi; BITTA yo'l): bazadagi
+    tranzaksiya yopiladi, rasm qayta yoziladi (`dokon_rasm_tayyorla`), fayllar `static/uploads/dokon/` ga (vaqtinchalik nom + `os.replace`),
+    keyin `yozuv(url, url_k, t)` — crud yozuvi; yozuv saqlanmasa (xato / None — ota topilmadi, 404) — fayllar o'chiriladi."""
+    import uuid as _uuid232
+    db.rollback()                                       # rasm ishlanayotganda bazada ochiq tranzaksiya turmasin
+    data = fayl.file.read(MAX_UPLOAD_SIZE + 1)
+    try:
+        t = dokon_rasm_tayyorla(data, fayl.filename or "")
+    except DokonRasmBand as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except DokonRasmXato as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    papka = crud.dokon_rasm_papkasi()
+    nom = _uuid232.uuid4().hex
+    url = f"/static/uploads/{crud.DOKON_RASM_PAPKA}/{nom}{t['ext']}"
+    url_k = f"/static/uploads/{crud.DOKON_RASM_PAPKA}/{nom}_k{t['ext']}"
+    yozilgan = []
+    try:
+        os.makedirs(papka, exist_ok=True)
+        for u, b in ((url, t["katta"]), (url_k, t["kichik"])):
+            yol = crud.dokon_rasm_yoli(u)
+            vaqtinchalik = f"{yol}.{_uuid232.uuid4().hex}.tmp"
+            try:
+                with open(vaqtinchalik, "wb") as f:
+                    f.write(b)
+                os.replace(vaqtinchalik, yol)
+            finally:
+                if os.path.exists(vaqtinchalik):        # review232 №4: yozishda xato — vaqtinchalik fayl qolmasin
+                    try:
+                        os.remove(vaqtinchalik)
+                    except OSError:
+                        pass
+            yozilgan.append(u)
+        r = _dokon_bajar(db, lambda: yozuv(url, url_k, t))
+    except OSError:
+        crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise HTTPException(status_code=507, detail="Rasm faylini serverga yozib bo'lmadi (joy yetmadi yoki disk xatosi) — rasm "
+                                                    "saqlanmadi")
+    except BaseException:
+        crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise
+    if r is None:
+        crud._dokon_rasm_fayllarini_ochir(yozilgan, db)
+        raise HTTPException(status_code=404, detail=topilmadi_matni)
+    return r
+
+
+@app.post("/api/sayt-katalogi/modellar/{model_id}/rasmlar")
+def api_dokon_rasm_qosh(model_id: int = _Path213(..., ge=1, le=2_147_483_647), fayl: UploadFile = File(...),
+                        db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): modelga BITTA rasm (sahifa bir nechtasini ketma-ket yuboradi). Rasm qayta yoziladi
+    (`dokon_rasm_tayyorla`), fayllar `static/uploads/dokon/` ga, keyin yozuv; yozuv saqlanmasa — fayllar o'chiriladi
+    (kech178, zip 243: ketma-ketlik — `_dokon_rasm_fayl_yukla`)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    _m = crud._dokon_model_of(db, model_id, cid)
+    if _m is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    # review232 №1: 10 ta rasm bo'lsa — rasm ishlanmasdan OLDIN rad (yakuniy tekshiruv — yozuvda, model qulfi ostida)
+    if len(crud._dokon_model_rasmlari(db, cid, _m.id)) >= crud.DOKON_RASM_MAX:
+        raise HTTPException(status_code=400, detail=crud.dokon_rasm_toliq_matni(_m.kod))
+    r = _dokon_rasm_fayl_yukla(db, fayl, lambda url, url_k, t: crud.dokon_rasm_qosh(
+        db, cid, model_id, url, url_k, t["eni"], t["boyi"], len(t["katta"]), _dokon_kim(current_user)), "Model topilmadi")
+    return crud.dokon_rasm_dict(r)
+
+
+@app.put("/api/sayt-katalogi/modellar/{model_id}/rasmlar")
+def api_dokon_rasm_tartib(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                          db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): rasmlar tartibi — {"tartib": [rasm raqamlari, yangi tartibda]} (birinchisi — asosiy)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if not isinstance(data, dict) or set(data) != {"tartib"}:
+        raise HTTPException(status_code=400, detail="Faqat 'tartib' yuboriladi")
+    rs = _dokon_bajar(db, lambda: crud.dokon_rasm_tartib(db, model_id, cid, data.get("tartib"),
+                                                        _dokon_kim(current_user)))
+    if rs is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return {"rasmlar": [crud.dokon_rasm_dict(r) for r in rs]}
+
+
+@app.delete("/api/sayt-katalogi/rasmlar/{rasm_id}")
+def api_dokon_rasm_ochir(rasm_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                         current_user=Depends(auth.admin_only)):
+    """kech167 (zip 232): rasmni o'chiradi (yozuv, keyin fayllar)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_rasm_ochir(db, rasm_id, auth.company_id_of(current_user),
+                                                       _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Rasm topilmadi")
+    return {"status": "ok"}
+
+
+# ── kech178 (zip 243): «Bajarilgan ishlar» galereyasi (FAQAT Admin; belgi o'chiq — 404). Mantiq — `crud.dokon_galereya_*` ──
+@app.get("/api/sayt-katalogi/galereya")
+def api_dokon_galereya(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Galereya ishlari (yangisi birinchi) — qatorlari (saytda ko'rinmaydiganlari sababi bilan) va rasmlari."""
+    cid = auth.company_id_of(current_user)
+    return _dokon_bajar(db, lambda: crud.dokon_galereya_royxat(db, cid))
+
+
+@app.post("/api/sayt-katalogi/galereya")
+def api_dokon_galereya_yarat(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Yangi ish: {"nomi", "joyi", "oy" («YYYY-MM»), "yoqilgan", "qatorlar": [{"detal_id", "miqdor"} | {"model_id", "komplekt_turi",
+    "komplekt_olcham", "komplekt_toliq", "miqdor"}]}. Rasmlar — keyin (`…/galereya/{id}/rasmlar`)."""
+    cid = auth.company_id_of(current_user)
+    g = _dokon_bajar(db, lambda: crud.dokon_galereya_yarat(db, cid, data, _dokon_kim(current_user)))
+    return {"id": g.id}
+
+
+@app.put("/api/sayt-katalogi/galereya/{galereya_id}")
+def api_dokon_galereya_saqla(data: dict = Body(...), galereya_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                             db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ish maydonlari va (yuborilsa) mahsulotlari — to'liq ro'yxat."""
+    cid = auth.company_id_of(current_user)
+    g = _dokon_bajar(db, lambda: crud.dokon_galereya_yangila(db, galereya_id, cid, data, _dokon_kim(current_user)))
+    if g is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    return {"id": g.id}
+
+
+@app.delete("/api/sayt-katalogi/galereya/{galereya_id}")
+def api_dokon_galereya_ochir(galereya_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Ishni, mahsulotlarini va rasmlarini o'chiradi (fayllar — commit dan keyin)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_galereya_ochir(db, galereya_id, auth.company_id_of(current_user),
+                                                           _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    return {"status": "ok"}
+
+
+@app.post("/api/sayt-katalogi/galereya/{galereya_id}/rasmlar")
+def api_dokon_galereya_rasm_qosh(galereya_id: int = _Path213(..., ge=1, le=2_147_483_647), fayl: UploadFile = File(...),
+                                 db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ishga BITTA rasm (sahifa bir nechtasini ketma-ket yuboradi) — model rasmi bilan bir xil ishlov (`_dokon_rasm_fayl_yukla`)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    _g = crud._dokon_galereya_of(db, galereya_id, cid)
+    if _g is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    if len(crud._dokon_gl_rasmlari(db, cid, [_g.id]).get(_g.id, [])) >= crud.DOKON_RASM_MAX:
+        raise HTTPException(status_code=400, detail=crud.dokon_galereya_rasm_toliq_matni(_g.gl_nomi))
+    r = _dokon_rasm_fayl_yukla(db, fayl, lambda url, url_k, t: crud.dokon_galereya_rasm_qosh(
+        db, cid, galereya_id, url, url_k, t["eni"], t["boyi"], len(t["katta"]), _dokon_kim(current_user)), "Ish topilmadi")
+    return crud.dokon_galereya_rasm_dict(r)
+
+
+@app.put("/api/sayt-katalogi/galereya/{galereya_id}/rasmlar")
+def api_dokon_galereya_rasm_tartib(data: dict = Body(...), galereya_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                                   db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ish rasmlari tartibi — {"tartib": [rasm raqamlari, yangi tartibda]} (birinchisi — asosiy)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if not isinstance(data, dict) or set(data) != {"tartib"}:
+        raise HTTPException(status_code=400, detail="Faqat 'tartib' yuboriladi")
+    rs = _dokon_bajar(db, lambda: crud.dokon_galereya_rasm_tartib(db, galereya_id, cid, data.get("tartib"),
+                                                                 _dokon_kim(current_user)))
+    if rs is None:
+        raise HTTPException(status_code=404, detail="Ish topilmadi")
+    return {"rasmlar": [crud.dokon_galereya_rasm_dict(r) for r in rs]}
+
+
+@app.delete("/api/sayt-katalogi/galereya-rasmlari/{rasm_id}")
+def api_dokon_galereya_rasm_ochir(rasm_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                                  current_user=Depends(auth.admin_only)):
+    """Ish rasmini o'chiradi (yozuv, keyin fayllar)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_galereya_rasm_ochir(db, rasm_id, auth.company_id_of(current_user),
+                                                                _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Rasm topilmadi")
+    return {"status": "ok"}
+
+
+# ── kech168 (zip 233): do'kon sozlamalari — tasdiqlash telefonlari, ish vaqti, komplekt retsepti (FAQAT Admin; belgi o'chiq — 404) ──
+@app.post("/api/sayt-katalogi/telefonlar")
+def api_dokon_telefon_qosh(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Tasdiqlash raqami: {"raqam"} (+ "izoh", "doim"). Birinchi raqam — o'zi «doim» (ish vaqtidan tashqarida ham ko'rinadi)."""
+    t = _dokon_bajar(db, lambda: crud.dokon_telefon_qosh(db, auth.company_id_of(current_user), data, _dokon_kim(current_user)))
+    return crud.dokon_telefon_dict(t)
+
+
+@app.put("/api/sayt-katalogi/telefonlar")
+def api_dokon_telefon_tartib(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Raqamlar tartibi — {"tartib": [HAMMA raqam id lari, yangi tartibda]}."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if not isinstance(data, dict) or set(data) != {"tartib"}:
+        raise HTTPException(status_code=400, detail="Faqat 'tartib' yuboriladi")
+    ts = _dokon_bajar(db, lambda: crud.dokon_telefon_tartib(db, cid, data.get("tartib"), _dokon_kim(current_user)))
+    return {"telefonlar": [crud.dokon_telefon_dict(t) for t in ts]}
+
+
+@app.put("/api/sayt-katalogi/telefonlar/{telefon_id}")
+def api_dokon_telefon_yangila(data: dict = Body(...), telefon_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                              db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Izoh va «doim» belgisi."""
+    t = _dokon_bajar(db, lambda: crud.dokon_telefon_yangila(db, telefon_id, auth.company_id_of(current_user), data,
+                                                           _dokon_kim(current_user)))
+    if t is None:
+        raise HTTPException(status_code=404, detail="Raqam topilmadi")
+    return crud.dokon_telefon_dict(t)
+
+
+@app.delete("/api/sayt-katalogi/telefonlar/{telefon_id}")
+def api_dokon_telefon_ochir(telefon_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                            current_user=Depends(auth.admin_only)):
+    """Raqamni o'chiradi (oxirgi raqam va oxirgi «doim» raqam — 400)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_telefon_ochir(db, telefon_id, auth.company_id_of(current_user),
+                                                          _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Raqam topilmadi")
+    return {"status": "ok"}
+
+
+@app.put("/api/sayt-katalogi/ish-vaqti")
+def api_dokon_ish_vaqti(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Ish vaqti: {"kunlar": [1..7], "boshi": "08:00", "oxiri": "18:00"} (+ "izoh"). Vaqt — Toshkent."""
+    return _dokon_bajar(db, lambda: crud.dokon_ish_vaqti_saqla(db, auth.company_id_of(current_user), data,
+                                                              _dokon_kim(current_user)))
+
+
+@app.put("/api/sayt-katalogi/komplekt")
+def api_dokon_komplekt(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Komplekt retsepti va standart o'lcham: {"retsept": {"rom": {...}, "eshik": {...}}, "olcham": "O'rta"}."""
+    return _dokon_bajar(db, lambda: crud.dokon_komplekt_saqla(db, auth.company_id_of(current_user), data,
+                                                             _dokon_kim(current_user)))
+
+
+@app.get("/api/sayt-katalogi/modellar/{model_id}/komplekt")
+def api_dokon_model_komplekt(model_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Bitta komplekt modelining narxlari (retsept bo'yicha; narx katagi o'zgargach sahifa shu blokni yangilaydi)."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))
+    if crud._dokon_model_of(db, model_id, cid) is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return {"model_id": model_id, "komplekt": crud.dokon_komplekt_narxlari(db, cid, model_id).get(model_id, [])}
+
+
+# ── kech169 (zip 234): model chegirmasi — foiz, o'lchamlar, tugash sanasi; tannarx ogohlantirishi (FAQAT Admin; belgi o'chiq — 404) ──
+@app.put("/api/sayt-katalogi/modellar/{model_id}/chegirma")
+def api_dokon_chegirma_saqla(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                             db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Chegirma qo'yish / o'zgartirish: {"foiz": 1 … 99} (+ "olchamlar": [...] | null — hamma o'lcham, "tugash": "YYYY-MM-DD" | null).
+    Faqat oddiy narxga (ulgurji o'zgarmaydi). Javobda narxlar, komplekt va «tannarxdan past» ogohlantirishlari (saqlash to'silmaydi)."""
+    r = _dokon_bajar(db, lambda: crud.dokon_chegirma_saqla(db, auth.company_id_of(current_user), model_id, data,
+                                                          _dokon_kim(current_user)))
+    if r is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return r
+
+
+@app.post("/api/sayt-katalogi/modellar/{model_id}/chegirma/korish")
+def api_dokon_chegirma_korish(data: dict = Body(...), model_id: int = _Path213(..., ge=1, le=2_147_483_647),
+                              db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Saqlamasdan ko'rish (hech narsa yozilmaydi): yuborilgan chegirma bilan narxlar, komplekt va tannarx ogohlantirishlari;
+    "foiz": null — asl narxlar va tannarx."""
+    r = _dokon_bajar(db, lambda: crud.dokon_chegirma_korish(db, auth.company_id_of(current_user), model_id, data))
+    if r is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    return r
+
+
+@app.delete("/api/sayt-katalogi/modellar/{model_id}/chegirma")
+def api_dokon_chegirma_ochir(model_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Chegirmani qo'lda o'chiradi (modelda chegirma yo'q — 404)."""
+    ok = _dokon_bajar(db, lambda: crud.dokon_chegirma_ochir(db, auth.company_id_of(current_user), model_id,
+                                                           _dokon_kim(current_user)))
+    if ok is None:
+        raise HTTPException(status_code=404, detail="Model topilmadi")
+    if ok is False:
+        raise HTTPException(status_code=404, detail="Bu modelda chegirma yo'q")
+    return {"status": "ok"}
+
+
+# ── kech170 (zip 235): Excel orqali narxlar — yuklab olish, yuklash (ko'rish — hech narsa yozilmaydi), saqlash (FAQAT Admin; belgi o'chiq — 404) ──
+@app.get("/api/sayt-katalogi/excel")
+def api_dokon_excel(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Butun narx jadvali — .xlsx (har narx qatori bitta qator; ulgurji narxlar ham — fayl maxfiy, keshlanmaydi)."""
+    cid = auth.company_id_of(current_user)
+    bayt = _dokon_bajar(db, lambda: crud.dokon_excel_yarat(db, cid))
+    nom = f"sayt_narxlari_{crud.dokon_bugun().isoformat()}.xlsx"
+    return Response(content=bayt, media_type=crud.DOKON_EXCEL_MIME,
+                    headers={"Content-Disposition": f'attachment; filename="{nom}"', "Cache-Control": "no-store",
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/sayt-katalogi/excel/korish")
+def api_dokon_excel_korish(fayl: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Excel'dan yuklash — 1-qadam: fayl tekshiriladi (HAMMA qator), nima o'zgarishi qaytariladi; bazaga HECH NARSA yozilmaydi."""
+    cid = auth.company_id_of(current_user)
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, cid))                  # o'chiq korxona — avval 404
+    db.rollback()                         # review235 P5: fayl o'qilayotganda baza ulanishi band turmasin (crud avval faylni, keyin bazani o'qiydi)
+    bayt = fayl.file.read(crud.DOKON_EXCEL_MAX_BAYT + 1)
+    return _dokon_bajar(db, lambda: crud.dokon_excel_korish(db, cid, bayt))
+
+
+@app.post("/api/sayt-katalogi/excel/saqla")
+def api_dokon_excel_saqla(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Excel'dan yuklash — 2-qadam: ko'rishda ko'rsatilgan o'zgarishlar ({"ozgarishlar": [{"id", "kimlik", "eski", "yangi"}]}) BITTA
+    tranzaksiyada; oraliqda boshqa oynada o'zgargan (yoki qayta nomlangan) narx qatori bo'lsa — 409, hech narsa yozilmaydi."""
+    cid = auth.company_id_of(current_user)
+    try:
+        return _dokon_bajar(db, lambda: crud.dokon_excel_saqla(db, cid, data, _dokon_kim(current_user)))
+    except crud.DokonExcelZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+# ── kech170 (zip 236): do'kon API — do'kon sayti (alohida server) ERP dan katalog va sozlamalarni maxfiy kalit bilan o'qiydi ──
+# Kalitni boshqarish — FAQAT Admin (sayt katalogi sahifasi; belgi o'chiq — 404). Do'kon yo'llari (`/api/dokon/v1/*`) — login siz, lekin
+# HAR so'rovda kalit tekshiriladi (`crud.dokon_api_korxona`): korxona KALITDAN olinadi va sessiyaga bog'lanadi; faqat GET (o'qish).
+@app.get("/api/sayt-katalogi/api-kalit")
+def api_dokon_api_kalit(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Do'kon kaliti holati: bormi, boshi, kim / qachon yaratgan, oxirgi murojaat (xom kalit va xeshi — YO'Q)."""
+    return _dokon_bajar(db, lambda: crud.dokon_api_kalit_holati(db, auth.company_id_of(current_user)))
+
+
+@app.post("/api/sayt-katalogi/api-kalit")
+def api_dokon_api_kalit_yarat(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Yangi do'kon kaliti ({"almashtir": true, "eski_boshi": "…"} — amaldagisi bo'lsa shart, sahifa ko'rgan kalit boshi bilan; eskisi darhol
+    ishlamay qoladi). Xom kalit — FAQAT shu javobda."""
+    cid = auth.company_id_of(current_user)
+    try:
+        natija = _dokon_bajar(db, lambda: crud.dokon_api_kalit_yarat(db, cid, data, _dokon_kim(current_user)))
+    except crud.DokonApiKalitBor as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    return JSONResponse(natija, headers={"Cache-Control": "no-store"})
+
+
+@app.delete("/api/sayt-katalogi/api-kalit")
+def api_dokon_api_kalit_ochir(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Do'kon kalitini o'chirish — do'kon sayti darhol ERP dan o'qiy olmay qoladi."""
+    if not _dokon_bajar(db, lambda: crud.dokon_api_kalit_ochir(db, auth.company_id_of(current_user), _dokon_kim(current_user))):
+        raise HTTPException(status_code=404, detail="Do'kon kaliti yo'q")
+    return {"status": "ok"}
+
+
+def _dokon_api_kalit_ol(request: Request):
+    """So'rovdagi kalit: `X-Dokon-Kalit` sarlavhasi, u yo'q bo'lsa — `Authorization: Bearer …`. Yo'q — None."""
+    x = request.headers.get(crud.DOKON_API_SARLAVHA.lower())
+    if x is not None:
+        return x.strip()
+    a = request.headers.get("authorization") or ""
+    if a[:7].lower() == "bearer ":
+        return a[7:].strip()
+    return None
+
+
+def _dokon_api_korxona(request: Request, db: Session, cheklov=None) -> int:
+    """Kalit → korxona (401 / 404 / 429); korxona sessiyaga bog'lanadi (TENANT_FILTER rejimida faqat shu korxona qatorlari).
+    kech171 (zip 237): `cheklov` — buyurtma yo'lining o'z chegarasi."""
+    import tenant_context as _tc236
+    try:
+        cid = crud.dokon_api_korxona(db, _dokon_api_kalit_ol(request), cheklov=cheklov)
+    except crud.DokonApiRad as e:
+        db.rollback()
+        sarlavhalar = {"Cache-Control": "no-store"}
+        if e.holat == 401:
+            sarlavhalar["WWW-Authenticate"] = "Bearer"
+        if e.kutish is not None:
+            sarlavhalar["Retry-After"] = str(e.kutish)
+        raise HTTPException(status_code=e.holat, detail=str(e), headers=sarlavhalar)
+    except crud.DokonYopiq:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN, headers={"Cache-Control": "no-store"})
+    _tc236.set_current_company(db, cid)
+    return cid
+
+
+def _dokon_api_javob(request: Request, ob: dict):
+    """JSON javob + ETag (tananing SHA-256 i): do'kon `If-None-Match` da shu ETag ni yuborsa — 304 (tana yo'q)."""
+    import json as _js236
+    import hashlib as _hl236m
+    tana = _js236.dumps(ob, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    etag = '"' + _hl236m.sha256(tana).hexdigest()[:32] + '"'
+    sarlavhalar = {"ETag": etag, "Cache-Control": "private, no-cache"}
+    inm = request.headers.get("if-none-match")
+    if inm is not None:
+        berilgan = [x.strip() for x in inm.split(",")]
+        if etag in berilgan or ("W/" + etag) in berilgan or "*" in berilgan:
+            return Response(status_code=304, headers=sarlavhalar)
+    return Response(content=tana, media_type="application/json", headers=sarlavhalar)
+
+
+@app.get("/api/dokon/v1/katalog")
+def api_dokon_v1_katalog(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti uchun katalog (kalit bilan): saytda ko'rinadigan bo'limlar, modellar, rasmlar, chakana narxlar (qoplamasiz / qoplamali),
+    amaldagi chegirma, komplekt narxlari. Ulgurji narx va tannarx — YO'Q."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_katalog(db, cid)))
+
+
+@app.get("/api/dokon/v1/sozlamalar")
+def api_dokon_v1_sozlamalar(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti uchun sozlamalar (kalit bilan): tasdiqlash raqamlari (hozir ko'rinadiganlari va hammasi), ish vaqti, komplekt retsepti."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_sozlamalar(db, cid)))
+
+
+@app.get("/api/dokon/v1/tayyor")
+def api_dokon_v1_tayyor(request: Request, db: Session = Depends(get_db)):
+    """kech172 (zip 238): do'kon «Tayyor mahsulotlar» bo'limi (kalit bilan) — omborga bog'langan detallarning saytdagi qoldig'i (ERP bo'sh
+    qoldig'i − faol sayt bandlari) va komplekt modellar uchun nechta komplekt yig'iladi. Narx — katalogdagi qoplamali narx."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_tayyor(db, cid)))
+
+
+@app.get("/api/dokon/v1/galereya")
+def api_dokon_v1_galereya(request: Request, db: Session = Depends(get_db)):
+    """kech178 (zip 243): do'kon «Bajarilgan ishlar» bo'limi (kalit bilan) — yoqilgan, rasmi bor ishlar (yangisi birinchi): rasmlar, joyi,
+    oyi, saytda ko'rinadigan mahsulotlar va shu uydagi miqdori. Narx YO'Q — katalog API sidan (detal / komplekt)."""
+    cid = _dokon_api_korxona(request, db)
+    return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_galereya(db, cid)))
+
+
+# ══ kech171 (zip 237) — SAYTDAN KELGAN BUYURTMALAR ═══════════════════════════════════════════════════════════════════════════════════
+# Do'kon sayti (o'sha kalit bilan) buyurtma yuboradi; ERP da «🛒 Saytdan» ro'yxati (Buyurtmalar sahifasi): tasdiqlash — yangi loyiha +
+# oddiy ERP buyurtmasi (`api_create_order` ning O'ZI, bitta tranzaksiyada), bekor qilish. Mantiq — `crud.sayt_*`.
+def _sayt_xato(e):
+    """crud xatosi → HTTP: holat — 409, narx o'zgargan / kalit band — 409, telefon chegarasi — 429, qolgani — 400."""
+    if isinstance(e, crud.SaytNarxOzgardi):
+        h = e.natija
+        return HTTPException(status_code=409, detail={"xato": str(e), "narx_ozgardi": True, "jami": float(h["jami"]),
+                                                      "guruhlar": crud._sayt_guruhlar(h["qatorlar"])})
+    if isinstance(e, crud.SaytOmborYetmaydi):           # kech172 (zip 238): omborda yetmaydi — do'kon savatni yangilaydi
+        return HTTPException(status_code=409, detail={"xato": str(e), "ombor_yetmaydi": True, "yetmaydi": e.yetmaydi})
+    if isinstance(e, (crud.SaytHolatXatosi, crud.SaytKalitBand)):
+        return HTTPException(status_code=409, detail=str(e))
+    if isinstance(e, crud.SaytCheklov):
+        return HTTPException(status_code=429, detail=str(e), headers={"Retry-After": "600"})
+    return HTTPException(status_code=400, detail=str(e))
+
+
+SAYT_TANA_MAX = 200_000
+
+
+async def _dokon_json_tana(request: Request) -> dict:
+    """Do'kon so'rovi tanasi — JSON obyekt. review237 L4: hajm — o'qishdan OLDIN (Content-Length) va o'qish davomida (413); NaN /
+    Infinity — rad (400). kech178 (zip 244): `api_dokon_v1_buyurtma` dan ajratildi (xulq AYNAN) — PDF yo'llari ham shundan."""
+    import json as _js237
+    try:
+        _uz = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        _uz = 0
+    if _uz > SAYT_TANA_MAX:
+        raise HTTPException(status_code=413, detail="So'rov juda katta")
+    _bol = []
+    _jami = 0
+    async for _b in request.stream():
+        _jami += len(_b)
+        if _jami > SAYT_TANA_MAX:
+            raise HTTPException(status_code=413, detail="So'rov juda katta")
+        _bol.append(_b)
+    xom = b"".join(_bol)
+    try:
+        data = _js237.loads(xom.decode("utf-8"), parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise HTTPException(status_code=400, detail="So'rov tanasi JSON bo'lishi kerak")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="So'rov tanasi JSON obyekt bo'lishi kerak")
+    return data
+
+
+@app.post("/api/dokon/v1/buyurtmalar")
+async def api_dokon_v1_buyurtma(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — yangi buyurtma (kalit bilan; `X-Amal-Kaliti` — savat kaliti, SHART). Narx — ERP hisobi (do'kon yuborgan narxga
+    ishonilmaydi; `kutilgan_jami` farq qilsa — 409 + yangi hisob, hech narsa yozilmaydi). Takror (o'sha kalit, o'sha savat) — avvalgi
+    javob (`takror: true`, `X-Takror: 1`). Telegram — korxona botiga (javobdan keyin, takrorda — yo'q)."""
+    from starlette.concurrency import run_in_threadpool as _thr237
+    # review237 L3: baza ishi — oqimlar hovuzida (asinxron marshrut voqealar siklini to'xtatmasin)
+    cid = await _thr237(_dokon_api_korxona, request, db, crud._DOKON_BUYURTMA_CHEKLOV)
+    data = await _dokon_json_tana(request)          # kech178 (zip 244): tana o'qish — alohida (PDF yo'llari ham shundan)
+    kalit = request.headers.get(crud.SAYT_KALIT_SARLAVHA.lower())
+
+    sessiya249 = _dokon_sessiya_ol(request)         # kech182 (zip 249): kirgan usta / magazin — buyurtma hisobga bog'lanadi
+
+    def _bajar():
+        try:
+            _m249 = crud.dokon_sessiya_mijoz_ixtiyoriy(db, cid, sessiya249)
+            return crud.sayt_buyurtma_yarat(db, cid, kalit, data, kirgan_hisob=_m249)
+        except ValueError as e:
+            db.rollback()
+            raise _sayt_xato(e)
+    def _ish():
+        b, qatorlar, takror = _dokon_bajar(db, _bajar)
+        return crud.sayt_dokon_javobi(db, b, qatorlar, takror=takror), \
+            (None if takror else crud.sayt_telegram_matni(b, qatorlar, crud.sayt_mijoz_yorligi(db, cid, b))), takror
+    javob, _matn, takror = await _thr237(_ish)
+    if _matn is not None:
+        _fonda(background_tasks, _send_telegram, _matn, company_id=cid, sessiya=db)
+    return JSONResponse(content=javob, headers={"Cache-Control": "no-store", **({"X-Takror": "1"} if takror else {})})
+
+
+# ══ kech178 (zip 244) — DO'KON: BUYURTMA VA SAVAT PDF I (egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF») ═══════════
+# Do'kon sayti (o'sha kalit bilan) mijozga PDF beradi: buyurtma — raqam + o'sha buyurtmaning amal kaliti (do'kon kalitining o'zi yetmaydi),
+# savat — savat qatorlari (narx — ERP hisobi, hech narsa yozilmaydi). Mantiq — `crud.sayt_pdf_*`, PDF — `pdf_service.generate_sayt_pdf`.
+def _sayt_pdf_javob(pdf: bytes, fayl: str):
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Cache-Control": "no-store", "Content-Disposition": f'attachment; filename="{fayl}"',
+                             "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/dokon/v1/buyurtmalar/pdf")
+async def api_dokon_v1_buyurtma_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — buyurtma PDF i (kalit bilan): {"raqam": "S-0001", "kalit": "<buyurtma yuborilgandagi X-Amal-Kaliti>"}. Narx —
+    buyurtmada QOTGANI. Raqam yoki kalit mos emas — 404 (bir xil javob)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr244
+    cid = await _thr244(_dokon_api_korxona, request, db, crud._DOKON_PDF_CHEKLOV)     # review244 M1: o'z chegarasi
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        try:
+            b, qatorlar = crud.sayt_buyurtma_pdf_ol(db, cid, data)
+            return pdf_service.generate_sayt_pdf(crud.sayt_pdf_buyurtma(db, b, qatorlar), db), b.sb_raqam
+        except crud.SaytPdfTopilmadi as e:
+            db.rollback()
+            raise HTTPException(status_code=404, detail=str(e), headers={"Cache-Control": "no-store"})
+    pdf, raqam = await _thr244(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, f"buyurtma-{raqam}.pdf")
+
+
+@app.post("/api/dokon/v1/savat/pdf")
+async def api_dokon_v1_savat_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — savat PDF i (kalit bilan): {"qatorlar": [...]} — buyurtma qatorlari shaklida. Narx — ERP hisobi (buyurtma
+    yuborilgandagining O'ZI); hech narsa yozilmaydi. Savat noto'g'ri — 400 (buyurtma yo'lining xabari)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr244
+    cid = await _thr244(_dokon_api_korxona, request, db, crud._DOKON_PDF_CHEKLOV)     # review244 M1: o'z chegarasi
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        return pdf_service.generate_sayt_pdf(crud.sayt_pdf_savat(db, cid, data), db)
+    pdf = await _thr244(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, "savat.pdf")
+
+
+def _sayt_yoqilgan(db, current_user):
+    cid = auth.company_id_of(current_user)
+    if not crud.dokon_yoqilganmi(db, cid):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    return cid
+
+
+@app.get("/api/sayt-buyurtmalari")
+def api_sayt_buyurtmalari(q: Optional[str] = None, filtr: Optional[str] = None, sahifa: int = Query(1, ge=1, le=100_000),
+                          db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    """«🛒 Saytdan» ro'yxati: holat filtri (hammasi / yangi / tasdiqlandi / bekor), qidiruv (mijoz, telefon, raqam), sahifa (20 tadan)."""
+    cid = _sayt_yoqilgan(db, current_user)
+    return _dokon_bajar(db, lambda: crud.sayt_royxati(db, cid, q, filtr, sahifa))
+
+
+@app.get("/api/sayt-buyurtmalari/{sb_id}")
+def api_sayt_buyurtma(sb_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                      current_user=Depends(auth.ruxsat("buyurtma", "korish"))):
+    cid = _sayt_yoqilgan(db, current_user)
+    b = crud.sayt_ol(db, cid, sb_id)
+    if b is None:
+        raise HTTPException(status_code=404, detail="Sayt buyurtmasi topilmadi")
+    return crud.sayt_korinish(b, qatorlar=crud._sayt_qatorlari(db, cid, b.id))
+
+
+@app.post("/api/sayt-buyurtmalari/{sb_id}/bekor")
+def api_sayt_bekor(data: dict = Body(default={}), sb_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                   current_user=Depends(auth.ruxsat("buyurtma", "yaratish"))):
+    """Bekor qilish (faqat «yangi»; sabab — ixtiyoriy). Yozuv ro'yxatda «Bekor qilingan» bo'lib qoladi."""
+    cid = _sayt_yoqilgan(db, current_user)
+
+    def _bajar():
+        try:
+            return crud.sayt_bekor(db, cid, sb_id, data, _dokon_kim(current_user))
+        except ValueError as e:
+            db.rollback()
+            raise _sayt_xato(e)
+    b = _dokon_bajar(db, _bajar)
+    if b is None:
+        raise HTTPException(status_code=404, detail="Sayt buyurtmasi topilmadi")
+    return crud.sayt_korinish(b, qatorlar=crud._sayt_qatorlari(db, cid, b.id))
+
+
+@app.post("/api/sayt-buyurtmalari/{sb_id}/tasdiqla")
+def api_sayt_tasdiqla(data: dict = Body(...), sb_id: int = _Path213(..., ge=1, le=2_147_483_647), confirm_shortage: bool = False,
+                      db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("buyurtma", "yaratish")),
+                      background_tasks: BackgroundTasks = None):
+    """Mijoz bilan gaplashildi — sayt buyurtmasi BITTA tranzaksiyada ERP buyurtmasiga aylanadi: YANGI loyiha (mijoz ismi / telefoni /
+    manzili — sayt buyurtmasidan; «Loyihalar: Yaratish» ruxsati SHART) + buyurtma (`api_create_order` ning O'ZI — tekshiruvlar,
+    yetishmovchilik 409 (`confirm_shortage`), ombordan yechish, kam qoldiq xabari bir joyda). Narx — sayt buyurtmasida qotgan narx.
+    Istalgan rad — HECH NARSA yozilmaydi (yangi loyiha ham). Sayt buyurtmasi qulflanadi — ikki marta tasdiqlanmaydi (ikkinchisi 409)."""
+    from pydantic import ValidationError as _PVE237
+    cid = _sayt_yoqilgan(db, current_user)
+    kim = _dokon_kim(current_user)
+    b0 = crud.sayt_ol(db, cid, sb_id)
+    if b0 is None:
+        raise HTTPException(status_code=404, detail="Sayt buyurtmasi topilmadi")
+    if b0.sb_holat != "yangi":
+        raise _sayt_xato(crud.SaytHolatXatosi(
+            f"Sayt buyurtmasi {b0.sb_raqam} allaqachon {crud.SAYT_HOLATLARI.get(b0.sb_holat, b0.sb_holat).lower()}"
+            + (f" ({b0.sb_order_raqam})" if b0.sb_order_raqam else "")))
+    if not current_user.ruxsat("loyiha", "yaratish"):
+        raise HTTPException(status_code=403, detail="Tasdiqlash yangi loyiha ochadi — «Loyihalar: Yaratish» ruxsati kerak "
+                                                    "(administratorga murojaat qiling)")
+    try:
+        # kech172 (zip 238): ombordan qator — tayyor (qoplangan) mahsulot, qoplama retsepti uning uchun shart emas
+        t = crud.sayt_tasdiq_tekshir(db, cid, data, qoplamali_bor=any(q.qoplamali and not q.sbq_tm_kaliti
+                                                                      for q in crud._sayt_qatorlari(db, cid, b0.id)))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    # review238 M3: bandi muddati o'tgan buyurtma boshqa mijozga band qilingan mahsulotni olsa — avval so'raladi (`confirm_shortage`)
+    _teg238 = crud.sayt_band_tegadi(db, cid, b0, crud._sayt_qatorlari(db, cid, b0.id))
+    if _teg238 and not confirm_shortage:
+        raise HTTPException(status_code=409, detail={"type": "stock_shortage_warning", "shortages": _teg238,
+                                                     "message": "Band muddati o'tgan — ombordagi mahsulot boshqa sayt buyurtmalariga band "
+                                                                "qilingan. Shunday ham davom etasizmi?"})
+    try:
+        _loyiha_tana = schemas.ProjectCreate(**crud._clean_create("Project", crud.sayt_loyiha_tanasi(b0, t["loyiha_nomi"])))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
+        with crud.bitta_tranzaksiya(db):
+            b = crud.sayt_ol(db, cid, sb_id, lock=True)
+            if b is None or b.sb_holat != "yangi":
+                raise _sayt_xato(crud.SaytHolatXatosi(
+                    "Sayt buyurtmasi hozirgina boshqa foydalanuvchi tomonidan tasdiqlandi yoki bekor qilindi — ro'yxatni yangilang"))
+            qatorlar = crud._sayt_qatorlari(db, cid, b.id)
+            _tm238 = crud.sayt_tm_taqsimla(db, cid, qatorlar)        # kech172 (zip 238): ombordan qatorlar → partiyalar
+            _loyiha = crud.create_project(db, _loyiha_tana, company_id=cid)
+            try:
+                order = schemas.OrderCreate(**crud.sayt_buyurtma_tanasi(b, qatorlar, _loyiha.id, t["sana"], t["recipe_id"], tm=_tm238,
+                                                                        master_id=crud.sayt_mijoz_ustasi(db, cid, b)))   # kech182 (zip 249)
+            except _PVE237 as e:                      # review237 L1: pydantic matni emas — qaysi qator va nima
+                _x = (e.errors() or [{}])[0]
+                raise HTTPException(status_code=400, detail="Buyurtma qatori qabul qilinmadi ("
+                                    + ".".join(str(p) for p in _x.get("loc", ())) + "): " + str(_x.get("msg", "")))
+            new_order = api_create_order(order, None, confirm_shortage, db, current_user, background_tasks=background_tasks)
+            crud.sayt_tasdiqlandi(db, b, new_order, kim, loyiha=_loyiha)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    db.refresh(b)
+    return {"sayt": crud.sayt_korinish(b, qatorlar=crud._sayt_qatorlari(db, cid, b.id)),
+            "order_id": new_order.id, "order_number": new_order.order_number}
+
+
+@app.post("/api/platform/companies/{company_id}/dokon")
+def api_platform_dokon(company_id: int = _Path213(..., ge=1, le=2_147_483_647), yoqilgan: str = Form(...),
+                       db: Session = Depends(get_db), current_user=Depends(auth.platform_admin_only)):
+    """kech166 (zip 231): sayt katalogini (onlayn do'kon) yoqish — FAQAT platforma egasining korxonasida (mijoz korxonaga — 400),
+    o'chirish — istalgan korxonada (egasi platforma adminini yo'qotsa ham o'chirib bo'lsin). Birinchi yoqilganda standart 9 bo'lim
+    yaratiladi; o'chirishda ma'lumot o'chmaydi. Ikki oynadan bir vaqtda — korxona qulfi, yagona kalit — 409."""
+    if yoqilgan not in ("1", "0"):
+        raise HTTPException(status_code=400, detail="yoqilgan: 1 yoki 0")
+    from sqlalchemy.exc import IntegrityError as _IE
+    c = _platforma_korxonasi(db, company_id)
+    try:
+        natija = crud.dokon_belgila(db, c, yoqilgan == "1", _platforma_kim(current_user),
+                                    _obuna.platforma_korxonalari(db))
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except _IE:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Hozirgina boshqa oynada saqlandi — sahifani yangilang")
+    return {"status": "ok", **natija}
+
+
 @app.get("/api/yonalishlar")
 def api_yonalishlar(hammasi: bool = False, db: Session = Depends(get_db),
                     current_user=Depends(auth.all_staff)):
@@ -11719,8 +12902,12 @@ async def api_upload_company_logo(file: UploadFile = File(...),
     _os.makedirs(papka, exist_ok=True)
     # kech154 (zip 202, mustaqil tekshiruv F2): kengaytma — haqiqiy rasm formatidan (`_logo_saqlashga`), brauzer aytgan turdan emas
     nom = f"company_{cid}{kengaytma}"
-    with open(_os.path.join(papka, nom), "wb") as f:
+    # kech176 (zip 241 — egasi QARORI 02.11), review241 M1: ATOMAR — vaqtinchalik fayl + `os.replace` (ilgari joyida qayta yozilardi: shu payt chizilayotgan PDF
+    # yarim yozilgan faylni o'qib 500 berardi — O'LCHANGAN, 480 so'rovdan 5 tasi)
+    _vaqt241 = _os.path.join(papka, f".{nom}.{_os.getpid()}.vaqt")
+    with open(_vaqt241, "wb") as f:
         f.write(data)
+    _os.replace(_vaqt241, _os.path.join(papka, nom))
 
     from production_models import Company as _Co
     row = db.query(_Co).filter(_Co.id == cid).first()
@@ -11951,7 +13138,7 @@ _TIKLASH_SOZ = "TIKLASHNI-TASDIQLAYMAN"
 def _tiklash_html(tana: str) -> str:
     return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zaxiradan tiklash</title><style>
+<title>Zaxiradan tiklash — epserp</title><link rel="icon" type="image/svg+xml" href="/static/epserp_belgi.svg"><style>
  body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
    background:#f6f7f9;color:#1a1d21;margin:0;padding:24px;line-height:1.55}}
  .w{{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e3e6ea;
@@ -12615,6 +13802,13 @@ def api_get_finished_sales(year: Optional[int] = None, month: Optional[int] = No
     } for s in sales]
 
 
+@app.get("/api/finished/katalog-detallar")
+def api_finished_katalog_detallar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "yaratish"))):
+    """kech177 (zip 242 «Katalogdan tanlash»): ishlab chiqarish oynasidagi «📖 Katalogdan tanlash» ro'yxati — sayt katalogining omborga bog'lanadigan detallari (narxsiz;
+    `crud.dokon_tm_katalog`). Katalog o'chiq korxonada — 404."""
+    return {"detallar": _dokon_bajar(db, lambda: crud.dokon_tm_katalog(db, auth.company_id_of(current_user)))}
+
+
 @app.post("/api/finished/produce")
 def api_produce(request: Request, response: Response, data: dict = Body(...), db: Session = Depends(get_db),
                 current_user=Depends(auth.ruxsat("tayyor", "yaratish")), background_tasks: BackgroundTasks = None):
@@ -12632,6 +13826,17 @@ def api_produce(request: Request, response: Response, data: dict = Body(...), db
                                                   company_id=auth.company_id_of(current_user))
             if not result["success"]:
                 raise HTTPException(status_code=400, detail=result)
+            # kech177 (zip 242 «Katalogdan tanlash»): «Katalogdan tanlash» — partiya sayt katalogi detaliga (o'sha tranzaksiyada; detal topilmasa / katalog o'chiq —
+            # 400, partiya ham yozilmaydi; mos kelmasa — partiya yoziladi, bog'lam o'zgarmaydi, sababi `katalog.matn` da)
+            if getattr(data, "dokon_detal_id", None) is not None:
+                try:
+                    result["katalog"] = crud.dokon_partiya_katalogga(db, result["product_id"], data.dokon_detal_id,
+                                                                     auth.company_id_of(current_user), who)
+                except crud.DokonYopiq:
+                    raise HTTPException(status_code=400, detail={"success": False, "message": "Sayt katalogi bu korxonada yoqilmagan — "
+                                                                                              "«Katalogdan tanlash»ni olib tashlang"})
+                except ValueError as _e242:
+                    raise HTTPException(status_code=400, detail={"success": False, "message": str(_e242)})
         return result
     result, takror = _amal_bajar(db, current_user, response, "ishlab_chiqarish", kalit, _bajar)
     if takror:
@@ -13239,7 +14444,8 @@ def _logo_saqlashga(data: bytes):
     _im, _burildi = _ochildi
     _katta = max(_ol or _im.size) > LOGO_TOMON
     _fmt = _imzo if _imzo in _LOGO_KENGAYTMA else "PNG"
-    if not (_burildi or _katta):
+    _kulrang241 = _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F")   # kech176 (zip 241 — egasi QARORI 02.11), review241 M2: kichigi ham (PDF da OQ edi)
+    if not (_burildi or _katta or _kulrang241):
         return data, _LOGO_KENGAYTMA[_fmt]
     _shaffof = _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info
     if _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
@@ -13395,6 +14601,243 @@ def kichik_nusxa_yarat(asl_yol: str, papka: str):
         return yol
     except Exception:
         return None
+
+
+
+# ============================================================
+# kech167 (zip 232) — SAYT KATALOGI RASMLARI: ishlov (o'qish → burish → sRGB → kichraytirish → QAYTA yozish → tekshirish)
+# ============================================================
+# Egasi QARORLARI («Onlayn do'kon rejasi», 30.10): faqat JPG, PNG, WEBP; fayl rasm ekanligi ICHIDAN tekshiriladi va QAYTA
+# saqlanadi; joylashuv (GPS) va boshqa yashirin ma'lumot o'chiriladi; telefon rasmi burilgan bo'lsa — to'g'rilanadi; katta rasm
+# 1920 pikselgacha kichraytiriladi, ro'yxatlar uchun kichik nusxa yasaladi; rasm HECH QACHON qirqilmaydi.
+# O'LCHANGAN (`work/k232/probe232.py`, asl kod 2a00a12): ERP'ning umumiy yuklash yo'li (`rasmni_kichraytir`) kichik va burilmagan
+# rasmni ASLICHA saqlaydi — GPS, kamera, dastur, izoh, XMP faylda QOLADI; Pillow bo'lmasa ham ASLICHA. Ochiq sayt rasmi uchun bu
+# yaramaydi, shuning uchun alohida yo'l (texnik qarorlar — Claude, kech167):
+#   * HAR rasm qayta yoziladi (ASLICHA saqlash yo'q); Pillow bo'lmasa / o'qib bo'lmasa — rasm SAQLANMAYDI (xato bilan);
+#   * natija — JPEG (shaffof bo'lsa PNG); `info` tozalanadi; yozilgan baytlar TUZILMASI bo'yicha tekshiriladi (JPEG — faqat JFIF
+#     sarlavhasi, APP1…APP15 / izoh yo'q; PNG — faqat IHDR / PLTE / tRNS / IDAT / IEND) — biror metama'lumot qolsa, saqlanmaydi;
+#   * rangli profil (ICC — iPhone «Display P3» va h.k.) bo'lsa — sRGB ga O'TKAZILADI (aks holda rang xiralashadi), profil yozilmaydi;
+#   * MPO (telefonning ko'p rasmli JPEG i — chuqurlik / portret) — birinchi (asosiy) rasm olinadi; harakatli WEBP / PNG — rad;
+#     HEIC (iPhone) — tushunarli xabar bilan rad;
+#   * review232 №1 (YUQORI, O'LCHANGAN): progressive / CMYK JPEG «draft» bilan ham butun koeffitsient massivini xotirada saqlaydi
+#     (en × bo'y × kanal × 2 bayt; 701 baytli soxta sarlavhali fayl → +938 MB; 4 ta parallel → +1,9 GB) — shunday JPEG uchun xotira
+#     byudjeti (`DOKON_RASM_JPEG_XOTIRA`), oxirida EOI (FFD9) bo'lmasa — buzilgan (rad); PNG / WEBP ≤ 16 MP; bir vaqtda BITTA rasm
+#     ishlanadi (`_DOKON_RASM_NAVBAT`), navbat `DOKON_RASM_KUTISH` soniyada bo'shamasa — 503 «server band» (ish oqimlari to'lib, boshqa
+#     korxonalar so'rovlari kutib qolmasin); marshrut `def` — FastAPI uni alohida ish oqimida bajaradi;
+#   * kengaytma tekshirilMAYDI (review232 №10 — `.jfif` / `.jpe` haqiqiy JPEG rad etilardi): tur — faqat ichidan (imzo + Pillow formati);
+#     HEIC / AVIF — nomi yoki ichi bo'yicha tushunarli xabar.
+DOKON_RASM_KATTA = 1920          # katta nusxa — katta tomoni (ko'rish oynasi Full HD da ham to'liq)
+DOKON_RASM_KICHIK = 640          # kartochka: 2 ustunli telefon ro'yxatida ~175 × 140 CSS px, zichlik 3× → 525 × 420
+DOKON_RASM_SIFAT = 86
+DOKON_RASM_KICHIK_SIFAT = 82
+DOKON_RASM_ENG_KICHIK = 500      # katta tomoni bundan kichik — saytda xira ko'rinadi
+DOKON_RASM_NISBAT = 8            # tomonlar nisbati 8 : 1 dan oshsa — kartochkada ingichka chiziq
+DOKON_RASM_JPEG_PIKSEL = 120_000_000    # oddiy (baseline) JPEG «draft» bilan kichik masshtabda o'qiladi (108 MP — ~75 MB)
+DOKON_RASM_JPEG_XOTIRA = 200_000_000    # progressive / CMYK JPEG: en × bo'y × kanal × 2 bayt shundan oshmasin (RGB ~33 MP, CMYK 25 MP)
+DOKON_RASM_BOSHQA_PIKSEL = 16_000_000   # PNG / WEBP to'liq o'qiladi (O'LCHANGAN: 24 MP — 276…371 MB; logotip chegarasi bilan bir xil)
+DOKON_RASM_KUTISH = 20                  # soniya — navbat bo'shamasa 503
+_DOKON_RASM_NAVBAT = __import__("threading").BoundedSemaphore(1)
+_DOKON_HEIC_TURLARI = (b"ftypheic", b"ftypheix", b"ftyphevc", b"ftyphevx", b"ftypheim", b"ftypheis", b"ftypmif1",
+                       b"ftypmsf1", b"ftypavif")
+
+
+class DokonRasmXato(ValueError):
+    """Rasm qabul qilinmadi — matni foydalanuvchiga (400)."""
+
+
+class DokonRasmBand(DokonRasmXato):
+    """Server boshqa rasmni ishlayapti va navbat `DOKON_RASM_KUTISH` soniyada bo'shamadi — 503 (qayta urinish mumkin)."""
+
+
+def _dokon_rasm_metasiz(b: bytes, turi: str) -> bool:
+    """Yozilgan baytlarda metama'lumot YO'QLIGI (tuzilma bo'yicha, matn qidiruvi emas). JPEG: SOS gacha faqat JFIF APP0,
+    jadval va kadr segmentlari (APP1 … APP15 — EXIF / XMP / ICC / IPTC, COM — izoh — bo'lsa False). PNG: faqat IHDR, PLTE,
+    tRNS, IDAT, IEND (eXIf / iCCP / tEXt / zTXt / iTXt / tIME … bo'lsa False), IEND dan keyin hech narsa."""
+    if turi == "jpg":
+        if b[:2] != b"\xff\xd8":
+            return False
+        i = 2
+        while i + 4 <= len(b):
+            if b[i] != 0xFF:
+                return False
+            mk = b[i + 1]
+            if mk == 0xFF:
+                i += 1
+                continue
+            if mk == 0xDA:
+                return True
+            if mk == 0x01 or 0xD0 <= mk <= 0xD7:
+                i += 2
+                continue
+            ln = int.from_bytes(b[i + 2:i + 4], "big")
+            if ln < 2:
+                return False
+            if 0xE1 <= mk <= 0xEF or mk == 0xFE:
+                return False
+            if mk == 0xE0 and b[i + 4:i + 9] != b"JFIF\x00":
+                return False
+            i += 2 + ln
+        return False
+    if turi == "png":
+        if b[:8] != b"\x89PNG\r\n\x1a\n":
+            return False
+        i = 8
+        while i + 12 <= len(b):
+            ln = int.from_bytes(b[i:i + 4], "big")
+            t = b[i + 4:i + 8]
+            if t not in (b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND"):
+                return False
+            i += 12 + ln
+            if t == b"IEND":
+                return i == len(b)
+        return False
+    return False
+
+
+def _dokon_srgb(im, icc):
+    """Rangli profil bo'lsa — sRGB ga (RGB / RGBA / CMYK); o'tkazib bo'lmasa — profil tashlanadi (rang biroz farq qilishi mumkin,
+    lekin rasm saqlanadi). CMYK profilsiz — oddiy o'girish."""
+    if icc and im.mode in ("RGB", "RGBA", "CMYK"):
+        try:
+            import io as _io232
+            from PIL import ImageCms as _Cms232
+            kirish = _Cms232.ImageCmsProfile(_io232.BytesIO(icc))
+            chiqish = _Cms232.createProfile("sRGB")
+            return _Cms232.profileToProfile(im, kirish, chiqish, outputMode="RGBA" if im.mode == "RGBA" else "RGB")
+        except Exception:                               # noqa: BLE001
+            pass
+    if im.mode == "CMYK":
+        return im.convert("RGB")
+    return im
+
+
+def _dokon_rejim(im):
+    """Rejimni saqlanadigan ko'rinishga: RGB, RGBA yoki L. 16 bitli kulrang — 8 bitga (aks holda oq bo'lib ko'rinadi)."""
+    if im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+        return im.convert("I").point(lambda v: v * (1 / 256)).convert("L")
+    if im.mode in ("RGBA", "LA", "PA", "RGBa", "La") or (im.mode in ("P", "RGB", "L", "1") and "transparency" in im.info):
+        return im.convert("RGBA")                       # review232 №6: RGB / L PNG dagi rang-kalit shaffofligi (tRNS) ham
+    if im.mode in ("P", "1", "YCbCr", "RGBX", "LAB", "HSV"):
+        return im.convert("RGB")
+    if im.mode in ("RGB", "L", "CMYK"):
+        return im
+    return im.convert("RGB")
+
+
+def _dokon_yoz(im, turi: str, sifat: int) -> bytes:
+    import io as _io232
+    buf = _io232.BytesIO()
+    if turi == "jpg":
+        im.save(buf, "JPEG", quality=sifat, optimize=True, progressive=True)
+    else:
+        im.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def dokon_rasm_tayyorla(data: bytes, nom: str = "") -> dict:
+    """Yuklangan fayl → {"katta": bayt, "kichik": bayt, "ext": ".jpg" | ".png", "eni", "boyi"} (katta nusxa o'lchami).
+    Qabul qilinmasa — `DokonRasmXato` (matni foydalanuvchiga). Rasm QIRQILMAYDI — faqat kichraytiriladi (nisbat saqlanadi)."""
+    import io as _io232
+    import os as _os232
+    data = data or b""
+    ext = _os232.path.splitext(nom or "")[1].lower()
+    if ext in (".heic", ".heif", ".avif") or data[4:12] in _DOKON_HEIC_TURLARI:
+        raise DokonRasmXato("Bu fayl HEIC / AVIF formatida (iPhone) — u qabul qilinmaydi. Rasmni JPG qilib saqlang (iPhone: "
+                            "Sozlamalar → Kamera → Formatlar → «Eng mos») va qayta yuklang")
+    if not data:
+        raise DokonRasmXato("Fayl bo'sh — boshqa rasm tanlang")
+    if len(data) > MAX_UPLOAD_SIZE:
+        raise DokonRasmXato("Fayl hajmi 25 MB dan katta bo'lmasin")
+    imzo = rasm_imzosi(data)
+    if imzo is None:
+        raise DokonRasmXato(RASM_EMAS_XABARI)
+    buzilgan = "Rasmni o'qib bo'lmadi — fayl buzilgan yoki oxirigacha yuklanmagan. Boshqa rasm tanlang"
+    if imzo == "JPEG" and b"\xff\xd9" not in data:
+        raise DokonRasmXato(buzilgan)                   # JPEG oxiri (EOI) yo'q — kesilgan fayl (review232 №1)
+    _Im, _ImOps = _pillow()
+    if _Im is None:
+        raise DokonRasmXato("Serverda rasm bilan ishlash moduli yo'q — rasm saqlanmadi (administratorga xabar bering)")
+    if not _DOKON_RASM_NAVBAT.acquire(timeout=DOKON_RASM_KUTISH):
+        raise DokonRasmBand("Server hozir band — boshqa rasm ishlanmoqda. Bir ozdan keyin qayta urinib ko'ring")
+    try:
+        try:
+            im = _Im.open(_io232.BytesIO(data))
+            fmt = im.format
+        except _Im.DecompressionBombError:
+            raise DokonRasmXato("Rasm juda katta (piksel soni) — kichikroq rasm tanlang")
+        except Exception:                               # noqa: BLE001
+            raise DokonRasmXato(buzilgan)
+        if fmt not in ("JPEG", "MPO", "PNG", "WEBP") or ({"JPEG": "JPEG", "MPO": "JPEG"}.get(fmt, fmt) != imzo):
+            raise DokonRasmXato(RASM_EMAS_XABARI)
+        if fmt == "MPO":
+            im.seek(0)                                  # asosiy rasm (qolganlari — chuqurlik / kichik nusxa)
+        elif getattr(im, "is_animated", False):
+            raise DokonRasmXato("Harakatli (animatsiyali) rasm qabul qilinmaydi — oddiy rasm tanlang")
+        w, h = im.size
+        if not w or not h:
+            raise DokonRasmXato(buzilgan)
+        chegara = DOKON_RASM_JPEG_PIKSEL if fmt in ("JPEG", "MPO") else DOKON_RASM_BOSHQA_PIKSEL
+        if w * h > chegara:
+            raise DokonRasmXato(f"Rasm juda katta ({w} × {h} piksel) — {chegara // 1_000_000} megapikseldan kichik rasm "
+                                "tanlang")
+        if max(w, h) < DOKON_RASM_ENG_KICHIK:
+            raise DokonRasmXato(f"Rasm juda kichik ({w} × {h} piksel) — saytda xira ko'rinadi. Katta tomoni kamida "
+                                f"{DOKON_RASM_ENG_KICHIK} piksel bo'lsin (telefon kamerasidagi rasm yetadi)")
+        if max(w, h) > DOKON_RASM_NISBAT * min(w, h):
+            raise DokonRasmXato(f"Rasm juda cho'zinchoq ({w} × {h} piksel) — saytda ingichka chiziq bo'lib ko'rinadi. "
+                                f"Tomonlari nisbati {DOKON_RASM_NISBAT} : 1 dan oshmasin")
+        if fmt in ("JPEG", "MPO") and (im.info.get("progressive") or im.info.get("progression") or im.mode == "CMYK"):
+            kanal = len(im.getbands())
+            if w * h * kanal * 2 > DOKON_RASM_JPEG_XOTIRA:
+                raise DokonRasmXato(f"Rasm juda katta ({w} × {h} piksel) — bu turdagi JPEG (progressive / CMYK) "
+                                    f"{DOKON_RASM_JPEG_XOTIRA // (kanal * 2) // 1_000_000} megapikseldan oshmasin")
+        try:
+            if fmt in ("JPEG", "MPO") and max(w, h) > DOKON_RASM_KATTA:
+                k = DOKON_RASM_KATTA / float(max(w, h))
+                im.draft("RGB", (max(1, int(w * k)), max(1, int(h * k))))
+            im.load()
+            icc = im.info.get("icc_profile")
+            yonalish = 1
+            try:
+                yonalish = int(im.getexif().get(0x0112, 1) or 1)
+            except Exception:                           # noqa: BLE001
+                yonalish = 1
+            if yonalish != 1:
+                im = _ImOps.exif_transpose(im)
+            im = _dokon_rejim(im)
+            im = _dokon_srgb(im, icc)
+            if im.mode == "RGBA" and im.getchannel("A").getextrema()[0] == 255:
+                im = im.convert("RGB")                  # shaffof joyi yo'q PNG — JPEG (fayl ancha kichik)
+            turi = "png" if im.mode == "RGBA" else "jpg"
+            katta = im.copy()
+            if max(katta.size) > DOKON_RASM_KATTA:
+                katta.thumbnail((DOKON_RASM_KATTA, DOKON_RASM_KATTA), resample=_Im.Resampling.LANCZOS)
+            kichik = katta.copy()
+            if max(kichik.size) > DOKON_RASM_KICHIK:
+                kichik.thumbnail((DOKON_RASM_KICHIK, DOKON_RASM_KICHIK), resample=_Im.Resampling.LANCZOS)
+            katta.info = {}
+            kichik.info = {}
+            katta_b = _dokon_yoz(katta, turi, DOKON_RASM_SIFAT)
+            kichik_b = _dokon_yoz(kichik, turi, DOKON_RASM_KICHIK_SIFAT)
+        except DokonRasmXato:
+            raise
+        except _Im.DecompressionBombError:
+            raise DokonRasmXato("Rasm juda katta (piksel soni) — kichikroq rasm tanlang")
+        except Exception:                               # noqa: BLE001
+            raise DokonRasmXato(buzilgan)
+    finally:
+        _DOKON_RASM_NAVBAT.release()
+    for b, n in ((katta_b, katta), (kichik_b, kichik)):
+        if not _dokon_rasm_metasiz(b, turi):
+            raise DokonRasmXato("Rasmni xavfsiz qayta yozib bo'lmadi — rasm saqlanmadi. Boshqa rasm tanlang")
+        try:
+            with _Im.open(_io232.BytesIO(b)) as t:
+                t.load()
+                if t.size != n.size or len(t.getexif()):
+                    raise ValueError("o'lcham / exif")
+        except Exception:                               # noqa: BLE001
+            raise DokonRasmXato("Rasmni xavfsiz qayta yozib bo'lmadi — rasm saqlanmadi. Boshqa rasm tanlang")
+    return {"katta": katta_b, "kichik": kichik_b, "ext": "." + turi, "eni": katta.size[0], "boyi": katta.size[1]}
 
 
 def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
@@ -13686,7 +15129,14 @@ def _usta_boti_javobi(data, token, korxona_id=None):
                 info = crud.get_master_yearly_cashback(
                     db, master.id, current_year,
                     company_id=getattr(master, "company_id", None))
-                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {services.son_korinish(int(info['jami_bonus']), 0)} so'm*\n\n" + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
+                # kech186 (zip 253): olinmagan qoldiq (barcha yillar hisoblangani − berilgan) — sayt kabineti bilan bitta hisob
+                try:
+                    _q253 = crud.usta_keshbek_holati(db, getattr(master, "company_id", None), master.id, tarix=False)
+                    _qq253 = f"💼 *Olinmagan qoldiq: {services.son_korinish(int(round(max(_q253['qoldiq'], 0))), 0)} so'm*\n\n"
+                except Exception:          # noqa: BLE001
+                    db.rollback()
+                    _qq253 = ""
+                reply = f"💰 *Sizning {current_year}-yil keshbegingiz*\n\n👤 {master.name}\n\n🎁 *Hisoblangan keshbek: {services.son_korinish(int(info['jami_bonus']), 0)} so'm*\n\n" + _qq253 + _tg_footer(db, getattr(master, "company_id", None) or egasi_cid, bold=False)
         except Exception as e:
             reply = "⚠️ Xatolik yuz berdi. Iltimos qayta urinib ko'ring."
         finally:
@@ -13807,6 +15257,670 @@ async def telegram_korxona_webhook(company_id: int, request: Request):
     return await _ip_ichida(_usta_boti_javobi, data, token, korxona_id=company_id)
 
 
+# ══ kech181 (zip 248) — DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH VA RO'YXAT ═══════════════════════════════════════════════════
+# Do'kon boti (@penodecorprobot; sinovda — sinov boti) — `DOKON_BOT_TOKEN` (Railway o'zgaruvchisi, har muhitga o'z boti). Webhook —
+# `/telegram/dokon`, siri tokendan (`crud.dokon_bot_sir`). Usta boti (@Penoustabot, `/telegram/webhook`) va korxona botlariga TEGILMAYDI.
+# Mantiq — `crud.dokon_kirish_*`, `crud.dokon_bot_*`, `crud.dokon_mijoz_*`.
+_DOKON_BOT_NOMI_KESH = {}
+DOKON_BOT_YOL = "/telegram/dokon"
+
+
+def _dokon_bot_token():
+    t = (os.environ.get(crud.DOKON_BOT_TOKEN_ENV) or "").strip()
+    return t if _TG_TOKEN_NAQSH.fullmatch(t) else ""
+
+
+def _dokon_bot_nomi(token):
+    """Bot foydalanuvchi nomi (getMe; muvaffaqiyatlisi keshlanadi — token bo'yicha). Token yo'q / Telegram javob bermadi — None."""
+    if not token:
+        return None
+    k = crud.dokon_bot_sir(token)
+    if k in _DOKON_BOT_NOMI_KESH:
+        return _DOKON_BOT_NOMI_KESH[k]
+    try:
+        nom = (_tg_api(token, "getMe", timeout=5) or {}).get("username")
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti getMe: {_tg_toza(e, token)}")
+        return None
+    if not isinstance(nom, str) or not _re_tg.fullmatch(r"[A-Za-z0-9_]{5,64}", nom):
+        return None
+    _DOKON_BOT_NOMI_KESH[k] = nom
+    return nom
+
+
+def _dokon_bot_yubor(chat_id, matn, reply_markup=None):
+    """Do'kon boti orqali mijozga xabar (fon vazifasi; xato — jim, log)."""
+    token = _dokon_bot_token()
+    if not token or not chat_id:
+        return False
+    try:
+        _tg_post_message(token, str(chat_id), matn, reply_markup=reply_markup)
+        return True
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti xabari yuborilmadi: {_tg_toza(e, token)}")
+        return False
+
+
+def _dokon_bot_korxonasi(db):
+    """Do'kon boti qaysi korxonaniki: sayt katalogi yoqilgan platforma egasi korxonasi (eng kichik raqam). Yo'q — None."""
+    import tenant_context as _tc248
+    from production_models import Company as _Co248
+    platforma = _obuna.platforma_korxonalari(db)
+    with _tc248.system_context(db):
+        rows = [r[0] for r in db.query(_Co248.id).filter(_Co248.dokon_yoqilgan == True).order_by(_Co248.id).all()]   # noqa: E712
+    for cid in rows:
+        if cid in platforma:
+            return cid
+    return None
+
+
+_DOKON_RAQAM_TUGMASI = {"keyboard": [[{"text": "📱 Raqamni yuborish", "request_contact": True}]], "resize_keyboard": True,
+                        "one_time_keyboard": True}
+_DOKON_TUGMA_YOP = {"remove_keyboard": True}
+
+
+def _dokon_bot_chiqar_javobi(cq, token):
+    """review248 M1: «🚫 Bu men emas» (callback_query) — shu Telegram foydalanuvchisining saytdagi hamma sessiyasi o'chadi."""
+    import tenant_context as _tc248d
+    frm = cq.get("from") if isinstance(cq.get("from"), dict) else {}
+    from_id = frm.get("id")
+    msg = cq.get("message") if isinstance(cq.get("message"), dict) else {}
+    chat = msg.get("chat") if isinstance(msg.get("chat"), dict) else {}
+    if from_id is None or chat.get("type") != "private" or str(chat.get("id")) != str(from_id):
+        return {"ok": True}
+    m = None
+    db = SessionLocal()
+    try:
+        cid = _dokon_bot_korxonasi(db)
+        if cid is not None:
+            _tc248d.set_current_company(db, cid)
+            m = crud.dokon_bot_chiqar(db, cid, from_id)
+    except Exception as e:                               # noqa: BLE001
+        db.rollback()
+        print(f"⚠ Do'kon boti (chiqarish) xatosi: {_tg_toza(e, token)}")
+    finally:
+        db.close()
+    try:
+        _tg_api(token, "answerCallbackQuery", {"callback_query_id": str(cq.get("id") or ""),
+                                               "text": "Chiqarildi" if m is not None else "Hisob topilmadi"}, timeout=5)
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti answerCallbackQuery: {_tg_toza(e, token)}")
+    try:
+        _tg_post_message(token, str(from_id), "🚫 Saytdagi hisobingiz barcha qurilmalardan chiqarildi. Saytga o'zingiz qayta kirishingiz "
+                         "mumkin. Savollar bo'lsa, biz bilan telefon orqali bog'laning." if m is not None
+                         else "Saytda hisobingiz topilmadi — hech narsa o'zgarmadi.")
+    except Exception as e:                               # noqa: BLE001
+        print(f"⚠ Do'kon boti javobi yuborilmadi: {_tg_toza(e, token)}")
+    return {"ok": True}
+
+
+_DOKON_CHIQ_TUGMASI = {"inline_keyboard": [[{"text": "🚫 Bu men emas — chiqarish", "callback_data": crud.DOKON_BOT_CHIQ}]]}
+
+
+def _dokon_boti_javobi(data, token):
+    """Do'kon boti: `/start k_<kod>` — raqam so'raladi; kontakt — hisob topiladi / ochiladi, kirish tasdiqlanadi (keyin «🚫 Bu men emas»
+    tugmasi bilan ogohlantirish — review248 M1); «Bu men emas» — hamma sessiya o'chadi; boshqasi — salom va sayt havolasi. Faqat shaxsiy chat
+    (chat.id == from.id). Korxona — kirishning o'zidan (review248 L8), topilmasa — standart. Javob — bazadan chiqqandan keyin."""
+    cq = data.get("callback_query") if isinstance(data, dict) else None
+    if isinstance(cq, dict):
+        if cq.get("data") == crud.DOKON_BOT_CHIQ:
+            return _dokon_bot_chiqar_javobi(cq, token)
+        return {"ok": True}
+    msg = data.get("message") if isinstance(data, dict) else None
+    if not isinstance(msg, dict):
+        return {"ok": True}
+    chat = msg.get("chat")
+    frm = msg.get("from")
+    if not isinstance(chat, dict) or not isinstance(frm, dict) or chat.get("type") != "private":
+        return {"ok": True}
+    chat_id = str(chat.get("id") or "")
+    from_id = frm.get("id")
+    if not chat_id or from_id is None or str(from_id) != chat_id or len(chat_id) > 20:
+        return {"ok": True}
+    import tenant_context as _tc248b
+    javob, tugma, qoshimcha = None, None, None
+    db = SessionLocal()
+    try:
+        matn = msg.get("text") if isinstance(msg.get("text"), str) else ""
+        _kod = None
+        if matn.strip().startswith("/start") and matn.strip()[6:].strip().startswith(crud.DOKON_BOT_START_OLDI):
+            _kod = matn.strip()[6:].strip()[len(crud.DOKON_BOT_START_OLDI):]
+        if _kod is not None:
+            cid = crud.dokon_bot_korxonasi_kirishdan(db, kod=_kod)
+        elif isinstance(msg.get("contact"), dict):
+            cid = crud.dokon_bot_korxonasi_kirishdan(db, chat_id=chat_id)
+        else:
+            cid = None
+        if cid is None:
+            cid = _dokon_bot_korxonasi(db)
+        if cid is None:
+            return {"ok": True}
+        _tc248b.set_current_company(db, cid)
+        sayt = crud.get_setting(db, crud.DOKON_SAYT_URL_KALIT, None, company_id=cid)
+        _nom = _tg_brand(db, cid)[0] or "Do'kon"            # korxona nomi (kodda qattiq nom YO'Q — tools/test_telegram_tenant.py)
+        if isinstance(msg.get("contact"), dict):
+            holat, _m = crud.dokon_bot_kontakt(db, cid, chat_id, from_id, msg["contact"])
+            tugma = _DOKON_TUGMA_YOP
+            if holat == "kirdi":
+                javob = "✅ Raqamingiz qabul qilindi — saytga qayting, kabinetingiz o'zi ochiladi."
+                qoshimcha = ("Saytga kirishni siz boshlamagan bo'lsangiz (havolani kimdir yuborgan bo'lsa) — «🚫 Bu men emas» tugmasini bosing: "
+                             "hisobingiz barcha qurilmalardan darhol chiqariladi.", _DOKON_CHIQ_TUGMASI)
+            elif holat == "begona":
+                javob, tugma = "❗ Faqat o'zingizning raqamingizni yuboring — «📱 Raqamni yuborish» tugmasini bosing.", \
+                    _DOKON_RAQAM_TUGMASI
+            elif holat == "xorijiy":
+                javob = "❗ Hozircha faqat O'zbekiston raqamlari (+998) qabul qilinadi. Biz bilan telefon orqali bog'laning."
+            elif holat == "bloklangan":
+                javob = "⛔ Hisobingiz vaqtincha yopilgan. Savollar bo'lsa, biz bilan telefon orqali bog'laning."
+            else:
+                javob = "⌛ Kirish muddati o'tgan. Saytga qaytib, «Telegram orqali kirish» tugmasini qayta bosing."
+        elif _kod is not None:
+            if crud.dokon_bot_start(db, cid, chat_id, _kod) == "raqam_sora":
+                javob = (f"🔐 *Saytga kirish*\n\n{_nom} saytiga kirish uchun «📱 Raqamni yuborish» tugmasini bosing.\n\n"
+                         "Agar saytda kirishni siz boshlamagan bo'lsangiz — hech narsa yubormang.")
+                tugma = _DOKON_RAQAM_TUGMASI
+            else:
+                javob = "⌛ Bu havola eskirgan. Saytga qaytib, «Telegram orqali kirish» tugmasini qayta bosing."
+                tugma = _DOKON_TUGMA_YOP
+        else:
+            javob = f"Assalomu alaykum! 👋 {_nom} rasmiy boti.\n\nMahsulotlarimizni saytda ko'ring va buyurtma bering."
+            if sayt:
+                tugma = {"inline_keyboard": [[{"text": "🛒 Saytni ochish", "url": sayt}]]}
+    except Exception as e:                               # noqa: BLE001 — Telegram xabarni qayta-qayta yubormasin (200)
+        db.rollback()
+        print(f"⚠ Do'kon boti xatosi: {_tg_toza(e, token)}")
+        javob, tugma = "⚠️ Xatolik yuz berdi. Iltimos, birozdan keyin qayta urinib ko'ring.", None
+    finally:
+        db.close()
+    for _matn, _tugma in ((javob, tugma), qoshimcha or (None, None)):
+        if not _matn:
+            continue
+        try:
+            _tg_post_message(token, chat_id, _matn, reply_markup=_tugma)
+        except Exception as e:                           # noqa: BLE001
+            print(f"⚠ Do'kon boti javobi yuborilmadi: {_tg_toza(e, token)}")
+    return {"ok": True}
+
+
+@app.post("/telegram/dokon")
+async def telegram_dokon_webhook(request: Request):
+    """Do'kon boti webhooki (sir — `crud.dokon_bot_sir(DOKON_BOT_TOKEN)`). Token yo'q — 503, sir mos emas — 403 (hech narsa o'qilmaydi)."""
+    token = _dokon_bot_token()
+    if not token:
+        raise HTTPException(status_code=503, detail="Do'kon boti sozlanmagan")
+    kelgan = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not _hmac_tg.compare_digest(kelgan.encode("utf-8"), crud.dokon_bot_sir(token).encode("utf-8")):
+        raise HTTPException(status_code=403, detail="Noto'g'ri imzo")
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+    return await _ip_ichida(_dokon_boti_javobi, data, token)
+
+
+def _dokon_sessiya_ol(request: Request):
+    return (request.headers.get(crud.MIJOZ_SESSIYA_SARLAVHA.lower()) or "").strip()
+
+
+_DOKON_NOSTORE = {"Cache-Control": "no-store"}
+
+
+def _dokon_sessiya_xato():
+    return HTTPException(status_code=401, detail="Kirilmagan", headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kirish")
+async def api_dokon_v1_kirish(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — Telegram orqali kirishni boshlash (kalit bilan): {"sayt"?: "https://…"} → {"kod", "sir", "muddat_soniya", "bot",
+    "havola"}. Do'kon boti sozlanmagan / Telegram javob bermadi — 503."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_KIRISH_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    nom = await _ip_ichida(_dokon_bot_nomi, _dokon_bot_token())
+    if not nom:
+        raise HTTPException(status_code=503, detail="Telegram orqali kirish hozircha ishlamayapti — qo'ng'iroq qiling",
+                            headers=_DOKON_NOSTORE)
+    natija = await _ip_ichida(_dokon_bajar, db, lambda: crud.dokon_kirish_boshla(db, cid, data))
+    natija["bot"] = nom
+    natija["havola"] = f"https://t.me/{nom}?start={crud.DOKON_BOT_START_OLDI}{natija['kod']}"
+    return JSONResponse(natija, headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kirish/holat")
+async def api_dokon_v1_kirish_holat(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirish holati (kalit bilan): {"kod", "sir"}. «tayyor» bo'lsa — sessiya tokeni (BIR marta). Mos emas — 404."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_HOLAT_CHEKLOV)
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        try:
+            return crud.dokon_kirish_holat(db, cid, data)
+        except KeyError:
+            db.rollback()
+            raise HTTPException(status_code=404, detail="Kirish topilmadi", headers=_DOKON_NOSTORE)
+    return JSONResponse(await _ip_ichida(_dokon_bajar, db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.get("/api/dokon/v1/mijoz")
+def api_dokon_v1_mijoz(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan mijoz (kalit + `X-Mijoz-Sessiya`): turi, holati, ismi, telefoni, magazin. Sessiya yaroqsiz — 401."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            return crud.dokon_mijoz_korinish(crud.dokon_sessiya_mijoz(db, cid, _dokon_sessiya_ol(request)))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/mijoz/royxat")
+async def api_dokon_v1_mijoz_royxat(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — ro'yxat so'rovi (kalit + sessiya): {"turi": "usta"|"magazin", "ism", "magazin"?, "shahar"?}. Egasiga — Telegram."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        try:
+            m, yangi = crud.dokon_mijoz_royxat(db, cid, sessiya, data)
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.DokonMijozZiddiyat as e:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(e), headers=_DOKON_NOSTORE)
+        return crud.dokon_mijoz_korinish(m), (crud.dokon_royxat_telegram_matni(m) if yangi else None)
+    javob, matn = await _ip_ichida(_dokon_bajar, db, _bajar)
+    if matn:
+        _fonda(background_tasks, _send_telegram, matn, company_id=cid, sessiya=db)
+    return JSONResponse(javob, headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/mijoz/chiqish")
+def api_dokon_v1_mijoz_chiqish(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — chiqish (kalit + sessiya): shu sessiya o'chiriladi. Har doim {"ok": true}."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    _dokon_bajar(db, lambda: crud.dokon_mijoz_chiqish(db, cid, _dokon_sessiya_ol(request)))
+    return JSONResponse({"ok": True}, headers=_DOKON_NOSTORE)
+
+
+# ══ kech182 (zip 249) — DO'KON: KABINET — O'Z BUYURTMALARI VA PDF (kalit + `X-Mijoz-Sessiya`) ═════════════════════════════════════════
+@app.get("/api/dokon/v1/mijoz/buyurtmalar")
+def api_dokon_v1_mijoz_buyurtmalar(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan mijozning sayt buyurtmalari (yangisi birinchi, 50 tagacha): raqam, sana, jami, mahsulotlar soni, holat.
+    Sessiya yaroqsiz — 401."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            return crud.dokon_mijoz_buyurtmalari(db, cid, _dokon_sessiya_ol(request))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+# kech186 (zip 253): kabinet — usta keshbegi (qoldiq, jami yozilgan, berilgan, buyurtmalar keshbegi)
+@app.get("/api/dokon/v1/mijoz/keshbek")
+def api_dokon_v1_mijoz_keshbek(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan ustaning keshbegi (kalit + sessiya). Usta tasdiqlanmagan / magazin — `keshbek: null`. Sessiya yaroqsiz — 401.
+    Foyda, KPI %, ERP raqamlari — YO'Q."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            return crud.dokon_mijoz_keshbek(db, cid, _dokon_sessiya_ol(request))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/mijoz/buyurtmalar/pdf")
+async def api_dokon_v1_mijoz_buyurtma_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kabinetdan O'Z buyurtmasining PDF i: {"raqam"} (kalit + sessiya). Boshqaniki / yo'q — 404 (bir xil javob);
+    sessiya yaroqsiz — 401. Chegara — PDF yo'llari bilan umumiy (`_DOKON_PDF_CHEKLOV`)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr249
+    cid = await _thr249(_dokon_api_korxona, request, db, crud._DOKON_PDF_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        try:
+            b, qatorlar = crud.dokon_mijoz_buyurtma_pdf_ol(db, cid, sessiya, data)
+            return pdf_service.generate_sayt_pdf(crud.dokon_mijoz_pdf_malumoti(db, b, qatorlar), db), b.sb_raqam   # H249-4
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.SaytPdfTopilmadi as e:
+            db.rollback()
+            raise HTTPException(status_code=404, detail=str(e), headers=_DOKON_NOSTORE)
+    pdf, raqam = await _thr249(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, f"buyurtma-{raqam}.pdf")
+
+
+# ══ kech184 (zip 250) — DO'KON: ULGURJI BO'LIM — KATALOG VA MAGAZIN BUYURTMASI (FAQAT tasdiqlangan magazin; kalit + `X-Mijoz-Sessiya`) ══
+# Ulgurji narx boshqa hech kimga berilmaydi: sessiya yaroqsiz — 401 «Kirilmagan», usta / tasdiqlanmagan magazin — 403 (bir xil matn).
+# Mantiq — `crud.dokon_ulgurji_mijoz`, `crud.dokon_api_ulgurji`, `crud.ulgurji_buyurtma_hisobla`, `crud.sayt_buyurtma_yarat(…, ulgurji_hisob=)`.
+def _ulgurji_yopiq_xato():
+    return HTTPException(status_code=403, detail=crud.ULGURJI_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+
+
+@app.get("/api/dokon/v1/ulgurji")
+def api_dokon_v1_ulgurji(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — ulgurji katalog (kalit + sessiya; FAQAT tasdiqlangan magazin): ulgurji narxi bor detallar (1 dona — 2 m / dona /
+    m²), rom komplektlari, magazin, oxirgi manzil va oxirgi ulgurji buyurtma (takrorlash). Keshlanmaydi (`no-store`)."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+
+    def _bajar():
+        try:
+            m = crud.dokon_ulgurji_mijoz(db, cid, _dokon_sessiya_ol(request))
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.DokonUlgurjiYopiq:
+            db.rollback()
+            raise _ulgurji_yopiq_xato()
+        except crud.DokonUlgurjiBolimYopiq:                 # review250 L3: admin «Ulgurji» bo'limini yashirgan
+            db.rollback()
+            raise HTTPException(status_code=404, detail=crud.ULGURJI_BOLIM_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+        return crud.dokon_api_ulgurji(db, cid, m)
+    return JSONResponse(_dokon_bajar(db, _bajar), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/ulgurji/buyurtmalar")
+async def api_dokon_v1_ulgurji_buyurtma(request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = None):
+    """Do'kon sayti — magazinning ulgurji buyurtmasi (kalit + sessiya + `X-Amal-Kaliti`): {"telefon"?, "viloyat", "manzil", "lokatsiya"?,
+    "izoh"?, "qatorlar", "kutilgan_jami"?}. Ism / telefon — hisobdan; narx — ERP ulgurji hisobi (farq — 409, hech narsa yozilmaydi);
+    takror — avvalgi javob (`X-Takror: 1`). Sessiya yaroqsiz — 401, magazin emas / tasdiqlanmagan — 403. Telegram — korxona botiga."""
+    from starlette.concurrency import run_in_threadpool as _thr250
+    cid = await _thr250(_dokon_api_korxona, request, db, crud._DOKON_BUYURTMA_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    kalit = request.headers.get(crud.SAYT_KALIT_SARLAVHA.lower())
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        try:
+            m = crud.dokon_ulgurji_mijoz(db, cid, sessiya, qulf=True)
+        except crud.DokonSessiyaYoq:
+            db.rollback()
+            raise _dokon_sessiya_xato()
+        except crud.DokonUlgurjiYopiq:
+            db.rollback()
+            raise _ulgurji_yopiq_xato()
+        except crud.DokonUlgurjiBolimYopiq:                 # review250 L3: admin «Ulgurji» bo'limini yashirgan
+            db.rollback()
+            raise HTTPException(status_code=404, detail=crud.ULGURJI_BOLIM_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+        try:
+            return crud.sayt_buyurtma_yarat(db, cid, kalit, data, ulgurji_hisob=m)
+        except ValueError as e:
+            db.rollback()
+            raise _sayt_xato(e)
+
+    def _ish():
+        b, qatorlar, takror = _dokon_bajar(db, _bajar)
+        return crud.sayt_dokon_javobi(db, b, qatorlar, takror=takror), \
+            (None if takror else crud.sayt_telegram_matni(b, qatorlar, crud.sayt_mijoz_yorligi(db, cid, b))), takror
+    javob, _matn, takror = await _thr250(_ish)
+    if _matn is not None:
+        _fonda(background_tasks, _send_telegram, _matn, company_id=cid, sessiya=db)
+    return JSONResponse(content=javob, headers={"Cache-Control": "no-store", **({"X-Takror": "1"} if takror else {})})
+
+
+
+# kech184 (zip 251): magazin narxlar ro'yxati PDF i va ulgurji tanlov PDF i — kirish `/api/dokon/v1/ulgurji` bilan AYNAN
+def _ulgurji_pdf_mijoz(db, cid, sessiya):
+    try:
+        return crud.dokon_ulgurji_mijoz(db, cid, sessiya)
+    except crud.DokonSessiyaYoq:
+        db.rollback()
+        raise _dokon_sessiya_xato()
+    except crud.DokonUlgurjiYopiq:
+        db.rollback()
+        raise _ulgurji_yopiq_xato()
+    except crud.DokonUlgurjiBolimYopiq:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=crud.ULGURJI_BOLIM_YOPIQ_MATN, headers=_DOKON_NOSTORE)
+
+
+def _ulgurji_pdf_chegara(db, cid):
+    """review251 M1: PDF chegarasi — kirish tekshiruvidan KEYIN (tasdiqlanmagan hisob uni band qilolmaydi)."""
+    kut = crud.ulgurji_pdf_chegarasi(cid)
+    if kut:
+        db.rollback()
+        raise HTTPException(status_code=429, detail=f"PDF so'rovlari juda ko'p (daqiqasiga ko'pi bilan {crud.SAYT_PDF_DAQIQA_MAX} ta) — "
+                                                    f"{kut} soniyadan keyin urining", headers={**_DOKON_NOSTORE, "Retry-After": str(kut)})
+
+
+@app.get("/api/dokon/v1/ulgurji/narxlar/pdf")
+async def api_dokon_v1_ulgurji_narxlar_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — magazin narxlar ro'yxati PDF i (kalit + sessiya; FAQAT tasdiqlangan magazin): butun ulgurji katalog o'z narxlari
+    bilan (`/api/dokon/v1/ulgurji` dagi narxlarning O'ZI). 401 / 403 / 404 — ulgurji katalog bilan bir xil; chegara (kirishdan KEYIN) —
+    hisobga daqiqasiga 6 va korxonaga ulgurji PDF chegarasi (429)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr251
+    cid = await _thr251(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _bajar():
+        m = _ulgurji_pdf_mijoz(db, cid, sessiya)
+        kut = crud.ulgurji_narxlar_hisob_chegarasi(cid, m)
+        if kut:
+            db.rollback()
+            raise HTTPException(status_code=429, detail=crud.ULGURJI_NARXLAR_HISOB_MATNI,
+                                headers={**_DOKON_NOSTORE, "Retry-After": str(kut)})
+        _ulgurji_pdf_chegara(db, cid)
+        h = crud.ulgurji_narxlar_pdf_malumoti(db, cid, m)
+        return pdf_service.generate_ulgurji_narxlar_pdf(h, db), _t_vaqt(h["sana"]).strftime("%Y-%m-%d")
+    pdf, sana = await _thr251(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, f"ulgurji-narxlar-{sana}.pdf")
+
+
+@app.post("/api/dokon/v1/ulgurji/savat/pdf")
+async def api_dokon_v1_ulgurji_savat_pdf(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — magazinning ulgurji tanlovi PDF i (kalit + sessiya): {"qatorlar": [...]} — ulgurji buyurtma qatorlari shaklida.
+    Narx — ERP ulgurji hisobi (buyurtma yuborilgandagining O'ZI), metr qatori donada; hech narsa yozilmaydi. Tanlov noto'g'ri — 400.
+    review251 L1: tana — kirish tekshiruvidan KEYIN o'qiladi (kirish qoidasi `/api/dokon/v1/ulgurji` bilan AYNAN: sessiyasiz — 401,
+    tasdiqlanmagan — 403, tana qanday bo'lmasin)."""
+    import pdf_service
+    from starlette.concurrency import run_in_threadpool as _thr251
+    cid = await _thr251(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    sessiya = _dokon_sessiya_ol(request)
+
+    def _kirish():
+        m = _ulgurji_pdf_mijoz(db, cid, sessiya)
+        _ulgurji_pdf_chegara(db, cid)
+        return m
+    m = await _thr251(_dokon_bajar, db, _kirish)
+    data = await _dokon_json_tana(request)
+
+    def _bajar():
+        return pdf_service.generate_sayt_pdf(crud.ulgurji_savat_pdf_malumoti(db, cid, m, data), db)
+    pdf = await _thr251(_dokon_bajar, db, _bajar)
+    return _sayt_pdf_javob(pdf, "ulgurji-savat.pdf")
+
+
+# ══ kech185 (zip 252) — DO'KON: «KELGANDA XABAR BERING» (kalit + `X-Mijoz-Sessiya`; faqat kirgan hisob) ════════════════════════════════
+# Mantiq — `crud.dokon_kutish_*`: element «Tayyor mahsulotlar»da yo'q / bo'lim yopiq — 404, hozir omborda bor / 30 tadan ko'p — 409,
+# hisob chegarasi (sessiya tekshiruvidan KEYIN) — 429. Xabar — rejalashtiruvchi `dokon_kutish_ish` (do'kon boti).
+def _dokon_kutish_bajar(db, fn):
+    try:
+        return _dokon_bajar(db, fn)
+    except crud.DokonSessiyaYoq:
+        db.rollback()
+        raise _dokon_sessiya_xato()
+    except crud.DokonKutishTopilmadi as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e), headers=_DOKON_NOSTORE)
+    except crud.DokonKutishZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e), headers=_DOKON_NOSTORE)
+    except crud.DokonKutishChegara as e:
+        db.rollback()
+        raise HTTPException(status_code=429, detail=str(e), headers={**_DOKON_NOSTORE, "Retry-After": str(e.kut)})
+
+
+@app.get("/api/dokon/v1/kutish")
+def api_dokon_v1_kutish(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kirgan hisobning «Kelganda xabar bering» ro'yxati: faollari, keyin so'nggi 30 kunda kelganlari. Sessiya yaroqsiz — 401."""
+    cid = _dokon_api_korxona(request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    sessiya = _dokon_sessiya_ol(request)
+    return JSONResponse(_dokon_kutish_bajar(db, lambda: crud.dokon_kutish_royxati(db, cid, sessiya)), headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kutish")
+async def api_dokon_v1_kutish_qosh(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — «Kelganda xabar bering» (kalit + sessiya): {"tur": "d", "detal_id"} | {"tur": "k", "model_id", "komplekt", "olcham",
+    "kapitel_baza"} → hisobning ro'yxati. Takror bosish — o'zgarmaydi."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+    natija = await _ip_ichida(_dokon_kutish_bajar, db, lambda: crud.dokon_kutish_qosh(db, cid, sessiya, data))
+    return JSONResponse(natija, headers=_DOKON_NOSTORE)
+
+
+@app.post("/api/dokon/v1/kutish/bekor")
+async def api_dokon_v1_kutish_bekor(request: Request, db: Session = Depends(get_db)):
+    """Do'kon sayti — kutishni bekor qilish (kalit + sessiya): {"kalit"} → hisobning ro'yxati. Boshqa hisobniki / yo'q — 404."""
+    cid = await _ip_ichida(_dokon_api_korxona, request, db, crud._DOKON_MIJOZ_CHEKLOV)
+    data = await _dokon_json_tana(request)
+    sessiya = _dokon_sessiya_ol(request)
+    natija = await _ip_ichida(_dokon_kutish_bajar, db, lambda: crud.dokon_kutish_bekor(db, cid, sessiya, data))
+    return JSONResponse(natija, headers=_DOKON_NOSTORE)
+
+
+@app.get("/api/sayt-katalogi/kutishlar")
+def api_sayt_kutishlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Admin: «Kelganda xabar bering» — qaysi mahsulot kutilmoqda (kim, qachondan), hozirgi holati, so'nggi 30 kunda yuborilgan xabarlar."""
+    return _dokon_bajar(db, lambda: crud.dokon_kutishlar_admin(db, auth.company_id_of(current_user)))
+
+
+# ── Admin: «Usta va magazinlar» (sayt katalogi sahifasi) ──
+def _dokon_mijoz_amal(db, fn):
+    try:
+        return _dokon_bajar(db, fn)
+    except KeyError:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Hisob topilmadi")
+    except crud.DokonMijozZiddiyat as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/api/sayt-katalogi/mijozlar")
+def api_sayt_mijozlar(db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Saytda ro'yxatdan o'tgan usta va magazinlar (kutilayotganlar birinchi) + ERP ustalari (bog'lash uchun)."""
+    return _dokon_bajar(db, lambda: crud.dokon_mijozlar_royxati(db, auth.company_id_of(current_user)))
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/tasdiqla")
+def api_sayt_mijoz_tasdiqla(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), data: dict = Body(...),
+                            db: Session = Depends(get_db), current_user=Depends(auth.admin_only),
+                            background_tasks: BackgroundTasks = None):
+    """Tasdiqlash: usta — {"kpi", "master_id"} yoki {"kpi", "yangi_usta": true}; magazin — {}. Mijozga — do'kon boti xabari."""
+    cid = auth.company_id_of(current_user)
+    m, _j, xabar = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_tasdiqla(db, cid, mijoz_id, data, _dokon_kim(current_user)))
+    _fonda(background_tasks, _dokon_bot_yubor, m.mj_tg_id, xabar, sessiya=db)
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/rad")
+def api_sayt_mijoz_rad(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), data: dict = Body(...),
+                       db: Session = Depends(get_db), current_user=Depends(auth.admin_only),
+                       background_tasks: BackgroundTasks = None):
+    """Rad etish ({"sabab"?}). Mijozga — do'kon boti xabari."""
+    cid = auth.company_id_of(current_user)
+    m, _j, xabar = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_rad(db, cid, mijoz_id, data, _dokon_kim(current_user)))
+    _fonda(background_tasks, _dokon_bot_yubor, m.mj_tg_id, xabar, sessiya=db)
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/blokla")
+def api_sayt_mijoz_blokla(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Bloklash — sessiyalar darhol o'chadi."""
+    cid = auth.company_id_of(current_user)
+    m, _j = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_blokla(db, cid, mijoz_id, _dokon_kim(current_user)))
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+@app.post("/api/sayt-katalogi/mijozlar/{mijoz_id}/ochish")
+def api_sayt_mijoz_ochish(mijoz_id: int = _Path213(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db),
+                          current_user=Depends(auth.admin_only)):
+    """Blokdan chiqarish — qayta tasdiq kerak."""
+    cid = auth.company_id_of(current_user)
+    m, _j = _dokon_mijoz_amal(db, lambda: crud.dokon_mijoz_ochish(db, cid, mijoz_id, _dokon_kim(current_user)))
+    return {"status": "ok", "mijoz": crud.dokon_mijoz_korinish(m)}
+
+
+def _dokon_bot_holati(request: Request, db):
+    token = _dokon_bot_token()
+    kutilgan = _sayt_manzili(request) + DOKON_BOT_YOL
+    natija = {"token_bor": bool(token), "bot": None, "webhook": "", "kutilgan": kutilgan, "ulangan": False,
+              "muhit": _railway_muhit() or None, "oxirgi_xato": "", "sayt": None}
+    cid = _dokon_bot_korxonasi(db)
+    if cid is not None:
+        natija["sayt"] = crud.get_setting(db, crud.DOKON_SAYT_URL_KALIT, None, company_id=cid)
+    if not token:
+        return natija
+    natija["bot"] = _dokon_bot_nomi(token)
+    try:
+        h = _tg_webhook_holati(token)
+        natija["webhook"] = h.get("url") or ""
+        natija["oxirgi_xato"] = h.get("last_error_izoh") or h.get("last_error_message") or ""
+    except Exception as e:                               # noqa: BLE001
+        natija["oxirgi_xato"] = _tg_toza(e, token)
+    natija["ulangan"] = natija["webhook"] == kutilgan
+    return natija
+
+
+@app.get("/api/sayt-katalogi/dokon-bot")
+def api_sayt_dokon_bot(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """Do'kon boti holati: token bormi (qiymati — YO'Q), bot nomi, hozirgi va kutilgan webhook manzili, oxirgi xato."""
+    if not crud.dokon_yoqilganmi(db, auth.company_id_of(current_user)):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    return _dokon_bot_holati(request, db)
+
+
+@app.post("/api/sayt-katalogi/dokon-bot/ulash")
+def api_sayt_dokon_bot_ulash(request: Request, data: dict = Body(...), db: Session = Depends(get_db),
+                             current_user=Depends(auth.admin_only)):
+    """Do'kon botini SHU saytga ulash (setWebhook, sir — tokendan). Bot boshqa saytga ulangan bo'lsa — 409; {"majburiy": true} faqat asosiy
+    muhitda (production) — aks holda sinov sayti asosiy botni «o'g'irlab» qo'ymasin (kech129 hodisasi)."""
+    cid = auth.company_id_of(current_user)
+    if not crud.dokon_yoqilganmi(db, cid):
+        raise HTTPException(status_code=404, detail=_DOKON_YOPIQ_MATN)
+    if not isinstance(data, dict) or set(data) - {"majburiy"} or data.get("majburiy") not in (None, True, False):
+        raise HTTPException(status_code=400, detail="Noto'g'ri so'rov")
+    token = _dokon_bot_token()
+    if not token:
+        raise HTTPException(status_code=409, detail=f"Do'kon boti tokeni yo'q — Railway da {crud.DOKON_BOT_TOKEN_ENV} o'zgaruvchisini qo'ying")
+    kutilgan = _sayt_manzili(request) + DOKON_BOT_YOL
+    try:
+        hozirgi = (_tg_webhook_holati(token).get("url") or "")
+    except Exception as e:                               # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Telegram javob bermadi: {_tg_toza(e, token)}")
+    if hozirgi and hozirgi != kutilgan:
+        from urllib.parse import urlsplit as _us248
+        _xost248 = _us248(hozirgi).hostname or "noma'lum"
+        if not (data.get("majburiy") is True and _asosiy_muhitmi()):
+            raise HTTPException(status_code=409, detail=(
+                f"Bot hozir boshqa manzilga ulangan ({_xost248}). "
+                + ("Ulansa, o'sha yerdagi bot ishlamay qoladi — ishonchingiz komil bo'lsa, «Baribir ulash» ni bosing."
+                   if _asosiy_muhitmi() else "Sinov saytida boshqa joyga ulangan botni ko'chirib bo'lmaydi — sinov uchun alohida bot oching.")))
+    try:
+        _tg_api(token, "setWebhook", {"url": kutilgan, "secret_token": crud.dokon_bot_sir(token),
+                                      "allowed_updates": ["message", "callback_query"], "max_connections": 10})
+    except Exception as e:                               # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Telegram rad etdi: {_tg_toza(e, token)}")
+    crud.log_activity(db, "telegram_bot_ulandi", "dokon_bot", 0, entity_label="Do'kon boti", performed_by=_dokon_kim(current_user),
+                      new_value=f"Do'kon boti shu saytga ulandi: {kutilgan}" + (f" (avval: {hozirgi})" if hozirgi else ""),
+                      company_id=cid)
+    return _dokon_bot_holati(request, db)
+
+
 # ============================================================
 # KUNLIK AVTOMATIK ZAXIRA NUSXA (Telegram orqali)
 # ============================================================
@@ -13908,6 +16022,53 @@ def obuna_kunlik_ish():
         db.close()
 
 
+def _dokon_kutish_yubor(chat_id, matn, tugma):
+    """«Kelganda xabar bering» xabari (review252 M2): chatga bog'liq rad (Telegram 400 — chat yo'q / 403 — botni bloklagan) — False
+    (urinish sanaladi); bot tokeni yo'q / noto'g'ri (401, 404), Telegram chegarasi (429), Telegram / tarmoq ishlamayapti (5xx, ulanish) —
+    `crud.DokonKutishToxta` (tekshiruv to'xtaydi, urinish SANALMAYDI — vaqtinchalik uzilish kutishlarni «xato» ga o'tkazmasin)."""
+    import urllib.error as _ue252
+    token = _dokon_bot_token()
+    if not token or not chat_id:
+        raise crud.DokonKutishToxta("Do'kon boti sozlanmagan")
+    try:
+        _tg_post_message(token, str(chat_id), matn, reply_markup=tugma)
+        return True
+    except _ue252.HTTPError as e:
+        if e.code in (400, 403):
+            print(f"⚠ Kelganda xabar bering: chatga yetmadi (HTTP {e.code})")
+            return False
+        raise crud.DokonKutishToxta(f"Telegram HTTP {e.code}")
+    except Exception as e:                               # noqa: BLE001 — tarmoq / vaqt tugadi
+        raise crud.DokonKutishToxta(_tg_toza(e, token))
+
+
+def dokon_kutish_ish():
+    """kech185 (zip 252) — «Kelganda xabar bering» tekshiruvi (rejalashtiruvchi, har `crud.DOKON_KUTISH_TEKSHIRUV_DAQIQA` daqiqa): sayt
+    katalogi yoqilgan har korxonada `crud.dokon_kutish_tekshir` (kelgan mahsulot — do'kon boti xabari, BIR marta). Do'kon boti sozlanmagan —
+    hech narsa qilinmaydi (kutishlar kutadi). Bitta korxona xatosi qolganlarini to'xtatmaydi."""
+    import tenant_context as _tc252
+    from production_models import Company as _Co252
+    if not _dokon_bot_token():
+        return
+    db = SessionLocal()
+    try:
+        with _tc252.system_context(db):
+            cids = [r[0] for r in db.query(_Co252.id).filter(_Co252.dokon_yoqilgan == True).order_by(_Co252.id).all()]   # noqa: E712
+        for cid in cids:
+            try:
+                _tc252.set_current_company(db, cid)
+                stat = crud.dokon_kutish_tekshir(db, cid, _dokon_kutish_yubor)
+                if stat["yuborildi"] or stat["xato"] or stat["tiklandi"] or stat.get("toxtadi"):
+                    print(f"✓ Kelganda xabar bering (korxona {cid}): {stat}")
+            except Exception as e:                       # noqa: BLE001
+                db.rollback()
+                print(f"⚠ Kelganda xabar bering tekshiruvi xatosi (korxona {cid}): {e}")
+            finally:
+                _tc252.reset_current_company(db)
+    finally:
+        db.close()
+
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler(timezone="Asia/Tashkent")
@@ -13915,6 +16076,9 @@ try:
     _scheduler.add_job(run_daily_backup, "cron", hour=23, minute=30, id="daily_backup")
     # kech111 — obuna: imtiyozdan o'tganni bloklash va egasiga eslatma (Toshkent 09:05, takrorsiz — `obuna.kunlik_tekshiruv`)
     _scheduler.add_job(obuna_kunlik_ish, "cron", hour=9, minute=5, id="obuna_tekshiruvi")
+    # kech185 (zip 252): «Kelganda xabar bering» — kelgan mahsulot haqida mijozga do'kon boti xabari (bir vaqtda bitta nusxa)
+    _scheduler.add_job(dokon_kutish_ish, "interval", minutes=crud.DOKON_KUTISH_TEKSHIRUV_DAQIQA, id="dokon_kutish", max_instances=1,
+                       coalesce=True)
     _scheduler.start()
     print("✓ Kunlik avtomatik backup rejalashtiruvchisi ishga tushdi (har kuni 23:30, Toshkent vaqti)")
 except Exception as e:

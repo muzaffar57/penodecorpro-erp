@@ -301,6 +301,7 @@ async function tolovSina(summa, qarz) {
     const yoq = yukla(ctx, O, YORDAMCHI.concat(['formatNum', '_onlikQism', '_tiyinHalfUp', 'buyurtmaJami',
                                                  'blokBirlikKodi', 'blokBirligi', 'blokNarxiQatorda', 'blokKoef',
                                                  'calcSubDetailRow', 'calculateItem', 'collectItems']), 'orders');
+    yuklaBorlari(ctx, O, ['kmpTanaga239']);      // kech173 (zip 239, MOSLANDI): collectItems komplekt belgisini qo'shadi (asl kodda yo'q)
     return { ctx, yoq };
   }
   try {

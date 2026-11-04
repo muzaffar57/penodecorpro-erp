@@ -584,6 +584,9 @@ _ISTISNO = {
     ("main", "api_confirm_advance_request"): "avans so'rovini tasdiqlash — oylik hisobot, xomashyoga tegmaydi",
     ("main", "api_close_employee_debt"): "hodim qarzini yopish — hisobot, xomashyoga tegmaydi",
     ("main", "api_close_gift_period"): "sovg'a davrini yopish — davr hisoboti, xomashyoga tegmaydi",
+    # kech187 (zip 254b — etalon d263): nom grafida calculate_order_profit → _fp_stable_unit_cost → inventory_qulf_sorov, lekin u yerda
+    # `_inv(…)` faqat lock=False bilan chaqiriladi (qulf YO'Q) — api_close_gift_period bilan bir yo'l
+    ("main", "api_master_keshbek_ber"): "usta keshbegini berish — yillik KPI hisoboti (qulfsiz o'qish), xomashyoga tegmaydi",
 }
 check("K8 TO'LIQLIK: xomashyoga tegadigan har o'zgartiruvchi marshrut (chaqiruv grafi) ro'yxatda yoki asosli istisnoda; istisnolar ro'yxatda "
       "emas (yangi marshrut ro'yxatga qo'shilmasa — test yiqiladi)",

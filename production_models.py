@@ -186,6 +186,9 @@ class Company(Base):
     obuna_turi = Column(String(20), nullable=True)       # 'sinov' (30 kunlik sinov davri) | 'obuna'
     imtiyoz_gacha = Column(Date, nullable=True)          # «Ochish» dan keyingi 3 kunlik imtiyozning oxirgi kuni
     eslatma_holati = Column(String(40), nullable=True)   # "<obuna_tugash>:<bosqich>" — egasiga eslatma takrorlanmasin
+    # kech166 (zip 231): sayt katalogi (onlayn do'kon) yoqilganmi — FAQAT platforma egasining korxonasida, Platforma panelidan
+    # (`crud.dokon_belgila`). NULL / False — o'chiq: sahifa va API 404, menyuda yo'q. Zaxiraga kirmaydi (companies).
+    dokon_yoqilgan = Column(Boolean, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

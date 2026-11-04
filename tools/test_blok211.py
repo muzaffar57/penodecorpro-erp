@@ -784,9 +784,9 @@ check("T5 faqat bitta telefon — avvalgidek: «Fasad bezaklari · Andijon · +9
       (_rs4.status_code, _bt1b, {k: (v[0], v[1][:300]) for k, v in _hb.items()}))
 check("T6 sarlavha osti — barcha hujjat turlarida yagona yordamchi (`_sarlavha_osti`: yuk xati, sotuv cheki, guruh cheki, yakuniy hisob, "
       "jamlanma — 5 joy; moliya hisoboti — 1), eski bitta qatorli chaqiruv qolmagan",
-      open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read().count("Paragraph(_sarlavha_osti(_brand), st_sub)") == 5
+      open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read().count("Paragraph(_sarlavha_osti(_brand), _st241s)") == 5
       and 'Paragraph(_x(_brand["subtitle"])' not in open(os.path.join(ROOT, "delivery_pdf.py"), encoding="utf-8").read()
-      and "Paragraph(_sarlavha_osti(_brand), _ps('s', fontSize=8, textColor=GOLD))" in open(os.path.join(ROOT, "finance_pdf.py"), encoding="utf-8").read())
+      and "Paragraph(_sarlavha_osti(_brand), _sarlavha_uslubi241(_ps('s', fontSize=8, textColor=GOLD)," in open(os.path.join(ROOT, "finance_pdf.py"), encoding="utf-8").read())
 A.put("/api/settings/company", data=dict(_asosiy211, phone=_g0.get("phone") or "", slogan=_g0.get("slogan") or "",
                                           address=_g0.get("address") or "", phone2="", phone3="", tel_v="2"))
 if PG_URL:

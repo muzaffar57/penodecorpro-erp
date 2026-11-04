@@ -55,6 +55,8 @@ ALLOW_FUNCTIONS = {
     "export_full_backup",            # tenant filtri `_tenant_filter()` orqali
     "factory_reset_all_data",        # tenant filtri `_tenant_filter()` orqali
     "_tenant_filter",
+    "_dokon_ishlatilgan_manzillar",  # do'kon rasmlari umumiy papkada: fayl BOSHQA korxona yozuvida bormi (faqat fayl nomlari)
+    "dokon_yetim_fayllar_tozala",    # do'kon rasmlari umumiy papkasidagi yetim fayllar — butun tizim bo'yicha (faqat fayl nomlari)
 }
 
 

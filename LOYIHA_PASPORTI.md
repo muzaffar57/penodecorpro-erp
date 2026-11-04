@@ -1,7 +1,7 @@
 # PenoDecorPro ERP — LOYIHA PASPORTI
 
 *Yozilgan: 2026-09-28 (kech104, 16-band; yangilangan — kech105: zip 99, zip 100; kech106: zip 101; kech107: zip 102; kech108: zip 103, `main` o'lchovlari; kech109: zip 104, `main` ko'chirish mexanizmi; kech110: zip 105 — tahrirda kelishilgan summa, MRP jurnali; kech111: zip 106 — platforma admin paneli: obuna, bloklash, eslatma, fayllar himoyasi; zip 107 — yuqori panel ochiluvchi panellari ekran ichida (K112-1), bloklashda ochiq sessiya sabab bilan yopiladi (K112-2); kech112: zip 108 — «Tayyor» da bo'sh loy = reja (K112-3), material nomi (K112-4), MRP qoplama belgisi (K112-5); ko'p korxonali yakuniy jonli sinov; kech115: zip 112 — butun dastur auditi A bosqichi (pul va ma'lumot xatolari) 1-qismi: kirim, qarzdorlar, «Tayyor», narxsiz buyurtma, o'chirilganlar jurnali, manfiy raqamlar, taqqoslash, korxona sog'ligi, ombor filtri; kech116: zip 113 — A bosqich 2-qismi: sog'liq sabablari (K115-2), «Bugungi xulosa» (K115-3), hujjatlardagi hisob qatorlari (G2-04), «Pul oqimi» — haqiqiy pul (G1-03), «Xarajat» — bitta ta'rif va «Tannarx» (G1-02), loyiha qiymati buyurtmalardan (G2-01), haqiqiy IP va kirish cheklovi (U-01), parol oynasi va kirishlarni yopish (G6-06); zip 114 — mijoz hujjatlarida kechirilgan qarz «Chegirma» ichida (egasi qarori); kech117: zip 115 — A2: yo'nalishlar bo'yicha moliya (G3-11, G6-09); zip 116 — jonli sinovdan keyin: «Belgilanmagan» manbalari, Moliya xarajatdan keyin yangilanadi; kech118: qolgan egasi qarorlari (6-bo'lim); zip 117 — B bosqichi 1-qism: dastur oynalari (xabar, kiritish, Esc / tashqariga bosish), o'zbekcha 404 / 403 sahifa, klaviatura fokusi; zip 118 — B bosqichi 2-qism: son / sana / birlik ko'rinishi, o'qiladigan rang, 12 px + yo'nalishlar bo'yicha moliyaviy natija (egasi qarori: taqsim yo'q, oyliklar alohida, davr, solishtirish); yangi qarorlar — rollar va ruxsatlar (6-bo'lim); zip 119 — rollar va ruxsatlar 1-qism (admin rollarni o'zi boshqaradi); kech119: zip 125 — Hisobotlar «oy boshi»: o'tgan oyning SHU KUNLARI bilan solishtirish (egasi qarori), taxminda oylik xarajat bir marta, xomashyo birligi; «Foyda tahlili» summalari (G2-15); zip 126 — telefon (C bosqichi); kech120: zip 127 — E bosqichi 1-qism: tezlik — hisobot xotirasi (so'rovlar orasida, yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa 5 ta buyurtma, kirish sahifasi rasmi, Hisobotlar taqqoslash kartalari telefonda (K120-1); zip 128 — E bosqichi 2-qism: katta ro'yxatlarda topish — Bosh sahifa «Bugungi vazifalar» havolalari, Buyurtmalar filtri / keng qidiruv / tanlovni tiklash, Qarzdorlar mijoz bo'yicha; zip 129 — E bosqichi 3-qism: tarix va jurnallar — «Tizim jurnallari» filtri va sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor «Tarix», «Yana yuklash», davr jami; zip 130 — E bosqichi 4-qism: qidiruvli tanlagich (Kirim — ta'minotchi, material; «Yangi qaytarish», «Brak yozish»), ta'minotchilar tabiiy tartibda, Tayyor mahsulotlar kategoriyalari korxonaning o'z mahsulot turlaridan; shu zipda — E bosqichi 5-qism: hodim kirishi — har korxonada kod (kodsizlarga ishga tushishda), QR serverda (ichida kod), kirish sahifasi kodni o'zi yozadi, chop etish sahifasi; shu zipda — E bosqichi 6-qism: rasmlar yuklashda 1920 px gacha kichraytiriladi (burilish qo'llanadi, joylashuv saqlanmaydi), ro'yxatlarda kichik nusxa (360 px); uzun ro'yxatlarda faqat birinchi 20 qator animatsiyali); zip 131 — F bosqichi 1-qism: Moliya, Qarzdorlar, «Xarajat qo'shish» (kirim xarajati faqat hujjat orqali, ro'yxat jami, kassa yozuvini o'chirish, «Yalpi foyda», qarz to'lovi usuli, majburiyat oyi); zip 132 — F bosqichi 2-qism: Ombor, Kirim, Ta'minotchilar, Retseptlar (kirim hujjatidan qator — to'lov / xarajat bo'lsa butun hujjat orqali, ishlatilgan retsept o'chmaydi, Telegram natijasi, Omborxona — ruxsat bo'yicha tugmalar, ustun nomlari, toifa filtri; ta'minotchi tarixida to'lov holati, penoplast blok hajmi); zip 133 — F bosqichi 3-qism: Tayyor mahsulotlar, Qaytarishlar, Ishlab chiqarish (birlik ko'rinishi — bitta qoida, qaytarishlar guruhi va kartalari, «Hisob-kitob qilish», tugmalar so'z bilan, sotishdan keyin sahifa qayta yuklanmaydi, narxsiz mahsulot qiymati, mahsulot turini tahrirlash / o'chirish, bo'sh korxona yo'riqnomasi); zip 134 — F bosqichi 4-qism: Buyurtmalar va Loyihalar (namuna matni rangi, saqlash kamchiliklari bitta ro'yxatda, detal raqami, profil — uzunlik bo'yicha, loyiha qarzi «384 ming», bitta hisob-kitob paneli, amallar tepada, «Bajarilgan» va «Yetkazish — 1/2 topshirildi», «Tarix», bo'sh korxonada «avval loyiha»); zip 135 — F bosqichi 5-qism: Bosh sahifa, Dashboard, Hisobotlar («Faol buyurtmalar» — bitta qoida, usta reytingi, yangi korxonaga «Boshlash», bo'sh grafiklar, davr filtri, jadval qidiruvi va Excel, «Yangilash»); zip 136 — F bosqichi 5-qism 2-bo'lagi: hujjatlar va KPI (buyurtma hisobi — birlik, ajratgich, bitta «TO'LOV SUMMASI»; yuk xati — shu yuk paytidagi holat; KPI sahifasi yozuvlari va hodim kartasi); zip 137 — F bosqichi 5-qism 3-bo'lagi: ustalar telefoni, menyu guruhlari, hodim va foydalanuvchi kirishi, alohida «Sozlamalar» sahifasi; kech121: zip 138 — egasi qarorlari 02.10 (Dashboard «Shu oy daromadi», brak foizi asosi, Menejer o'z xarajatini o'chiradi, narxsiz «Kirim (tuzatish)», qaytarish oynasida pul savoli, yuk xatida korxona to'lagan transport narxi yo'q); kech123: zip 139 — U-13 yagona ko'rinish 1-qism (tugma / maydon / tab / filtr o'lchamlari va yozuv shkalasi — bitta qoida; umumiy qobiq, Bosh sahifa, Dashboard, Hisobotlar, Foydalanuvchilar; zip 140 — 2-qism: Buyurtmalar, Loyihalar, Omborxona, Kirim qilish, Ta'minotchilar, Loy retseptlari, Ishlab chiqarish, Tayyor mahsulotlar, Qaytarishlar; zip 141 — 3-qism: Qarzdorlar, Moliya, Xarajat qo'shish, Ustalar KPI, Ustalar, Rollar; zip 142 — 4-qism: jurnallar, Sozlamalar, Savat, Platforma, kirish sahifalari, hodim paneli; zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi yuk xatlari bo'yicha; kech124: zip 144 — loyihada «Yuk xatlari», yuk xati raqami loyiha bo'yicha, «Jamlab olish»; zip 145 — Loyihalar holat paneli «Bajarilgan»; kech125: zip 146 — brak taqdiri: Tashlandi / Tuzatildi / Kesildi / 2-nav; zip 147 — uning jonli sinovidan keyingi tuzatishlar; kech126: zip 148 — «Tez hisob / Taklif»: mijozga loyiha / buyurtma ochmasdan taklif, «Takliflar» ro'yxati, bir tugma bilan rasmiylashtirish; zip 149 — uning jonli sinovidan keyingi 2 tuzatish; kech127: `main` ga ko'chirish — 07.10; zip 150 — «Xomashyo narxlari va ombor qiymati» ruxsati, ORD-066-1 loy xatosi tuzatishi; zip 151 — «Murojaat» bo'limi, jurnal `loy_tuzatish` yorlig'i, ombor harakatlari jami — material bo'yicha; kech128: zip 152 — rasm emas fayl rad etiladi (hamma rasm yuklash joylari va logotip), murojaat matnida qator oxirlari, platforma yozishma oynasi; kech129: zip 153 — SaaS migratsiya sahifasi (8 marshrut) olib tashlandi: mijoz korxona admini ham kirib, boshqa korxonalar nomini ko'rar va haqiqiy migratsiya qadamini bajarar edi; logotip PDF da o'z nisbati va yo'nalishi bilan, buzilgan
-logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi); kech132: zip 156 — joylashuv so'zlarisiz matnlar (tugma / maydon / bo'lim — nomi bilan), «🔄 Botni asl holatiga qaytarish» ning to'liq izohi; kech133: zip 157 — «Loy retseptlari» oynalari: tahrirda izoh, o'chirilgan material tahrirda jimgina yo'qolmaydi, bo'sh hajm / miqdorsiz material — xabar, takror nom — 409, server javob bermasa — xabar; zip 158 — hodim paneli: sahifa suriladi, avans formasi tepada, «Oyligim» — joriy oy ochiq, tugagan oylar yopiq, oxirgi 12 oy; zip 159 — hodim paneliga FAQAT admin ruxsat bergan telefondan kiriladi, PIN ni hodimning o'zi qo'yadi, telefon raqami har ko'rinishda bitta, o'chirilgan hodim kirmaydi; kech134: zip 160 — hodim avanslari: «📱 O'zingiz» / «🧑‍💼 Admin» belgilari, admin yozgan avansga hodim «Ha, oldim / Olmaganman», «Olmaganman» — adminga ogohlantirish, «Mening so'rovlarim» — 12 oy oylab, avans so'rovini parallel tasdiqlash — bitta avans, hodim oynalari Bosh sahifada ham; kech135: zip 161 — «Materiallar ro'yxati (retsept va tarkib uchun)» ruxsati: Omborxonaga kirmaydigan rol retsept va mahsulot tarkibiga material tanlaydi (faqat nomi va birligi), Rollar sahifasida «ro'yxat ham kerak» ogohlantirishi, «Ishlab chiqarish» yorlig'i faqat buyurtmalar ruxsati bilan; kech136: zip 162 — Dashboard karuseli nuqtalari telefonda ko'rinadi va bosiladi, o'lcham o'zgarganda adashmaydi, ikkala rejimda aniq; hech qachon ishlamagan uslub qoidalari olib tashlandi; kech137: zip 163 — Dashboard bitta so'rov xatosida qotmaydi: har blok alohida yuklanadi, yuklanmagan blokda sabab (yolg'on «0» yo'q), ruxsatsiz blok rolga ko'rsatilmaydi va so'ralmaydi, eski javob yangisini bosmaydi; kech138: zip 164 — Moliya va Hisobotlar ham qotmaydi: har blok alohida, yuklanmagan blokda sabab, boshqa oy tanlanganda eski oy raqami qolmaydi, ruxsatsiz blok yo'q; zip 165 — Ustalar KPI va Loyihalar ham qotmaydi: ehson foizi yuklanmasa «Saqlash» yopiq (0 % yozilmaydi), sovg'a davri xatoda «Yopiq» emas, loyiha bo'limlarida yolg'on qiymat va poyga yo'q, bo'limlar va bloklar ruxsat bo'yicha; zip 166 — Omborxona va Platforma ham qotmaydi: «Aloqa telefoni» yuklanmasa «Saqlash» yopiq (telefon o'chmaydi), «Xaridlar tarixi» da eski jami qolmaydi, amal xatolari sababi bilan (internet uzilsa ham), «Muddatni uzaytirish» ikki marta bosilsa bir marta uzayadi, 4 poyga yopildi, xaridni bekor qilish tugmalari ruxsat bilan; zip 167 — audit 1-to'lqini: zaxira BO'SH yangi bazaga ham tiklanadi, buzilgan / begona yozuvli zaxira rad etiladi, platforma egasi hisobini faqat o'zi o'zgartiradi, parol tiklanganda / foydalanuvchi o'chirilganda eski kirish yopiladi, KPI «Jami» da «-0» yo'q; Platforma, Sozlamalar, Tizim jurnallari, O'chirilganlar, Ishlab chiqarish, Xarajat qo'shish sahifalari telefonda va past ekranda oxirigacha suriladi, Loyihalar — past noutbuk ekranida ham; kech140: zip 168 — audit, pul (1-qism): avans / «oylikni yopish» ikki marta bosilsa bitta yoziladi, oylikdan ko'p avans so'raladi va ortig'i keyingi oy oyligidan ushlanadi, «Hodim qarzdor» ko'rinadi, sovg'a davri faqat ishtirokchiga (bot = KPI sahifasi = oylik hisobot), usta KPI oylari yig'indisi = yil, faolsizlantirilgan usta o'tgan oylardan yo'qolmaydi, loyiha qarzi Buyurtmalar / Loyihalar / Qarzdorlar da bir xil, savatdan tiklashda pul o'zgarishlari saqlanadi; kech141: zip 169 — audit, pul (2-qism): hodimni o'chirish / faolsizlantirishda «Ishdan ketgan sana» so'raladi, ketgan oy oyligi shu kungacha, keyingi oylarda yo'q, o'tgan oylar hisobotida hodim qoladi (ilgari hamma oydan yo'qolardi), tiklashda «Ishga qaytdi» yoki «Xato o'chirilgan edi», yangi hodimga «Ishga kirgan sana» — kirgan oy oyligi shu kundan, «Butunlay o'chirish» hodimni ro'yxatdan olib tashlaydi, lekin o'tgan oylar hisobotida qoldiradi; «Tayyor» buyurtma summasi keyin o'zgarsa yoki qarzi kechirilsa — o'zgargan oy hisobotida alohida qator, yakunlangan oy o'zgarmaydi, kamaytirishda «Mijozga qaytarish kerak»; Bosh sahifa grafigi = oylik hisobot; kech142: zip 170 — audit, ombor va ishlab chiqarish: buyurtmaga band tayyor mahsulot bitta «Sotish» bilan sotilmaydi (oynada «band» va «sotsa bo'ladi»), brak band qismga tegsa oldindan so'raladi va buyurtma uchun yana ishlab chiqarish kerakligi aytiladi, «Yana ishlab chiqarish» / sotuv / brak bir vaqtda bosilsa biri yo'qolmaydi, parallel kirim va chiqimda ombor qoldig'i yo'qolmaydi, buyurtma o'chirilishi / tiklanishi, qisman «Tayyor», ortgan loy va boshlang'ich qoldiq ombor harakatlarida ko'rinadi, manfiy qoldiqli penoplastga kirimda blok hajmi buzilmaydi, mavjud nom bilan material yaratilsa o'sha material tanlanadi (qayta yozilmaydi), qoldig'i bor material o'chirilmaydi (avval tuzatish bilan 0), retseptni saqlash qoralama ishlab chiqarishning qoplamasini tushirmaydi, ikki «Yakunlash» / «Boshlash» xomashyoni ikki marta yechmaydi, o'chirilgan material tannarxdan tushib qolmaydi; kech143: zip 171 — audit, himoya qatlami: boshqa saytdan kelgan yozuvchi so'rov rad etiladi va boshqa saytdagi «Chiqish» havolasi tizimdan chiqarmaydi, begona odam 5 marta noto'g'ri parol (PIN) terib boshqa joydagi egasini (hodimni) bloklay olmaydi, kirish kalitlari bazada xeshlangan, eski tuzsiz parol xeshlari o'raldi, cron siri sarlavhada ham, hodim QR faqat o'z sayti bilan, tannarxni ko'rmaydigan menejer tannarxdan past sotsa ogohlantirish emas — egasiga jurnal va Telegram xabari (egasi qarori), material nomi katta-kichik harf / bo'shliq / apostrof farqi bilan takrorlanmaydi, «+ Xarid qo'shish» va Omborxona «Xaridlar tarixi» oynalari oxirigacha suriladi, planshetda tayyor mahsulot partiyalari buzilmaydi, guruh «Sotish» bekor qilinsa belgilar qaytadi; kech144: zip 172 — production bazasi tuzilishi kod bilan solishtiriladi: keyinroq qo'shilgan matn ustunlari 255 belgi bilan cheklangan edi (buyurtma tahririda 500, yuk xati bor buyurtmani o'chirish va uzun retsept tahriri saqlanmasdi) — ishga tushishda kengaytiriladi, natija «Tizim salomatligi» da; jurnal yozuvi xatosi amalni buzmaydi va «Xatoliklar» ga yoziladi; buyurtma jurnalida «kim»; zip 173 — Buyurtmalar sahifasi: to'lov paneli boshqa buyurtma qarzini ko'rsatmaydi (kechirish faqat oynada ko'rsatilgan summa, qarz o'zgargan bo'lsa saqlanmaydi — Qarzdorlar da ham), tahrirda loy boshqa buyurtmaga o'tmaydi, yangi forma toza ochiladi, javob yo'qolsa qayta bosish ikkinchi buyurtma yaratmaydi, «Bir yo'la to'liq topshirish» to'lov usuli va transportni kim to'laganini so'raydi, Menejer MRP buyurtmasini tahrirlay oladi, xatolar sababi bilan va natija noma'lum bo'lsa shunday deyiladi; zip 174 — tayyor mahsulot sotuvi, guruh sotuv, brak, ishlab chiqarish, «Yana ishlab chiqarish», qaytarish, xarajat va majburiyat to'lovi ikki marta bosilsa yoki javob yo'qolib qayta bosilsa ikkinchi marta yozilmaydi (natija noma'lum bo'lsa shunday deyiladi), Omborchi qaytarish va buyurtma detali brakini yoza oladi — faqat detal va miqdor, summani server hisoblaydi (egasi qarori), «Sotish» oynasida narx tiyin bilan; zip 175 — Foydalanuvchilar: eski sahifadagi «O'chir» boshqa admin o'chirgan foydalanuvchini qayta yoqmaydi, admin o'zini va oxirgi faol Adminni o'chira olmaydi, foydalanuvchi yaratish / yoqish-o'chirish / parol tiklash «Audit jurnali» da, javob yo'qolsa yaratish ikkinchi marta yozilmaydi; Rollar: yuklanmasa sabab, Admin nusxasi ruxsatlari bilan, saqlanmagan o'zgarish so'raladi, saqlash paytida jadval qulf; Sozlamalar: ro'yxat yoki korxona ma'lumoti yuklanmasa «Saqlash» yopiq (Loy sotish / Blok va telefon / manzil o'chib ketmaydi), ruxsatsiz tugmalar ko'rinmaydi, bot holati yolg'on «Sozlanmagan» demaydi; O'chirilganlar: tugmalar ruxsat bilan, savatda bo'lmagan loyiha «tiklanmaydi», tiklash va butunlay o'chirish bir vaqtda bosilsa endigina tiklangan buyurtma o'chib ketmaydi; zip 176 — buyurtma tayyor mahsulotdan oladi: band qilingan (boshqa buyurtmaga ajratilgan) qismga va hali tayyor bo'lmagan mahsulotga tegmaydi, yetmasa so'raydi va tasdiq bilan minusga tushadi (egasi qarorlari), minusdan keyin tahrir / o'chirishda qoldiq va tannarx «havodan» ko'paymaydi, qoralamani jarayonga olishda ham tekshiriladi, bir vaqtda ikki buyurtma ogohlantirishsiz minusga tushmaydi; zip 177 — «Tayyor mahsulotlar», «Qaytarishlar», «Qarzdorlar»: yuklanmagan ma'lumot yolg'on «0 so'm» / «Ma'lumot yo'q» / «topilmadi» emas — «—» va sabab, eski javob yangisini bosmaydi; server rad etadigan tugmalar (sotish, brak, o'chirish, to'lov, kategoriya …) ruxsati yo'qqa ko'rinmaydi; amal xatolari sabab bilan, natija noma'lum bo'lsa — tekshirish so'raladi; zip 178 — Telegram (uzun xabar bo'laklab, bot serverni to'xtatmaydi, yuk xati / «Tayyor» xabarlari javobdan keyin, yuborilmagan obuna eslatmasi va kunlik zaxira — jurnalda), PDF (uzun izohli yuk xati ochiladi, xato — o'zbekcha sahifa), hodim paneli (xato sababi, sessiya tugasa — kirish); zip 179 — «Buyurtmalar» sahifasida ruxsati yo'q amallar tugmasi ko'rinmaydi (faqat ko'rish roli formani to'ldirib, oxirida «ruxsat yo'q» olmaydi); zip 180 — Ta'minotchilar va «Ta'minotchidan kirim»: kirim, xarid, ta'minotchiga to'lov va yangi ta'minotchi ikki marta bosilsa yoki javob yo'qolib qayta bosilsa ikkinchi marta yozilmaydi (saqlanmagan xaridlar savatda qoladi), boshqa ta'minotchi tarixi yuklanmasa oldingisining qarzi ko'rinmaydi va to'lov yuborilmaydi, tugallanmagan kirim boshqa ta'minotchiga ko'chmaydi, «Jami xarid» — naqd xaridlar ham, boshlang'ich ombor — «Boshlang'ich», ruxsatsiz tugmalar ko'rinmaydi; tarixi bor ta'minotchi o'chirilsa — yashiriladi (to'lovlari, Kassa o'zgarmaydi), «hoziroq to'langan» xaridni o'chirish yoki summasini to'langanidan pastga tushirishda to'lov bilan nima qilish so'raladi (egasi qarorlari); zip 181 — Ishlab chiqarish: mahsulot turi, tarkib, ishlab chiqarish yaratish / boshlash / yakunlash / bekor qilish ikki marta bosilsa yoki javob yo'qolsa ikkinchi marta bajarilmaydi, oynalar boshqa buyurtma yoki retsept ma'lumotini ko'rsatmaydi, yuklanmasa — sabab, ruxsatsiz tugmalar va xomashyo narxi ruxsatsiz rolga ko'rinmaydi; tannarx — Yakunlash kunidagi narx bilan, Boshlashdagi taxmindan farqi ko'rsatiladi (egasi qarori); savatdan loyiha tiklanganda uning savatdagi buyurtmalari ham tiklansinmi — so'raladi (egasi qarori); zip 182 — minusdagi tayyor mahsulot: shu mahsulotning boshqa partiyasida bo'sh qoldiq paydo bo'lishi bilan minus o'zi yopiladi (ko'chirish «Faoliyat jurnali» da), minus bor paytda bo'sh qoldiq sotilmaydi — minusni yopadi, buyurtma mahsulotni minusga tushirsa darhol Telegram xabari, yuk xatida omborda jismonan bor miqdordan ko'p yozilmaydi (egasi qarorlari); minusdagi partiya yashirilmaydi va o'chirilmaydi — «Minusda … ishlab chiqarish kerak», qiymat / tannarx / foyda «—»; bir vaqtdagi ikki buyurtma bir-birini kutib qolib xato bermaydi; zip 183 — «Tizim jurnallari» va «Sozlamalar»: hodim kirishi o'z korxonasining «Kirish tarixi» ga yoziladi (boshqa korxonaga emas, urinishlar cheklovi ham shu korxona bo'yicha), tannarxni ko'rmaydigan rol jurnalda ham tannarxni ko'rmaydi (qidiruv orqali ham), sozlamalar o'zgarishi (korxona ma'lumoti, mahsulot turlari, logotip, Telegram) «Audit jurnali» da, noto'g'ri Telegram tokeni saqlanmaydi, chat ID bo'shatilsa o'chadi, o'zgarishsiz saqlash jurnalga yozilmaydi, uzun xato to'liq ochiladi, platforma salomatligi hamma korxonani tekshiradi, telefonda maydonlar kesilmaydi; zip 184 — telefonda (320 / 375 / 390 px) oynalar: uzun tasdiq savollari, «Avans berish» (shu oydagi avanslar bilan), xomashyo yetishmovchiligi, «Panel kirishi» — ekrandan chiqmaydi, matn suriladi, tugmalar doim ko'rinadi; «Penoplast detal ishlab chiqarish» maydonlaridagi son ko'rinadi, «Qisman topshirish» va «Foyda tahlili» da nomlar summa / tugma ostida qolmaydi, retsept oynasi yonga surilmaydi, ro'yxatlardagi nom ustunlari siqilmaydi, kichik tugma-havolalar barmoq bilan bosiladigan; zip 185 — telefon brauzer paneli bilan (375 × 548, 360 × 560, 320 × 460) va yotiq telefonda (667 × 375) ham HAMMA oyna ekranga sig'adi yoki suriladi: «Usta qo'shish / tahrirlash», Moliya «Xarajat», «Hodim QR kodi» va qolgan ichki uslubli oynalar; «Avans berish» ro'yxati, sovg'a davri ustalari, «Xaridlar tarixi» dagi yakka xaridlar va ta'minotchi to'lovlari tor ustunda so'zma-so'z bo'linmaydi, «QR kod (chop etish) →» bosiladigan; zip 186 — SAHIFALAR telefonda (1-qism): KPI «Hodimlar oylik hisob-kitobi» telefonda har hodim karta («+ Bonus» / «− Kamaytirish» / «Qolgan to'lov» yon tomonga surmasdan ko'rinadi, «Tafsilot» siqilmaydi), Ta'minotchilar, Qaytarishlar, tanlangan buyurtma detallari, O'chirilganlar, Qarzdorlar ro'yxatlarida nom siqilmaydi va summa ustiga tushmaydi / qirqilmaydi, Moliya «Bugungi holat» va «Xarajatlar tafsiloti» summalari kesilmaydi, Moliya va Foydalanuvchilar jadvali yotiq telefonda ham karta, Rollar ro'yxati to'liq ko'rinadi, Ishlab chiqarish filtri, Hisobotlar va loyiha «Moliya» yorlig'i ekrandan chiqmaydi, loyiha xomashyo miqdori «5.400000000000001» emas; zip 187 — SAHIFALAR telefonda (2-qism): loyiha bo'limlari hammasi birinchi ekranda (qatorga sig'masa o'tadi), Hisobotlar jadvali, Kirim «Materiallar ro'yxati» / «Kirimlar tarixi» va Brak tahlili yo'qotishlari telefonda karta (hisobotda ustun sarlavhalari — saralash tugmachalari), Brak tahlili / hisoboti 4 ustunli jadvallarida nom butun kenglikda, uzun nomli ta'minotchi kirim sahifasini kengaytirmaydi, retsept / mahsulot turi / usta / Dashboard qarzdor buyurtma / «Boshqa majburiyatlarimiz» qatorlarida nom siqilmaydi (tugmalar / summa sig'masa keyingi qatorda), KPI, Tayyor mahsulotlar, Qaytarishlar raqam kartalari, Moliya «Yo'nalishlar bo'yicha» va «Bugungi xarajat batafsil» matni tor ustunga siqilmaydi, rollar to'ri va Qarzdorlar bo'lim tugmalari telefonda siqilmaydi / toshmaydi, Moliya «Arenda/Soliq/Kommunal» so'z o'rtasidan bo'linmaydi; zip 188 — hodim oyligi TAFSILOTI matni (KPI «Oylik hisob-kitob», Qarzdorlar «Hodimlarga qarzimiz»): «Oylik 1 500 000 + (1 081,02 metr/dona × 1 000 = 1 081 020)» — miqdor vergulli kasr va ming ajratgich bilan, qoplama qismi qavsda (butun oylikka o'xshamaydi), raqam qator oxirida bo'linmaydi; kasrli stavka yaxlitlanmaydi, foiz «5%» («5.0%» emas); zip 189 — production skrinshotidan: Moliya «Sof holat» yozuvi va summasi yopishmaydi, telefonda karta bo'lgan jadvalda holat nuqtasi / 🧩 qiymat yonida (kartaning o'rtasida emas), Qarzdorlar, Buyurtmalar, Qaytarishlar, Ombor, Retseptlardagi summalar ham bo'linmas bo'shliq bilan — raqam qator oxirida bo'linmaydi, kasr vergul bilan; zip 190 — BRAUZER chizadigan summalar ham shu qoidada: Buyurtmalar (to'lovlar paneli, yetkazish, «Hisob-kitob», «Foyda tahlili», tahrir, takliflar), Kirim va ta'minotchi xaridi ro'yxati, Qarzdorlar, Kunlik xarajat, Tayyor mahsulot narxi, topshirish foizi «1,4%», miqdor «12,5 kg»; zip 191 — «Tizim salomatligi» moliyaviy tekshiruvi: savatdagi buyurtma sanalmaydi, yorliqda buyurtma raqami, summa va qoldiq son qoidasida, hech qachon ishlamagan «Egasiz to'lov / yetkazish» olib tashlandi; sahifa ochilayotgandagi kutilmagan xato — o'zbekcha sahifa; zip 192 — server yozadigan xabar, jurnal va Telegram matnlaridagi pul summalari bitta son qoidasida: «1 500 000 so'm», «12,5»; zip 193 — xabar, Telegram va jurnal matnlaridagi MIQDORLAR (kg, blok, metr, dona, MB) ham shu qoidada: «omborda 1 234,5 kg bor», «Kerak: 12,5 blok», kam qoldiq «min: 0,5», loy «12,9 kg» (ilgari «12 kg» deb kesilardi); zip 194 — «Buyurtmalar» sahifasida tez almashtirish: bir buyurtmada boshlangan amal javobi kelguncha boshqasi tanlansa natija eskisiga yoziladi — endi boshqa buyurtma o'chirilmaydi / o'zgartirilmaydi, uning ustida eskisining oynasi / foydasi / qarzi ko'rinmaydi; ro'yxatlar (pin, takliflar, tavsiya, loy zaxirasi) — oxirgi javob); zip 195 — boshqa sahifalarda ham: «Kirim qilish» da yangi material yaratilayotganda ta'minotchi almashtirilsa kirim boshqa ta'minotchiga yozilmaydi, «Yordam / Murojaat», «To'lov tarixi», Telegram chat ID — oxirgi javob; «boshqa narsani o'chirish» xavfi Buyurtmalardan tashqari yo'qligi o'lchandi); kech153: zip 196 — tayyor mahsulot minusi: minus keyinroq boshqa narxdagi mahsulot bilan yopilsa qarzga olgan buyurtma tannarxi haqiqiy narxda (egasi qarori «Haqiqiy tannarx»), buyurtma o'chirilsa omborga to'g'ri summa, nom / izoh tahririda minus darhol yopiladi, brak bekorida partiya birligi); kech153: zip 197 — minusni yopgan hodisa (brak taqdiri, qaytgan mahsulot, MRP bandidan bo'shagan qoldiq) bekor qilinsa: qarzdor buyurtma bor qoldiqdan qoplanadi yoki qarzga qaytadi (egasi qarori «Ruxsat, hisob to'g'ri»); kech154: zip 198 — qulf tartibi (tayyor mahsulot qatorlari): brak bekori, MRP band ozod qilish, buyurtmani o'chirish, «Tayyor» (qisman), yuk xati va uni o'chirish partiyani yozishdan OLDIN kerakli qatorlarni bitta o'tishda qulflaydi; buyurtmani / MRP detalini o'chirish va «Tayyor» (qisman) bog'langan ishlab chiqarish buyurtmalarini birinchi qulflaydi, ishlab chiqarish yaratish detalni buyurtma qulfi ostida qayta tekshiradi (bir vaqtdagi buyurtma, «Yakunlash», «Bekor qilish» yoki «Boshlash» bilan PG 40P01 / tashqi kalit xatosi — «Serverda kutilmagan xato» — yo'q); kech155: zip 199 — XOMASHYO NAVBATI: xomashyoga tegadigan amallar (buyurtma yaratish / tahrir / o'chirish / faollashtirish / «Tayyor», brak va qaytarish, tayyor mahsulot ishlab chiqarish va «+», MRP boshlash / yakunlash, kirim va h.k.) bir korxonada navbat bilan (javob o'qishi / Telegram — navbatsiz); xomashyo qulfi `FOR NO KEY UPDATE`; kech154: zip 200 — «Tayyor mahsulotlar» sahifasining «Mahsulotlar» kartochkasi qaytgan mahsulotlarni ham sanaydi; kech154: zip 201 — saqlash tezroq: buyurtma tahriri, faollashtirish, tiklash, kirim, ishlab chiqarish, qoplama, usta, murojaat Telegram xabarlari javobdan KEYIN (fon vazifasi); kech154: zip 202 — «Faoliyat jurnali» uzun yozuvi yo'qolmaydi, ruxsatsiz rolda loyiha tugmalari yo'q, katta logotip kichraytiriladi; kech154: zip 203 — Buyurtmalar oynasi: ochilgan buyurtma aniq ko'rinadi (oltin ramka, «▶ OCHIQ», tepada sarlavha), ro'yxat va filtr tugmalari tartibli (faqat ko'rinish); zip 204 — Qaytarishlar: har buyurtma bitta yig'ma qator (mahsulot nomi, kutilayotgan hisob-kitob belgisi), tafsilot ixcham (faqat ko'rinish); zip 205 — oylik moliya PDF i ixcham 2 sahifa: ko'rsatkichlar o'tgan oy bilan, qisqa xulosa, xarajat guruhlari (ulush), guruhlangan tafsilot; majburiyat turkumi nomi bilan, «Hisob farqi −1» yo'q (raqamlar o'sha); zip 206 — Platforma sahifasi jadval: har mijoz korxona bitta qator (ustun sarlavhalari bilan), tepadagi 7 ta raqam-karta o'rniga «Bugun: N kirish · N xato», ro'yxat torroq bo'lsa tugmalar qator ostida, planshet / telefonda ixcham kartochka (faqat ko'rinish); kech155: zip 207 — Buyurtmalarda ochilgan loyiha — och qum «papka», ichidagi buyurtmalar oq kartochka, tanlangani ajralib turadi; qator belgilari («Muddati o'tgan», «Qarz: …») fonsiz, ixcham; «Tizim salomatligi» qisman «Tayyor» buyurtmasida yolg'on «summa mos emas» bermaydi; zip 208 — umumiy rang «Toza ko'k» (oq menyu, ko'k aksent #2563EB, och ko'kish fon #F4F6FA; oltin / qum ranglar olib tashlandi, tungi rejim ham; PDF hujjatlar o'zgarmagan); zip 209 — qisman topshirilgan o'lchamsiz «Donali» buyurtmani «Tayyor» qilish / o'chirish 500 bermaydi (qolgan qism penoplasti qaytadi); buyurtma bilan birga o'chgan to'lovlar, o'chirilgan yuk xati va o'chgan buyurtma tafsiloti «Faoliyat jurnali» da; Ustalar KPI da «N ta buyurtma · M ta sotuv»; zip 210 — «Naqd / Bank / Karta»: pul hisoblari alohida (har pul yozuvi qaysi hisobdan, egasi kiritgan qoldiq + harakatlar, hisoblar orasida o'tkazish, har hisob tarixi); zip 211 — «Blok hisoblash»: Blok detali kub kabi butun jarayonda (birlik m / ta / m², «1 blokdan chiqadigan», o'z yoki asosiy «1 blok narxi», qoplama koeffitsienti, plotnost), Sozlamalarda HAMMA mahsulot turi yashirilsa bo'ladi (kamida bittasi yoqiq); kech156: zip 212 — «Qisman buyurtma foydasi»: buyurtma qisman berilib «Tayyor» qilinsa / o'chirilsa berilmagan qism hisobda QOLMAYDI — umuman berilmagan Panel / Donali 1 dona deb sanalmaydi, o'lchamli Donali va karniz ichidagi qo'shimcha detal ham topshirilgan qismga qisqaradi (tannarx, oylik hisobot, qoplamachi bonusi, hodim oyligi, kesilgan blok, ombor, keyingi qaytarish va brak), «Tekshiruv» da yolg'on «narxi 0» yo'q; 2026-10 dan oldin yopilgan oylar o'zgarmaydi; zip 213 — «Bu takror emasmi?»: buyurtma oynasida detal nomi yozilganda, shu loyihaning boshqa buyurtmasida xuddi shu detal yuk xati bilan berilgan yoki ochiq buyurtmada hali berilmagan bo'lsa, nom ostida «ℹ️ Bu loyihada: ORD-064-4 — 72 m (hali berilmagan) · ORD-064-3 — 72 m berilgan (19.10)» (saqlashni to'xtatmaydi; tahrirda buyurtmaning o'zi sanalmaydi; yig'ilgan detalda «ℹ️ loyihada bor» belgisi); zip 214 — buyurtma oynasidagi detal maydonlari har ekranda o'qiladi: «1 m³ narxi», «1 dona / 1 kg narxi», O'lcham va Miqdor maydonlari joy yetmasa keyingi qatorga o'tadi (ilgari 1440 px da «1 m³ narxi» 2 px, Donali maydonlari 0 px edi), 901–1150 px da yangi buyurtma ochiq bo'lsa hisob-kitob paneli formadan keyin; kech157: zip 215 — «Bu takror emasmi?» eslatmasida mijoz QAYTARGAN miqdor va shu detalga yozilgan BRAK ham: «ORD-064-3 — 72 m berilgan (19.10), 10 m qaytgan, 8 m brak» (omborga berilmasdan qo'yilgan ortiqcha — qaytgan emas); zip 215b — 8 soniyalik «ikki marta yuborish» himoyasi o'lchamni ham solishtiradi: bir loyihada «Karniz» 72 m dan keyin darhol «Karniz» 40 m saqlansa ikkinchisi endi yo'qolmaydi; zip 215c — zip 213 marshruti rollar testi jadvalida (etalon d222 topdi; ilova o'zgarmagan); zip 216 — son bo'lmagan / cheksiz qiymat («nan», «inf») kassa yozuvi, ehson foizi, buyurtma / taklif narxlari va gips kg da rad etiladi (ilgari kassa qoldig'i, Moliya tarixi va taklif ochilmay qolardi); zip 217 — penoplast xaridi / kirim hujjati bekor qilinsa «1 blok necha m³» ham eski holatiga qaytadi (ilgari o'rtachalangan hajm qolib, 1 m³ narxi ~17 % arzon chiqardi); kech158: zip 218 — buyurtma oynasida tanlangan plotnost nomi tanlovga sig'masa ostida to'liq yoziladi, yonidagi yorliq — plotnost («14P», «35»; ilgari nomning oxirgi so'zi), ichki qo'shimcha detal «Turi» telefonda kesilmaydi; ishlatilgan (qoldig'i, kirim / chiqimi, retsepti yoki buyurtmasi bor) materialning birligi va turi (oddiy / penoplast) o'zgartirilmaydi, ishlab chiqarish retseptidagi materialning retsept birligi ham; zip 218b — ichki qo'shimcha detal «✕» bilan olib tashlanganda narx darhol qayta hisoblanadi (ilgari eski narx qolib, shu holatda saqlansa ortiqcha summa yozilardi); kech159: zip 219 — «Tayyor loy (…)» nomi faqat ortgan loy zaxirasiniki: oddiy material shu nom bilan yaratilmaydi va shu nomga o'zgartirilmaydi (ilgari «qop» material loy zaxirasi bo'lib qolardi), retsept zaxirasining nomi / birligi o'zgarmaydi, retsept nomi o'zgarsa zaxira ham o'tadi (ilgari eski nomda qolib ketardi), retsept nomi ko'pi bilan 87 belgi (uzun nomli retseptli buyurtma asosiy bazada xato berardi), o'chirilgan zaxiraga loy qaytsa u qayta ko'rinadi; buyurtma oynasi ochiq turganda boshqa xodim yozgan buyurtma ham «ℹ️ Bu loyihada» eslatmasida chiqadi (ma'lumot 15 soniyadan keyin yangilanadi, sahifaga qaytilganda ham); zip 220 — bir buyurtmada bir xil nomli ikki detal (masalan «Karniz» qoplamali va qoplamasiz) tahrirda endi o'rin almashmaydi: o'zgarishsiz saqlash «Topshirilgan miqdordan kam qilib bo'lmaydi» bermaydi, miqdor oshirilsa har biri o'z topshirilgani, qoplamasi va plotnosti bilan qoladi (ilgari allaqachon bajarilgan ish bo'yicha hodim haqi o'zgarib ketardi), formadagi «📦 topshirilgan» belgisi har detalda o'ziniki; zip 221 — «Tayyor» qilinmagan buyurtmaning «Foyda tahlili» endi buyurtmaga yozilgan reja loyni ham (masalan 300 kg) qoplama tannarxiga qo'shadi — «taxminiy» belgisi bilan (ilgari faqat penoplast ko'rinardi, foyda ortiqcha chiqardi); «Tayyor» da haqiqiy loy yoziladi va qoplama qatorida «Loy: reja 300 kg → haqiqiy 320 kg (+20 kg, +… so'm)» farqi ko'rinadi; oylik hisobot, KPI, loyiha foydasi o'zgarmagan (ular faqat «Tayyor» buyurtmalar); zip 222 — butun katta harfda yozilgan detal nomi («PADAKOLNIK», «15 LI NALIChNIK», «KO'K KARNIZ») saqlashda va yuk xati / PDF / Telegram da tartibli («Padakolnik», «15 li nalichnik», «Ko'k karniz»); oddiy yozilgan nom — xodim yozgandek; zip 223 — «Pul oqimi» da oylik / xarajat pul HAQIQATDA berilgan kunda: oyning 29–31-kunida yopilgan oylik o'sha kunda (ilgari 28-kunda), o'tgan oy oyligi yoki o'tgan oy majburiyati bugun to'lansa — bugungi oyda (ilgari yopilgan oyga orqaga tushardi); Naqd / Bank / Karta qoldig'i bilan endi har kuni bir xil; oylik hisobot va hodim oyligi o'zgarmagan; zip 224 — buyurtma tahririda detalga tanlangan rasm endi o'sha detalga yuklanadi (ilgari tahrir oynasida qatorlar teskari tartibda turgani uchun rasm ko'pincha boshqa detalga tushardi; bir xil nomli detallar va yangi qo'shilgan qator ham), ichki qo'shimcha detal qatorida «Qalinligi (sm)» va «Bor (×2)» endi ikki qatorga bo'linmaydi (Kirill rejimida ham); zip 225 — «Tizim jurnallari» chap menyuda yo'q: Sozlamalar sahifasi tepasidagi «📋 Tizim jurnallari» tugmasidan ochiladi, jurnalda «← Sozlamalar» va hamma yorliqlar turadi; Sozlamalar bo'limlari va jurnal ichidagi bloklar (filtr, Salomatlik) ochib-yopiladigan shtorka — muammolisi o'zi ochiq, qolgani siz qoldirgandek eslab qolinadi; kech162: zip 226 — kirim hujjatining qo'shimcha xarajati topiladi: Moliya «Xarajatlar ro'yxati» da «Transport (kirim) — Kirim #80» ostida «📦 Penoplast 10P (12 dona)», Omborxona «📦 Kirim #N» oynasida transport / tushirish / yuklash / boshqa summasi, tannarxga qo'shilganmi va «Hujjat jami»; kirim hujjatini bekor qilish endi boshqa hujjatning xarajatiga tegmaydi (hujjat raqamida «Kirim #1» yozilgan bo'lsa ham); kech163: zip 227 — brauzer xotirasi yopiq / o'chiq / to'la bo'lsa ham (sayt ma'lumoti bloklangan, ilova ichidagi brauzer) sahifalar xatosiz ishlaydi: «Кирилл» tugmasi, tungi rejim, grafiklar va kirill yozuvini lotinga o'girib saqlash (ilgari hamma sahifada JS xatosi bo'lib, bular ishlamasdi); «Tizim salomatligi» dagi server matni ham xavfsiz ko'rsatiladi; zip 228 — rasm jimgina yo'qolmaydi: taklif saqlanganda tanlangan rasm haqida «📷 N ta rasm taklifga saqlanmaydi — taklifni buyurtmaga rasmiylashtirishda rasmni tanlang» deyiladi, javobi yo'qolib qayta saqlangan yangi buyurtmada rasm o'sha detalga yuklanadi; zip 229 — sinov fiksturasi sanaga bog'liq emas (oyning 31-kunida ham), «Kirim oynasi — qayd» production ma'lumotida o'lchanib yopildi; zip 230 — xarid o'chirilganda u bilan birga yozilgan «O'z hisobimdan» transport jimgina Moliyada qolmaydi: «Transportni ham o'chirasizmi yoki Moliyada qolsinmi?» deb so'raladi. Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
+logotip qabul qilinmaydi; kech130: zip 154 — Telegram: bot manzilini o'zgartirish faqat asosiy saytda, «Bot hozir qayerga ulangan», umumiy bot faqat platforma egasi ustalariga, har korxonaga o'z boti («🔗 Botni ulash»); kech131: zip 155 — Telegram xatolari o'zbekcha (token rad etilsa nima qilish kerak, oxirgi xato ma'nosi); kech132: zip 156 — joylashuv so'zlarisiz matnlar (tugma / maydon / bo'lim — nomi bilan), «🔄 Botni asl holatiga qaytarish» ning to'liq izohi; kech133: zip 157 — «Loy retseptlari» oynalari: tahrirda izoh, o'chirilgan material tahrirda jimgina yo'qolmaydi, bo'sh hajm / miqdorsiz material — xabar, takror nom — 409, server javob bermasa — xabar; zip 158 — hodim paneli: sahifa suriladi, avans formasi tepada, «Oyligim» — joriy oy ochiq, tugagan oylar yopiq, oxirgi 12 oy; zip 159 — hodim paneliga FAQAT admin ruxsat bergan telefondan kiriladi, PIN ni hodimning o'zi qo'yadi, telefon raqami har ko'rinishda bitta, o'chirilgan hodim kirmaydi; kech134: zip 160 — hodim avanslari: «📱 O'zingiz» / «🧑‍💼 Admin» belgilari, admin yozgan avansga hodim «Ha, oldim / Olmaganman», «Olmaganman» — adminga ogohlantirish, «Mening so'rovlarim» — 12 oy oylab, avans so'rovini parallel tasdiqlash — bitta avans, hodim oynalari Bosh sahifada ham; kech135: zip 161 — «Materiallar ro'yxati (retsept va tarkib uchun)» ruxsati: Omborxonaga kirmaydigan rol retsept va mahsulot tarkibiga material tanlaydi (faqat nomi va birligi), Rollar sahifasida «ro'yxat ham kerak» ogohlantirishi, «Ishlab chiqarish» yorlig'i faqat buyurtmalar ruxsati bilan; kech136: zip 162 — Dashboard karuseli nuqtalari telefonda ko'rinadi va bosiladi, o'lcham o'zgarganda adashmaydi, ikkala rejimda aniq; hech qachon ishlamagan uslub qoidalari olib tashlandi; kech137: zip 163 — Dashboard bitta so'rov xatosida qotmaydi: har blok alohida yuklanadi, yuklanmagan blokda sabab (yolg'on «0» yo'q), ruxsatsiz blok rolga ko'rsatilmaydi va so'ralmaydi, eski javob yangisini bosmaydi; kech138: zip 164 — Moliya va Hisobotlar ham qotmaydi: har blok alohida, yuklanmagan blokda sabab, boshqa oy tanlanganda eski oy raqami qolmaydi, ruxsatsiz blok yo'q; zip 165 — Ustalar KPI va Loyihalar ham qotmaydi: ehson foizi yuklanmasa «Saqlash» yopiq (0 % yozilmaydi), sovg'a davri xatoda «Yopiq» emas, loyiha bo'limlarida yolg'on qiymat va poyga yo'q, bo'limlar va bloklar ruxsat bo'yicha; zip 166 — Omborxona va Platforma ham qotmaydi: «Aloqa telefoni» yuklanmasa «Saqlash» yopiq (telefon o'chmaydi), «Xaridlar tarixi» da eski jami qolmaydi, amal xatolari sababi bilan (internet uzilsa ham), «Muddatni uzaytirish» ikki marta bosilsa bir marta uzayadi, 4 poyga yopildi, xaridni bekor qilish tugmalari ruxsat bilan; zip 167 — audit 1-to'lqini: zaxira BO'SH yangi bazaga ham tiklanadi, buzilgan / begona yozuvli zaxira rad etiladi, platforma egasi hisobini faqat o'zi o'zgartiradi, parol tiklanganda / foydalanuvchi o'chirilganda eski kirish yopiladi, KPI «Jami» da «-0» yo'q; Platforma, Sozlamalar, Tizim jurnallari, O'chirilganlar, Ishlab chiqarish, Xarajat qo'shish sahifalari telefonda va past ekranda oxirigacha suriladi, Loyihalar — past noutbuk ekranida ham; kech140: zip 168 — audit, pul (1-qism): avans / «oylikni yopish» ikki marta bosilsa bitta yoziladi, oylikdan ko'p avans so'raladi va ortig'i keyingi oy oyligidan ushlanadi, «Hodim qarzdor» ko'rinadi, sovg'a davri faqat ishtirokchiga (bot = KPI sahifasi = oylik hisobot), usta KPI oylari yig'indisi = yil, faolsizlantirilgan usta o'tgan oylardan yo'qolmaydi, loyiha qarzi Buyurtmalar / Loyihalar / Qarzdorlar da bir xil, savatdan tiklashda pul o'zgarishlari saqlanadi; kech141: zip 169 — audit, pul (2-qism): hodimni o'chirish / faolsizlantirishda «Ishdan ketgan sana» so'raladi, ketgan oy oyligi shu kungacha, keyingi oylarda yo'q, o'tgan oylar hisobotida hodim qoladi (ilgari hamma oydan yo'qolardi), tiklashda «Ishga qaytdi» yoki «Xato o'chirilgan edi», yangi hodimga «Ishga kirgan sana» — kirgan oy oyligi shu kundan, «Butunlay o'chirish» hodimni ro'yxatdan olib tashlaydi, lekin o'tgan oylar hisobotida qoldiradi; «Tayyor» buyurtma summasi keyin o'zgarsa yoki qarzi kechirilsa — o'zgargan oy hisobotida alohida qator, yakunlangan oy o'zgarmaydi, kamaytirishda «Mijozga qaytarish kerak»; Bosh sahifa grafigi = oylik hisobot; kech142: zip 170 — audit, ombor va ishlab chiqarish: buyurtmaga band tayyor mahsulot bitta «Sotish» bilan sotilmaydi (oynada «band» va «sotsa bo'ladi»), brak band qismga tegsa oldindan so'raladi va buyurtma uchun yana ishlab chiqarish kerakligi aytiladi, «Yana ishlab chiqarish» / sotuv / brak bir vaqtda bosilsa biri yo'qolmaydi, parallel kirim va chiqimda ombor qoldig'i yo'qolmaydi, buyurtma o'chirilishi / tiklanishi, qisman «Tayyor», ortgan loy va boshlang'ich qoldiq ombor harakatlarida ko'rinadi, manfiy qoldiqli penoplastga kirimda blok hajmi buzilmaydi, mavjud nom bilan material yaratilsa o'sha material tanlanadi (qayta yozilmaydi), qoldig'i bor material o'chirilmaydi (avval tuzatish bilan 0), retseptni saqlash qoralama ishlab chiqarishning qoplamasini tushirmaydi, ikki «Yakunlash» / «Boshlash» xomashyoni ikki marta yechmaydi, o'chirilgan material tannarxdan tushib qolmaydi; kech143: zip 171 — audit, himoya qatlami: boshqa saytdan kelgan yozuvchi so'rov rad etiladi va boshqa saytdagi «Chiqish» havolasi tizimdan chiqarmaydi, begona odam 5 marta noto'g'ri parol (PIN) terib boshqa joydagi egasini (hodimni) bloklay olmaydi, kirish kalitlari bazada xeshlangan, eski tuzsiz parol xeshlari o'raldi, cron siri sarlavhada ham, hodim QR faqat o'z sayti bilan, tannarxni ko'rmaydigan menejer tannarxdan past sotsa ogohlantirish emas — egasiga jurnal va Telegram xabari (egasi qarori), material nomi katta-kichik harf / bo'shliq / apostrof farqi bilan takrorlanmaydi, «+ Xarid qo'shish» va Omborxona «Xaridlar tarixi» oynalari oxirigacha suriladi, planshetda tayyor mahsulot partiyalari buzilmaydi, guruh «Sotish» bekor qilinsa belgilar qaytadi; kech144: zip 172 — production bazasi tuzilishi kod bilan solishtiriladi: keyinroq qo'shilgan matn ustunlari 255 belgi bilan cheklangan edi (buyurtma tahririda 500, yuk xati bor buyurtmani o'chirish va uzun retsept tahriri saqlanmasdi) — ishga tushishda kengaytiriladi, natija «Tizim salomatligi» da; jurnal yozuvi xatosi amalni buzmaydi va «Xatoliklar» ga yoziladi; buyurtma jurnalida «kim»; zip 173 — Buyurtmalar sahifasi: to'lov paneli boshqa buyurtma qarzini ko'rsatmaydi (kechirish faqat oynada ko'rsatilgan summa, qarz o'zgargan bo'lsa saqlanmaydi — Qarzdorlar da ham), tahrirda loy boshqa buyurtmaga o'tmaydi, yangi forma toza ochiladi, javob yo'qolsa qayta bosish ikkinchi buyurtma yaratmaydi, «Bir yo'la to'liq topshirish» to'lov usuli va transportni kim to'laganini so'raydi, Menejer MRP buyurtmasini tahrirlay oladi, xatolar sababi bilan va natija noma'lum bo'lsa shunday deyiladi; zip 174 — tayyor mahsulot sotuvi, guruh sotuv, brak, ishlab chiqarish, «Yana ishlab chiqarish», qaytarish, xarajat va majburiyat to'lovi ikki marta bosilsa yoki javob yo'qolib qayta bosilsa ikkinchi marta yozilmaydi (natija noma'lum bo'lsa shunday deyiladi), Omborchi qaytarish va buyurtma detali brakini yoza oladi — faqat detal va miqdor, summani server hisoblaydi (egasi qarori), «Sotish» oynasida narx tiyin bilan; zip 175 — Foydalanuvchilar: eski sahifadagi «O'chir» boshqa admin o'chirgan foydalanuvchini qayta yoqmaydi, admin o'zini va oxirgi faol Adminni o'chira olmaydi, foydalanuvchi yaratish / yoqish-o'chirish / parol tiklash «Audit jurnali» da, javob yo'qolsa yaratish ikkinchi marta yozilmaydi; Rollar: yuklanmasa sabab, Admin nusxasi ruxsatlari bilan, saqlanmagan o'zgarish so'raladi, saqlash paytida jadval qulf; Sozlamalar: ro'yxat yoki korxona ma'lumoti yuklanmasa «Saqlash» yopiq (Loy sotish / Blok va telefon / manzil o'chib ketmaydi), ruxsatsiz tugmalar ko'rinmaydi, bot holati yolg'on «Sozlanmagan» demaydi; O'chirilganlar: tugmalar ruxsat bilan, savatda bo'lmagan loyiha «tiklanmaydi», tiklash va butunlay o'chirish bir vaqtda bosilsa endigina tiklangan buyurtma o'chib ketmaydi; zip 176 — buyurtma tayyor mahsulotdan oladi: band qilingan (boshqa buyurtmaga ajratilgan) qismga va hali tayyor bo'lmagan mahsulotga tegmaydi, yetmasa so'raydi va tasdiq bilan minusga tushadi (egasi qarorlari), minusdan keyin tahrir / o'chirishda qoldiq va tannarx «havodan» ko'paymaydi, qoralamani jarayonga olishda ham tekshiriladi, bir vaqtda ikki buyurtma ogohlantirishsiz minusga tushmaydi; zip 177 — «Tayyor mahsulotlar», «Qaytarishlar», «Qarzdorlar»: yuklanmagan ma'lumot yolg'on «0 so'm» / «Ma'lumot yo'q» / «topilmadi» emas — «—» va sabab, eski javob yangisini bosmaydi; server rad etadigan tugmalar (sotish, brak, o'chirish, to'lov, kategoriya …) ruxsati yo'qqa ko'rinmaydi; amal xatolari sabab bilan, natija noma'lum bo'lsa — tekshirish so'raladi; zip 178 — Telegram (uzun xabar bo'laklab, bot serverni to'xtatmaydi, yuk xati / «Tayyor» xabarlari javobdan keyin, yuborilmagan obuna eslatmasi va kunlik zaxira — jurnalda), PDF (uzun izohli yuk xati ochiladi, xato — o'zbekcha sahifa), hodim paneli (xato sababi, sessiya tugasa — kirish); zip 179 — «Buyurtmalar» sahifasida ruxsati yo'q amallar tugmasi ko'rinmaydi (faqat ko'rish roli formani to'ldirib, oxirida «ruxsat yo'q» olmaydi); zip 180 — Ta'minotchilar va «Ta'minotchidan kirim»: kirim, xarid, ta'minotchiga to'lov va yangi ta'minotchi ikki marta bosilsa yoki javob yo'qolib qayta bosilsa ikkinchi marta yozilmaydi (saqlanmagan xaridlar savatda qoladi), boshqa ta'minotchi tarixi yuklanmasa oldingisining qarzi ko'rinmaydi va to'lov yuborilmaydi, tugallanmagan kirim boshqa ta'minotchiga ko'chmaydi, «Jami xarid» — naqd xaridlar ham, boshlang'ich ombor — «Boshlang'ich», ruxsatsiz tugmalar ko'rinmaydi; tarixi bor ta'minotchi o'chirilsa — yashiriladi (to'lovlari, Kassa o'zgarmaydi), «hoziroq to'langan» xaridni o'chirish yoki summasini to'langanidan pastga tushirishda to'lov bilan nima qilish so'raladi (egasi qarorlari); zip 181 — Ishlab chiqarish: mahsulot turi, tarkib, ishlab chiqarish yaratish / boshlash / yakunlash / bekor qilish ikki marta bosilsa yoki javob yo'qolsa ikkinchi marta bajarilmaydi, oynalar boshqa buyurtma yoki retsept ma'lumotini ko'rsatmaydi, yuklanmasa — sabab, ruxsatsiz tugmalar va xomashyo narxi ruxsatsiz rolga ko'rinmaydi; tannarx — Yakunlash kunidagi narx bilan, Boshlashdagi taxmindan farqi ko'rsatiladi (egasi qarori); savatdan loyiha tiklanganda uning savatdagi buyurtmalari ham tiklansinmi — so'raladi (egasi qarori); zip 182 — minusdagi tayyor mahsulot: shu mahsulotning boshqa partiyasida bo'sh qoldiq paydo bo'lishi bilan minus o'zi yopiladi (ko'chirish «Faoliyat jurnali» da), minus bor paytda bo'sh qoldiq sotilmaydi — minusni yopadi, buyurtma mahsulotni minusga tushirsa darhol Telegram xabari, yuk xatida omborda jismonan bor miqdordan ko'p yozilmaydi (egasi qarorlari); minusdagi partiya yashirilmaydi va o'chirilmaydi — «Minusda … ishlab chiqarish kerak», qiymat / tannarx / foyda «—»; bir vaqtdagi ikki buyurtma bir-birini kutib qolib xato bermaydi; zip 183 — «Tizim jurnallari» va «Sozlamalar»: hodim kirishi o'z korxonasining «Kirish tarixi» ga yoziladi (boshqa korxonaga emas, urinishlar cheklovi ham shu korxona bo'yicha), tannarxni ko'rmaydigan rol jurnalda ham tannarxni ko'rmaydi (qidiruv orqali ham), sozlamalar o'zgarishi (korxona ma'lumoti, mahsulot turlari, logotip, Telegram) «Audit jurnali» da, noto'g'ri Telegram tokeni saqlanmaydi, chat ID bo'shatilsa o'chadi, o'zgarishsiz saqlash jurnalga yozilmaydi, uzun xato to'liq ochiladi, platforma salomatligi hamma korxonani tekshiradi, telefonda maydonlar kesilmaydi; zip 184 — telefonda (320 / 375 / 390 px) oynalar: uzun tasdiq savollari, «Avans berish» (shu oydagi avanslar bilan), xomashyo yetishmovchiligi, «Panel kirishi» — ekrandan chiqmaydi, matn suriladi, tugmalar doim ko'rinadi; «Penoplast detal ishlab chiqarish» maydonlaridagi son ko'rinadi, «Qisman topshirish» va «Foyda tahlili» da nomlar summa / tugma ostida qolmaydi, retsept oynasi yonga surilmaydi, ro'yxatlardagi nom ustunlari siqilmaydi, kichik tugma-havolalar barmoq bilan bosiladigan; zip 185 — telefon brauzer paneli bilan (375 × 548, 360 × 560, 320 × 460) va yotiq telefonda (667 × 375) ham HAMMA oyna ekranga sig'adi yoki suriladi: «Usta qo'shish / tahrirlash», Moliya «Xarajat», «Hodim QR kodi» va qolgan ichki uslubli oynalar; «Avans berish» ro'yxati, sovg'a davri ustalari, «Xaridlar tarixi» dagi yakka xaridlar va ta'minotchi to'lovlari tor ustunda so'zma-so'z bo'linmaydi, «QR kod (chop etish) →» bosiladigan; zip 186 — SAHIFALAR telefonda (1-qism): KPI «Hodimlar oylik hisob-kitobi» telefonda har hodim karta («+ Bonus» / «− Kamaytirish» / «Qolgan to'lov» yon tomonga surmasdan ko'rinadi, «Tafsilot» siqilmaydi), Ta'minotchilar, Qaytarishlar, tanlangan buyurtma detallari, O'chirilganlar, Qarzdorlar ro'yxatlarida nom siqilmaydi va summa ustiga tushmaydi / qirqilmaydi, Moliya «Bugungi holat» va «Xarajatlar tafsiloti» summalari kesilmaydi, Moliya va Foydalanuvchilar jadvali yotiq telefonda ham karta, Rollar ro'yxati to'liq ko'rinadi, Ishlab chiqarish filtri, Hisobotlar va loyiha «Moliya» yorlig'i ekrandan chiqmaydi, loyiha xomashyo miqdori «5.400000000000001» emas; zip 187 — SAHIFALAR telefonda (2-qism): loyiha bo'limlari hammasi birinchi ekranda (qatorga sig'masa o'tadi), Hisobotlar jadvali, Kirim «Materiallar ro'yxati» / «Kirimlar tarixi» va Brak tahlili yo'qotishlari telefonda karta (hisobotda ustun sarlavhalari — saralash tugmachalari), Brak tahlili / hisoboti 4 ustunli jadvallarida nom butun kenglikda, uzun nomli ta'minotchi kirim sahifasini kengaytirmaydi, retsept / mahsulot turi / usta / Dashboard qarzdor buyurtma / «Boshqa majburiyatlarimiz» qatorlarida nom siqilmaydi (tugmalar / summa sig'masa keyingi qatorda), KPI, Tayyor mahsulotlar, Qaytarishlar raqam kartalari, Moliya «Yo'nalishlar bo'yicha» va «Bugungi xarajat batafsil» matni tor ustunga siqilmaydi, rollar to'ri va Qarzdorlar bo'lim tugmalari telefonda siqilmaydi / toshmaydi, Moliya «Arenda/Soliq/Kommunal» so'z o'rtasidan bo'linmaydi; zip 188 — hodim oyligi TAFSILOTI matni (KPI «Oylik hisob-kitob», Qarzdorlar «Hodimlarga qarzimiz»): «Oylik 1 500 000 + (1 081,02 metr/dona × 1 000 = 1 081 020)» — miqdor vergulli kasr va ming ajratgich bilan, qoplama qismi qavsda (butun oylikka o'xshamaydi), raqam qator oxirida bo'linmaydi; kasrli stavka yaxlitlanmaydi, foiz «5%» («5.0%» emas); zip 189 — production skrinshotidan: Moliya «Sof holat» yozuvi va summasi yopishmaydi, telefonda karta bo'lgan jadvalda holat nuqtasi / 🧩 qiymat yonida (kartaning o'rtasida emas), Qarzdorlar, Buyurtmalar, Qaytarishlar, Ombor, Retseptlardagi summalar ham bo'linmas bo'shliq bilan — raqam qator oxirida bo'linmaydi, kasr vergul bilan; zip 190 — BRAUZER chizadigan summalar ham shu qoidada: Buyurtmalar (to'lovlar paneli, yetkazish, «Hisob-kitob», «Foyda tahlili», tahrir, takliflar), Kirim va ta'minotchi xaridi ro'yxati, Qarzdorlar, Kunlik xarajat, Tayyor mahsulot narxi, topshirish foizi «1,4%», miqdor «12,5 kg»; zip 191 — «Tizim salomatligi» moliyaviy tekshiruvi: savatdagi buyurtma sanalmaydi, yorliqda buyurtma raqami, summa va qoldiq son qoidasida, hech qachon ishlamagan «Egasiz to'lov / yetkazish» olib tashlandi; sahifa ochilayotgandagi kutilmagan xato — o'zbekcha sahifa; zip 192 — server yozadigan xabar, jurnal va Telegram matnlaridagi pul summalari bitta son qoidasida: «1 500 000 so'm», «12,5»; zip 193 — xabar, Telegram va jurnal matnlaridagi MIQDORLAR (kg, blok, metr, dona, MB) ham shu qoidada: «omborda 1 234,5 kg bor», «Kerak: 12,5 blok», kam qoldiq «min: 0,5», loy «12,9 kg» (ilgari «12 kg» deb kesilardi); zip 194 — «Buyurtmalar» sahifasida tez almashtirish: bir buyurtmada boshlangan amal javobi kelguncha boshqasi tanlansa natija eskisiga yoziladi — endi boshqa buyurtma o'chirilmaydi / o'zgartirilmaydi, uning ustida eskisining oynasi / foydasi / qarzi ko'rinmaydi; ro'yxatlar (pin, takliflar, tavsiya, loy zaxirasi) — oxirgi javob); zip 195 — boshqa sahifalarda ham: «Kirim qilish» da yangi material yaratilayotganda ta'minotchi almashtirilsa kirim boshqa ta'minotchiga yozilmaydi, «Yordam / Murojaat», «To'lov tarixi», Telegram chat ID — oxirgi javob; «boshqa narsani o'chirish» xavfi Buyurtmalardan tashqari yo'qligi o'lchandi); kech153: zip 196 — tayyor mahsulot minusi: minus keyinroq boshqa narxdagi mahsulot bilan yopilsa qarzga olgan buyurtma tannarxi haqiqiy narxda (egasi qarori «Haqiqiy tannarx»), buyurtma o'chirilsa omborga to'g'ri summa, nom / izoh tahririda minus darhol yopiladi, brak bekorida partiya birligi); kech153: zip 197 — minusni yopgan hodisa (brak taqdiri, qaytgan mahsulot, MRP bandidan bo'shagan qoldiq) bekor qilinsa: qarzdor buyurtma bor qoldiqdan qoplanadi yoki qarzga qaytadi (egasi qarori «Ruxsat, hisob to'g'ri»); kech154: zip 198 — qulf tartibi (tayyor mahsulot qatorlari): brak bekori, MRP band ozod qilish, buyurtmani o'chirish, «Tayyor» (qisman), yuk xati va uni o'chirish partiyani yozishdan OLDIN kerakli qatorlarni bitta o'tishda qulflaydi; buyurtmani / MRP detalini o'chirish va «Tayyor» (qisman) bog'langan ishlab chiqarish buyurtmalarini birinchi qulflaydi, ishlab chiqarish yaratish detalni buyurtma qulfi ostida qayta tekshiradi (bir vaqtdagi buyurtma, «Yakunlash», «Bekor qilish» yoki «Boshlash» bilan PG 40P01 / tashqi kalit xatosi — «Serverda kutilmagan xato» — yo'q); kech155: zip 199 — XOMASHYO NAVBATI: xomashyoga tegadigan amallar (buyurtma yaratish / tahrir / o'chirish / faollashtirish / «Tayyor», brak va qaytarish, tayyor mahsulot ishlab chiqarish va «+», MRP boshlash / yakunlash, kirim va h.k.) bir korxonada navbat bilan (javob o'qishi / Telegram — navbatsiz); xomashyo qulfi `FOR NO KEY UPDATE`; kech154: zip 200 — «Tayyor mahsulotlar» sahifasining «Mahsulotlar» kartochkasi qaytgan mahsulotlarni ham sanaydi; kech154: zip 201 — saqlash tezroq: buyurtma tahriri, faollashtirish, tiklash, kirim, ishlab chiqarish, qoplama, usta, murojaat Telegram xabarlari javobdan KEYIN (fon vazifasi); kech154: zip 202 — «Faoliyat jurnali» uzun yozuvi yo'qolmaydi, ruxsatsiz rolda loyiha tugmalari yo'q, katta logotip kichraytiriladi; kech154: zip 203 — Buyurtmalar oynasi: ochilgan buyurtma aniq ko'rinadi (oltin ramka, «▶ OCHIQ», tepada sarlavha), ro'yxat va filtr tugmalari tartibli (faqat ko'rinish); zip 204 — Qaytarishlar: har buyurtma bitta yig'ma qator (mahsulot nomi, kutilayotgan hisob-kitob belgisi), tafsilot ixcham (faqat ko'rinish); zip 205 — oylik moliya PDF i ixcham 2 sahifa: ko'rsatkichlar o'tgan oy bilan, qisqa xulosa, xarajat guruhlari (ulush), guruhlangan tafsilot; majburiyat turkumi nomi bilan, «Hisob farqi −1» yo'q (raqamlar o'sha); zip 206 — Platforma sahifasi jadval: har mijoz korxona bitta qator (ustun sarlavhalari bilan), tepadagi 7 ta raqam-karta o'rniga «Bugun: N kirish · N xato», ro'yxat torroq bo'lsa tugmalar qator ostida, planshet / telefonda ixcham kartochka (faqat ko'rinish); kech155: zip 207 — Buyurtmalarda ochilgan loyiha — och qum «papka», ichidagi buyurtmalar oq kartochka, tanlangani ajralib turadi; qator belgilari («Muddati o'tgan», «Qarz: …») fonsiz, ixcham; «Tizim salomatligi» qisman «Tayyor» buyurtmasida yolg'on «summa mos emas» bermaydi; zip 208 — umumiy rang «Toza ko'k» (oq menyu, ko'k aksent #2563EB, och ko'kish fon #F4F6FA; oltin / qum ranglar olib tashlandi, tungi rejim ham; PDF hujjatlar o'zgarmagan); zip 209 — qisman topshirilgan o'lchamsiz «Donali» buyurtmani «Tayyor» qilish / o'chirish 500 bermaydi (qolgan qism penoplasti qaytadi); buyurtma bilan birga o'chgan to'lovlar, o'chirilgan yuk xati va o'chgan buyurtma tafsiloti «Faoliyat jurnali» da; Ustalar KPI da «N ta buyurtma · M ta sotuv»; zip 210 — «Naqd / Bank / Karta»: pul hisoblari alohida (har pul yozuvi qaysi hisobdan, egasi kiritgan qoldiq + harakatlar, hisoblar orasida o'tkazish, har hisob tarixi); zip 211 — «Blok hisoblash»: Blok detali kub kabi butun jarayonda (birlik m / ta / m², «1 blokdan chiqadigan», o'z yoki asosiy «1 blok narxi», qoplama koeffitsienti, plotnost), Sozlamalarda HAMMA mahsulot turi yashirilsa bo'ladi (kamida bittasi yoqiq); kech156: zip 212 — «Qisman buyurtma foydasi»: buyurtma qisman berilib «Tayyor» qilinsa / o'chirilsa berilmagan qism hisobda QOLMAYDI — umuman berilmagan Panel / Donali 1 dona deb sanalmaydi, o'lchamli Donali va karniz ichidagi qo'shimcha detal ham topshirilgan qismga qisqaradi (tannarx, oylik hisobot, qoplamachi bonusi, hodim oyligi, kesilgan blok, ombor, keyingi qaytarish va brak), «Tekshiruv» da yolg'on «narxi 0» yo'q; 2026-10 dan oldin yopilgan oylar o'zgarmaydi; zip 213 — «Bu takror emasmi?»: buyurtma oynasida detal nomi yozilganda, shu loyihaning boshqa buyurtmasida xuddi shu detal yuk xati bilan berilgan yoki ochiq buyurtmada hali berilmagan bo'lsa, nom ostida «ℹ️ Bu loyihada: ORD-064-4 — 72 m (hali berilmagan) · ORD-064-3 — 72 m berilgan (19.10)» (saqlashni to'xtatmaydi; tahrirda buyurtmaning o'zi sanalmaydi; yig'ilgan detalda «ℹ️ loyihada bor» belgisi); zip 214 — buyurtma oynasidagi detal maydonlari har ekranda o'qiladi: «1 m³ narxi», «1 dona / 1 kg narxi», O'lcham va Miqdor maydonlari joy yetmasa keyingi qatorga o'tadi (ilgari 1440 px da «1 m³ narxi» 2 px, Donali maydonlari 0 px edi), 901–1150 px da yangi buyurtma ochiq bo'lsa hisob-kitob paneli formadan keyin; kech157: zip 215 — «Bu takror emasmi?» eslatmasida mijoz QAYTARGAN miqdor va shu detalga yozilgan BRAK ham: «ORD-064-3 — 72 m berilgan (19.10), 10 m qaytgan, 8 m brak» (omborga berilmasdan qo'yilgan ortiqcha — qaytgan emas); zip 215b — 8 soniyalik «ikki marta yuborish» himoyasi o'lchamni ham solishtiradi: bir loyihada «Karniz» 72 m dan keyin darhol «Karniz» 40 m saqlansa ikkinchisi endi yo'qolmaydi; zip 215c — zip 213 marshruti rollar testi jadvalida (etalon d222 topdi; ilova o'zgarmagan); zip 216 — son bo'lmagan / cheksiz qiymat («nan», «inf») kassa yozuvi, ehson foizi, buyurtma / taklif narxlari va gips kg da rad etiladi (ilgari kassa qoldig'i, Moliya tarixi va taklif ochilmay qolardi); zip 217 — penoplast xaridi / kirim hujjati bekor qilinsa «1 blok necha m³» ham eski holatiga qaytadi (ilgari o'rtachalangan hajm qolib, 1 m³ narxi ~17 % arzon chiqardi); kech158: zip 218 — buyurtma oynasida tanlangan plotnost nomi tanlovga sig'masa ostida to'liq yoziladi, yonidagi yorliq — plotnost («14P», «35»; ilgari nomning oxirgi so'zi), ichki qo'shimcha detal «Turi» telefonda kesilmaydi; ishlatilgan (qoldig'i, kirim / chiqimi, retsepti yoki buyurtmasi bor) materialning birligi va turi (oddiy / penoplast) o'zgartirilmaydi, ishlab chiqarish retseptidagi materialning retsept birligi ham; zip 218b — ichki qo'shimcha detal «✕» bilan olib tashlanganda narx darhol qayta hisoblanadi (ilgari eski narx qolib, shu holatda saqlansa ortiqcha summa yozilardi); kech159: zip 219 — «Tayyor loy (…)» nomi faqat ortgan loy zaxirasiniki: oddiy material shu nom bilan yaratilmaydi va shu nomga o'zgartirilmaydi (ilgari «qop» material loy zaxirasi bo'lib qolardi), retsept zaxirasining nomi / birligi o'zgarmaydi, retsept nomi o'zgarsa zaxira ham o'tadi (ilgari eski nomda qolib ketardi), retsept nomi ko'pi bilan 87 belgi (uzun nomli retseptli buyurtma asosiy bazada xato berardi), o'chirilgan zaxiraga loy qaytsa u qayta ko'rinadi; buyurtma oynasi ochiq turganda boshqa xodim yozgan buyurtma ham «ℹ️ Bu loyihada» eslatmasida chiqadi (ma'lumot 15 soniyadan keyin yangilanadi, sahifaga qaytilganda ham); zip 220 — bir buyurtmada bir xil nomli ikki detal (masalan «Karniz» qoplamali va qoplamasiz) tahrirda endi o'rin almashmaydi: o'zgarishsiz saqlash «Topshirilgan miqdordan kam qilib bo'lmaydi» bermaydi, miqdor oshirilsa har biri o'z topshirilgani, qoplamasi va plotnosti bilan qoladi (ilgari allaqachon bajarilgan ish bo'yicha hodim haqi o'zgarib ketardi), formadagi «📦 topshirilgan» belgisi har detalda o'ziniki; zip 221 — «Tayyor» qilinmagan buyurtmaning «Foyda tahlili» endi buyurtmaga yozilgan reja loyni ham (masalan 300 kg) qoplama tannarxiga qo'shadi — «taxminiy» belgisi bilan (ilgari faqat penoplast ko'rinardi, foyda ortiqcha chiqardi); «Tayyor» da haqiqiy loy yoziladi va qoplama qatorida «Loy: reja 300 kg → haqiqiy 320 kg (+20 kg, +… so'm)» farqi ko'rinadi; oylik hisobot, KPI, loyiha foydasi o'zgarmagan (ular faqat «Tayyor» buyurtmalar); zip 222 — butun katta harfda yozilgan detal nomi («PADAKOLNIK», «15 LI NALIChNIK», «KO'K KARNIZ») saqlashda va yuk xati / PDF / Telegram da tartibli («Padakolnik», «15 li nalichnik», «Ko'k karniz»); oddiy yozilgan nom — xodim yozgandek; zip 223 — «Pul oqimi» da oylik / xarajat pul HAQIQATDA berilgan kunda: oyning 29–31-kunida yopilgan oylik o'sha kunda (ilgari 28-kunda), o'tgan oy oyligi yoki o'tgan oy majburiyati bugun to'lansa — bugungi oyda (ilgari yopilgan oyga orqaga tushardi); Naqd / Bank / Karta qoldig'i bilan endi har kuni bir xil; oylik hisobot va hodim oyligi o'zgarmagan; zip 224 — buyurtma tahririda detalga tanlangan rasm endi o'sha detalga yuklanadi (ilgari tahrir oynasida qatorlar teskari tartibda turgani uchun rasm ko'pincha boshqa detalga tushardi; bir xil nomli detallar va yangi qo'shilgan qator ham), ichki qo'shimcha detal qatorida «Qalinligi (sm)» va «Bor (×2)» endi ikki qatorga bo'linmaydi (Kirill rejimida ham); zip 225 — «Tizim jurnallari» chap menyuda yo'q: Sozlamalar sahifasi tepasidagi «📋 Tizim jurnallari» tugmasidan ochiladi, jurnalda «← Sozlamalar» va hamma yorliqlar turadi; Sozlamalar bo'limlari va jurnal ichidagi bloklar (filtr, Salomatlik) ochib-yopiladigan shtorka — muammolisi o'zi ochiq, qolgani siz qoldirgandek eslab qolinadi; kech162: zip 226 — kirim hujjatining qo'shimcha xarajati topiladi: Moliya «Xarajatlar ro'yxati» da «Transport (kirim) — Kirim #80» ostida «📦 Penoplast 10P (12 dona)», Omborxona «📦 Kirim #N» oynasida transport / tushirish / yuklash / boshqa summasi, tannarxga qo'shilganmi va «Hujjat jami»; kirim hujjatini bekor qilish endi boshqa hujjatning xarajatiga tegmaydi (hujjat raqamida «Kirim #1» yozilgan bo'lsa ham); kech163: zip 227 — brauzer xotirasi yopiq / o'chiq / to'la bo'lsa ham (sayt ma'lumoti bloklangan, ilova ichidagi brauzer) sahifalar xatosiz ishlaydi: «Кирилл» tugmasi, tungi rejim, grafiklar va kirill yozuvini lotinga o'girib saqlash (ilgari hamma sahifada JS xatosi bo'lib, bular ishlamasdi); «Tizim salomatligi» dagi server matni ham xavfsiz ko'rsatiladi; zip 228 — rasm jimgina yo'qolmaydi: taklif saqlanganda tanlangan rasm haqida «📷 N ta rasm taklifga saqlanmaydi — taklifni buyurtmaga rasmiylashtirishda rasmni tanlang» deyiladi, javobi yo'qolib qayta saqlangan yangi buyurtmada rasm o'sha detalga yuklanadi; zip 229 — sinov fiksturasi sanaga bog'liq emas (oyning 31-kunida ham), «Kirim oynasi — qayd» production ma'lumotida o'lchanib yopildi; zip 230 — xarid o'chirilganda u bilan birga yozilgan «O'z hisobimdan» transport jimgina Moliyada qolmaydi: «Transportni ham o'chirasizmi yoki Moliyada qolsinmi?» deb so'raladi; kech166: zip 231 — onlayn do'kon poydevori «Sayt katalogi» (bo'limlar, modellar, oddiy / qoplamali / ulgurji narxlar; faqat platforma egasining korxonasida, Platforma panelidan yoqiladi); kech167: zip 232 — sayt katalogi rasmlari (telefondan / kompyuterdan bir nechtasi birdan, birinchisi asosiy, surib tartiblanadi, rasm qirqilmaydi; har rasm qayta yoziladi — joylashuv (GPS) va boshqa yashirin ma'lumot o'chadi; rasmlar login siz ochiq alohida papkada); kech168: zip 233 — do'kon sozlamalari (buyurtmani tasdiqlash telefonlari, ish vaqti, komplekt retsepti) va komplekt narxi server hisobida; «Sayt katalogi» sahifasi aylanadigan qobiqda; zip 233b — jurnaldagi rasm hajmi sonlar qoidasida («2 MB», ilgari «2,0 MB»); kech169: zip 234 — sayt modeli chegirmasi (foiz yoki yangi narx, o'lchamlar, tugash sanasi; faqat oddiy narxga, komplektga o'tadi, tannarxdan past — ogohlantirish); kech170: zip 235 — sayt narxlari Excel orqali (yuklab olish, tahrirlab qaytarish: hamma qator tekshiriladi, saqlashdan oldin «eski → yangi» ko'rsatiladi, xato bo'lsa — hech narsa saqlanmaydi, eski fayl yangi narxni bosib ketmaydi); zip 236 — do'kon API (do'kon sayti ERP dan katalog va sozlamalarni maxfiy kalit bilan o'qiydi: korxona kalitdan, faqat saytda ko'rinadigan, ulgurji narx va tannarx berilmaydi; kalit — Admin, bir marta ko'rsatiladi); zip 237 — saytdan kelgan buyurtmalar (do'kon sayti savatni yuboradi, narxni ERP o'zi hisoblaydi va qotiradi, komplekt detallarga ajraladi; Buyurtmalar sahifasida «🛒 Saytdan» — tasdiqlash (yangi loyiha + buyurtma) / bekor; Telegram xabari); zip 238 — «Tayyor mahsulotlar» saytda (katalog detali ERP «Tayyor mahsulotlar» mahsulotiga bog'lanadi, saytda ombor qoldig'i, saytdan kelgan buyurtma ombordagi mahsulotni 48 soat band qiladi, tasdiqlansa partiyadan yechiladi); zip 239 — ERP buyurtma qatorlarida KOMPLEKT BELGISI (saytdan kelgan komplekt / «o'z o'lchami» detallari buyurtma oynasi, yetkazish oynasi, tahrir formasi, PDF lar va qaytarish tanlovida o'z sarlavhasi ostida); zip 240 — KOMPLEKT BO'YICHA QAYTARISH (butun komplekt bir amalda: har detal o'z narxi / ombori bilan, bitta tranzaksiyada; o'chirish va hisob-kitob — butunligicha); zip 240c — QORALAMA / BEKOR QILINGAN buyurtmaga qaytarish ham, brak ham yozilmaydi (ilgari omborga ishlab chiqarilmagan mahsulot qo'shilardi); kech176: zip 241 — platforma nomi «epserp» (kirish oynasi, sahifa sarlavhalari, hodim sahifalari, brauzer belgisi) va logotipli korxonaning HAMMA 9 hujjatida O'Z logotipi; kech177: zip 241c — «Buyurtma hisobi» / «Taklif» PDF i ham yengil (logotip 300 dpi; platforma logotipi bilan 913 KB edi); zip 242 — «Tayyor mahsulotlar» ishlab chiqarishida «📖 Katalogdan tanlash» (nom, o'lcham, qoplama katalogdan, partiya saytdagi detalga o'zi bog'lanadi); zip 243 — «Sayt katalogi»da «🏠 Bajarilgan ishlar» galereyasi (ish: rasmlar, joyi, oyi, katalogdan mahsulotlar va shu uydagi miqdori; do'kon API si `GET /api/dokon/v1/galereya`); zip 244 — do'kon uchun buyurtma va savat PDF i (`POST /api/dokon/v1/buyurtmalar/pdf` — raqam + o'sha buyurtmaning amal kaliti, `POST /api/dokon/v1/savat/pdf`); zip 245 — sayt buyurtmasi guruh nomida o'lcham ikki marta yozilmaydi, PDF qatorida o'lcham kod ichida qolib ketmaydi (`crud._sayt_olcham_nomdami`); zip 246 — sayt detal nomida katalog O'LCHAMI («D-2 Burchak · S» / «· M» — ERP buyurtmasida, «Katalogdan tanlash» partiyasida va «Tayyor mahsulotlar» kalitida ajraladi); kech180: zip 247 — mayda: `/favicon.ico`, do'kon API xatolarida `Cache-Control: no-store`, «D-3 · XL» (ilgari ERP da «· xl»), «K-12 Tekis · 12 sm (keng)» (eni bir marta), partiyasiz bog'lam nomi katta-kichik harfi bilan; kech181: zip 248 — do'kon 2-bosqich (ERP tomoni, 1-qism): usta / magazin do'kon boti orqali kiradi (telefon Telegramdan), ro'yxat so'rovi, ERP da «👷 Usta va magazinlar» — tasdiq (usta — ERP ustasiga, KPI % SHART), rad, bloklash, «🚫 Bu men emas»; kech182: zip 249 — do'kon 2-bosqich (ERP tomoni, 2-qism): kirgan usta / magazin buyurtmasi hisobga bog'lanadi, kabinet tarixi va PDF, tasdiqlangan usta — ERP buyurtmasiga (KPI / keshbek), bloklangan kirish — «bloklangan»; kech184: zip 250 — ulgurji bo'lim (FAQAT tasdiqlangan magazin): ulgurji katalog API, magazin buyurtmasi (1 dona = 2 m, ERP ga metr), takrorlash; zip 251 — magazin narxlar ro'yxati PDF i va ulgurji tanlov PDF i; zip 252 — «Kelganda xabar bering»; zip 253 — keshbek (qoldiq, «Keshbek berildi», foiz qotishi). Egasi: Muzaffarbek (PenoDecorPro, Andijon — penoplast fasad bezaklari).*
 *Bu faylni `main` ga ko'chirish bilan birga, keyin har katta o'zgarishda yangilab boring. 9-bo'lim AVTOMATIK
 (`python3 tools/pasport_xarita.py --yoz`), qolgani qo'lda; `tools/test_pasport.py` ikkalasini ham tekshiradi.*
 
@@ -626,6 +626,35 @@ ichi buzilgan PNG — yuklash 200 berardi, keyin shu korxonaning HAR «Buyurtma 
 shart (`_rasm_ochish`; buzilgan / 60 mln pikseldan katta / animatsiyali — 400 `LOGO_OQILMADI_XABARI`, fayl va yozuv o'zgarmaydi); diskdagi
 logotip baribir o'qilmasa — PDF 200, logotip o'rniga korxona nomi. Boshqa rasm joylari (detal, material …) — avvalgidek (imzoli buzilgan
 rasm ASLICHA; ular faqat `<img>` da). Sinov: `tools/test_logo_pdf.py`.
+**Platforma nomi «epserp» va hujjatlarda O'Z logotipi (kech176, zip 241 — egasi so'rovi 02.11 14:52, QARORLARI 02.11; O'LCHANGAN
+`work/k241/probe241.py`, asl kod = zip 240c).** PLATFORMA (dastur) nomi — «epserp» (EPS ERP; domen epserp.uz); KORXONA nomi (menyu,
+hujjat, Telegram) — har korxonaniki, o'zgarmagan. (1) NOM: brauzer yorlig'i — har sahifa «… — epserp» (24 shablon `{% block title %}`,
+`base.html` standarti, `xato_sahifa.html`), hodim sahifalari («Hodim kirishi / PIN kod / Telefon ruxsati / Hodim paneli — epserp»),
+`main.py` FastAPI `title`, `/api/health` («epserp ishlamoqda!»), do'kon Excel fayli muallifi; `base.html` menyusida korxona nomi bo'sh
+bo'lsa zaxira — «epserp». Brauzer xotirasi kaliti `penodecor_new_order_draft_v1` (ko'rinmaydi) — ATAYLAB o'zgarmagan (yozilgan
+qoralamalar yo'qolmasin); zaxira fayli nomi `penodecorpro-backup-…` — platforma egasining o'z fayli, o'zgarmagan. (2) LOGOTIP: egasi
+ranglari — «eps» #1E293B, «erp» #2563EB (to'q sariq YO'Q); `static/epserp_logo.svg` — harflar egri chiziq (Inter Display ExtraBold, SIL
+OFL; shrift yuklanmasa ham bir xil), `static/epserp_belgi.svg` — brauzer belgisi (ko'k yumaloq kvadrat, oq «e»), `static/epserp_belgi_180.png`
+— telefon «Bosh ekranga qo'shish» belgisi; manbalar va yasovchi — `work/k241/logo241.py`, `rastr241.py`. Favicon — `base.html`, kirish
+oynasi, 4 hodim sahifasi, xato sahifasi. (3) KIRISH OYNASI — egasi tanlovi «1-namuna: Rasmli panel» (`work/k241/dizayn/`, ikki namuna
+haqiqiy server + Chromium skrinshoti bilan ko'rsatildi): tuzilma o'zgarmagan (chapda fasad rasmi, iqtibos, 01 / 02 / 03), «PD» +
+«Penodecor<span>Pro</span>» o'rniga OQ plitada (`.brand-plita`) epserp logotipi (40 px) va «Penoplast ishlab chiqarish boshqaruv tizimi»;
+telefonda (≤ 860 px) — forma tepasida logotip (`.mobil-brend`, 34 px). Hodim kirishi — logotip (36 px; sahifa doim och fonda). (4)
+HUJJATLARDA O'Z LOGOTIPI — egasi QARORI «7 hujjatga ham logo»: O'LCHOV (asl): yangi korxonaning 9 PDF ida PenoDecorPro nomi / telefoni /
+manzili / shiori / logotipi YO'Q edi (to'g'ri — `company_brand.get_brand`), lekin logotip faqat «Buyurtma hisobi» va «Taklif» da edi;
+yuk xati, hisob-kitob varaqasi, sotuv cheki (yakka / savat), yuk xatlari jamlanmasi, moliya oylik hisoboti, yo'nalishlar bo'yicha natija —
+faqat nom (platforma egasida ham). Endi logotip yuklagan korxonada bu 7 hujjatda ham to'q sarlavha CHAPIDA OQ katakda O'Z logotipi
+(`pdf_service.pdf_logo_katagi` — `SARLAVHA_LOGO_QUTI_MM` 34 × 12 mm qutiga nisbati bilan, katak chetlari 5 nuqta; `logoli_sarlavha` —
+sarlavha jadvali eni katakka kamaytiriladi, umumiy quti va balandlik — logotipsizdagi bilan AYNAN, sahifalar soni o'zgarmaydi). Logotip —
+FAQAT `get_brand` bergani (o'z korxonasi; eng eski korxona — fayli yo'q bo'lsa platforma logotipi, zip 211); katta (eski) fayl —
+`_logo_tayyorla` keshidagi kichraytirilgan nusxa; o'qilmasa / yo'q — sarlavha AYNAN avvalgidek (faqat nom). Mustaqil tekshiruv (review241)
+tuzatishlari: uzun nom (≈ 40 belgi) keng logotip yonida 2 qatorga o'tib yuk xatini 2 sahifa qilardi → `sarlavha_uslubi` (tor ustunga
+sig'magan nom / osti shrifti tor / keng nisbatida — qatorlar logotipsizdagidek, balandlik oshmaydi); logotip baytlari BIR marta o'qiladi
+(`_logo_baytlari`; 16 bitli kulrang — 8 bitga, ReportLab OQ chizardi), yuklash — ATOMAR (`.vaqt` + `os.replace`; almashtirish paytida PDF
+500 berardi), oylik hisobotda oltin chiziq butun eniga. JONLI sinov tuzatishi: sarlavha logotipi chizilgan o'lchamining 300 dpi siga
+kichraytiriladi (`_sarlavha_logo_kichik`, `SARLAVHA_LOGO_DPI`; platforma logotipi bilan yuk xati / moliya PDF i ~900 KB edi → ~40 KB).
+«Buyurtma hisobi» / «Taklif» — logotip joyi o'zgarmagan (baytlar `_logo_baytlari` dan); kech177 (zip 241c): ularning logotipi ham chizilgan enining 300 dpi siga (`generate_nakladnoy` → `_sarlavha_logo_kichik`; quti `LOGO_QUTI_MM` 32 × 18 mm va joyi AYNAN) — O'LCHANGAN (`work/k241c/probe241c.py`): platforma logotipi (1000 × 798) bilan 913 KB edi (boshqa 7 hujjat ~80 KB), endi 267 × 213 px; 2 : 1 logotip 600 × 300 → 378 × 189 px. Mustaqil tekshiruv (review241c): JPEG manba — JPEG bo'lib (sifat 92) kichraytiriladi, CMYK — CMYK da qoladi (ilgari PIL ning oddiy CMYK → RGB o'girishi rangni buzardi: brend ko'ki (32, 86, 174) → (0, 77, 255); 241b dan beri 7 hujjatda ham); kichraytirilmagan asl baytlar keshga yozilmaydi (xotira). Kirish oynasi past ekranda (telefon yotiq) —
+`.form-wrap{margin:auto}` (tepasi kesilmaydi).
 **Telegram: bot manzili, holati va har korxonaga o'z boti (kech130, zip 154 — kech129 da O'LCHANGAN; egasi QARORLARI 08.10 17:3x–17:42).**
 (1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish» (`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
 `TELEGRAM_BOT_TOKEN`) o'sha saytga ulanadi (`request.base_url`) — kech129 da bot sinov saytiga ulanib qolgan edi (ustalar sinov bazasini
@@ -2944,7 +2973,7 @@ butunlay katta va ≥ 2 bosh harfli; so'z ichidagi apostrof «KO'K» — bitta s
 kichik, birinchi harf katta. Boshqa nom (oddiy, aralash — «MDF panel», «AO Q4 Karniz» qisqartma —, «_» li kod «BN_D1») — AYNAN xodim yozgandek.
 Qayerda: `OrderItemCreate.name` validatori (mode=before — yaratish, tahrir, taklif tanasi, rasmiylashtirish), `PUT /api/order-items/{id}`
 (`_clean_order_item_update`); ko'rsatish — yuk xati (asosiy va «keyingi topshirish»), umumiy hisobot, jamlanma (`_jamlanma_nomi`), «BUYURTMA
-HISOBI» / taklif PDF, ikki Telegram yuk xabari. Bazadagi eski yozuv — tahrirlanmaguncha o'zgarmaydi (egasi tanlovi). Tahrir moslash kaliti
+HISOBI» / taklif PDF, ikki Telegram yuk xabari. Bazadagi eski yozuv — tahrirlanmaguncha o'zgarmaydi (egasi tanlovi). kech180 (zip 247, review246 L3): nomda « · » bo'lsa (sayt katalogi nomi `crud._sayt_nom` — «D-3 · XL», «… · 12 sm») — qoida faqat BIRINCHI « · » gacha bo'lgan qismga, qolgani AYNAN (ilgari «D-3 · XL» → «D-3 · xl»; «AB-12 KESMA · 12 sm» endi «Ab-12 kesma · 12 sm» — « · » siz nomdagidek); xodim nomlarida « · » yo'q. Tahrir moslash kaliti
 `crud._nom_kalit222` (bo'shliqlar bittaga + kichik harf: raqam bosqichi, «x» / 1 / 2, `_tahrir_loy_oldindan`) — eski «49  GA 3 LI USTUN» o'sha
 detal, moslangan detal nomi tartiblangan shaklga yangilanadi (topshirilgan detal ham — faqat harf / bo'shliq; boshqa matn o'zgarishi — avvalgidek
 400). Shu kalit: faoliyat jurnali (`_buyurtma_audit_holati` — faqat nom tartiblansa «nomi: A → B», review222 №2), «Eng ko'p sotilgan tayyor
@@ -3363,6 +3392,571 @@ korxonalar nomi, butun baza qatorlari soni va tasdiq so'zlarini ko'rar, `W1` ni 
 qaytarar edi (korxonasiz yozuv 1-korxonaga tushardi), `M1KOD` boshqa korxonalarga kod yozar edi. Sahifa olib tashlandi (migratsiya
 tugagan; eski bazani o'tkazish — faqat ishga tushishda, `saas_otish`). Sinov: `tools/test_saas_marshrut.py` (asl kodda SQ 10 / 13,
 PG 16 / 21 yiqiladi, qulamaydi). Marshrut ruxsat jadvalida (`tools/test_rollar.py`) ISTISNO YO'Q — har yangi marshrut jadvalga.
+
+BUZILGAN UNICODE (kech166, zip 231c — sinov saytida JONLI tasdiqlandi, review231 №6; ESKI xulq): so'rovdagi juft bo'lmagan surrogat
+  («\\ud800») pg8000 da UTF-8 ga o'girilmaydi — xato bayonot yuborilayotganda chiqib, ulanish hovuzga buzilgan holda qaytardi va
+  keyingi so'rovlar (boshqa korxonaniki ham) 500 berardi. Endi `database._unicode_ulanish_xatosi` (Engine `handle_error`) — ulanish
+  hovuzdan chiqariladi; `main.buzilgan_unicode_handler` — 400 «So'rovda buzilgan belgi bor»; sayt katalogi matnlari oldindan
+  (`crud._dokon_surrogatsiz`). Sinov: `tools/test_unicode231c.py` (asl zip 231b — PG da 8 / 10 yiqiladi).
+
+SAYT KATALOGI (kech166, zip 231 — onlayn do'kon poydevori; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, 31.10 «Onlayn do'kon»):
+  do'kon katalogi va narxlari ERP ichida (Google Sheets EMAS). Belgi `companies.dokon_yoqilgan` (NULL — o'chiq; `_migrate_dokon_ustuni`,
+  zaxiraga kirmaydi) — FAQAT platforma egasining korxonasida (`obuna.platforma_korxonalari`; mijoz korxonaga — 400), faqat Platforma
+  panelidan (`POST /api/platform/companies/{company_id}/dokon`, `crud.dokon_belgila`; jurnalga). Birinchi yoqishda 9 standart bo'lim
+  (`crud.DOKON_STANDART_BOLIMLAR` — egasi tartibi; uchtasi tizim bo'limi: `tayyor`, `oz_olcham`, `ulgurji` — qolipsiz, o'chirilmaydi,
+  model qo'shilmaydi); o'chirishda ma'lumot QOLADI, qayta yoqishda bo'lim yaratilmaydi. O'chiq korxonada sahifa va hamma API — 404
+  (`crud.DokonYopiq`), menyuda yo'q (`sayt_katalogi_bormi`). Sahifa va API — FAQAT Admin (`auth.admin_only`; ulgurji narx maxfiy;
+  rolga topshiriladigan band ATAYLAB qo'shilmadi — Rollar sahifasi boshqa korxonalarda o'zgarmasin).
+  Jadvallar (har birida o'z `company_id`; `_TENANT_REFS`: model → bo'lim, narx qatori → model; zaxira tartibi — narx qatori → model →
+  bo'lim): `DokonBolim` (nom — katta / kichik harfsiz yagona, korxona qatori qulfi bilan), `DokonModel` (kod — katta harfda, korxonada
+  yagona — `uq_dokon_model_kod`; `qolip` — `crud.DOKON_QOLIP_NOMI`: komplekt / juft_metr / butun_metr / dona / m2, standart — bo'limniki;
+  `kapitel_baza_bor` — faqat `crud.DOKON_KB_QOLIPLARI`: komplekt, juft / butun metr), `DokonDetal` (narx qatori: `turi` — komplekt
+  modelida karniz / podokonnik / nalichnik / kapitel / baza, boshqasida asosiy / kapitel / baza; kapitel / baza — faqat `kapitel_baza_bor`
+  modelda; turi × o'lcham — yagona (o'lcham o'zgarsa — model qulfi); `birlik` — SERVERDA: kapitel / baza — dona, qolgani qolipdan).
+  Nom / kod / o'lcham takrori — Python `casefold` (SQLite `lower()` lotin bo'lmagan harfni kichraytirmaydi); matnda NUL va ko'rinmas
+  belgilar olib tashlanadi (`crud._dokon_toza`); kod katta harfda 30 belgidan oshmasin. JURNAL matnida ULGURJI narx RAQAMI YO'Q
+  (`crud._dokon_detal_matni` — «Tizim jurnallari» rolga topshiriladigan `jurnal` ruxsati bilan ochiladi; review231 №1). Narxlar `Numeric(12, 2)`, NULL — kiritilmagan, 0 / manfiy / NaN / mantiqiy / satr — 400
+  (`crud._dokon_narx`, HALF_UP). Qoplamali narx bo'sh — qoplamasiz × koeffitsient (`crud.dokon_koeff`, sozlama `dokon_qoplama_koeff`,
+  1 … 10, standart 2) 1 000 so'mga yaxlitlab (`crud.dokon_avto_qoplamali` — egasi qarori «formula narxlari 1 000 gacha»; 0 ga tushsa —
+  yaxlitlanmagan qiymat). Juda katta son (1e26, 10**400) — o'girishdan OLDIN 400. Ulgurji narx:
+  metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Model qolipi o'zgarsa — narx qatorlari birligi ham; mos kelmaydigan turi bo'lsa —
+  400. O'zgarishsiz saqlash — jurnalga yozilmaydi. Sahifa `templates/sayt_katalogi.html`: narx kataklari matn (`inputmode=decimal`,
+  «125 500» / «2,5» yoziladi), o'zgarishi bilan saqlanadi — javobdan keyin FAQAT shu katak va qatordagi avto narx yozuvlari
+  yangilanadi (qator qayta chizilmaydi: keyingi katakdagi matn va kursor saqlanadi); saqlanayotganda katak yana o'zgarsa — tugagach oxirgi
+  qiymat yuboriladi; rad etilsa katak qizil; avto qoplamali narx katak ostida yoziladi; telefonda (≤ 700 px) narx qatorlari — kartochka
+  (`data-label`). O'chirish (Platforma) — istalgan korxonada, yoqish — faqat egasiniki.
+
+SAYT KATALOGI RASMLARI (kech167, zip 232; egasi QARORLARI «Onlayn do'kon rejasi» 30.10 — rasm qirqilmaydi, rasm yuklash xavfsiz: faqat
+  JPG / PNG / WEBP, ichidan tekshiriladi va qayta saqlanadi, GPS va boshqa yashirin ma'lumot o'chiriladi; sayt rasmlari ochiq ALOHIDA papkada):
+  jadval `DokonRasm` (`dokon_rasmlar`; `company_id`, `model_id` → `_TENANT_REFS`; `fayl` / `kichik` — yagona manzillar; `eni`, `boyi`
+  (katta nusxa), `hajm`, `turi` jpeg / png, `tartib` — eng kichigi ASOSIY; zaxira tartibi — narx qatori → RASM → model → bo'lim). Bir modelga
+  ko'pi bilan `crud.DOKON_RASM_MAX` (10) ta. Marshrutlar (FAQAT Admin, belgi o'chiq — 404): `POST /api/sayt-katalogi/modellar/{model_id}/rasmlar`
+  (BITTA fayl `fayl`; sahifa bir nechtasini KETMA-KET yuboradi), `PUT …/modellar/{model_id}/rasmlar` ({"tartib": [modelning HAMMA rasm
+  raqamlari]} — ro'yxat bazadagidan farq qilsa 400), `DELETE /api/sayt-katalogi/rasmlar/{rasm_id}`; katalog javobida `rasmlar`, `rasm_max`.
+  ISHLOV — `main.dokon_rasm_tayyorla` (O'LCHANGAN `work/k232/probe232.py`: umumiy `rasmni_kichraytir` kichik burilmagan rasmni ASLICHA
+  saqlaydi — GPS / kamera / izoh / XMP / ICC qoladi; qayta yozishda ham JPEG izohi `im.info` dan o'tib ketadi — sayt uchun yaramaydi):
+  HAR rasm qayta yoziladi (ASLICHA yo'q); fayl turi — FAQAT ichidan: IMZO va Pillow formati (kengaytma tekshirilmaydi — review232 №10:
+  `.jfif` / `.jpe` haqiqiy JPEG; HEIC / AVIF — nomi yoki ichi bo'yicha tushunarli xabar); MPO (telefonning ko'p rasmli JPEG i) — asosiy
+  rasm; harakatli WEBP / PNG — rad; oddiy JPEG ≤ 120 MP («draft» — 108 MP ~75 MB); progressive / CMYK JPEG — en × bo'y × kanal × 2 ≤
+  `DOKON_RASM_JPEG_XOTIRA` (200 MB; review232 №1, O'LCHANGAN: «draft» bilan ham butun koeffitsient massivi — 701 baytli fayl +938 MB edi)
+  va oxirida EOI bo'lmasa — buzilgan; PNG / WEBP ≤ 16 MP (to'liq o'qiladi; 24 MP — 276…371 MB, `work/k232/probe232_xotira.py`); palitra /
+  RGB / L PNG dagi tRNS shaffofligi saqlanadi (review232 №6); katta tomoni < 500 px yoki nisbat > 8 : 1 — rad; EXIF
+  burilishi qo'llanadi; rejim RGB / RGBA / L (16 bit → 8 bit, palitra, CMYK); ICC profil — sRGB ga O'TKAZILADI (`_dokon_srgb`), yozilmaydi;
+  to'liq shaffof bo'lmagan RGBA — JPEG; katta ≤ `DOKON_RASM_KATTA` (1920), kichik ≤ `DOKON_RASM_KICHIK` (640) — `thumbnail` (nisbat
+  saqlanadi, QIRQILMAYDI); `info = {}`; yozilgan baytlar TUZILMA bo'yicha tekshiriladi (`_dokon_rasm_metasiz`: JPEG — SOS gacha faqat JFIF
+  APP0 va jadvallar, APP1…APP15 / COM — yo'q; PNG — faqat IHDR / PLTE / tRNS / IDAT / IEND) va qayta ochiladi (o'lcham, EXIF bo'sh) — biror
+  narsa qolsa yoki Pillow yo'q bo'lsa rasm SAQLANMAYDI (yopiq holatda xato). Bir vaqtda BITTA ishlov (`_DOKON_RASM_NAVBAT`; navbat
+  `DOKON_RASM_KUTISH` = 20 s da bo'shamasa — 503 «Server hozir band…»); 10 ta rasm bo'lsa — ishlovdan OLDIN 400; marshrut `def` (ish
+  oqimida), rasm ishlanayotganda bazada tranzaksiya ochiq turmaydi; diskka yozib bo'lmasa — 507, vaqtinchalik `.tmp` qolmaydi (№4).
+  Fayllar `static/uploads/dokon/<32 hex>.jpg|png` va `<…>_k.…`
+  (Railway Volume `/app/static/uploads` ichida) — vaqtinchalik fayl + `os.replace`; yozuv saqlanmasa (chegara, model o'chgan) — fayllar
+  o'chiriladi. OCHIQ MANZIL `/static/uploads/dokon/<nom>` — login SIZ (`main._dokon_ochiq_rasm`): nom `crud._DOKON_RASM_URL` shaklida,
+  `DokonRasm` YOZUVI bor va o'sha korxonada sayt katalogi yoqilgan (`crud.dokon_rasm_ochiqmi`) — aks holda 404; `Cache-Control: public,
+  max-age=3600` (review232 №9: o'chirilgan rasm brauzer keshida ko'pi bilan 1 soat).
+  Boshqa yuklama papkalari — avvalgidek (kirgan xodim, o'z korxonasi). QULF TARTIBI (hamma rasm amali): MODEL qatori →
+  rasm (O'LCHANGAN PG: rasm avval qulflansa, bir vaqtdagi «tartib» o'chirilgan qatorni yangilab 500 berardi; himoya qatlami —
+  `_dokon_bajar` da StaleDataError → 409). Rasm / model o'chirilsa — yozuv, commit dan KEYIN fayllar
+  (`crud._dokon_rasm_fayllarini_ochir`; fayl hali biror yozuvda — istalgan korxona — bo'lsa QOLADI, review232 №3).
+  Zaxiradan tiklash — `dokon_rasmlar` qatorlari tekshiriladi (`crud.dokon_rasm_zaxira_xatosi`: manzil shakli, juftlik, takror, boshqa korxona fayli — rad); tiklash / tozalashdan keyin hech qaysi yozuv ishora qilmaydigan va 1 soatdan eski fayllar
+  o'chiriladi (`crud.dokon_yetim_fayllar_tozala`, №5). Fayllar BITTA umumiy papkada, shuning uchun «fayl yozuvda bormi» — butun tizim
+  bo'yicha (`system_context`, faqat fayl nomlari): `_dokon_ishlatilgan_manzillar` va `dokon_yetim_fayllar_tozala` —
+  `tools/tenant_lint.py` `ALLOW_FUNCTIONS` da (sabab bilan).
+  Jurnal: `dokon_rasm` (qo'shildi / o'chirildi — o'lcham va hajm; hajm — `crud._dokon_hajm_matni`: 1 MB gacha butun KB, kattasi
+  `audit_son(…, 1)` MB — «1,5 MB», «2 MB»; zip 233b, etalon d241 — ilgari `:.1f` «2,0 MB»), `dokon_model` («rasmlar tartibi»). Sahifa
+  (`sayt_katalogi.html`, model ichida «Rasmlar» bloki): «📷 Rasm qo'shish» (`accept` JPG / PNG / WEBP, `multiple` — telefonda kamera yoki
+  galereya), ketma-ket yuklash holati va har rad etilgan fayl nomi + sababi; kartochkalar `object-fit: contain` (och fon `--f-f3e8d8`),
+  «Asosiy» belgisi, «⠿» ushlab surish (Pointer Events, `document` da — kartochka DOM da ko'chganda capture yo'qoladi) va ◀ ▶; namuna —
+  «ro'yxat kartochkasi» (174 × 140) va «mahsulot sahifasi» (chetlari xira nusxa); bosilsa — to'liq ekranda
+  (‹ › Esc; ✕ — `data-yopish`, Tab oyna ichida, yopilganda fokus joyiga qaytadi — №11); surish — faqat asosiy (chap) tugma (№12). Rasm
+  amalidan keyin FAQAT shu modelning rasm bloki qayta chiziladi (narx kataklariga yozilayotgan matn yo'qolmaydi). `requirements.txt` — `pillow==13.0.0`
+  QOTIRILGAN (rasm xavfsizligi unga tayanadi; 13.0.0 — JPEG dekoderidagi Critical tuzatish bilan).
+
+DO'KON SOZLAMALARI VA KOMPLEKT NARXI (kech168, zip 233; egasi QARORLARI «Onlayn do'kon rejasi» 30.10 — tasdiqlash raqamlari admin panelda,
+  oxirgisi o'chirilmaydi; ish vaqti dushanba–shanba 8:00–18:00 — uchala raqam, tashqarida va yakshanba — faqat +998 97 999 57 57;
+  komplekt retsepti uchala o'lchamda bir xil: rom — karniz 2 m, podokonnik 2 m, nalichnik 4 m, kapitel 2, baza 2; eshik — karniz 2 m,
+  nalichnik 5 m, kapitel 2, baza 2; komplekt narxi = detallar narxi × miqdori, chegirmasiz; kapitel / baza o'chirilsa — aynan ularning
+  narxi ayiriladi; ulgurjida — faqat rom, 1 dona = 2 m; komplekt bo'limi «O'rta» bilan ochiladi):
+  TELEFONLAR — jadval `DokonTelefon` (`dokon_telefonlar`: `company_id`, `raqam` — `+998` va 9 raqam (13 belgi), yagona (company_id, raqam), `izoh`
+  (40), `doim`, `tartib`; zaxira tartibida — Dokon guruhidan keyin; sozlama qatori 255 belgi — 10 ta raqam izohi bilan SIG'MAYDI, PG da
+  VARCHAR(255) xato beradi — O'LCHANGAN `work/k233/probe233.py`). Raqam bitta shaklga (`crud.dokon_telefon_norm`: «+998 97 999 57 57»,
+  «97 999 57 57», «(97) 999-57-57» … — bitta; faqat ASCII raqam va « +-().»; 9 xonali — 998 qo'shiladi; boshqasi — 400), ko'rinishi
+  `dokon_telefon_korinish`. Ko'pi bilan `DOKON_TELEFON_MAX` (10). «doim» — ish vaqtidan tashqarida ham ko'rinadi; QOIDA: raqam bo'lsa,
+  kamida bittasi «doim» (birinchi raqam o'zi «doim»; oxirgi «doim» belgisi olinmaydi va u o'chirilmaydi); OXIRGI raqam o'chirilmaydi.
+  Hamma telefon amali — korxona qatori qulfi ostida (`_dokon_korxona_qulf`; O'LCHANGAN PG P2 / P3: ikki oynadan bir vaqtda — qoida
+  buzilmaydi). Marshrutlar (FAQAT Admin, belgi o'chiq — 404): `POST /api/sayt-katalogi/telefonlar` ({"raqam"} + "izoh", "doim"),
+  `PUT …/telefonlar` ({"tartib": [HAMMA id]} — farq qilsa 400), `PUT …/telefonlar/{telefon_id}` («izoh», «doim»; raqam o'zgarmaydi),
+  `DELETE …/telefonlar/{telefon_id}`. Korxona sozlamalaridagi telefonlar (`companies.phone` / 2 / 3) — `dokon_korxona_telefonlari`
+  (to'g'ri shakldagisi, hali qo'shilmaganlari) — sahifada «qo'shish» tugmasi. Zaxiradan tiklashda `dokon_telefonlar` tekshiriladi
+  (`crud.dokon_telefon_zaxira_xatosi`: shakl, takror, ≤ 10, kamida bitta «doim» — aks holda rad; review233 №5).
+  ISH VAQTI — sozlama `dokon_ish_vaqti` (JSON: kunlar 1–7, dushanba = 1; boshi / oxiri «HH:MM», boshi < oxiri) va `dokon_ish_izoh` (≤ 200;
+  null — o'chiriladi, yuborilmasa — o'zgarmaydi; eskisi korxona qulfidan KEYIN o'qiladi — review233 №6); yo'q / buzilgan — `DOKON_ISH_STANDART`. Vaqt — TOSHKENT (`database.TASHKENT_OFFSET`):
+  `dokon_ish_vaqtimi` (boshi ≤ HH:MM < oxiri), `dokon_korinadigan_telefonlar` (ish vaqtida — hammasi, tashqarida — «doim» lar),
+  matn — `dokon_ish_vaqti_matni` («Dushanba–shanba, 8:00–18:00»; 3+ ketma-ket kun — oraliq). `PUT /api/sayt-katalogi/ish-vaqti`.
+  RETSEPT — sozlama `dokon_komplekt_retsept` (JSON; `_dokon_retsept_tekshir`: kalitlar AYNAN `DOKON_RETSEPT_TURLARI`, butun son; rom
+  metrlari JUFT 0 … 40 (ulgurjida yarim dona bo'lmasin), eshik metrlari 0 … 40, kapitel / baza 0 … 20; har komplektda kamida bitta metrli
+  detal) va `dokon_komplekt_olcham` (≤ 40, standart «O'rta»); yo'q / buzilgan — egasining jadvali. `PUT /api/sayt-katalogi/komplekt`
+  ({"retsept"}, {"olcham"} — biri yoki ikkalasi). O'zgarishsiz saqlash — jurnalga yozilmaydi (standart qiymat birinchi marta yozilsa ham).
+  KOMPLEKT NARXI — SERVERDA (`crud.dokon_model_komplekti` / `dokon_komplekt_narxlari`; do'kon API va admin bitta hisobdan): komplekt
+  modelining har o'lchami (detal qatorlari tartibida birinchi yozilishi; kalit — `crud.dokon_olcham_kalit`: tutuq belgisi variantlari
+  ’ ‘ ʻ ʼ ` ´ ′ → «'» va `casefold` — «O'rta» / «O’rta» (iPhone) / «OʻRTA» bitta o'lcham, review233 №3; narx qatori takrori ham shu kalit
+  bilan — `_dokon_detal_band`; sahifada `skOlchamKalit`) uchun rom, eshik
+  (oddiy narx, 1 m / 1 dona) va ulgurji rom (1 dona = 2 m) — qoplamasiz va qoplamali (alohida yozilgani, yo'q bo'lsa — avto, 1 000 ga),
+  to'liq va (modelda kapitel / baza bo'lsa) `_kbsiz`; saytda yashirin yoki narxi yo'q detal kerak bo'lsa — narx null, `yetishmaydi` —
+  sabablari. Katalog javobida `sozlamalar` va `komplekt` ({model_id: …}); `GET /api/sayt-katalogi/modellar/{model_id}/komplekt` — bitta
+  model (narx katagi saqlangach sahifa shu blokni yangilaydi; eski javob yangisini bosib ketmaydi). Jurnal: `dokon_telefon`,
+  `company_setting` («Sayt — ish vaqti», «… komplekt retsepti», «… standart o'lchami»).
+  SAHIFA (`sayt_katalogi.html`): kontent `<div class="erp-content" id="skSahifa">` ichida (O'LCHANGAN kech168: zip 231 dan beri o'ram yo'q
+  edi — `.erp-main` flex ustun: model ochilganda kartochkalar 2 px gacha siqilib, sahifa pastga SURILMASDI; `test_sahifa_skroll_ui`
+  ro'yxatiga «/sayt-katalogi» qo'shildi); «Do'kon sozlamalari» kartochkasi — 3 shtorka (📞 telefonlar, 🕗 ish vaqti, 🧩 retsept) FAQAT
+  birinchi yuklashda chiziladi; keyin hech qachon butunlay qayta chizilmaydi (review233 №1 / №2 / №7): telefon amalidan keyin — «hozir
+  saytda» qatori, sarlavha holati, korxona raqamlari tugmasi va (qo'shish / o'chirish / tartibda) raqamlar ro'yxati; ro'yxat qayta
+  chizilishidan OLDIN yozilgan izohlar yuboriladi va hamma telefon so'rovi kutiladi (`skTelKut`), fokus joyiga qaytadi (o'chirishda —
+  keyingi qator); ish vaqti / retsept saqlangach — faqat sarlavha holati (retseptdan keyin `skYukla` — modellar); komplekt modelida «Komplekt narxlari»
+  jadvali (standart o'lcham belgisi, yo'q bo'lsa ogohlantirish); `skSorov` — `cache: 'no-store'`; telefonda (≤ 700 px) raqam qatori va
+  komplekt jadvali — kartochka, 320 px gacha sig'adi.
+
+CHEGIRMALAR (kech169, zip 234; egasi QARORLARI «Onlayn do'kon rejasi» 30.10 — admin modelni tanlab foiz yoki yangi narx yozadi (ikkinchisi
+  o'zi), xohlasa faqat ayrim o'lchamlarga; tugash sanasi ixtiyoriy — o'tsa o'zi o'chadi, saytda «5-noyabrgacha»; qo'lda ham o'chiriladi;
+  FAQAT oddiy narxga — ulgurji o'zgarmaydi, magazinlar chegirma ko'rmaydi; qoplamali va qoplamasizga bir xil foiz; komplektga o'zi
+  o'tadi; chegirmali narx tannarxdan past — faqat admin ogohlantirishi, saqlash to'silmaydi; Telegram «Xabar yuborish» — do'kon boti bilan
+  keyin; narx buyurtma paytida qotadi — zip 237):
+  JADVAL `DokonChegirma` (`dokon_chegirmalar`: `company_id`, `model_id`, `foiz` Numeric(5, 2) — 1 … 99, `olchamlar` — JSON ro'yxat (o'lcham
+  yozilishlari, model tartibida), NULL — hamma o'lcham (keyin qo'shilgani ham), `tugash` — Date (Toshkent kuni, shu kun oxirigacha), NULL —
+  muddatsiz; yagona (company_id, model_id) — modelga BITTA chegirma; `_TENANT_REFS` — faqat o'z korxonasining modeli; zaxira tartibida —
+  modeldan OLDIN o'chiriladi). Mantiq — `crud.dokon_chegirma_saqla` / `crud.dokon_chegirma_korish` / `crud.dokon_chegirma_ochir`, FAQAT foiz saqlanadi; «yangi narx» sahifada foizga o'giriladi.
+  NARX — `crud.dokon_chegirma_narx(narx, foiz)` (sayt, komplekt, do'kon API — shu BITTA funksiya): narx × (100 − foiz) / 100, 100 so'mgacha
+  HALF_UP (`DOKON_CHEGIRMA_QADAMLAR`); natija asl narxdan kam va 0 dan katta bo'lmasa — 10 so'mgacha, u ham bo'lmasa — so'mning o'zi
+  (review234 O1, O'LCHANGAN: ilgari 1 000 gacha — 10 000 × 1 % → 9 000 (10 %), yozilgan «yangi narx» 9 500 → 9 000; endi haqiqiy narx aniq
+  hisobdan ≤ 50 so'm, 100 ga karrali «yangi narx» AYNAN saqlanadi). Narx qatori (`dokon_detal_dict(d, koeff, chegirma)`) —
+  «chegirma»: {"foiz", "narx", "narx_qoplamali"} (qoplamali — alohida yozilgani yoki avto × koeffitsient dan) yoki null (chegirma yo'q /
+  tugagan / bu o'lchamga emas / narx yo'q); ulgurji maydonlari TEGILMAYDI. Komplekt (`dokon_model_komplekti(…, chegirma, bugun)`) — har
+  o'lchamda «chegirma»: {"foiz", "rom", "eshik"} (qoplamasiz / qoplamali / `_kbsiz` — chegirmali detallar × retsept; ulgurji rom —
+  chegirmasiz) yoki null.
+  MUDDAT — `dokon_bugun()` (Toshkent: UTC + 5), `dokon_chegirma_faolmi` (bugun ≤ tugash), matn `dokon_chegirma_muddat_matni` («5-noyabrgacha»,
+  boshqa yil — «2027-yil 5-yanvargacha»). Saqlashda tugash — bugundan oldin emas, 366 kundan uzoq emas. Tugagan chegirma bazada qoladi
+  (sahifada «muddati tugagan», qayta saqlash yoki o'chirish).
+  TANNARX (faqat ogohlantirish uchun, faqat Admin; jurnalga YOZILMAYDI) — `dokon_detal_tannarxi`: 1 m metrli detal penoplasti, ERP hisobi
+  bilan AYNAN (`services.get_order_item_unit_cost`, profil, qoplamasiz: eni × qalinlik ÷ 2 ÷ blok hajmi × asosiy penoplast bloki narxi,
+  `round`); qoplama loyi buyurtmada tortiladi — kirmaydi; kapitel, baza, dona, m² — hisoblanmaydi. «Past» — chegirmali qoplamasiz va /
+  yoki qoplamali < tannarx; ogohlantirish matni — `xabar_son` bilan, faqat saytda ko'rinadigan qatorlar uchun.
+  O'LCHAM NOMI — `_dokon_chegirma_olcham_kochir`: chegirmadagi o'lcham qatori qayta nomlansa — yangi nom (modelda YANGI bo'lsa) ro'yxatga
+  qo'shiladi, eski nom shu o'lchamning OXIRGI qatori ketgandagina olinadi (review234 Y1: komplekt o'lchami 5 qator — bittalab nomlanadi;
+  ilgari oxirgi qatorda ro'yxat bo'sh qolib, chegirma jimgina yo'qolardi); yangi nom modelda boshqa (chegirmasiz) qatorlarda bor bo'lsa —
+  qo'shilmaydi (chegirma kengaymaydi); chegirma jurnaliga yoziladi. O'lchamning oxirgi qatori o'chirilsa — ro'yxatda qoladi
+  («yoq_olchamlar», qayta qo'shilsa — yana amalda). Narx qatori tahririda qulf tartibi — model → qator (review234 P6, zip 231 dan beri
+  qator → model edi: o'lcham nomi va modelni o'chirish bir vaqtda PG da deadlock, 500).
+  MARSHRUTLAR (FAQAT Admin, belgi o'chiq — 404): `PUT /api/sayt-katalogi/modellar/{model_id}/chegirma` ({"foiz"} + "olchamlar", "tugash";
+  javob — `dokon_chegirma_holati`: chegirma, narx qatorlari (asl / chegirmali / tannarx / «past»), ogohlantirishlar, komplekt), `POST
+  …/chegirma/korish` (saqlamasdan, hech narsa yozmaydi; "foiz": null — asl narxlar va tannarx), `DELETE …/chegirma` (yo'q — 404). Hamma yozish —
+  model qatori qulfi ostida (qulf tartibi: model → chegirma). Katalog javobida `chegirmalar` ({model_id: chegirma + "ogohlantirish_soni"}),
+  `bugun`, `tannarx_izoh`; narx qatori POST / PUT javobi — `crud.dokon_detal_javobi` (chegirma bilan). Zaxiradan tiklashda
+  `dokon_chegirma_zaxira_xatosi` (foiz, o'lchamlar JSON — har biri API dagi kabi toza: surrogat / NUL / ortiqcha bo'shliq — rad (review234 O2:
+  sahifa butunlay qulflanardi), sana, model_id butun son, bir modelga bitta). Jurnal: `dokon_chegirma` («−15 %; o'lchamlar: …;
+  5-noyabrgacha»; o'zgarishsiz saqlash — yozilmaydi), model o'chirilsa — model jurnalida «chegirma …», o'lcham ko'chsa — narx qatori
+  jurnalida «chegirma o'lchami ham yangilandi».
+  SAHIFA (`sayt_katalogi.html`; `test_html_escape` uchun `.map` ichida — `x => nomliFunksiya(x)`, o'zgaruvchi nomi model matn
+  ustuniga o'xshamasin — `holat` → `hl`): model ichida «🏷 Chegirma» shtorkasi (foiz, tugash sanasi, «Hamma o'lchamlar» / o'lchamlar, saqlash,
+  o'chirish; natija jadvali — serverdan: asl → chegirmali, tannarx, «Yangi narx» katagi — foizga o'giriladi; komplekt modelida komplekt
+  qatorlari ham); model sarlavhasida «−15 % · 5-noyabrgacha» / «chegirma tugagan» / «⚠ tannarxdan past»; «Komplekt narxlari» blokida
+  chegirmali qatorlar. Chegirma amalidan keyin FAQAT shu modelning chegirma bloki, sarlavha belgisi va komplekt bloki qayta chiziladi
+  (boshqa maydonlardagi saqlanmagan matn yo'qolmaydi); ko'rish so'rovlari tartibi — `SK.chNo` (eski javob yangisini bosib ketmaydi); narx
+  katagi saqlangach ochiq chegirma bloki yangilanadi, yopiq bo'lsa ham sarlavhadagi «⚠» (`skChDetaldan`, review234 P2); o'lcham nomi
+  o'zgarsa — saqlanmagan o'lcham belgilari saqlanadi (P3); muddati tugagan chegirmada formada eski sana (P1 — jimgina muddatsiz bo'lmaydi);
+  telefonda komplekt katagi — bitta blok, qatorlar ustma-ust (O3).
+
+EXCEL ORQALI NARXLAR (kech170, zip 235; egasi QARORI «Onlayn do'kon rejasi» 30.10 «Narxlar qayerda turadi» — jadvalni Excel faylga yuklab
+  olib, tahrirlab, qaytarib yuklash mumkin: qaytarishda HAMMA qator tekshiriladi va saqlashdan OLDIN nima o'zgarishi ko'rsatiladi; ulgurji
+  narx — faqat Admin; chegirma — `dokon_chegirmalar` dan):
+  FAYL — .xlsx (`openpyxl==3.1.5`, `et-xmlfile==2.0.0`, `defusedxml==0.7.1` — requirements da QOTIRILGAN; production'da ilgari yo'q edi).
+  `crud.dokon_excel_yarat`: «Narxlar» varag'i — har narx qatori bitta qator, sahifadagi tartibda (bo'lim → model tartibi → qator), 22 ustun:
+  Raqam (narx qatori id), Bo'lim, Model kodi, Model nomi, Detal, O'lcham, Birlik, 4 narx (SARIQ — faqat shular o'zgaradi; son, `#,##0` /
+  tiyin bo'lsa `#,##0.00`; Excel tekshiruvi > 0), avto qoplamali (ikkalasi), Chegirma (faqat chegirma shu o'lchamga tegishli bo'lsa —
+  review235 O4; «−15 % (muddati tugagan)»), chegirmali narxlar (`dokon_chegirma_narx`), Saytda (detal / model / bo'lim yoqilgan) va
+  oxirida 5 ta YASHIRIN «⚙» ustun — yuklab olingan paytdagi 4 narx va tekshiruv raqami; matn katagi doim matn («=…» nom formula bo'lmaydi),
+  XML ga sig'maydigan boshqaruv belgilari olib tashlanadi; «Yo'riqnoma» varag'i (9 band). Marshrut javobi — `Cache-Control: no-store`.
+  O'QISH — `crud.dokon_excel_oqi` (bazaga tegmaydi): avval `_dokon_excel_fayl_tekshir` — 5 MB, zip ichida jami ≤ 24 MB va ≤ 300 a'zo
+  (zip-bomba; 10 000 qatorli eksport ~ 11 MB), «xl/workbook.xml» bor, HAR a'zoda DOCTYPE / ENTITY yo'q (varaq istalgan nomda — review235 P6), XML da NUL yo'q; formula
+  bo'lmasa fayl BIR marta o'qiladi (bo'lsa — keshlangan natija + formula belgisi uchun ikkinchi marta). Sarlavha — matni bo'yicha (tartib,
+  qo'shimcha ustun, katta / kichik harf, tutuq belgisi farqi muhim emas); Raqam / kimlik / 4 narx / yashirin «⚙» ustunlar MAJBURIY (yo'q —
+  400: qo'lda tuzilgan yoki boshqa faylga ko'chirilgan jadval qabul qilinmaydi, narx sarlavhasi o'zgargan bo'lsa — qaysi ekani aytiladi,
+  review235 P2). Varaq — «Narxlar» (harfsiz), yo'q bo'lsa birinchisi. Bo'sh (formatlangan bo'lsa ham) qator — sanalmaydi (≤ 10 000 qator,
+  review235 O3); xato matnida — Excel'dagi qator raqami. NARX KATAGI — `_dokon_excel_narx`: son — `_dokon_narx` qoidasi; matn — bo'shliqlar
+  (oddiy / bo'linmas) olinadi, «125500», «125 500», «125500,5» — qabul; «125.500» / «125,500» / «1.250.000» — xato (ming ajratgichmi,
+  kasrmi aniq emas); «#DIV/0!» kabi formula xatosi, sana, TRUE / FALSE, manfiy, 0, juda katta — xato; bo'sh katak — narx O'CHIRILADI;
+  natijasi yo'q formula — xato.
+  KO'RISH — `crud.dokon_excel_korish` → `POST /api/sayt-katalogi/excel/korish` (hech narsa yozilmaydi): qator «Raqam» bilan topiladi;
+  «Raqam» ≠ yashirin tekshiruv raqami — xato (faqat ayrim ustunlar saralangan — review235 Y2); Model kodi / Detal / O'lcham bazadagi bilan
+  (`_dokon_excel_kalit` — ikki tomon bir xil tozalanadi) farq qilsa — xato; takror / yo'q / bo'sh raqam — xato; faylda yo'q qator —
+  o'zgarmaydi. O'ZGARISH = fayldagi narx yuklab olingan paytdagisidan (yashirin «asl») farq qiladi; o'zgartirilmagan katak ERP'da nima
+  bo'lsa ham TEGILMAYDI; o'zgartirilgan katakning «asl» narxi ERP'dagi hozirgisidan farq qilsa — xato (eski fayl yangi narxni bosib
+  ketmaydi — review235 Y1); bir ustunda ≥ 3 narx faqat joy almashgan bo'lsa — xato (narx ustuni alohida saralangan). Javob: o'zgarishlar
+  (qator, «kimlik» — «R-18 · Rom karnizi · O'rta», eski → yangi), o'zgarmagan / xatoli qatorlar / faylda yo'q soni, xatolar (≤ 200 ko'rsatiladi),
+  ogohlantirishlar (saqlashni to'smaydi): narx 2 barobardan ko'p o'zgargan, yangi narx < 1 000 so'm, amaldagi chegirma bilan tannarxdan
+  past (`dokon_chegirma_qatorlari`). Bir yuklashda ≤ 5 000 ta o'zgarish.
+  SAQLASH — `crud.dokon_excel_saqla` → `POST …/excel/saqla` {"ozgarishlar": [{"id", "kimlik", "eski", "yangi"}]} — BITTA tranzaksiya; qulf
+  tartibi model → qator (id o'sish tartibida; `_dokon_excel_modellarni_qulfla` / `_dokon_excel_qatorlarni_qulfla`); joriy = eski — yoziladi,
+  joriy = yangi — o'tkaziladi (takror yuborish, «avval_saqlangan»), boshqa yoki qator qayta nomlangan («kimlik» farqi — review235 O1) — 409
+  (`DokonExcelZiddiyat`), noto'g'ri so'rov — 400; ikkala holda HECH NARSA yozilmaydi. Jurnal — har qator `dokon_detal` «updated»
+  (`_dokon_detal_matni` — ulgurji RAQAMI yo'q) + «; Excel'dan yuklandi»; `updated_by` / `updated_at`.
+  MARSHRUTLAR (FAQAT Admin, belgi o'chiq — 404): `GET /api/sayt-katalogi/excel` (fayl `sayt_narxlari_<Toshkent kuni>.xlsx`), `POST …/korish`
+  (fayl; o'qishdan oldin baza ulanishi bo'shatiladi), `POST …/saqla`.
+  SAHIFA — «📊 Narxlarni Excel orqali o'zgartirish» shtorkasi (`#skExcel`): «⬇ Excel'ga yuklab olish» (fetch → fayl; xato — sabab),
+  «⬆ Excel'dan yuklash» → natija: xatolar (qizil; «Saqlash» yo'q), ogohlantirishlar, o'zgarishlar jadvali (telefonda kartochka), «✓ Saqlash
+  (N ta qator)»; tarmoq uzilsa — «natija noma'lum, qayta bossangiz ikki marta yozilmaydi»; 409 / 400 — sabab, «Saqlash» olib tashlanadi;
+  saqlash davomida «Bekor qilish» va yangi yuklash yopiq (review235 O2); saqlangach katalog qayta yuklanadi.
+
+DO'KON API (kech170, zip 236; egasi QARORLARI «Onlayn do'kon rejasi» 30.10 — «Kod bosqichi uchun texnik qoidalar» 5–6, «Xavfsizlik» 4, «Do'kon
+  faqat PenoDecorPro uchun» 1, 4, 5: do'kon ↔ ERP faqat server ↔ server, maxfiy kalit bilan; korxona KALITDAN aniqlanadi, so'rovdan emas;
+  API eng kam huquqli — o'qish; ulgurji narx, tannarx, moliya — do'konga YOPIQ; kalitga so'rovlar soni cheklanadi. Buyurtma yuborish — zip 237):
+  KALIT — `DokonApiKalit` (`dokon_api_kalitlar`; korxonaga BITTA qator — `uq_dokon_api_kalit_korxona`): `api_kalit_xesh` (SHA-256, yagona;
+  NULL — o'chirilgan), `api_kalit_boshi` (10 belgi — tanish uchun), `api_yaratilgan` / `api_yaratgan`, `oxirgi_murojaat` (5 daqiqada bir
+  yoziladi — `DOKON_API_MUROJAAT_QADAM`). Kalit = «pdk_» + `secrets.token_urlsafe(32)` (43 belgi, `DOKON_API_KALIT_RE`); xom kalit bazada /
+  jurnalda / zaxirada YO'Q — faqat yaratish javobida (no-store). Zaxiraga KIRMAYDI (`crud._NON_TENANT_TABLES`), `_reset_table_order` da yo'q
+  (tiklash o'chirilgan / almashtirilgan kalitni tiriltirmaydi). Belgi o'chirilsa kalit qoladi (do'kon yo'li — 404), qayta yoqilsa ishlaydi.
+  BOSHQARUV (FAQAT Admin; belgi o'chiq — 404): `GET /api/sayt-katalogi/api-kalit` (holat: bor, boshi, kim / qachon — Toshkent vaqti, oxirgi
+  murojaat, sarlavha, yo'llar, daqiqa chegarasi; xom kalit / xesh — YO'Q), `POST …` (`crud.dokon_api_kalit_yarat`: amaldagi kalit bo'lsa —
+  {"almashtir": true, "eski_boshi": <sahifa ko'rgan boshi>} shart, aks holda 409 `DokonApiKalitBor` — ikki marta bosish / ikki oyna
+  (review236 L2); korxona qatori qulfi; eskisi darhol bekor), `DELETE …` (xesh NULL; yo'q — 404). Jurnal `dokon_api_kalit` — created /
+  updated / deleted, FAQAT «kalit pdk_xxxxxx…».
+  DO'KON YO'LLARI (login siz; faqat GET): kalit — `X-Dokon-Kalit` sarlavhasi (yo'q bo'lsa `Authorization: Bearer …`) → `crud.dokon_api_korxona`:
+  shakli noto'g'ri / yo'q / o'chirilgan — 401 (`WWW-Authenticate: Bearer`), korxonada belgi o'chiq — 404, kalitga daqiqasiga
+  `DOKON_API_DAQIQA_MAX` (120) — oshsa 429 + `Retry-After` (`_DokonApiCheklov` — jarayon ichida, qulf bilan; deployda nolga tushadi);
+  korxona sessiyaga bog'lanadi (`tenant_context.set_current_company`). Javob — ETag (tananing SHA-256 i), `If-None-Match` mos — 304;
+  `Cache-Control: private, no-cache`. kech180 (zip 247): `/api/dokon/…` ning o'zi Cache-Control bermagan HAR javobi (400 / 409 / 413 / 404 /
+  405) — `no-store` (`add_security_headers`); berganlari (200 / 304 — `private, no-cache`; 401, buyurtma, PDF — `no-store`) — o'zgarmaydi.
+  `GET|HEAD /favicon.ico` (loginsiz) — `static/epserp_belgi_180.png` (image/png, 7 kun kesh; ilgari 404).
+DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH (kech181, zip 248; egasi QARORLARI «Onlayn do'kon rejasi» 30.10 — kirish parol / SMS siz,
+  Telegram orqali, telefon Telegram akkauntidan; usta yoki magazin tanlanadi; egasi tasdiqlaydi, usta — KPI % bilan ERP ustasiga; 03.11 —
+  @penodecorprobot ni egasi o'zi ochgan):
+  * jadvallar: `dokon_mijozlar` (`DokonMijoz` — `mj_tg_id` korxonada yagona, `mj_telefon` +998…, `mj_turi` usta | magazin, `mj_holat` yangi |
+    kutilmoqda | tasdiqlangan | rad | bloklangan, `master_id` — ERP ustasi (yagona: `uq_dokon_mijoz_master`), `mj_avlod` — sessiyalarni
+    bekor qilish), `dokon_kirishlar` (`DokonKirish` — kod / sir xeshi, 10 daqiqa, «kutilmoqda» → «raqam» → «tasdiqlandi» → «ishlatildi»),
+    `dokon_sessiyalar` (`DokonSessiya` — token xeshi, 30 kun). Hisoblar ZAXIRAGA kiradi va TIKLANADI (`_reset_table_order`: sessiya → kirish
+    → hisob → usta); kirish / sessiya — `_NON_TENANT_TABLES` (zaxirada yo'q, tiklashda fayl ichida bo'lsa ham — `_sessiya_jadvallari`);
+  * bot — `DOKON_BOT_TOKEN` (Railway o'zgaruvchisi; har muhitga O'Z boti — sinovda sinov boti, production da @penodecorprobot), webhook
+    `POST /telegram/dokon`, siri tokendan (`crud.dokon_bot_sir` — HMAC-SHA256), `allowed_updates` message + callback_query; usta boti
+    (@Penoustabot) va korxona botlariga TEGILMAYDI. Ulash — ERP «Sayt katalogi → 👷 Usta va magazinlar» (`/api/sayt-katalogi/dokon-bot/ulash`):
+    bot BOSHQA manzilga ulangan bo'lsa — 409; «Baribir ulash» (`majburiy`) — FAQAT production (sinov sayti asosiy botni o'g'irlamasin);
+  * oqim: do'kon `POST /api/dokon/v1/kirish` (kalit bilan; {"sayt"} — bot havolasi uchun `dokon_sayt_url` sozlamasi) → `kod` (bot havolasi
+    `t.me/<bot>?start=k_<kod>`) + `sir` (faqat brauzerga) → bot `/start k_<kod>` (birinchi ochgan chat bog'lanadi — ikkinchisiga «eskirgan»)
+    → «📱 Raqamni yuborish» (`request_contact`; `contact.user_id == from.id`, faqat +998) → hisob topiladi / ochiladi → do'kon `POST
+    /api/dokon/v1/kirish/holat {kod, sir}` → sessiya («pds_» + 43) BIR marta (shartli UPDATE), tasdiqdan keyin 15 daqiqagacha; kirgandan
+    keyin bot «🚫 Bu men emas» tugmasini yuboradi (`crud.dokon_bot_chiqar` — hamma sessiya o'chadi, avlod oshadi, olinmagan kirish yopiladi);
+  * sessiya bilan (`X-Mijoz-Sessiya` + do'kon kaliti): `GET /api/dokon/v1/mijoz` (KPI %, ERP usta raqami, Telegram raqami YO'Q),
+    `POST …/mijoz/royxat` ({turi, ism, magazin?, shahar?}; egasiga Telegram — faqat yangi so'rovda), `POST …/mijoz/chiqish`;
+  * admin (FAQAT Admin): `GET /api/sayt-katalogi/mijozlar` (kutilayotganlar birinchi, telefoni / Telegrami mos ERP ustasi — taklif),
+    `POST …/mijozlar/{id}/tasdiqla` (usta: {kpi > 0, master_id} yoki {kpi, yangi_usta: true} — telefon ERP da bo'lsa 409; magazin: {} —
+    `master_id` NULL), `…/rad` ({sabab?}; sessiyalar o'chadi), `…/blokla`, `…/ochish` (qayta tasdiq kerak). Jurnal amallari — `dokon_tasdiq`,
+    `dokon_rad`, `blocked`, `unblocked`, `dokon_chiqarildi`, `telegram_bot_ulandi`. Chegaralar (kalitga, daqiqasiga): kirish 300, holat 900,
+    mijoz 900 — do'kon sayti o'zi mijoz IP si bo'yicha ham cheklaydi. Mantiq — `crud.dokon_kirish_boshla`, `crud.dokon_kirish_holat`,
+    `crud.dokon_bot_start`, `crud.dokon_bot_kontakt`, `crud.dokon_bot_chiqar`, `crud.dokon_sessiya_mijoz`, `crud.dokon_mijoz_royxat`,
+    `crud.dokon_mijoz_tasdiqla`, `crud.dokon_mijoz_rad`, `crud.dokon_mijoz_blokla`, `crud.dokon_mijoz_ochish`.
+  * kech182 (zip 249) — BUYURTMA ↔ HISOB: `dokon_buyurtmalar.mijoz_id` (FK siz, NULL — mehmon; indeks — eski bazada ham
+    `database.add_missing_indexes`); `POST /api/dokon/v1/buyurtmalar` — ixtiyoriy `X-Mijoz-Sessiya` (`crud.dokon_sessiya_mijoz_ixtiyoriy`:
+    yaroqli — bog'lanadi, yaroqsiz / bloklangan — buyurtma MEHMON kabi qabul, rad etilmaydi; takror kaliti — birinchi hisobda qoladi);
+    Telegram xabarida «👷 Usta: …» / «🏪 Magazin: «…», shahar» (holati bilan; `crud.sayt_mijoz_yorligi`); `GET /api/dokon/v1/mijoz/buyurtmalar`
+    (kalit + sessiya; yangisi birinchi, 50 tagacha: raqam, sana (Toshkent), jami, mahsulotlar soni, holat — `crud.dokon_buyurtma_mijoz_holati`:
+    kutilmoqda | tasdiqlandi | tayyorlanmoqda | tayyor | yetkazildi | bekor; ERP buyurtma raqami / xodim — YO'Q), `POST …/mijoz/buyurtmalar/pdf
+    {raqam}` (faqat O'Z buyurtmasi, boshqaniki — bir xil 404; holat — ro'yxat bilan bir xil, `crud.dokon_mijoz_pdf_malumoti`; chegara —
+    `_DOKON_PDF_CHEKLOV`); sayt buyurtmasi tasdiqlanganda (`/api/sayt-buyurtmalari/{id}/tasdiqla`) — hisob FAQAT «tasdiqlangan» usta, ERP
+    ustasi shu korxonada va faol bo'lsa — `Order.master_id` (`crud.sayt_mijoz_ustasi`; KPI / keshbek — mavjud hisob); bloklangan hisob
+    botga raqam yuborsa — kirish YAKUNIY «bloklangan» (`kr_holat`; keyin blokdan chiqarilsa ham o'sha kirish sessiya bermaydi).
+  * kech184 (zip 250) — ULGURJI BO'LIM (egasi QARORLARI 30.10: faqat tasdiqlangan magazin; narx 1 dona uchun — metrli detal 1 dona = 2 m,
+    dona — dona, m² — 1 m² (sayt butun panel); qo'shimcha chegirma yo'q; rom komplekti — faqat rom, kapitel / baza o'chiriladi; ism / telefon
+    — hisobdan, manzil — bir marta; 50 % oldindan; takrorlash; keshbek YO'Q): kirish — FAQAT `crud.dokon_ulgurji_mijoz` (sessiya yaroqsiz —
+    401 «Kirilmagan»; usta / kutilmoqda / rad — 403 BIR XIL «Bu bo'lim faqat tasdiqlangan magazinlar uchun»; admin «Ulgurji» tizim
+    bo'limini yashirsa — 404, `ulgurji_bolimi_ochiqmi`); `GET /api/dokon/v1/ulgurji` — `crud.dokon_api_ulgurji` (no-store): bo'limlar,
+    modellar (rasmlar), ulgurji narxi bor detallar (`sotish`: dona2m | dona | m2; narx / narx_qoplamali — 1 sotish birligi,
+    `_ulgurji_birlik_narxi`: qoplamali bo'sh — ulgurji × koeffitsient), rom komplektlari (har o'lcham: detallari donada, qoplamasiz /
+    qoplamali / *_kbsiz — `dokon_model_komplekti` «ulgurji_rom» bilan AYNAN; kapitel / baza qatori yo'q o'lcham — faqat kbsiz), magazin,
+    oxirgi manzil, oxirgi ulgurji buyurtma (`_ulgurji_takror_qatorlari` — so'rov shaklida); `POST /api/dokon/v1/ulgurji/buyurtmalar` —
+    `sayt_buyurtma_yarat(…, ulgurji_hisob=m)` (hisob qatori FOR UPDATE; tana xeshiga hisob raqami — boshqa magazin / oddiy yo'l o'sha kalit
+    bilan 409), narx — `crud.ulgurji_buyurtma_hisobla` (metr: miqdor = dona × 2 m, `narx` — 1 m, summa = dona narxi × dona AYNAN; hajm
+    narxi — chakana qoplamasiz, yo'q bo'lsa ulgurji qoplamasiz, faqat qoplamali — ÷ koeffitsient); `dokon_buyurtmalar.sb_ulgurji` (Boolean,
+    NULL — oddiy); Telegram «🏪 Magazin (ulgurji)» + «50 % oldindan»; «🛒 Saytdan» ro'yxatida «🏪 Ulgurji (magazin)»; tasdiqda usta (KPI) —
+    YO'Q (`sayt_mijoz_ustasi`); ERP buyurtma izohida «Ulgurji narx (magazin) — 50 % oldindan»; kabinet tarixida `ulgurji` belgisi (hisob
+    hozir tasdiqlangan magazin bo'lmasa — ulgurji buyurtma jami null, PDF 404 — `ulgurji_korinadimi`); PDF «ULGURJI BUYURTMA», metr qatori
+    DONADA (1 dona narxi × dona = summa); do'kon javobida metr qatorlari donada (`_ulgurji_guruhlar_dona`); juft bo'lmagan surrogat —
+    400 «buzilgan belgi» (`_sayt_surrogat_bor`, chakana yo'lda ham).
+  * kech184 (zip 251) — NARXLAR RO'YXATI PDF I VA ULGURJI TANLOV PDF I (egasi QARORI 30.10: «Magazin butun ulgurji katalogni o'z narxlari
+    bilan PDF qilib oladi — vitrina va mijozlari uchun»): `GET /api/dokon/v1/ulgurji/narxlar/pdf` — kirish `/api/dokon/v1/ulgurji` bilan
+    AYNAN (401 / 403 bir xil / 404 bo'lim yashirin), ma'lumot — FAQAT `dokon_api_ulgurji` dan (`crud.ulgurji_narxlar_pdf_malumoti`: bo'limlar
+    bo'yicha detallar — ERP nomi `_sayt_nom`, 1 sotish birligi «1 dona (2 m)» / «1 dona» / «1 m²», qoplamasiz / qoplamali; rom komplektlari
+    — tarkibi har qatorda, kapitel-bazasiz narx alohida qatorda), `pdf_service.generate_ulgurji_narxlar_pdf` (ko'p sahifa, jadval sarlavhasi
+    har sahifada, korxona logotipi / telefonlari, pastida sahifa raqami; bo'sh katalog — «Hozircha ulgurji narxli mahsulot yo'q»), fayl
+    «ulgurji-narxlar-YYYY-MM-DD.pdf»; `POST /api/dokon/v1/ulgurji/savat/pdf` {"qatorlar"} — `ulgurji_buyurtma_hisobla` (buyurtma
+    hisobining O'ZI), «ULGURJI SAVAT (HISOB-KITOB)», MAGAZIN maydoni, metr qatori donada, hech narsa yozilmaydi; tana — kirishdan KEYIN
+    o'qiladi. Chegara (kirishdan KEYIN — review251 M1): kalit qabuli `_DOKON_MIJOZ_CHEKLOV`, ulgurji PDF — korxonaga daqiqasiga 30
+    (`_ULGURJI_PDF_CHEKLOV`, chakana PDF lardan alohida), narxlar ro'yxati — hisobga daqiqasiga 6. Chakana savat PDF i O'ZGARMAGAN.
+  * kech185 (zip 252) — «KELGANDA XABAR BERING» (egasi rejasi 30.10: «Tayyor mahsulot tugasa, mijoz tugmani bosadi; omborga kelganda
+    Telegram'da xabar oladi. Siz qaysi mahsulot kutilayotganini ko'rasiz»): jadval `dokon_kutishlar` (`models.DokonKutish`; hisob × element
+    kaliti YAGONA — «d|<detal>» / «k|<model>|<rom|eshik>|<1|0>|<o'lcham kaliti>»; nom — NUSXA; zaxiraga KIRADI, o'chirishda hisobdan OLDIN).
+    Do'kon API (kalit + `X-Mijoz-Sessiya`, faqat KIRGAN hisob — holati qanday bo'lmasin, bloklangandan tashqari): `GET /api/dokon/v1/kutish`
+    (faollari + so'nggi 30 kunda kelganlari, ko'pi bilan 50), `POST /api/dokon/v1/kutish` (element «Tayyor mahsulotlar»da — `dokon_kutish_holati`, ya'ni
+    `dokon_api_tayyor` ning O'ZI — yo'q / bo'lim yashirin 404, omborda bor (detal — qoldiqning butun qismi ≥ 1, komplekt — soni ≥ 1) 409,
+    30 tadan ko'p faol 409, takror — o'zgarmaydi), `POST /api/dokon/v1/kutish/bekor` (faqat o'ziniki; xabar yuborilayotganda ham —
+    review252 M1); hisob chegarasi daqiqasiga 20 — sessiyadan KEYIN. Tekshiruv — `main.dokon_kutish_ish` (APScheduler, har 5 daqiqa,
+    bitta nusxa) → `crud.dokon_kutish_tekshir` (har korxona): avval kelgan elementlar, keyin FAQAT ularning kutishlari (review252 H1),
+    SHARTLI UPDATE «kutilmoqda» → «yuborilmoqda» (xabar BIR marta) → do'kon boti (`_dokon_kutish_yubor`; «🛒 Tayyor mahsulotlar» tugmasi —
+    sayt manzili) → «yuborildi»; chatga yetmadi (Telegram 400 / 403) — urinish +1, 5 tadan keyin «xato»; Telegram / bot / tarmoq umuman
+    ishlamasa (`DokonKutishToxta`) — urinish sanalmaydi, tekshiruv to'xtaydi (review252 M2); bloklangan hisob — «bekor»; «yuborilmoqda» da
+    30 daqiqadan ko'p qolgan — qayta navbat; detal / model o'chirilsa — kutishlari «bekor» (review252 M3). Admin: «Sayt katalogi → 🔔 Kelganda
+    xabar bering» (`GET /api/sayt-katalogi/kutishlar`) — mahsulot bo'yicha kim kutmoqda, hozirgi holat (omborda / tugagan / saytda yo'q),
+    so'nggi 30 kunda yuborilgan / yetmagan xabarlar.
+  * kech186 (zip 253) — KESHBEK (do'kon 3-bosqich, 1-qism; egasi QARORLARI 30.10 va 04.11): (1) usta KPI (keshbek) foizi har hodisada
+    QOTADI — `orders.usta_kpi_foizi` («Tayyor» ga o'tganda / usta o'zgarganda; «Tayyor» dan chiqsa NULL), `finished_product_sales.usta_kpi_foizi`
+    (sotuvda / usta o'zgarganda) — `models._usta_kpi_qotir` (before_flush, har yo'l); hisob — `crud.usta_foizi` (qotgani, yo'q bo'lsa
+    ustaniki) KPI sahifasi, tafsilot, bot «Bonuslarim», oylik «Usta bonusi», «Tayyor» javobida; qaytarish — o'sha buyurtma foizida; deploy
+    da `main._migrate_kpi_qotir253` mavjud «Tayyor» / sotuvlarni joriy foizda qotiradi. (2) ustaga BERILGAN keshbek — `usta_keshbeklar`
+    (`models.UstaKeshbek`; zaxiraga KIRADI, o'chirishda to'lov / kassa yozuvi / buyurtma / ustadan OLDIN): «naqd» (tanlangan pul hisobidan —
+    Moliya «Usta KPI to'landi» yozuvi), «buyurtma» (keyingi xarid to'loviga — TO'LOV, chegirma emas: buyurtmaga to'lov + «Naqd pul» dan
+    «Usta KPI to'landi»: kassada sof 0, narx / foyda o'zgarmaydi; buyurtma qarzidan ko'p emas), «oldin» (tizimdan oldin — kassaga ta'sir
+    yo'q). Qoldiq = BARCHA yillar `get_master_yearly_cashback` − berilganlar (`crud.usta_keshbek_holati`); qoldiqdan ko'p — 409; bog'langan
+    to'lov / kassa yozuvi alohida o'chirilmaydi (409) — `crud.usta_keshbek_ochir` birga o'chiradi. Yo'llar: `GET /api/masters/kpi-keshbek`,
+    `GET|POST /api/masters/{id}/keshbek` (ko'rish — «Ustalar KPI», berish — «Kassa: Yaratish»), `DELETE /api/masters/keshbek/{kid}` («Kassa:
+    O'chirish»); «Ustalar KPI» sahifasida — «qoldiq» qatori va 💸 oynasi. (3) usta hisobi tasdiqlanganda — shu hisobning ERP da ustasiz
+    qolgan (ulgurji emas) buyurtmalari ustaga bog'lanadi (`_dokon_usta_buyurtmalarini_bogla`). (4) do'kon kabineti:
+    `GET /api/dokon/v1/mijoz/keshbek` (faqat tasdiqlangan faol usta — yozilgan / berilgan / qoldiq, buyurtmalar keshbegi, tarix; foyda,
+    foiz, ERP raqami YO'Q); bot «Bonuslarim» — «Olinmagan qoldiq». Egasi QARORI 04.11 «Zarar — 0»: zararli buyurtma / sotuv keshbekni
+    KAMAYTIRMAYDI (`crud.usta_ulushi` = max(foyda, 0) × qotgan foiz — hamma joyda, oylik «Usta bonusi» ham; qaytarish — ayiriladi).
+  * kech186 (zip 254) — USTA HAVOLASI (egasi QARORLARI 30.10 / 04.11: 30 kun, OXIRGI havola egasiga; usta o'zi — o'ziga; ulgurjiga yo'q):
+    `dokon_mijozlar.mj_havola` (8 belgi, tasdiqlangan ustaga birinchi so'rovda — `crud.dokon_usta_havolasi`, shartli yozish),
+    `dokon_buyurtmalar.havola_mijoz_id`, `havola_vaqti` (KOD paytidan 30 kun; telefon bo'yicha bog'langanda — nusxa), `sb_telefon` indeksi.
+    Buyurtma tanasida ixtiyoriy «havola» (`_sayt_havola_hisobi`: amaldagi usta kodi; noto'g'ri / yo'q — shu telefondan kod bilan berilgan,
+    bekor qilinmagan, 30 kun ichidagi eng oxirgi; kirgan USTA — o'zi). Tasdiqda `sayt_mijoz_ustasi` — usta hisobi bermagan bo'lsa havola
+    egasi; hisob tasdig'ida havola buyurtmalari ham bog'lanadi; Telegram «🔗 Usta havolasi»; kabinet API — `havola`, `havola_buyurtmalar`
+    (bekorsiz). Do'kon: `GET /u/{kod}` → imzolangan `pd_h` (30 kun, oxirgisi), buyurtmada «havola», kabinetda havola (nusxa, Telegram).
+  `GET /api/dokon/v1/katalog` — `crud.dokon_api_katalog`: versiya, bugun (Toshkent); bo'limlar (FAQAT yoqilgan; id, nom, qolip,
+  tizim_kaliti, tartib, qolip_nomi); modellar (yoqilgan, yoqilgan bo'limda; tartib — bo'lim → model tartibi → id, sahifadagidek): kod, nom,
+  tavsif, qolip, kapitel_baza_bor, rasmlar (url, kichik, eni, boyi — `/static/uploads/dokon/…`, login siz), detallar (yoqilgan qatorlar:
+  turi, o'lcham, eni / qalinlik, birlik, narx, narx_qoplamali — yozilgani yoki avto `dokon_avto_qoplamali`, chegirma —
+  `dokon_detal_chegirmasi`), komplekt (`dokon_model_komplekti` — rom / eshik, to'liq / kbsiz, chegirmasi; FAQAT ko'rinadigan qatori bor
+  o'lchamlar; ulgurji komplekt va «yetishmaydi» — YO'Q), chegirma (amaldagi va kamida bitta ko'rinadigan qator / komplekt o'lchamiga
+  tegsa; o'lchamlar — faqat ko'rinadiganlari; review236 M1). Ulgurji narx, tannarx, koeffitsient, updated_by — UMUMAN yo'q.
+  `GET /api/dokon/v1/sozlamalar` — `crud.dokon_api_sozlamalar`: hozir_ish_vaqti, korinadigan_telefonlar (`dokon_korinadigan_telefonlar`),
+  telefonlar (hammasi, «doim» belgisi bilan), ish_vaqti, ish_vaqti_matni, ish_izoh, retsept, komplekt_olcham.
+  SAHIFA — «🔑 Do'kon sayti uchun kalit (API)» shtorkasi (`#skApi`): holat (boshi, kim / qachon, oxirgi murojaat, manzillar, chegara),
+  «🔑 Kalit yaratish» / «♻ Yangi kalit (eskisi o'chadi)» (tasdiq) / «O'chirish» (tasdiq); yangi kalit — sariq blokda (faqat o'qish maydoni,
+  «📋 Nusxa olish», «Yopish»), FAQAT holatdagi boshi mos bo'lsa (review236 M2); kalit maydoni — `data-no-capitalize` (umumiy «birinchi harf
+  katta» qoidasi blur da «Pdk_…» qilardi — O'LCHANGAN) va `data-no-i18n` (Kirill ko'rinishi).
+
+SAYTDAN KELGAN BUYURTMALAR (kech171, zip 237; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni» 1–7: mijoz savatni yig'ib
+  ism + telefon (+ viloyat, manzil / joylashuv) bilan buyurtma beradi; ERP da «Saytdan kelgan buyurtmalar» ro'yxati va Telegram xabari; xodim
+  qo'ng'iroq qilib tasdiqlaydi yoki bekor qiladi; narx buyurtma paytida QOTADI — chegirmali ham; komplekt detallarga ajraladi; Andijon —
+  yetkazish bepul, qolganlari — 50/50. 48 soat band va «Tayyor mahsulotlar» bilan bog'lanish — keyingi zip):
+  JADVALLAR — `DokonBuyurtma` (`dokon_buyurtmalar`; korxona bo'yicha `sb_seq` / «S-0001» — `uq_dokon_buyurtma_seq`, `sb_kalit` (do'kon
+  yuborgan `X-Amal-Kaliti`) — `uq_dokon_buyurtma_kalit`, `sb_tana_xesh`; mijoz, telefon (`+998…`), viloyat kodi, manzil, joylashuv
+  «lat,lon», izoh; `sb_jami` / `sb_chegirmasiz`; holat yangi / tasdiqlandi / bekor (o'chirilmaydi); `order_id` → orders SET NULL +
+  `sb_order_raqam`; kim / qachon) va `DokonBuyurtmaQator` (`dokon_buyurtma_qatorlari`; buyurtmaga CASCADE; `guruh` — do'kon qatori
+  raqami (komplektning detallari bitta guruh, `sbq_guruh_nomi`), model / detal ma'lumoti NUSXA (FK siz), `narx` (qotgan, chegirmali),
+  `asl_narx`, `chegirma_foiz`, `summa`, `hajm_narxi` (qoplamasiz chakana — donali penoplast sarfi uchun), `sbq_nom` — ERP detal nomi).
+  Tenant: qator → sayt buyurtmasi (`_TENANT_RULES`), sayt buyurtmasi → Order (`_TENANT_REFS`). Zaxirada BOR, `_reset_table_order` da
+  Taklif yonida (qator → sayt buyurtmasi → … → Order). Ustun nomlari NOYOB (`sb_` / `sbq_`).
+  DO'KON YO'LI `POST /api/dokon/v1/buyurtmalar` (`main.api_dokon_v1_buyurtma`; o'sha kalit — `_dokon_api_korxona`, o'z chegarasi
+  `crud._DOKON_BUYURTMA_CHEKLOV` — daqiqasiga 30, katalognikidan ALOHIDA; baza ishi — `run_in_threadpool`; tana ≤ 200 KB — Content-Length va
+  o'qish davomida, aks holda 413; JSON — NaN / Infinity / chuqur — 400; `X-Amal-Kaliti` — SHART, 8 … 64 `[A-Za-z0-9_-]`):
+  `crud.sayt_buyurtma_yarat` → `sayt_buyurtma_hisobla`: narx FAQAT ERP katalogidan — saytda ko'rinadigan (yoqilgan bo'lim → model →
+  qator), qoplamasiz — `narx`, qoplamali — yozilgani yoki avto (`_sayt_detal_narxi` — katalog API bilan AYNAN, review237 M2), chegirma —
+  amalda va o'lchamga (detalda faqat qoplamasiz narx bor bo'lsa, komplektda — har detalga), ulgurji — HECH QACHON; komplekt {"komplekt":
+  "rom" | "eshik", model_id, olcham, qoplamali, kapitel_baza, soni (1 … 500)} → retsept × soni detallar (`dokon_model_komplekti` × soni bilan
+  AYNAN); detal {"detal_id", "qoplamali", "miqdor"}: dona — butun, juft metrli qolip / komplekt modelining metrli detali — juft, butun metr
+  — butun, m² — ≤ 2 xona; ≤ 50 qator, ≤ 250 detal qatori, jami ≤ 9 999 999 999,99. `kutilgan_jami` farq qilsa — 409 {"narx_ozgardi", "jami",
+  "guruhlar"}, hech narsa yozilmaydi. Bir xil kalit + bir xil tana — avvalgi buyurtma (`takror: true`, `X-Takror: 1`, Telegram yo'q);
+  boshqa tana — 409. Bir telefondan 1 soatda 5 ta — 429. Raqam — `_pul_qulfi(237, korxona)` ostida. Javob (`sayt_dokon_javobi`): raqam,
+  holat, jami, chegirmasiz, tejaldi, viloyat, yetkazish yozuvi, guruhlar, hozir ko'rinadigan tasdiqlash raqamlari va «Shu raqamlardan
+  biriga qo'ng'iroq qilib…» matni. Telegram (`sayt_telegram_matni`, commit dan keyin `_fonda`) — mijoz matni `_tg237` bilan (Markdown
+  belgilari «\»). Sozlamalar API da `viloyatlar` (`sayt_viloyatlar` — 14 ta). Kalit sahifasida manzillar ro'yxatida buyurtma yo'li va uning
+  chegarasi (`buyurtma_daqiqa_max`).
+  ERP (sayt katalogi yoqilgan korxonada; aks holda 404): `GET /api/sayt-buyurtmalari` («Buyurtmalar: Ko'rish»; filtr, qidiruv — mijoz,
+  raqam, telefon raqamlari; «%» / «_» — oddiy belgi; yangilari birinchi; 20 tadan), `GET …/{id}`, `POST …/{id}/bekor` («Yaratish»; sabab
+  ixtiyoriy), `POST …/{id}/tasdiqla` («Yaratish» + «Loyihalar: Yaratish»; {"deadline", "loyiha_nomi", "recipe_id" — qoplamali qator bo'lsa
+  SHART}; xomashyo navbatida): BITTA tranzaksiyada yangi loyiha (`sayt_loyiha_tanasi`) + `api_create_order` ning O'ZI
+  (`sayt_buyurtma_tanasi`: metr → profil (Eni, Qalinlik, Uzunlik = metr, soni 1, narx = qator jami, qatorning O'Z «1 m³ narxi» — forma shu
+  narxni AYNAN qayta hosil qiladi, review237 H1), dona → dona (hajm — qoplamasiz narxdan), m² → blok (m²); kelishilgan = sayt jami;
+  `yaratish_kaliti` = «sayt<korxona>x<id:06d>»), yetishmovchilik — 409 (`confirm_shortage`); istalgan rad — hech narsa yozilmaydi; qator
+  qulfi — ikki marta tasdiqlanmaydi. Buyurtma butunlay o'chsa — `sayt_buyurtmasini_uz` (raqami qoladi).
+  SAHIFA (`orders.html`): «🛒 Saytdan» tugmasi (yangilar soni `sayt_soni`), `#saytPanel` (filtr, qidiruv, guruhlar va detallari,
+  ogohlantirishlar — `sayt_ogohlantirishlari`), `#saytOynaOverlay` (tasdiq — sana, loyiha nomi, qoplama retsepti; bekor — sabab; Esc —
+  `data-yopish`); tasdiqlangach sahifa yangi buyurtma bilan ochiladi.
+
+«TAYYOR MAHSULOTLAR» SAYTDA (kech172, zip 238; egasi QARORLARI «Onlayn do'kon rejasi» 30.10: «Tayyor mahsulotlar» — omborda bor, faqat
+  QOPLAMALI, katalog narxida (ombordagisi va buyurtmaga tayyorlanadigani bir narx), qoldiq ERP dan; brak / 2-nav ko'rinmaydi; moslik — ERP
+  «Kam qoldiq» kaliti; saytdan kelgan buyurtma ombordagi mahsulotni darhol BAND qiladi, tasdiqlanmasa 48 soatdan keyin o'zi bo'shaydi; komplekt
+  — detallar qoldig'idan, eng kichigi; «Miqdor — qoldiqdan ko'p emas»):
+  USTUNLAR (yangi jadval YO'Q): `dokon_detallar.tm_bogl_kaliti` (String 300 — ERP mahsuloti kaliti `models.tm_kam_kaliti`; bitta mahsulot —
+  bitta detalga), `dokon_buyurtmalar.sb_band_tugash` (UTC; yaratilgandan 48 soat — `crud.SAYT_BAND_SOAT`; NULL — band yo'q),
+  `dokon_buyurtma_qatorlari.sbq_tm_kaliti` (ombordan qator — kalit NUSXASI). BAND — alohida jadval emas: «yangi» holatdagi, `sb_band_tugash`
+  hali o'tmagan sayt buyurtmasining ombordan qatorlari (`crud.sayt_faol_bandlar`) — tasdiq / bekor / 48 soat — o'zi tugaydi (fon vazifasi
+  yo'q). Band FAQAT saytdagi qoldiqdan ayiriladi; ERP sotuv / buyurtma qoidalari O'ZGARMAGAN («Tayyor mahsulotlar» sahifasida «🛒 Saytda band»
+  belgisi — `GET /api/sayt-bandlar`, «Tayyor mahsulotlar: Ko'rish»).
+  MOS PARTIYA (`crud._dokon_tm_mosmi`): qoplamali, `brak_taqdir` yo'q, turkumi `profil` (metr) yoki `dona` (dona) va birligi mos
+  (`crud.DOKON_TM_TURKUMLAR`); panel / blok / m² — bog'lanmaydi. QOLDIQ (`crud._dokon_tm_guruhlar`, `dokon_tm_qoldiqlari`): mahsulotning har ERP
+  guruhi (`tm_guruh_kaliti` — ishlab chiqarilgan / qaytgan) bo'yicha Σ max(0, qoldiq − MRP band) − Σ qarz (minus), manfiy emas (ERP
+  `_tm_qoshni_boshlar` hovuzi bilan AYNAN); jarayondagi partiya kirmaydi; saytda — shu yig'indi − faol sayt bandlari, 2 xonagacha PASTGA.
+  ADMIN (Sayt katalogi; FAQAT Admin): `GET /api/sayt-katalogi/tm-mahsulotlar` (`dokon_tm_mahsulotlar` — nom (eng yangi partiyaniki), o'lcham,
+  ERP qoldig'i, sayt bandi, saytdagi qoldiq, partiyalar, bog'langan detal), `PUT /api/sayt-katalogi/detallar/{detal_id}/tm` ({"tm_kaliti"} |
+  null; `dokon_detal_tm_bogla`: ro'yxatdagi kalit, birlik mos, bittalik — korxona qulfi `_pul_qulfi(238)` → model → qator; jurnal —
+  «omborga bog'landi: <nom>» / «uzildi»); `/api/sayt-katalogi` da `tm_mahsulotlar`, `band_soat`, detalda `tm_kaliti`. Sahifa
+  (`sayt_katalogi.html`): detal qatorida «🏭 <ERP nomi> · saytda N m» / «🏭 Omborga bog'lash», `#skTmOyna` (qidiruv, birligi mos
+  mahsulotlar, boshqa detalga bog'langani — tanlab bo'lmaydi; `data-yopish`); amaldan keyin FAQAT «🏭» qismlari qayta chiziladi.
+  KATALOGDAN TANLASH (kech177, zip 242 — onlayn do'kon rejasi, Komplekt 6-band; O'LCHANGAN `work/k242/probe242.py`: qo'lda yozilgan nom
+  «K-12 Tekis 12 sm» / «· 12sm» yoki almashgan eni / qalinligi — BOSHQA mahsulot, saytga qo'shilmasdi): «Tayyor mahsulotlar» → «Penoplast
+  detal ishlab chiqarish» oynasida «📖 Katalogdan tanlash» (FAQAT sayt katalogi yoqilgan korxonada — `sayt_katalogi_bormi`). Ro'yxat —
+  `GET /api/finished/katalog-detallar` (`crud.dokon_tm_katalog`; ishlab chiqarish ruxsati `tayyor` / `yaratish`; birligi metr / dona
+  detallar, m² — yo'q; NARXSIZ; nom — `_sayt_nom` (saytdan kelgan buyurtma ERP ga shu nom bilan tushadi), turkum, eni / qalinligi,
+  saytda ko'rinadimi, bog'lam — eng yangi partiya nomi / o'lchami, partiyasi qolmagan — kalitdan). Tanlansa: nom, tur (metr — Profil,
+  dona — Donali), o'lcham (profil: Eni = detal eni, Kengligi = detal qalinligi; donali: Eni / Qalinlik), qoplama «Bor»; bog'langan detal —
+  o'sha ERP mahsulotining nomi / o'lchami (yangi partiya o'sha mahsulotga qo'shiladi); narx / plotnost / retsept — tegilmaydi. Belgi (chip)
+  — «… bog'lanadi / qo'shiladi»; nom / tur / o'lcham o'zgartirilsa, qoplama «Yo'q» yoki donali mahsulotda «1 metrdan nechta» kalitga mos
+  kelmasa — ogohlantirish (`pKatalogMos` — server qoidasi bilan bir xil). Saqlash — `POST /api/finished/produce` `dokon_detal_id` bilan:
+  partiya bilan BITTA tranzaksiyada `crud.dokon_partiya_katalogga` (qulf: korxona `_pul_qulfi(238)` → model → qator — zip 238 bilan bir
+  xil; commit / rollback YO'Q): `boglandi` (detal bog'lanmagan va partiya katalogning O'Z nomi / o'lchami bilan — `_katalog_mosmi242`:
+  nom bo'shliq / harf farqisiz, profil — eni / qalinligi teng, donali — o'lchamsiz yoki teng; «Faoliyat jurnali»da kim), `qoshildi`
+  (detal shu mahsulotga bog'langan), `qoplamasiz` / `birlik` / `boshqa` (detal boshqa mahsulotga bog'langan) / `band` (mahsulot boshqa
+  detalga bog'langan) / `farq` (nom / o'lcham katalogdagidan farq qiladi) — partiya yoziladi, bog'lam O'ZGARMAYDI, sababi javobning
+  `katalog.matn` ida (xabarda ko'rinadi); detal topilmasa / katalog o'chiq — 400, partiya ham yozilmaydi. Menejer / Omborchi ham bog'laydi
+  (Claude texnik qarori — bog'lam faqat katalogning o'z nomi / o'lchami bilan, Admin qo'lda qiladigan natija bilan bir xil; uzish /
+  almashtirish — avvalgidek faqat Admin «Sayt katalogi»da). MRP «Yakunlash» — bu zipda EMAS.
+  BAJARILGAN ISHLAR GALEREYASI (kech178, zip 243 — onlayn do'kon rejasi 1-bosqich, egasi QARORLARI 30.10 «Galereya bo'yicha tanlovlar»):
+  «Sayt katalogi»da «🏠 Bajarilgan ishlar (galereya)» shtorkasi (FAQAT Admin; katalog o'chiq — 404). Ish (`dokon_galereya`): nomi, joyi,
+  oyi (`gl_oy` — oyning 1-kuni, «2026, sentyabr»), saytda ko'rinadimi; mahsulotlari (`dokon_galereya_qatorlari`): katalog DETALI
+  (`detal_id`; miqdor — detal birligida) yoki KOMPLEKT (komplekt modeli + rom / eshik + o'lcham + kapitel / baza bilanmi; miqdor — dona),
+  NARX SAQLANMAYDI (sayt katalog API sidan oladi — chegirma ham); miqdor — do'kon BUYURTMASI qoidasi (`_sayt_miqdor`: juft metr — juft,
+  butun metr / dona — butun, m² — 2 xona, ≤ 10 000; komplekt 1 … 500 — review243 M1), 30 qatorgacha, takrorsiz; rasmlari
+  (`dokon_galereya_rasmlari`, 10 tagacha) — model rasmi (zip 232) bilan BIR XIL papka / ishlov / ochiq berish (`_dokon_rasm_jadvallari`
+  — fayl o'chirish, ochiq manzil, yetim fayllar, zaxira tekshiruvi IKKALA jadvalga; yuklash — `main._dokon_rasm_fayl_yukla`, model rasmi
+  ham shundan). Saqlash — ish to'liq holati bilan (`crud.dokon_galereya_yarat` / `_yangila`; o'zgarishsiz — jurnalga yozilmaydi); qulf
+  tartibi: ish → modellar → detallar (id o'sish). Katalog o'zgarsa: model / detal O'CHIRILSA — galereya qatorlari ham (ish qoladi; tasdiq
+  oynasida aytiladi — review243 M2; zaxiradan kelgan nomuvofiq qator ham — L5); komplekt o'lchami qayta nomlansa — qatorlar yangi nomga
+  (oxirgi qatori nomlangach — `_dokon_gl_olcham_kochir`, M3); kapitel / baza o'chirilsa — «to'liq» komplekt «bazasiz» ga, takrori
+  birlashadi (`_dokon_gl_komplekt_birlashtir`, M4); model / bo'lim / o'lcham YASHIRILSA, komplekt o'lchami yo'qolsa yoki miqdor yangi
+  birlikka mos kelmasa — qator qoladi, admin sahifasida sababi, saytga BERILMAYDI. Qator nomi — `_dokon_gl_detal_nomi` («K-3 Tekis ·
+  15 sm», o'lcham HAR DOIM; sahifada `skGlQatorNomi` — bir xil). Do'kon API — `GET /api/dokon/v1/galereya` (o'sha kalit; `DOKON_API_YOLLAR`
+  da): yoqilgan va kamida bitta rasmi bor ishlar, yangisi birinchi (oy kamayib, oysizi oxirida), har ishda rasmlar, `bolimlar`
+  (saralash tugmalari uchun), ko'rinadigan qatorlar (model / detal raqami, komplekt — tur / o'lcham / to'liq, nom, birlik, miqdor) —
+  NARXSIZ, ETag. Sahifa: ish sarlavhasi (asosiy rasm, soni, «Saytda» / sabab), forma (saqlanmagan o'zgarish — sahifadan chiqishda
+  so'raladi), «Katalogdan model → o'lcham yoki komplekt → miqdor» (miqdor qoidasi yoziladi), rasm bloki (◀ ▶ ✕; amallar formani qayta
+  chizmaydi — yozilayotgan matn yo'qolmaydi).
+  BUYURTMA VA SAVAT PDF I (kech178, zip 244 — egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF»: savatda va buyurtma
+  berilgandan keyin «PDF yuklab olish»; firma nomi va telefoni, raqam va sana, mijoz ismi va telefoni, qatorlar (model, o'lcham, detal,
+  miqdor, narx, summa), jami; komplekt ham). PDF ni ERP yasaydi — «Buyurtma hisobi» / «Taklif» shablonining O'ZI
+  (`pdf_service.generate_sayt_pdf` → `generate_nakladnoy(…, taklif={…})`; yangi ixtiyoriy kalitlar: `sarlavha`, `raqamsiz`, `info`
+  (ustunlar), `pastki` (yozuvlar), `pastki_yorliq`, `jami_nomi`, `fayl_nomi`, `nom_asl`; standart — «Taklif» AYNAN, review244 tekshirdi).
+  Qatorlar — tasdiqlanganda ERP buyurtmasiga tushadiganlarning O'ZI (`crud._sayt_erp_qatorlari` — `sayt_buyurtma_tanasi` dan ajratildi,
+  xulq AYNAN); PDF da alohida detal qatoriga katalog o'lchami qo'shiladi («D-2 Burchak — S»; `_sayt_pdf_qatorlari`, review244 H1), nom —
+  katalogdagidek (`nom_asl`: «AB-12» o'zgarmaydi). `POST /api/dokon/v1/buyurtmalar/pdf` {"raqam", "kalit"} — kalit = buyurtma
+  yuborilgandagi `X-Amal-Kaliti` (qidiruv — korxona + kalit, raqam — `compare_digest`); raqam / kalit xato — BIR XIL 404 «Buyurtma
+  topilmadi» (do'kon kaliti bilan begona buyurtmani raqamini taxmin qilib ochib bo'lmaydi); narx — buyurtmada QOTGANI (tasdiqlangandan keyin
+  ERP buyurtmasi tahrirlansa ham — sayt buyurtmasi narxi). `POST /api/dokon/v1/savat/pdf` {"qatorlar"} — `sayt_buyurtma_hisobla` (buyurtma
+  narxining O'ZI), hech narsa yozilmaydi, xatolar — buyurtma yo'lining xabari. Pastida (`_sayt_pdf_pastki`): «yangi» — hozir ko'rinadigan
+  tasdiqlash raqamlari (ish vaqti qoidasi), tasdiqlangan / bekor — holat, savat — «buyurtma hali berilmagan», yetkazish, 48 soat band,
+  chegirma bilan tejalgan summa; jami — «JAMI:» (yetkazish narxi telefonda — to'lov summasi emas). Ikkalasi POST (kalit URL ga
+  tushmaydi), `_dokon_json_tana` (buyurtma yo'lidan ajratildi: 413 / 400), O'Z chegarasi `_DOKON_PDF_CHEKLOV` (30 / daqiqa — review244 M1:
+  katalog chegarasini yemaydi), `Cache-Control: no-store`, `attachment`. Pul yozuvi (`pdf_service._pul_matni`, HAMMA PDF) — yarim so'm
+  YUQORIGA (review244 M2; ilgari «bankir» yaxlitlashi). DO'KON SAYTI uchun: `X-Amal-Kaliti` — kamida 128 bit tasodifiy (review244 L3).
+  O'LCHAM NOMDA BORMI (kech179, zip 245): alohida detal guruh nomi («🛒 Saytdan» paneli, Telegram) va PDF qatori («… — S») — BITTA qoida
+  `crud._sayt_olcham_nomdami(nom, olcham, eni_sm)`: bor — (1) o'lcham ERP nomi OXIRIDAGI enining o'zi (`_sayt_nom` « · {eni} sm»; nom
+  shu bilan tugasa — 150 belgida kesilgan nomda yo'q), son AYNAN teng («12», «12 sm», «12sm», «12 см», «12.0», «12,5 sm»; «12.004» ≠ 12);
+  (2) o'lcham nomning eni qismisiz qolgan qismida BUTUN so'z(lar) (ajratuvchi — bo'shliq, «·», «;», qavslar, qo'shtirnoq; «,» / «.» / «-» —
+  EMAS: «S» — «S-1» ning, «12» — «K-12» ning, «5» — «12,5» ning qismi emas). Ilgari guruh nomi «S244 Jonli sinov · 12 sm, 12 sm, …», PDF
+  esa matn qismi bilan tekshirardi («S-1 Burchak» — S o'lchami yo'qolardi). ERP buyurtma qatori nomi (`_sayt_nom` — zip 246 da o'lcham qo'shildi, quyida), komplekt / «o'z
+  o'lchami» guruh nomi va PDF komplekt qatorlari — O'ZGARMAGAN. Saqlangan buyurtmalar guruh nomi — o'zgarmaydi (bazada).
+  DETAL NOMIDA O'LCHAM (kech179, zip 246): `crud._sayt_nom` = model kodi / nomi (+ tur nomi) + « · {eni} sm» (eni bo'lsa) + « · {o'lcham}» —
+  o'lcham nomda bo'lmasa (`_sayt_olcham_nomdami`; «K-12 Tekis · 12 sm» — o'lcham «12 sm» eni 12 — qo'shilmaydi; «Mahsulot Q · S» — 1 belgili
+  kod qoidasidan keyin). Ilgari enisiz detalning ikki o'lchami («D-2 Burchak» S / M, «T-1 Panel» 60x120 / 60x60) ERP buyurtmasida BIR XIL
+  qator, «Katalogdan tanlash» partiyalari — bitta `tm_kam_kaliti` (S bog'lanardi, M — «band», qoldiq aralashardi). Nom ishlatadigan hamma
+  joy — shu funksiyadan (sayt buyurtmasi `sbq_nom`, ERP qatori, `/api/finished/katalog-detallar`, `_katalog_mosmi242`, PDF, guruh nomi);
+  komplekt detali ham «Rom karnizi R-18 · 15 sm · O'rta» (komplekt sarlavhasi — o'zgarmagan). Saqlangan sayt buyurtmalari — eski nomi bilan
+  (bazada); MAIN dan oldin — production da katalog ma'lumoti yo'q (bog'lam kalitlari ko'chirilmaydi; review246 M1: zip 246 dan OLDIN
+  yaratilgan bog'lam / partiya eski nom bilan qoladi — sinov saytida katalog bo'sh, production da yo'q). Nom 150 belgidan oshsa — o'lcham
+  butun, asos qisqaradi (review246 L1); so'zsiz o'lcham («()») — matn qismi sifatida tekshiriladi (review246 L2). Eslatma: «Kam» chegarasi
+  (`TmKamChegara`) — nom kaliti bilan: yangi nomli mahsulotga eski nom chegarasi o'tmaydi; o'lcham qayta nomlansa — keyingi partiya nomi ham.
+  ENI BIR MARTA (kech180, zip 247, review246 L5): o'lcham detal ENIGA teng son bilan boshlanib davomida so'z bo'lsa (`_sayt_olcham_enidan`:
+  «12 sm (keng)», «12sm keng», «12 (keng)», «12 см keng», «12.0 sm uzun», kasr eni «12,5 sm keng») — « · {eni} sm» yozilmaydi: «K-12 Tekis
+  · 12 sm (keng)» (ilgari «· 12 sm · 12 sm (keng)»); «12 sm» / «12» (davomi yo'q), «12,5 sm» (eni 12), «120 sm», «12.004 keng» — zip 246
+  dagidek. Asos — `_sayt_nom_asosi` (eni bilan / enisiz), 150 belgi — `_sayt_nom_olchamli` (o'lcham butun). PARTIYASIZ BOG'LAM (review246 L4):
+  `dokon_tm_katalog` bog'lam nomi kalitdan (kichik harf) — `_sayt_nom_shakllari` (hozirgi, zip 246 shakli, zip 245 shakli) dan biriga kichik
+  harfda teng bo'lsa — o'sha shakl (ilgari 246 dan oldingi «d-2 burchak» kalitida forma «d-2 burchak» berardi); yangi partiya o'sha kalitga
+  tushadi (faqat harf katta-kichikligi tiklanadi). Boshqa nom (model qayta nomlangan) — avvalgidek kalitdagi kichik harf.
+  DO'KON: `GET /api/dokon/v1/tayyor` (`crud.dokon_api_tayyor`; o'sha kalit, ETag): saytda ko'rinadigan, omborga bog'langan, qoplamali narxi bor
+  detallar {detal_id, model_id, birlik, qoldiq} va komplektlar {model_id, komplekt, olcham, kapitel_baza, soni}; ERP nomi / partiya / tannarx
+  — YO'Q; narx — katalog API dagi qoplamali narx. Buyurtmada qator `"ombordan": true` (detal ham, komplekt ham): faqat qoplamali, detal(lar)
+  bog'langan bo'lishi SHART, miqdor — butun metr / dona (juft talabi yo'q); `sayt_buyurtma_yarat` korxona qulfi (237) ostida saytdagi
+  qoldiqni tekshiradi — yetmasa 409 {"ombor_yetmaydi", "yetmaydi": [{detal_idlar, nom, birlik, kerak, bor}]}, hech narsa yozilmaydi; aks holda
+  `sb_band_tugash` = hozir + 48 soat; javobda `band_tugash` («Z») va `band_matni` (Toshkent vaqti); Telegram — «🏭 Ombordan — 48 soat band».
+  TASDIQLASH (`api_sayt_tasdiqla`): ombordan qator uchun qoplama retsepti SHART EMAS; `crud.sayt_tm_taqsimla` — mahsulotning ERP guruhlariga
+  (eng ko'p bo'sh qoldiqlisidan, BUTUN birlikda; vakil — guruhning eng ko'p bo'sh partiyasi; yetmasa — qolgani eng katta guruhga → ERP 409
+  «davom etasizmi?»); `sayt_buyurtma_tanasi(tm=…)` — partiya qatori forma `pickFinished` shaklida (nom / o'lcham — partiyaniki; profil —
+  uzunlik = metr, soni 1, narx = qism jami — forma `tmSaqlanganBirlikNarxi` 1 m narxini AYNAN qaytaradi; dona — soni, 1 dona narxi); ERP
+  mahsuloti topilmasa (nomi o'zgargan / o'chirilgan) — 400, hech narsa yozilmaydi. ERP paneli (`sayt_korinish`): `band_tugash`, `band_faol`,
+  `ombordan_bor`, ogohlantirish (ombordan; band muddati o'tgan); `orders.html` — «🏭 ombordan», «🔒 ombor bandi: … gacha» / «🔓 … o'tgan».
+
+KOMPLEKT BELGISI (kech173, zip 239; «Onlayn do'kon rejasi» 30.10, «Komplekt ERP'da qanday bilinadi» 4-band, «O'z o'lchamingiz bilan» 4-band):
+  USTUNLAR (`order_items`, hammasi NULL bo'ladi, standartsiz): `kmp_guruh` (Integer — buyurtma ichidagi guruh raqami; saytdan — do'kon qator
+  raqami), `kmp_turi` (String 20 — `komplekt_rom` | `komplekt_eshik` | `oz_olcham`; `models.KMP_TURLARI`), `kmp_nomi` (String 200 — sayt guruh
+  nomi, oxiridagi « × N» siz), `kmp_soni` (Integer — komplektlar soni; o'z o'lchamida NULL). Hisob-kitobga (narx, ombor, tannarx, foyda,
+  qaytarish summasi) TA'SIR QILMAYDI — faqat ko'rinish. Sarlavha — `models.kmp_sarlavha` («<nomi> — 3 komplekt» / «<nomi>»), guruhlash —
+  `models.kmp_bloklari` (bir guruh qatorlari BIRINCHI uchragan joyida yig'iladi — tahrirda keyin qo'shilgani ham o'z komplekti tagida; guruhsiz
+  qator — o'z blokida, tartib saqlanadi); sahifada — `kmpSarlavha` / `kmpBloklari` / `kmpBelgisi` (`templates/base.html`) AYNAN shu qoida.
+  YOZISH: `crud.sayt_buyurtma_tanasi` (`_sayt_kmp239`: komplekt / o'z o'lchami qatoridan chiqqan HAMMA ERP qatoriga — ombordan bo'lib partiyalarga
+  ajralsa ham; alohida detal — belgisiz); `crud.create_order` / `update_order_full` (`_kmp_ustunlari239`): tahrirda tanadagi detalda kmp KALITI
+  bo'lsa — shu qiymat (yangi forma har qatorga yuboradi, guruhsizga null), kalit umuman yo'q (eski ochiq sahifa / API) — saqlangani qoladi.
+  SXEMA (`schemas.OrderItemCreate`): guruh 1 … 1000 (qat'iy butun), turi — 3 qiymat, nomi ≤ 200 (`kmp_nomi_tozala`: boshqaruv / ko'rinmas
+  belgilar olib tashlanadi, bo'shliqlar bittaga, bo'sh — None), soni 1 … 500; hammasi birga yoki hech biri; komplektda soni SHART, o'z o'lchamida
+  — yo'q; `OrderCreate`: bir guruh raqamida turi / nomi / soni bir xil — aks holda 422.
+  KO'RINISH: `GET /api/orders/{id}` qatorlarida, `GET /api/orders/{id}/delivery-status`, `GET /api/tanlov/buyurtmalar/{id}/detallar` —
+  `crud.kmp_dict`; `orders.html` — buyurtma oynasi va yetkazish oynasida `.kmp-blok` (chap chiziq) + `.kmp-sarlavha` («🧩» komplekt / «✂️» o'z
+  o'lchami), tagida detallar; tahrir formasida qator sarlavhasi tagida `.kmp-qator` («🧩 …» yorlig'i, komplektda «✕ butun komplekt» — shu
+  komplektning hamma qatori formadan olinadi, tasdiq bilan; alohida detal — odatdagi ✕); `collectItems` belgini qaytaradi (`kmpTanaga239`);
+  `returns.html` — detal tanlovida `<optgroup>`. PDF: `pdf_service.generate_nakladnoy` (buyurtma hisobi va taklif), `delivery_pdf.
+  generate_delivery_pdf` (asosiy jadval va «Keyingi yetkazishda kutilayotgan mahsulotlar»), `generate_summary_pdf` (har yuk bo'limida) —
+  butun kenglikdagi sarlavha qatori (`KMP_BG239`), raqamlar faqat detallar bo'yicha.
+  DO'KON — «O'Z O'LCHAMI» QATORI (`sayt_buyurtma_hisobla`): `{"oz_olcham": [{"detal_id", "miqdor"}, …], "qoplamali"}` — bitta rom / eshik
+  modelining (qolip «komplekt») BIR o'lchamdagi detallari, 1 … `SAYT_OZ_MAX_DETAL` (10), bir detal bir marta; miqdor — `_sayt_miqdor`
+  (metrli — juft, dona — butun); narx — alohida detal qatori qoidasi bilan AYNAN (`_sayt_detal_narxi`, chegirma ham); «ombordan» — YO'Q
+  (faqat buyurtma asosida); guruh nomi «R-12 «Klassik», O'rta, o'z o'lchami, qoplamali», `sbq_tur` = `oz_olcham`.
+  QAYTARISH (zip 240) — quyidagi «KOMPLEKT BO'YICHA QAYTARISH» bloki.
+
+KOMPLEKT BO'YICHA QAYTARISH (kech174, zip 240; «Onlayn do'kon rejasi» 30.10, «Komplekt ERP'da qanday bilinadi» 4-band — «qaytarish yoki
+bekor qilishda butun komplekt yoki alohida detal»):
+  USTUNLAR (`return_items`, hammasi NULL bo'ladi, standartsiz): `kqt_kalit` (String 40, indeks — to'plam kaliti, uuid hex), `kqt_soni`
+  (Integer — nechta komplekt qaytdi), `kqt_nomi` (String 200 — komplekt nomi nusxasi, `kmp_nomi`). Oddiy (detal) qaytarish — NULL.
+  REJA (`crud.kmp_qaytarish_reja` — hech narsa yozmaydi): faqat `komplekt_rom` / `komplekt_eshik` guruhi («o'z o'lchami» — komplekt emas,
+  detal bo'yicha); belgi guruhda har xil — rad; N ≤ K (`kmp_soni`, sotib olingandagi son). Qator ulushi = miqdori × N / K; bir mahsulot
+  (nom — `_nom_kalit222`, birlik bir xil) qatorlari — bitta to'plam: jami ulush dona bo'lsa BUTUN (aks holda «komplekt tahrirlangan —
+  detal bo'yicha»), boshqasi 0,001 gacha yaxlitlanadi; qatorlarga — eng katta qoldiq usulida (jami AYNAN; ombordan partiyalarga bo'lingan
+  qatorlar uchun). ENG KO'P (`kmp_qaytar_max`): har qatorning qaytmagan qoldig'i (brakdan boshqa qaytarishlar yig'indisi — `create_return_item`
+  qoidasi; brak kirmaydi) yetadigan eng katta N. `kqt_tekshir` — reja + eng ko'p (yaratish va oldindan ko'rish — BITTA qoida).
+  YARATISH: `POST /api/returns/komplekt` {order_id, kmp_guruh, soni, reason? (brakdan boshqa: Ortiqcha / Notog'ri o'lcham / Mijoz iltimosi),
+  notes?, hisob?: «hozir» | «keyin», payment_method? (faqat «hozir» bilan)} — tana QAT'IY (`crud.kqt_tana`), `X-Amal-Kaliti`
+  («qaytarish_komplekt»); `crud.create_komplekt_return` — qulf (101, buyurtma) → tekshiruv → har qator tanasi `_clean_val("Return")` +
+  `ReturnItemCreate` → `create_return_item` (miqdor, yig'indi, topshirilmagan «ortiqcha» qism, omborga, MRP bandi, summa — kelishilgan narx
+  — oddiy qaytarish bilan AYNAN) → `kqt_*`; «hozir» — har yozuv `mark_refunded` (o'sha tranzaksiyada; «Qaytarishlar: Tahrirlash» ruxsati
+  SHART — aks holda 403). Hammasi `bitta_tranzaksiya` da: bir detal rad etilsa — hech biri yozilmaydi. Javob: kalit, nomi, soni,
+  qaytarishlar, jami / naqd / kelishilgan kamaydi (pul raqamlari — faqat «Tannarx va foyda: Ko'rish» bilan, `_kqt_pulsiz`), xabar.
+  OLDINDAN KO'RISH: `GET /api/returns/komplekt/reja?order_id&kmp_guruh&soni` — qatorlar (nom, miqdor, birlik; summa / jami — tannarx
+  ruxsati bilan), `qaytar_max`; `GET /api/tanlov/buyurtmalar/{id}/detallar` → `komplektlar: [{kmp_guruh, qaytar_max}]`.
+  O'CHIRISH: `DELETE /api/returns/{id}` — yozuv to'plamda (2+ yozuv) bo'lsa `?komplekt=1` SHART (aks holda 409 {message, komplekt} — eski
+  ochiq sahifa bitta detalni o'chirib «yarim komplekt» qoldirmasin); `crud.delete_komplekt_return` — har yozuv `delete_return_item`
+  (ombor, pul, MRP bandi orqaga), bitta tranzaksiyada (bittasini qaytarib bo'lmasa — hech biri). HISOB-KITOB: `POST
+  /api/returns/{id}/refund?komplekt=1` — to'plamning hisob-kitob qilinmagan hamma yozuvi (`crud.refund_komplekt`); matn — `main.
+  _qaytarish_hisob_xabari` (bitta qaytarish bilan bir xil).
+  SAHIFA (`returns.html`): detal tanlovida komplekt guruhining birinchi tanlovi «🧩 Butun komplekt (ko'pi bilan N ta)» (`k:<guruh>`;
+  qolmagan bo'lsa — o'chiq), miqdor — komplektlar soni (butun), reja — serverdan (`kmpReja240`, `#f-kmp-reja`), qiymat — o'zgartirilmaydi,
+  rasm maydoni yashirin; saqlash — `saveKomplektReturn240`; ro'yxatda `.ret-kqt` «🧩 <nomi> — N komplekt qaytdi» (`data-kqt`), o'chirish va
+  «💰 Hisob-kitob qilish» — to'plam bo'yicha (tasdiqda «komplekt qaytarishi (N ta detal)»).
+
+QORALAMA / BEKOR QILINGAN BUYURTMAGA QAYTARISH YO'Q (kech175, zip 240c; review240 M2 izohi — O'LCHANGAN `work/k240c/probe240c.py`, asl
+kod = zip 240b: qoralamadan «Ortiqcha» 5 m — 200, tayyor mahsulotlar omboriga +5 m (hech qachon ishlab chiqarilmagan), hisob-kitob
+kelishilgan summani 250 000 ga kamaytirdi; «Brak» penoplast yechdi; qoralama keyin jarayonga olinsa ham ortiqcha mahsulot QOLDI):
+  QOIDA: holati `DRAFT` yoki `CANCELLED` buyurtmaga HECH QANDAY qaytarish yozuvi (brak ham, `to_stock=false` ham) yozilmaydi — «Yangi
+  qaytarish» / «Brak yozish» tanlovlari (`/api/tanlov/...`), komplekt qaytarish (zip 240) va yozuvchi yo'l BIR qoida. `POST /api/returns`
+  — 404 «Buyurtma topilmadi» (tanlov / komplekt marshrutlari kabi; `_amal_bajar` dan OLDIN — takror kaliti sarflanmaydi);
+  `crud.create_return_item` — ikkinchi to'siq: buyurtma topilgandan keyin, HECH NARSA yozilishidan / qulfdan OLDIN `ValueError` («Qoralama
+  yoki bekor qilingan buyurtmaga qaytarish / brak yozilmaydi — mahsulot hali ishlab chiqarilmagan»). O'CHIRILGAN buyurtma — o'z qoidasi
+  (topshirilgan qism qaytadi; topshirilmagani omborga — yo'q) ATAYLAB o'zgarmagan; o'chirilgan QORALAMA — qoralama qoidasi. Qoralamadagi
+  ESKI (240c dan oldin yozilgan) qaytarish yozuvi — o'chirish / hisob-kitob yo'li ochiq (tozalash uchun). Qoralama jarayonga olingach —
+  oddiy qoida.
 
 ## 5. Testlar va darvozalar
 
@@ -4809,6 +5403,216 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   TO'G'RI chiqqanlar: tahrir, nusxa, taklif, qoralama — yig'ilgan qatorlar avvalgidek; ochish / yopish / boshqa buyurtma / o'lcham
   o'zgarishi — ustunlar to'g'ri almashadi; eski UI testlari (blok211 99, ui173 40, c_telefon 53, korinish203 28, sahifalar190 206) o'tadi.
 
+- (kech186, zip 254) Usta havolasi: `tools/test_havola254.py` (K — kod; B — kod / telefon 30 kun / oxirgi / o'z usta / magazin / noto'g'ri
+  kod / boshqa korxona / bloklangan / takror; R — review254 (bekor, muddat nusxasi, bloklangan kod, son); U — ERP buyurtmasiga usta, ulgurji,
+  kech tasdiq; Z — zaxira, indekslar). SQ 27/0, TF1 27/0, PG 27/0; asl (zip 253) — 22 ta yiqiladi, qulamaydi.
+- (kech186, zip 253) Keshbek: `tools/test_keshbek253.py` (S — tayyorgarlik; Q — foiz qotishi: «Tayyor», yangi foiz, foiz 0, usta qo'yildi
+  / almashdi, «Tayyor» dan chiqib qaytdi, sotuv, migratsiya; H — «Tayyor» javobi; B — berildi: naqd (hisob), buyurtma to'loviga (kassada sof
+  0, qarz), qoldiqdan / qarzdan ko'p, bekor buyurtma, oldin berilgan, 400 lar, takror, bog'lam himoyasi, o'chirish, jurnal, bot; T — hisob
+  tasdig'ida bog'lash; D — do'kon API; Z — ikkinchi korxona, yo'llar, sahifa, zaxira / tiklash / o'chirish). Mutatsiya — `work/k253/mut253.py`
+  (36/36). SQ 50/0, TF1 50/0, PG 50/0; asl (zip 252) — 45 ta yiqiladi, qulamaydi.
+- (kech185, zip 252) Do'kon — «Kelganda xabar bering»: `tools/test_dokon_kutish252.py` (S — katalog, ombor, hisoblar; A — jadval,
+  yo'llar, o'chirish tartibi, rejalashtiruvchi; K — kirish; Q — qo'shish / takror / omborda bor / yo'q / komplekt / o'lcham kaliti / 400 lar /
+  bo'lim yashirin / bekor / qayta / chegaralar 30 va 20; T — tekshiruv: xabar bir marta, tugma, yetmadi → 5 → «xato», bir vaqtda ikki
+  tekshiruv, qotgan «yuborilmoqda», bloklangan, komplekt, Markdown, bo'lim yashirin, do'kon o'chiq, `main.dokon_kutish_ish`; D — admin
+  ro'yxati, rollar, ikkinchi korxona; U — haqiqiy brauzer (1366 / 390); R — review252 tuzatishlari; Z — ikkinchi korxona, zaxira / tiklash /
+  o'chirish). Mutatsiya — `work/k252/mut252.py` (35 — 34 o'ldi, M34 ekvivalent: /api/dokon/ javobiga no-store middleware o'zi qo'yadi). SQ 64/0, TF1 64/0, PG 62/0; asl (zip 251) — 58 ta yiqiladi, qulamaydi.
+- (kech184, zip 251) Do'kon — narxlar ro'yxati / tanlov PDF i: `tools/test_dokon_ulgurji_pdf251.py` (S — zip 250 testi katalogi;
+  A — kim oladi (mehmon / soxta / usta / kutilayotgan / rad / yangi / boshqa kalit / bo'lim yashirin / usul; buzuq tana — kirishdan keyin);
+  N — PDF matni (pypdf) = API narxlari AYNAN, komplekt, chakana / yashirin / narxsiz YO'Q, birliklar, bo'limlar, faqat qoplamali, pastki,
+  ikkinchi magazin, bo'sh katalog); V — tanlov PDF (jami = hisob, dona qatori, hech narsa yozilmaydi, 400 lar, chakana savat o'zgarmagan);
+  C — chegaralar (6 / hisob, 30 / korxona, chakanadan alohida, usta / sessiyasiz band qilolmaydi); Z — ikkinchi korxona, yo'llar, ko'p
+  sahifa). Mutatsiya — `work/k251/mut251.py` (30 — hammasi o'ldi; M27 — C5 qo'shilgach). SQ 38/0, TF1 38/0, PG 38/0; asl (zip 250) — 30 ta yiqiladi, qulamaydi.
+- (kech184, zip 250) Do'kon — ulgurji bo'lim: `tools/test_dokon_ulgurji250.py` (S — tayyorgarlik; A — kim ko'radi (mehmon / soxta /
+  usta / kutilmoqda / rad / yangi / boshqa kalit); K — katalog (faqat ulgurji narxi bor, ko'rinadigan; sotish birligi; kalitlar qat'iy;
+  komplekt = admin «ulgurji_rom»; chegirma tegmaydi); H — narx hisobi (dona → metr, toq tiyin, m², komplekt, kbsiz, 18 xil xato); B — buyurtma
+  (hisobdan ism / telefon, manzil SHART, takror, boshqa magazin / oddiy yo'l 409, 403 / 401, narx o'zgardi, boshqa telefon, bloklangan);
+  U — «Saytdan» ro'yxati, tasdiq (profil = metr, komplekt belgisi, izoh), usta yo'q; T — kabinet tarixi / PDF; O — oxirgi manzil,
+  takrorlash; R — review250 (M1 / M2 / L1 / L3 / E1) va do'kon review (R6 — kalit bilan PDF ulgurjida 404; R7 — kapitel / baza bittasi bo'lsa ikkalasi tushadi); Z — zaxira, eski baza ustuni, ikkinchi korxona, yo'llar). Mutatsiya —
+  `work/k250/mut250.py` (29 — 28 o'ldi, M30 ekvivalent). SQ 65/0, TF1 65/0, PG 64/0; asl (zip 249) — 59 ta yiqiladi, qulamaydi.
+- (kech182, zip 249) Do'kon — buyurtma ↔ hisob, kabinet tarixi: `tools/test_dokon_hisob249.py` (S — tayyorgarlik; B — mehmon / usta /
+  magazin / kutayotgan usta / yaroqsiz sessiya / takror; T — tarix (faqat o'ziniki, 401, kalitsiz); U — ERP buyurtmasiga usta, holat
+  moslash, bekor, faol emas, bloklangan; P — PDF (o'ziniki, bir xil 404, 400, 401); L — bloklangan kirish, blokdan chiqqandan keyin
+  (review249 H249-1 / H249-3); Q — PDF holati (H249-4), eski baza indeksi (H249-2); Z — zaxira, ikkinchi korxona, yo'llar). Mutatsiya —
+  `work/k249/mut249.py` (16). SQ 37/0, TF1 37/0, PG 37/0; asl (zip 248) — 29 ta yiqiladi, qulamaydi.
+- (kech181, zip 248) Do'kon — usta / magazin Telegram orqali kirish: `tools/test_dokon_kirish248.py` (K — kirish, kod / sir xeshi, sayt
+  manzili, chegara; H — holat, BIR marta sessiya, muddat; W — webhook siri, guruh chati, begona / xorijiy kontakt, eskirgan havola; M —
+  sessiya, ro'yxat tekshiruvi; A — tasdiq (mavjud / yangi usta, KPI), rad, bloklash, Menejer 403; B — bot holati / ulash (production
+  majburiy); U — Chromium «Usta va magazinlar» (390 px); R — review248 topilmalari (ikkinchi chat, «Bu men emas», tiklash / o'chirish,
+  yagona usta); Z — zaxira, chiqish). Mutatsiya — `work/k248/mut248.py` (20). SQ 78/0, TF1 78/0, PG 78/0; asl (zip 247) — 69 ta
+  yiqiladi, qulamaydi.
+- (kech180, zip 247) Mayda tuzatishlar: `tools/test_mayda247.py` (F — /favicon.ico GET / HEAD / loginsiz / POST 405; C — do'kon API xato
+  javoblari «no-store», o'zi bergan sarlavha o'zgarmaydi, boshqa API tegilmaydi; N — `detal_nomi_tartib` jadvali (16), nomsiz model «D-3 · XL»
+  ERP buyurtmasida; S — `_sayt_nom` jadvali (23), 150 belgi, sayt buyurtmasi / guruh nomi / PDF / ERP buyurtmasi; B — nom shakllari,
+  partiyasiz bog'lam (245 / 246 / hozirgi / boshqa nom), yangi partiya o'sha kalitga). Mutatsiya — `work/k247/mut247.py` (16).
+  SQ 19/0, TF1 19/0, PG 19/0; asl (zip 246) — 15 ta yiqiladi, qulamaydi.
+- (kech179, zip 246) Sayt detal nomida o'lcham: `tools/test_sayt_nom246.py` (N — `_sayt_nom` jadvali (16 holat), 150 belgi — o'lcham butun, so'zsiz o'lcham; E — sayt
+  buyurtmasi detal / guruh nomlari, tasdiqlangan ERP buyurtmasi — har o'lcham o'z nomi bilan, Telegram; P — buyurtma / savat PDF i, takror
+  yo'q; T — katalog tanlovi nomlari, S / M partiyalari — alohida TM kaliti, ikkalasi «boglandi»; K — komplekt sarlavhasi o'zgarmagan, detal
+  nomida «· O'rta»). Eski testlar (237 / 242 / 244 / 245) — kutilgan nom qobiliyat bo'yicha (`_n246` / `_p246`). Mutatsiya —
+  `work/k246/mut246.py` (8). SQ 15/0, TF1 15/0, PG 15/0; asl (zip 245) — 13 ta yiqiladi, qulamaydi.
+- (kech179, zip 245) O'lcham nomda bormi: `tools/test_sayt_olcham245.py` (Q — qoida jadvali (55 holat: eni / butun so'z / vergul,
+  ming ajratgich / kesilgan nom / yaxlitlashsiz); G — guruh nomi: hisob, buyurtma javobi, Telegram, «Saytdan» paneli; P — PDF qatorlari:
+  savat va saqlangan buyurtma; E — ERP qatorlari `_sayt_nom` bilan AYNAN, tasdiqlash; K — komplekt / «o'z o'lchami» guruh nomi va PDF qatori
+  o'zgarmagan, «O'rta» qo'shilmaydi). Mutatsiya — `work/k245/mut245.py` (23). SQ 16/0, TF1 16/0, PG 16/0 (PG bazasi — jarayon nomli,
+  oxirida o'chiriladi); asl (zip 244) — 10 ta yiqiladi, qulamaydi.
+- (kech178, zip 244) Do'kon buyurtma / savat PDF i: `tools/test_sayt_pdf244.py` (S — yo'llar (faqat POST), kalit sahifasi ro'yxati,
+  halqa ajratilgani, `compare_digest`; A — 401, B korxona (katalogi yoqiq) A buyurtmasini olmaydi va aksincha, katalog o'chiq — 404; P —
+  sarlavha, firma / mijoz / sana / holat, komplekt sarlavhasi, qator summalari, «JAMI:», tasdiqlash raqamlari, ish vaqtidan tashqari — faqat
+  «doim» raqam, band yozuvi, 50/50 va bepul, tejaldi, qotgan narx, bekor / tasdiqlangan holat yozuvi, o'lchamli nom, katta harfli kod, qator
+  tartibi, yarim so'm yaxlitlashi; X — bir xil 404, 11 xil noto'g'ri tana, JSON emas / NaN, 413, 405, o'z chegarasi (katalog 200 qoladi);
+  K — savat (jami = ERP hisobi, hech narsa yozilmaydi, komplekt soni, «o'z o'lchami», xatolar buyurtma yo'linikidek); E — ERP buyurtma
+  qatorlari AYNAN, tasdiqlash; T — «Taklif» PDF i o'zgarmagan). Mutatsiya — `work/k244/mut244.py` (25). SQ 47/0, TF1 47/0, PG 47/0;
+  asl (zip 243) — 40 ta yiqiladi, qulamaydi.
+- (kech178, zip 243) «Bajarilgan ishlar» galereyasi: `tools/test_galereya243.py` (S — jadvallar / korxona qoidalari / o'chirish tartibi /
+  marshrutlar / ikki rasm jadvali / sahifa; A — katalog o'chiq 404, Menejer 403, B korxona (katalogi yoqiq) — o'z ro'yxati bo'sh; G — detal /
+  komplekt saqlash, o'lcham katalog yozilishiga, 31 noto'g'ri holat (juft metr, chegara, takror, begona, arabcha raqam …) — 400 va hech narsa
+  yozilmaydi, begona — aniq xabar, tahrir / jurnal, B ishiga 404; R — rasm (GPS yo'q, ochiq manzil, 10 ta, tartib, o'chirish, yetim fayl);
+  D — do'kon API (faqat yoqilgan + rasmli, tartib, qat'iy kalitlar, narxsiz, ETag); B — yashirilgan model / detal / komplekt o'lchami, qayta
+  nomlash, kapitel / baza o'chirish, qolip o'zgarishi, detal / model o'chirish (nomuvofiq qator ham); Z — zaxira; Q (PG) — saqlash ↔ detal
+  o'chirish; U — HAQIQIY Chromium: yangi ish, katalogdan tanlash, saqlash, rasm yuklash, sarlavha yangilanishi, HTML — matn, qoralama,
+  o'chirish ogohlantirishi, miqdor qoidasi, telefon 390). Mutatsiya — `work/k243/mut243.py` (36). SQ 73/0, TF1 72/0, PG 74/0;
+  asl (zip 242) — 53 ta yiqiladi, qulamaydi.
+- (kech177, zip 242) «Katalogdan tanlash»: `tools/test_katalog242.py` (S — sxema / qoida / marshrut / shablon (tugma faqat
+  `sayt_katalogi_bormi` ostida) / textContent / bog'lash tranzaksiyasi va qulf tartibi; A — katalog o'chiq (404 / 400, partiya yo'q),
+  rollar (Usta 403), boshqa korxona detali; K — ro'yxat (m² yo'q, narxsiz, nom, turkum, tartib); P — boglandi / qoshildi / qoplamasiz /
+  birlik / boshqa / band / farq, saytdagi qoldiq «Sotuvga tayyor» dan keyin, donali, noto'g'ri id (400, partiya yo'q), takror
+  (`X-Amal-Kaliti`), partiyasiz bog'lam, crud — boshqa korxona partiyasi, katalog keyin o'chirilsa; Q (PG) — bir detalga ikki partiya
+  bir vaqtda, crud ikki sessiyada bir mahsulot ikki model detaliga (korxona qulfi 238); U — HAQIQIY Chromium: tugma, oyna, qidiruv,
+  tanlash (nom / tur / eni / kengligi / qoplama), bog'langan detal, ogohlantirishlar (nom / o'lcham / qoplama / «1 metrdan nechta»),
+  saqlash xabari, qayta ochilganda tozalanadi, telefon 390, Esc, katalog o'chiq korxonada tugma yo'q, JS xatosi yo'q). Mutatsiya —
+  `work/k242/mut242.py` (31). SQ 51/0, TF1 51/0, PG 53/0; asl (zip 241c) — 31 ta yiqiladi, qulamaydi.
+- (kech176, zip 241) Platforma nomi «epserp» va hujjatlarda O'Z logotipi: `tools/test_brend241.py` (S — logotip fayllari (ranglar,
+  egri chiziq, 180 px PNG), shablonlarda «PenoDecorPro» ko'rinadigan matni yo'q, favicon, kirish oynasi 1-namuna, hodim kirishi, main /
+  crud, PDF yordamchilari va 7 generator; L — /login, /hodim/login, fayllar kirishsiz 200 (turi bilan), /api/health; T — yangi korxona
+  admini HAR sahifa sarlavhasi «… — epserp», platforma paneli, menyu (o'z logotipi / nomi); H — 9 PDF × 3 korxona (platforma paneli API si
+  bilan yaratilgan): logotipli A — HAR hujjatda AYNAN o'z logotipi (piksel md5), PenoDecorPro nomi / telefoni / manzili / shiori /
+  logotipi yo'q; logotipsiz B — rasm yo'q; platforma egasi — 9 hujjatda o'z logotipi; 24 × 12 mm; hujjat nomi joyi, sahifalar soni va
+  sarlavha geometriyasi (oq katak, bo'sh joylar, quti chegaralari) A = B; 300 dpi o'lcham va hajm (H10; «Buyurtma hisobi» /
+  «Taklif» — H11, kech177 zip 241c); G3 — CMYK JPEG rangi; N4 / N5 — kichik, tik / keng «Buyurtma hisobi» da; N — tik / juda keng / eski katta logotip; B — diskdagi buzilgan logotip (7 hujjat 200, nom bilan); U — uzun nom + keng logotip + 20 detal (sahifalar, sarlavha, nom qatori,
+  oltin chiziq); G — 16 bitli kulrang (yuklangan va diskdagi eski); R — almashtirish poygasi; J — HAQIQIY Chromium: kirish oynasi kompyuter /
+  telefon / past ekran, hodim kirishi, favicon). Rasm solishtirish — «imzo» (oq fonda 32 × 32 + nisbat). A / B id lari
+  jarayonga xos (logotip fayli `company_<id>` — parallel nusxalar bir-birini buzmaydi). Mutatsiya — `work/k241/mut241.py` (27) va
+  `work/k241c/mut241c.py` (8). SQ 54/0, TF1 54/0, PG 54/0; asl (zip 240c) — 32 ta yiqiladi (49 lik versiyada), asl (zip 241b) — 5 ta
+  (H11, N3b, N5, G3), qulamaydi.
+- (kech175, zip 240c) Qoralama / bekor qilingan buyurtmaga qaytarish yo'q: `tools/test_qaytarish_qoralama240c.py` (S — tekshiruv
+  joyi (buyurtma topilgandan keyin, sabab / qulf / taqdir / yozuvdan oldin; marshrutda `_amal_bajar` dan oldin); A — qoralama: «Ortiqcha»,
+  `to_stock=false`, «Brak», brakdan boshqa hamma sabab, takror kalit, begona detal — 404 va qaytarish / TM / penoplast / to'lov / ombor
+  harakati / jurnal AYNAN; jarayonga olingach — 200; o'chirilgan qoralama — 404; B — bekor qilingan; C — crud to'g'ridan-to'g'ri (ValueError,
+  sessiya toza), komplekt qoidasi; D — jarayonda / «Tayyor» / yetkazilgan / O'CHIRILGAN (o'z qoidasi) o'zgarmagan, eski yozuvni o'chirish;
+  E — korxona; X — 5xx yo'q). Mutatsiya — `work/k240c/mut240c.py` (14). SQ 43/0, TF1 43/0, PG 43/0; asl (zip 240b) — 23 ta
+  yiqiladi, qulamaydi.
+- (kech174, zip 240) Komplekt bo'yicha qaytarish: `tools/test_qaytarish_komplekt240.py` (S — ustunlar, marshrutlar, 17 xil noto'g'ri
+  tana; A — reja: sayt rom × 3, bo'lingan qatorlar (metr — jami AYNAN, dona — butun), tahrirlangan komplekt, «o'z o'lchami», belgi har xil;
+  B — yaratish: ulushlar, summalar, ombor, izoh, tanlovda eng ko'p, topshirilmagan («ortiqcha»), bo'lingan; C — bitta tranzaksiya (eng ko'p,
+  ichki rad, kutilmagan xato), brak hisobga kirmaydi; D — «hozir» (to'langan / to'lanmagan, karta), ruxsatsiz 403, pulsiz javob; E —
+  o'chirish (409, atomik, pul / ombor orqaga, begona korxona); F — keyin hisob-kitob; G — takror kalit; H — reja / tanlov marshrutlari;
+  I — korxona, ro'yxat belgisi; K — parallel (PG); Z — zaxira; U — oyna (tanlov, reja, xato, saqlash), ro'yxat (MATN), hisob-kitob va
+  o'chirish to'plam bo'yicha, 375 px). Mutatsiya — `work/k240/mut240.py` (49). SQ 79/0, TF1 79/0, PG 69/0; asl (zip 239) — 65 ta
+  yiqiladi, qulamaydi.
+- (kech173, zip 239) Komplekt belgisi: `tools/test_komplekt239.py` (S — ustunlar, sarlavha / guruhlash qoidasi, sahifa funksiyalari;
+  O — do'kon «o'z o'lchami» qatori (bitta guruh, narx — alohida detal qoidasi bilan AYNAN, chegirma ham, faqat qoplamali narxli detal),
+  15 xil rad; T — tasdiq → ERP qatorlari belgi bilan (rom × 3, eshik, o'z o'lchami, alohida detal), hisob o'zgarmagan, ombordan komplekt;
+  E — tahrir (o'zgarishsiz, eski sahifa — kalitsiz, qator o'zgardi / guruhdan chiqarildi / olib tashlandi / yangi qo'shildi), 13 xil sxema
+  rad, nom tozalanishi; C — qo'lda API buyurtma (HTML belgili nom), taklif PDF va taklif → buyurtma; P — buyurtma hisobi, yuk xati,
+  kutilayotganlar, hisob-kitob varaqasi; R — yetkazish holati, qaytarish tanlovi, alohida qaytarish; Z — zaxira; U — buyurtma oynasi
+  (MATN, blok), tahrir formasi (yorliq, «✕ butun komplekt», collectItems), yetkazish oynasi, qaytarish optgroup, 375 px).
+  Mutatsiya — `work/k239/mut239.py` (50). SQ 48/0, TF1 48/0, PG 38/0; asl (zip 238) — 11 ta yiqiladi, qulamaydi.
+- (kech172, zip 238) «Tayyor mahsulotlar» saytda: `tools/test_dokon_tayyor238.py` (S — do'kon yo'llari (3 GET + 1 POST), ERP ruxsatlari,
+  ustunlar, xomashyo navbati; A — o'chiq 404, kalitsiz 401, Menejer 403; L — ro'yxat (bitta mahsulot — nom bo'shliq / harf, MRP band, qaytgan,
+  jarayondagi / 2-nav / qoplamasiz / panel / B — yo'q), bog'lash, birlik, bittalik, noto'g'ri kirish, takror jurnalsiz, uzish, jurnal;
+  Q — «tayyor» qoldiqlari, qat'iy tarkib (ERP nomi yo'q), bog'lanmagan / narxsiz / yashirin yo'q, kasr qoldiq, komplektlar (rom / eshik × kb),
+  ETag; O — ombordan 7 m (toq), band 48 soat, ERP partiyalari o'zgarmaydi, ikkinchi mijozga 409, qoplamasiz / bog'lanmagan / kasr dona — 400,
+  ombordan emas — juft talabi, takror, komplekt, Telegram; B — ERP sahifasi, bekor — darhol, 48 soat chegarasi (06:59 / 07:00), muddati
+  o'tgan; E — sahifa bandlari; T — partiyadan (retseptsiz, profil soni 1, guruhdoshdan), forma narxi AYNAN, ikki guruh (qaytgan + ishlab
+  chiqarilgan, summa AYNAN), aralash (retsept SHART), nomi o'zgargan — 400, ERP sotib qo'ygan — 409 → minus, qayta — 409, kasr — butun
+  qismlar; Z — zaxira; K — A ↔ B; P (PG) — 4 mijoz bir vaqtda oxirgi qoldiqqa; U — katalog qatori, oyna (birlik, bittalik, HTML matn,
+  qidiruv, Esc), tanlash (yozilayotgan katak o'chmaydi), uzish, «🛒 Saytdan» paneli, «Tayyor mahsulotlar» belgisi (guruh / yakka), 375 px).
+  Mutatsiya — `work/k238/mut238.py` (55). SQ 74/0, TF1 74/0, PG 66/0; asl (zip 237b) — 61 ta yiqiladi, qulamaydi.
+- (kech171, zip 237) Saytdan kelgan buyurtmalar: `tools/test_dokon_buyurtma237.py` (S — marshrutlar (do'kon: 2 GET + 1 POST; ERP
+  ruxsatlari), xomashyo navbati, zaxira tartibi, jadvallar, tenant qoidalari, viloyatlar; A — o'chiq 404, kalitsiz / noto'g'ri / cookie — 401,
+  GET — 405, sozlamalarda viloyatlar; N — komplekt (chegirmali, kbsiz, qoplamali yozilgan) katalog bilan AYNAN, detallar (avto qoplamali,
+  kasr narx, m², butun / juft metr), bazadagi qotgan narx, ulgurji yo'q, yashirin / narxsiz / yo'q — 400, kutilgan_jami 409 / 200, o'lcham
+  yozilishi, faqat qoplamali narxli qator; V — 33 xil noto'g'ri kirish 400, NaN / buzilgan JSON 400, 413, X-Amal-Kaliti, tozalash; I — takror,
+  boshqa tana 409, Telegram (bir marta, Markdown); L — telefon 5 / soat, 1 soatdan keyin, kalit chegarasi katalogdan alohida; R — ro'yxat,
+  qidiruv (telefon, raqam, «%»), sahifa, tugma soni, Menejer, B; B — bekor, qayta 409, tekshiruv; T — tasdiq tekshiruvlari (sana, nom,
+  retsept), loyiha, qatorlar xaritasi, qotgan narx, m³ narxi forma bilan AYNAN, dona hajmi, ombor, jurnal, qayta 409, yetishmovchilik 409 →
+  confirm_shortage, ruxsatsiz 403, begona 404, rad — loyiha qolmaydi, komplekt 5 qator, 1 belgili kod; O — o'chirish; Z — zaxira / tiklash;
+  K — A ↔ B; P (PG) — bir xil kalit 6 parallel, 6 savat, 3 oynadan tasdiq, tasdiq ∥ bekor; U — tugma soni, panel, XSS, oyna, Esc, haqiqiy
+  bosish bilan tasdiq / bekor, tahrir formasida narxlar AYNAN (1 m³ asosiy narxi bilan ham), filtr, 375 px). Mutatsiya — `work/k237/mut237.py`
+  (48). SQ 94/0, TF1 94/0, PG 86/0; asl (zip 236) — 75 ta yiqiladi, qulamaydi.
+- (kech170, zip 236) Do'kon API: `tools/test_dokon_api236.py` (S — marshrutlar (boshqaruv FAQAT Admin, do'kon yo'llari faqat 2 GET), jadval,
+  zaxiradan tashqari, sahifa; A — o'chiq 404, Menejer 403, B 404, kalitsiz / shakli noto'g'ri / yo'q kalit (X-Dokon-Kalit, Bearer) 401,
+  sessiya cookie si bilan 401; Y — yaratish (bir marta, no-store, bazada faqat xesh), holat (xom kalit / xesh yo'q), Bearer / bo'shliq,
+  oxirgi murojaat (5 daqiqada bir), almashtirishsiz 409, noto'g'ri so'rovlar, boshisiz / boshqa boshi bilan almashtirish 409, almashtirish
+  (eskisi 401), o'chirish, jurnal (faqat boshi); K — hamma kalit ruxsat ro'yxatida, ulgurji sonlari (avto ham) matnda yo'q, yashirin bo'lim /
+  model / qator yo'q, tartib, rasmlar, qoplamali (yozilgan / avto), chegirma (o'lchamga, muddati tugagan, kun o'tishi), komplekt MUSTAQIL
+  hisob va sahifa bilan AYNAN, sahifa narxlari bilan AYNAN, yashirin komplekt o'lchami / yashirin o'lchamdagi chegirma / buzilgan o'lchamlar
+  (K21–K24); Z — ish vaqtida / tashqarida raqamlar, retsept, kalitlar; E — ETag / 304; L — 429 + Retry-After, sirpanuvchi oyna; T — B kaliti
+  faqat B, so'rovdagi korxona raqami e'tiborga olinmaydi, belgi o'chiq — 404; B — zaxirada yo'q, tiklash kalitni tiriltirmaydi; P (PG) — ikki
+  oynadan bir vaqtda yaratish (200 + 409), almashtirish ∥ do'kon so'rovlari; U — yaratish, blur da o'zgarmaydi, escape, nusxa, 375 px, Yopish,
+  tasdiq / bekor, almashtirish, yangilash, o'chirish, tarmoq uzilishi, Kirill, boshqa oynada almashtirilgan kalit). Mutatsiya —
+  `work/k236/mut236.py` (38). SQ 93/0, TF1 93/0, PG 78/0; asl (zip 235) — 68 ta yiqiladi, qulamaydi.
+- (kech170, zip 235) Excel orqali narxlar: `tools/test_dokon_excel235.py` (S — requirements (openpyxl / et-xmlfile / defusedxml), 3 marshrut
+  FAQAT Admin, sahifa kartochkasi; A — o'chiq 404, Menejer 403, B 404; E — sarlavha 22 ustun, tartib (model tartibi), qiymatlar MUSTAQIL hisob
+  bilan (avto qoplamali, chegirmali, muddati tugagan, tiyin), saytda / yashirin, «=» matn, boshqaruv belgisi, yashirin «⚙» ustunlar,
+  rang / qotirish / filtr / Excel tekshiruvi, yo'riqnoma; K — narx shakllari (14 noto'g'ri), formula, kimlik farqi (4 xil) va variantlari,
+  ma'lumot ustunlari o'qilmaydi, qator o'chirilgan, raqamsiz / takror / yo'q / noto'g'ri raqam, teskari ustunlar, qo'lda tuzilgan fayl,
+  sarlavha xatolari, siyrak qatorlar, chegaralar, ogohlantirishlar, faqat A:G saralangan (K23), narx ustuni alohida saralangan (K24),
+  formatlangan bo'sh qatorlar (K25), juda kichik narx (K26), bazaga yozmaydi; X — xlsx emas / bo'sh / 5 MB / zip-bomba / 400 a'zo /
+  DOCTYPE (.dat nomida ham) / buzilgan; Z — AYNAN saqlash, jurnal (ulgurji raqamsiz), updated_by, takror, katalog va komplekt, ziddiyat 409,
+  aralash, 21 xil noto'g'ri so'rov; Y — eski fayl panel o'zgarishini qaytarmaydi / o'sha katak — xato, ko'rishdan keyin qayta nomlash — 409,
+  qisman chegirma eksportda; T — B korxona eksporti / ko'rishi / saqlashi; L — LibreOffice saqlagan fayl (o'zgarishsiz, formula, siyrak,
+  #DIV/0!); P (PG) — bir xil saqlash ikki oynadan, saqlash ∥ panel tahriri (qulf tartibi), saqlash ∥ model o'chirish; U — shtorka, yuklab
+  olish, xatoli fayl, escape, to'g'ri fayl, fokus ramkasi, tarmoq uzilishi, sekin saqlashda tugmalar yopiq, saqlash, sahifadagi narx, 409,
+  bekor, o'zgarishsiz fayl, xlsx emas, 375 / 320 px). Mutatsiya — `work/k235/mut235.py` (70). SQ 145/0, TF1 145/0, PG 125/0; asl (zip 234) —
+  117 ta yiqiladi, qulamaydi.
+- (kech169, zip 234) Chegirmalar: `tools/test_dokon_chegirma234.py` (S — jadval, yagona kalit, zaxira tartibi, korxona qo'riqchisi,
+  3 marshrut; A — o'chiq 404, Menejer 403, B korxona 404 va katalogida A chegirmasi yo'q, foiz (18 xil), so'rov (NaN / Infinity / 10⁴⁰⁰ /
+  matn / kalit), o'lchamlar (6 xil noto'g'ri; tutuq / harf — bitta), sana (7 xil), narxsiz model, saqlash / o'zgarishsiz / o'zgartirish
+  jurnali, jurnalda tannarx / ulgurji raqami yo'q; K — narx MUSTAQIL hisob bilan (qo'lda 14 ta, to'r 104 ta — aniq hisobdan ≤ 50 so'm), narx qatorlari (15),
+  ulgurji o'zgarmaydi, komplekt (3 o'lcham × rom / eshik × qoplama × kapitelsiz), ayrim o'lchamlar, ko'rish = saqlash va yozmaydi, kichik
+  narx / alohida qoplamali, POST / PUT javoblari; T — tannarx ERP funksiyasi bilan AYNAN (70 o'lcham, narx o'zgarsa), dona / kapitel yo'q,
+  85 % — «past» va saqlanadi, qoplamali ham past, katalogdagi soni, penoplastsiz; M — Toshkent kuni (UTC 18:59 / 19:00, yil almashuvi),
+  tugash kuni amalda / ertasi o'chgan, qayta saqlash, matn; O — o'lcham nomi 7 holat (komplekt o'lchami bittalab — O6); Z — zaxira AYNAN,
+  buzilgan 15 xil (surrogat, NUL), model o'chishi, chegirma o'chirish; P (PG) — ikki oynadan bir modelga, saqlash va model o'chirish, o'lcham
+  nomi va model o'chirish (deadlock yo'q) bir vaqtda; U — shtorka, ko'rish, sekin tarmoqda eski
+  javob (U5b), «Yangi narx» → foiz, saqlash (model nomidagi saqlanmagan matn joyida), 90 % — qizil ogohlantirish, o'lchamlar va sana,
+  narx katagi saqlangach yangilanadi, yopiq shtorkada «⚠» (U9b), tugagan chegirma (U9c), o'chirish, escape, 375 / 320 px — kataklar
+  ustma-ust (U11b)). Mutatsiya — `work/k234/mut234.py` (52). SQ 87/0, TF1 87/0,
+  PG 71/0; asl (zip 233b) — 60 ta yiqiladi, qulamaydi.
+- (kech168, zip 233) Do'kon sozlamalari va komplekt narxi: `tools/test_dokon_sozlama233.py` (S — jadval, yagona kalit, zaxira tartibi,
+  7 marshrut, standart qiymatlar = egasining jadvali; A — o'chiq 404, Menejer 403, raqam shakli (17 xil), takror, 10 ta, birinchi «doim»,
+  oxirgi raqam / oxirgi «doim», tartib (6 xil noto'g'ri), izoh, korxona raqamlari, ish vaqti (17 xil noto'g'ri, matn 7 xil), buzilgan
+  sozlama — standart, retsept (22 xil noto'g'ri), jurnal (o'zgarishsiz — yo'q), ikki korxona, zaxira → tiklash; K — komplekt narxi MUSTAQIL
+  hisob bilan (3 o'lcham × rom / eshik / ulgurji × qoplama × kapitelsiz), yetishmaydigan / yashirin detal, kapitelsiz model, koeffitsient va
+  retsept o'zgarsa; V — 11 ta aniq UTC vaqt (chegaralar, yakshanba, kun almashuvi), hozirgi raqamlar; P (PG) — bir raqam ikki oynadan,
+  oxirgi ikki «doim» / ikki raqam bir vaqtda, 9 → 10 parallel; tutuq belgisi variantlari (K10), buzilgan zaxira 4 xil (A34); U — kartochka, 1440 × 900 da aylanadi va siqilmaydi, raqam qo'shish / doim / ▲ / o'chirish,
+  ish vaqti, retsept, katak saqlangach komplekt bloki yangilanadi (keyingi katakdagi matn joyida), «doim» dan keyin boshqa formalardagi
+  saqlanmagan matn va fokus joyida (U17), sekin tarmoqda izoh + ▼ — ekran = baza (U18), 375 / 320 px). Mutatsiya — `work/k233/mut233.py`
+  (39). SQ 91/0, TF1 91/0,
+  PG 74/0; asl (zip 232c) — 64 ta yiqiladi, qulamaydi.
+- (kech167, zip 232) Sayt katalogi rasmlari: `tools/test_dokon_rasm232.py` (S — jadval, `_TENANT_REFS`, zaxira tartibi, 3 marshrut, Pillow
+  qotirilgan va sinov o'sha versiyada; I — ishlov: GPS / kamera / dastur / XMP / izoh / ICC — tuzilma va bayt bo'yicha yo'q (JPEG, PNG,
+  WEBP, MPO), KICHIK rasm ham qayta yoziladi, EXIF burilishi, P3 profil → sRGB, shaffof PNG / WEBP, to'liq alfa → JPEG, CMYK, 16 bit,
+  palitra, nisbat saqlanadi (qirqilmaydi), harakatli / HEIC / rasm emas / buzilgan / 25 MB / PNG 25 MP / kichik / cho'zinchoq — rad,
+  JPEG 100 MP — qabul, Pillow yo'q yoki tekshiruv o'tmasa — saqlanmaydi; A — o'chiq 404, Menejer 403, boshqa korxona (o'chiq va YOQILGAN
+  do'kon egasi) — 404 / 400, ochiq manzil login siz (sarlavhalar, bayt AYNAN), yozuvsiz fayl / noto'g'ri nom / «..» — 404, boshqa papka
+  himoyada, belgi o'chsa 404, 10 ta chegara (rad etilganning fayli qolmaydi), tartib (to'g'ri / 8 xil noto'g'ri), o'chirish (fayllar ham),
+  model o'chirilsa rasmlari ham, yozuv saqlanmasa fayl qolmaydi, zaxira → tiklash, qo'riqchi; P (PG) — 9 → 10 parallel, tartib ↔ o'chirish
+  500 siz; U — 2 fayl ketma-ket, namuna (contain), xato fayl nomi va sababi (HTML escape), ◀ ▶, surish, ko'rish oynasi, 375 px, o'chirish,
+  yuklash davomida narx katagidagi matn joyida). Har yurish rasm papkasi — o'z vaqtinchalik papkasida (etalonda tf0 / tf1
+  parallel; haqiqiy joy — S6); S7 — jurnaldagi hajm matni (zip 233b). SQ 93/0, TF1 93/0, PG 80/0; asl (zip 231d) — 72 ta
+  yiqiladi, qulamaydi.
+- (kech166, zip 231c) Buzilgan Unicode: `tools/test_unicode231c.py` (S — tinglovchi va xato ishlovchisi; A — `/api/rollar` 400, keyingi
+  so'rovlar va B korxona 200, sayt katalogi nomi / tavsifi 400 tushunarli matn, to'g'ri Unicode saqlanadi, ErrorLog bo'sh). SQ / TF1 / PG
+  10 / 0; asl (zip 231b) PG — 8 yiqiladi, qulamaydi.
+- (kech166, zip 231) Sayt katalogi: `tools/test_sayt_katalogi231.py` (S — ustun, jadvallar, `_TENANT_REFS`, zaxira tartibi, 13 marshrut,
+  menyu sharti; A — o'chiq — 404, Platforma: oddiy Admin — 403, mijoz korxona — 400, o'z korxonasi — 9 bo'lim, takrorsiz qayta yoqish,
+  ro'yxatda belgi, Menejer — 403, bo'lim / model / narx qatori tekshiruvlari, tizim bo'limi qoidalari, birlik, avto qoplamali, koeffitsient,
+  o'zgarishsiz — jurnalsiz, ikki korxona — begona yozuvga 404 / 400, qo'riqchi, zaxira → tiklash, o'chirish — ma'lumot qoladi; P (PG) —
+  bir xil model / qator / bo'lim parallel — bittasi, 500 yo'q; U — sahifa, model va qator qo'shish, katak tahriri, narx 0 rad, 390 px,
+  Platforma tugmasi, sekin saqlashda matn yo'qolmaydi, telefonda kartochka). SQ 127/0, TF1 127/0, PG 119/0; asl (zip 230) — 108 ta yiqiladi, qulamaydi.
 - (kech165, zip 230) Xarid o'chirilsa transport: `tools/test_transport230.py` (S — manba; A — bog'lanish, tanlovsiz 409 — xarid / ombor /
   transport / Kassa o'zgarmaydi, `ochirish` — Kassa xariddan oldingi holatda, `qoldirish` — transport qoladi + izoh, noto'g'ri — 400, to'lov
   + transport — ikki savol ketma-ket, transportsiz / «Ta'minotchi hisobidan» — savolsiz, savat — «yana N ta», eski yozuv: topiladi / vaqt
@@ -4967,6 +5771,54 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
 `--yoz`); (6) zip + yuklash ko'rsatmasi; (7) yuklangach klon + MD5 + jonli deploy isboti (faqat o'qish).
 
 ## 6. Qabul qilingan BIZNES qarorlari (QAYTA SO'RALMAYDI)
+- (2026-10-30, onlayn do'kon rejasi — «Galereya bo'yicha tanlovlar»; zip 243, kech178) «Bajarilgan ishlar»: ishlar ro'yxati va ish sahifasi;
+  har ishning rasmlari, joyi, sanasi, modellari; ish sahifasida har model narxi (chegirmali) va shu uydagi miqdor; ishni egasi admin panelda
+  o'zi qo'shadi — katalogdan modellar tanlanadi (narx saytda o'zi yangilanadi). Rasm qirqilmaydi.
+- (2026-10-30, onlayn do'kon rejasi — Komplekt 6-band; zip 242, kech177) Ishlab chiqarishda nom qo'lda yozilmaydi — «Katalogdan tanlash»:
+  nomi, eni, qalinligi, qoplamasi katalogdan, yangi partiya katalog detaliga o'zi bog'lanadi; qo'lda bog'lash — eski partiyalar uchun.
+- (2026-11-02, kech175 / kech176) Mahsulot (platforma) nomi — «epserp» (EPS ERP; EPS — penoplast), domen epserp.uz; logotip — egasi
+  ChatGPT da qilgan so'z belgisi, ranglari ERP palitrasidan: «eps» #1E293B, «erp» #2563EB (to'q sariq YO'Q — ERP da ogohlantirish rangi).
+  Kirish oynasi — «1-namuna: Rasmli panel» (ikki namunadan). Hujjatlar — logotip yuklagan korxonada HAMMA 9 hujjatda O'Z logotipi
+  («7 hujjatga ham logo», platforma egasining hujjatlarida ham); logotipsiz korxonada — faqat nom. Zip 241 (4-bo'lim «Platforma nomi
+  «epserp»…»).
+- (2026-11-02, kech174) Komplekt bo'yicha qaytarish — «Onlayn do'kon rejasi» (30.10, «Komplekt ERP'da qanday bilinadi» 4-band) bo'yicha —
+  zip 240 (4-bo'lim «KOMPLEKT BO'YICHA QAYTARISH»). Texnik tanlovlar (Claude): har detal — oddiy qaytarish yozuvi (qoidalar bitta), to'plam
+  belgisi `return_items` da; faqat brakdan boshqa sabab (brak — detal bo'yicha, taqdiri bilan); «o'z o'lchami» — detal bo'yicha; N
+  komplekt = qatorning N / K ulushi (K — sotib olingandagi son); o'chirish — faqat butunligicha; «hozir» hisob-kitob — o'sha tranzaksiyada.
+- (2026-11-02, kech173) Komplekt belgisi — «Onlayn do'kon rejasi» (30.10, «Komplekt ERP'da qanday bilinadi» 4-band, «O'z o'lchamingiz
+  bilan» 4-band) bo'yicha — zip 239 (4-bo'lim «KOMPLEKT BELGISI»). Texnik tanlovlar (Claude): belgi — `order_items` dagi 4 ustun (alohida
+  jadval yo'q), hisob-kitobga ta'sirsiz; tahrirda kalitsiz tana belgini o'chirmaydi; bekor qilish — tahrir formasida butun komplekt yoki
+  alohida detal; «butun komplektni qaytarish» (pul / ombor bilan) — zip 240.
+- (2026-11-01, kech172) «Tayyor mahsulotlar» saytda — «Onlayn do'kon rejasi» (30.10) qarorlari bo'yicha — zip 238 (4-bo'lim «TAYYOR
+  MAHSULOTLAR» SAYTDA). Texnik tanlovlar (Claude): band — sayt buyurtmasining o'zi (alohida jadval / fon vazifasi yo'q); band faqat saytdagi
+  qoldiqdan ayiriladi, ERP sotuv qoidalari o'zgarmaydi (sahifada belgi); faqat profil (metr) va dona partiyalar; bitta mahsulot — bitta
+  detal; tasdiqda partiyalarga butun birlikda taqsimlanadi. Keyingi zip — ERP buyurtma qatorlarida komplekt belgisi (sahifa, yuk xati, PDF).
+- (2026-11-01, kech171) Saytdan kelgan buyurtmalar — «Onlayn do'kon rejasi» (30.10, «Buyurtma jarayoni») qarorlari bo'yicha — zip 237
+  (4-bo'lim «SAYTDAN KELGAN BUYURTMALAR»). Texnik tanlovlar (Claude): narx — faqat ERP hisobi, do'kon ko'rsatgani farq qilsa 409; tasdiqlash
+  — yangi loyiha + oddiy buyurtma (forma qoidalari bilan: qoplamali — retsept SHART); sayt qatori ERP ga xodim formada yozgandek tushadi;
+  48 soat band va «Tayyor mahsulotlar» bilan bog'lanish — katalog detali ↔ partiya bog'lanishi bilan KEYINGI zipda (hozir hammasi
+  ishlab chiqarishga); bir telefondan soatiga 5 ta, kalitga daqiqasiga 30 ta buyurtma.
+- (2026-11-01, kech170) Do'kon API — «Onlayn do'kon rejasi» (30.10) qarorlari bo'yicha — zip 236 (4-bo'lim «DO'KON API»). Texnik tanlovlar
+  (Claude): kalit ERP bazasida (xeshi; Admin sahifada yaratadi — Railway ga kirmasdan), korxonaga bitta, bir marta ko'rsatiladi; faqat o'qish
+  (katalog, sozlamalar); ulgurji narx hozircha do'konga berilmaydi (magazin kabineti — keyingi bosqich); kalitga daqiqasiga 120 so'rov.
+- (2026-11-01, kech170) Excel orqali narxlar — «Onlayn do'kon rejasi» (30.10, «Narxlar qayerda turadi») qarori bo'yicha — zip 235
+  (4-bo'lim «EXCEL ORQALI NARXLAR»). Texnik tanlovlar (Claude): .xlsx, Excel orqali FAQAT 4 narx (qator qo'shilmaydi / o'chirilmaydi, chegirma —
+  panelda); faqat egasi o'zgartirgan katak saqlanadi (yashirin «asl» narxlar), eski fayl yangi narxni bosib ketmaydi; har qanday xato —
+  hech narsa saqlanmaydi; «125.500» kabi noaniq yozuv — xato.
+- (2026-11-01, kech169) Chegirmalar — «Onlayn do'kon rejasi» (30.10) qarorlari bo'yicha — zip 234 (4-bo'lim «CHEGIRMALAR»).
+  Texnik tanlovlar (Claude): modelga bitta chegirma, foiz saqlanadi (1 … 99 %); chegirmali narx 100 so'mgacha (yozilgan «yangi narx»
+  saqlansin — egasi qarori «ikkinchisi o'zi hisoblanadi»); tugash kuni — Toshkent, shu kun oxirigacha; tannarx — ERP penoplast formulasi (loy kirmaydi); Telegram xabari — do'kon boti bilan
+  keyingi bosqichda.
+- (2026-11-01, kech168) Telefonlar, ish vaqti, komplekt retsepti — «Onlayn do'kon rejasi» (30.10) qarorlari bo'yicha — zip 233 (4-bo'lim
+  «DO'KON SOZLAMALARI VA KOMPLEKT NARXI»). Texnik tanlovlar (Claude): telefonlar — alohida jadval; kamida bitta «doim» raqam; rom metrlari
+  juft; komplekt narxi serverda; chegirma (zip 234) va Excel (zip 235) — alohida ziplarda.
+- (2026-10-31, kech167) Rasmlar — «Onlayn do'kon rejasi» (30.10) qarorlari bo'yicha (rasm qirqilmaydi; faqat JPG / PNG / WEBP, qayta
+  saqlanadi, GPS va yashirin ma'lumot o'chadi; sayt rasmlari ochiq alohida papkada; birinchi rasm asosiy, surib tartiblanadi) — zip 232
+  (4-bo'lim «SAYT KATALOGI RASMLARI»). Texnik tanlovlar (Claude): bir modelga 10 ta, katta tomoni ≥ 500 px, nisbat ≤ 8 : 1, HEIC — rad.
+- (2026-10-31, kech166) Egasi (17:3x, tugma): keyingi ish — «Onlayn do'kon». Rejaning biznes qarorlari — Claude Docs hujjati «Onlayn do'kon
+  rejasi» (30.10). Texnik qarorlar (Claude): avval ERP tomoni — zip 231 «Sayt katalogi» poydevori, 232 rasmlar, 233 komplekt / chegirma /
+  telefon / ish vaqti, 234 do'kon API (maxfiy kalit, faqat PenoDecorPro), 235 «Saytdan kelgan buyurtmalar»; keyin do'kon sayti — alohida
+  PRIVATE repo. Sayt katalogi faqat platforma egasining korxonasida va faqat Admin uchun (4-bo'lim «SAYT KATALOGI»).
 - (2026-10-31, kech165) Egasi (09:1x, tugma): yakka xarid o'chirilganda u bilan birga yozilgan «O'z hisobimdan» transport — «Har safar
   so'rasin»: «Transportni ham o'chirish» / «Transport Moliyada qolsin» / «Bekor» (hoziroq to'lov bo'yicha 14.10 qarori naqshi) — zip 230.
 - (2026-10-31, kech164) Texnik qaror (Claude): d235 da topilgan sanaga bog'liq fikstura (test_f_hujjat) — alohida kichik zip 229;
@@ -5444,7 +6296,25 @@ qarorlari 02.10»)**
   o'tkazish (bankdan naqd yechish va h.k.); har hisob tarixi. «Usta KPI to'landi» / «Ehson to'landi» — tanlangan hisobdan ayiriladi
   (sof foyda o'zgarmaydi — egasiga tushuntirildi 23.10 15:54).
 
+- (2026-11-03, kech181) Do'kon 2-bosqich — usta / magazin Telegram orqali kirishi: bot — @penodecorprobot (egasi o'zi ochgan, tokeni
+  BotFather da); sinov saytida — alohida sinov boti (egasi ochib, tokenini Railway «web-sinov» ga `DOKON_BOT_TOKEN` qilib qo'yadi);
+  @penodecorprobot — butun do'kon tayyor bo'lgach, production bilan birga ulanadi (hozirgi katalog vazifasi «Saytni ochish» ga almashadi).
+
+- (2026-11-03, kech182) Do'kon 2-bosqich egasi tomonidan HAQIQIY Telegram bilan sinaldi (sinov sayti, usta, tasdiq — ishladi). Usta keshbegi —
+  mavjud KPI hisobi (ERP buyurtmasidagi usta); tasdiq kutayotgan paytdagi buyurtmalarni keyin ustaga o'tkazish — 3-bosqich (keshbek).
+
+- (2026-11-04, kech184) Ulgurji bo'lim — narxlar ro'yxati PDF i va ulgurji tanlov PDF i — zip 251 da BOR; «Kelganda xabar bering» (tayyor
+  mahsulot, Telegram, admin ro'yxati) — zip 252 da BOR (kech185); keyingi — keshbek (3-bosqich; zip 253 da qoldiq / berildi / foiz qotishi BOR, havola — zip 254). Kutish ro'yxati muddatsiz (mijoz
+  kabinetda bekor qiladi; omborga bog'lami uzilgan element — admin ro'yxatida «saytda yo'q», qaytsa xabar ketadi). PDF dagi summa — butun so'mgacha (boshqa PDF lar qoidasi): tiyinli ulgurji narxda
+  qatordagi «narx × miqdor» ko'rinishi jamidan 1 so'mgacha farq qilishi mumkin (review251 L2 — ko'rinish, narx qoidasi emas).
+
 ## 7. Ochiq masalalar
+
+- **Ichki ERP rasmlarida metama'lumot (kech167 kuzatuvi, PAST, ESKI):** umumiy yuklash yo'li (`main.rasmni_kichraytir` — detal, material,
+  retsept, tayyor mahsulot, loyiha, qaytarish rasmlari) kichik va burilmagan rasmni ASLICHA saqlaydi — telefon GPS / modeli / izohi faylda
+  qoladi; qayta yozilganda JPEG izohi (`comment`) o'tib ketadi (O'LCHANGAN `work/k232/probe232.py`). Bu rasmlar faqat o'z korxonasining
+  kirgan xodimiga beriladi (ochiq emas) — shuning uchun alohida ish; kerak bo'lsa `dokon_rasm_tayyorla` naqshi bilan (har rasm qayta
+  yoziladi, `info = {}`) tuzatiladi. Sayt katalogi rasmlari (zip 232) — bu muammosiz.
 
 - **Kirim oynasi — qayd (review226, PAST) — YOPILDI (kech164, zip 229):** production ma'lumotida (zaxira 31.10 00:35) O'LCHANDI —
   (1) faqat boshlang'ich ombordan iborat hujjatlarda qo'shimcha xarajat 0; (2) xarajatli hujjatlarning hammasi Moliyada bor; (3) tiyinli
@@ -5730,6 +6600,118 @@ qarorlari 02.10»)**
   rejani ko'ra olmaydi. Uch tugmali oynada Enter — «Ha, buyurtmalari ham».
 
 ## 8. Texnik saboqlar (qayta qilmang)
+
+- (kech185, zip 252) Navbatli fon ishida PARTIYA — faqat bajariladiganlaridan olinsin (avval «nima tayyor», keyin «kim kutmoqda»):
+  aks holda eng eski bajarib bo'lmaydiganlar partiyani to'ldirib, yangilari hech qachon ko'rilmaydi (review252 H1). Tashqi xizmat xatosi
+  ikki xil: shu chatga oid (urinish sanaladi) va umumiy uzilish (to'xtash, urinish SANALMAYDI) — aks holda 25 daqiqalik uzilish
+  hamma xabarni abadiy «xato» qiladi (review252 M2).
+- (kech184, zip 251) Og'ir / umumiy chegara (PDF) — kirish tekshiruvidan KEYIN sanalsin: aks holda ruxsatsiz hisob (usta, sessiyasiz)
+  umumiy chegarani band qilib, haqiqiy magazinni to'sadi (review251 M1); tana ham kirishdan keyin o'qilsin (kirish javobi tanaga bog'liq
+  bo'lmasin — review251 L1).
+- (kech184, zip 250) Narxni boshqa birlikka o'tkazish (1 dona = 2 m) — summa ASL birlikdan (dona narxi × dona) hisoblanadi, ko'rsatiladigan
+  1 m narxi yaxlitlanadi; mijozga ko'rinadigan joyda (PDF, do'kon javobi) qator O'Z birligida (dona) chiqsin — aks holda narx × miqdor ≠
+  summa (review250 L2). Ruxsat — so'rov paytidagi holat bilan ham (eski ulgurji buyurtma: hisob endi magazin emas — narxsiz, review250 M1);
+  admin yashira oladigan bo'lim — API da ham yopiladi (review250 L3).
+
+- (kech182, zip 249) Uzun funksiyaga parametr qo'shishdan oldin uning ichidagi lokal nomlarni tekshiring: `sayt_buyurtma_yarat` da «mijoz»
+  (ism) va «hisob» (narx hisobi) BAND edi — yangi parametr ustidan yozilib 500 berdi (parametr — `kirgan_hisob`). Ruxsatni «yomon holatlar
+  ro'yxati» bilan emas, «kerakli holat» bilan bering (`mj_holat != "tasdiqlangan"` — review249 H249-1). `index=True` li yangi ustun — eski
+  bazada `database.add_missing_indexes` ro'yxatiga ham (H249-2).
+
+- (kech181, zip 248) Zaxiraga kiradigan YANGI jadval — `_reset_table_order` ga ham (aks holda tiklash uni jimgina o'tkazib yuboradi va
+  «Barcha ma'lumotlarni o'chirish» unga tegmaydi — review248 H1). Havola orqali kirish (deep link) — havolani ko'rgan boshqa odam / boshqa
+  chat uni egallay olmasin (birinchi chat bog'lanadi) va egasi «bu men emas» deya olsin.
+
+- (kech180, zip 247) Nomga yangi qism (« · o'lcham») qo'shganda — nomni qayta ishlaydigan HAMMA qoida tekshirilsin (`detal_nomi_tartib`
+  butun nomga qarab katta harfli so'zni kichraytirardi: «D-3 · XL» → «xl»). Kalitdan (kichik harf) nom tiklashda — eski shakllar ham.
+
+- (kech179, zip 246) Nom — guruhlash kaliti (`tm_kam_kaliti`) qismi bo'lsa, ikki xil narsaga BIR XIL nom berilmasin (o'lchamsiz donali detal):
+  kalit birlashib ketadi, ikkinchisi «band» bo'ladi. Nom qoidasini o'zgartirish — ma'lumot hali yo'q paytda (production da katalog yo'q).
+
+- (kech179, zip 245) «Nomda bormi» tekshiruvi — matn QISMI bilan emas (`ol in nom`: «S» — «S-1» da topiladi), butun so'z bilan; o'nli /
+  ming ajratgichli son («12,5», «1 000») — so'zlarga bo'linmasin (review245 M1); qo'shilgan qism (eni) haqiqatan nomda borligi — nom
+  kesilishi mumkin (review245 L1). Server matnida `.replace(",", …)` — `test_xabar_summalar192` S1 (o'nli vergul — `str.maketrans`).
+
+- (kech178, zip 244) Mijozga hujjat beradigan do'kon yo'li — do'kon kalitining O'ZI yetmasin: buyurtmaning o'z maxfiy kaliti so'raladi,
+  xato javoblari bir xil (qaysi maydon xatoligini aytmaydi). Yangi do'kon yo'liga — O'Z chegarasi (umumiy katalog chegarasini yeb, butun
+  do'konni 429 qilmasin — review244 M1). Sinovda «sarlavha bor» tekshiruvi — aniq ketma-ketlik bilan («BUYURTMA # S-0001»; «BUYURTMA» so'zi
+  «BUYURTMA RAQAMI» yorlig'ida ham bor — mutatsiya tirik qolardi).
+- (kech178, zip 243) Saytda keyin buyurtma qilinadigan miqdorni saqlaydigan joy (galereya) — do'kon BUYURTMASI qoidasi bilan tekshiriladi
+  (`_sayt_miqdor`), aks holda «savatga» rad etiladi (review243 M1). Katalog yozuviga MATN bilan bog'langan joy (komplekt o'lchami) — qayta
+  nomlashda ko'chiriladi (chegirma `_dokon_chegirma_olcham_kochir` naqshi). Ikki korxona sinovi: B korxonada katalog YOQIQ bo'lsin (aks holda
+  404 haqiqiy ajratishni yashiradi — mut243 M01), begona yozuv — B ning o'z API si bilan yaratiladi (bazaga to'g'ridan yaratish jimgina
+  yiqilib, sinov soxta id bilan o'tardi — M02); ORM korxona qo'riqchisi ham rad etadi — sinov aniq XABARNI tekshiradi. «N tadan ortiq»
+  sinovi — takrorsiz qatorlar bilan (takror qoidasi chegarani yashiradi — M08).
+- (kech177, zip 242) Formani «to'ldiruvchi» tanlov (katalog detali) saqlashda faqat id bilan yuborilsa, server tanlovdan keyingi qo'lda
+  o'zgarishni ko'rmaydi (review242 H1: butunlay boshqa mahsulot detalga bog'landi) — server natijani tanlov manbasi bilan SOLISHTIRADI, sahifa
+  oldindan ogohlantiradi. Korxona qulfi (238) sinovi — marshrutlar xomashyo navbatida ketma-ket yuradi, model qatori qulfi bir model
+  detallarini ham ketma-ket qiladi: crud ni ikki sessiyada, IKKI MODEL detali bilan (mut242 M09 shundagina o'ldi).
+- (kech177, zip 241c) Bir xil narsani (logotip) chizadigan HAMMA joy bitta qoidaga o'tkaziladi va hammasi o'lchanadi: zip 241b da 7 hujjat
+  sarlavhasi 300 dpi ga tushdi, «Buyurtma hisobi» / «Taklif» esa eski yo'lda qolib 913 KB edi — jonli sinovda HAJM ham o'lchansin.
+- (kech176, zip 241) «Korxonaning O'Z logotipi hujjatda chiqadimi» — koddan emas, HAQIQIY PDF dan o'lchanadi: rasm ajratiladi (pypdf),
+  piksel md5 yuklangan fayl bilan solishtiriladi; matnda taqiqlangan so'zlar (boshqa korxona nomi / telefoni / manzili / shiori). O'lchovsiz
+  «kod bo'yicha to'g'ri» xulosasi 7 hujjatda logotip umuman yo'qligini ko'rmasdi. Diskka korxona id si bilan nomlanadigan fayl yozadigan test
+  (`static/uploads/logos/company_<id>`) parallel nusxalarda (SQLite / TF1 / PG, etalon zanjirlari) bir-birining faylini almashtiradi —
+  korxona id si jarayonga xos qilinsin (bo'sh korxona + PG ketma-ketligi `setval`), tozalash faqat o'z fayllari.
+- (kech175, zip 240c) Tanlov (ko'rish) marshruti biror holatni bermasa, YOZUVCHI yo'l ham o'sha holatni rad etsin (marshrut + crud — ikki
+  to'siq): sahifa ko'rsatmagan narsani API baribir yozardi (qoralamadan omborga ishlab chiqarilmagan mahsulot). Rad — hech narsa yozilishidan
+  OLDIN, takror kaliti sarflanmasdan; sinovda «hech narsa yozilmadi» — qaytarish, ombor, xomashyo, pul, harakat, jurnal surati AYNAN.
+- (kech174, zip 240) Bir amalda bir necha yozuv yaratadigan yo'l — mavjud bitta-yozuv funksiyasini (`create_return_item`) tsiklda, BITTA
+  tranzaksiyada chaqiradi (qoidalar takrorlanmaydi); oldindan ko'rish va yaratish — bitta tekshiruv funksiyasi. Ulushni qatorlarga
+  taqsimlashda bir mahsulot qatorlarini to'plang va eng katta qoldiq usulini ishlating (aks holda 10 + 2,6 m dan 1 / 3 — 4,199 m). To'plam
+  bo'lib yozilgan yozuvni bittalab o'chiradigan eski yo'l — 409 (jim «yarim» holat qoldirmang).
+- (kech173, zip 239) Ko'rinish uchun qo'shilgan ustun (guruh / belgi) tahrir yo'lida yo'qolmasin: tanada KALIT bo'lmasa — saqlanadi (eski
+  ochiq sahifa), bo'lsa — shu qiymat (null — o'chirish); forma o'qigan qiymatni qaytaradi. Guruh sarlavhasi — bir joyda (server + sahifa
+  bir qoida), guruh qatorlari birinchi uchragan joyida yig'iladi (tahrirda keyin qo'shilgani ajralib qolmasin). Telefonda qator sarlavhasiga
+  yangi tugma qo'shmang — alohida qatorda (375 px da «✕ butun komplekt» ekrandan chiqib ketgan — O'LCHANDI).
+- (kech172, zip 238) Tashqi tizimga beriladigan ombor qoldig'i — ERP ning O'Z guruh qoidasi bilan (`_tm_qoshni_boshlar` hovuzi: band va
+  minus ayiriladi, jarayondagi kirmaydi), ko'rsatiladigan son PASTGA yaxlitlanadi (ko'p ko'rsatilsa buyurtma 409 bilan qaytadi). Vaqtinchalik
+  band — holat + tugash vaqti bilan (fon vazifasisiz o'zi tugaydi); tekshiruv va yozuv BITTA korxona qulfi ostida (PG da 4 parallel mijoz —
+  faqat bittasi). Partiyaga bog'langan buyurtma qatori — forma `pickFinished` shaklida (tahrirda narx saqlanadi).
+- (kech171, zip 237) Tashqi manbadan (do'kon, API) yaratiladigan buyurtma qatori buyurtma FORMASI qayta hosil qila oladigan shaklda
+  bo'lsin: forma narxni o'z formulasidan (profil — eni × qalinlik × 1 m³ narxi ÷ 2) qayta hisoblaydi, «qator jami» bilan yozilgan narx
+  tahrirda 0 ga tushadi yoki «1 m³ asosiy narxi» bilan jimgina almashadi (review237 H1, HAQIQIY brauzerda O'LCHANGAN) — qatorning O'Z
+  m³ narxini shunday qo'ying. Donali detal hajmi narxdan olinsa — QOPLAMASIZ narx (`unit_price_for_volume`), aks holda sarf 2 barobar
+  (review237 M1). Tashqi tizim ko'radigan narx va qabul qiladigan narx — BITTA qoida (review237 M2). `async def` marshrutda sinxron baza
+  ishi — `run_in_threadpool` (review237 L3); tana hajmi — o'qishdan OLDIN (L4); `ilike` qidiruvida «%» / «_» — escape (L5).
+
+- (kech170, zip 236) Faqat bir marta ko'rsatiladigan maxfiy qiymat (kalit) — `<input>` ga qo'yilsa `data-no-capitalize` va `data-no-i18n`
+  SHART: `base.html` ning umumiy «birinchi harf katta» qoidasi blur da qiymatni o'zgartiradi (nusxa — noto'g'ri kalit), Kirill o'giruvchisi
+  harflarni o'giradi. Tashqi tizimga beriladigan ro'yxatdan «yashirin» narsa faqat qator darajasida emas, undan YIG'ILADIGAN qiymatlarda
+  ham (komplekt o'lchami, model chegirmasi va uning o'lchamlar ro'yxati) olib tashlansin (review236 M1). Almashtirish — sahifa ko'rgan
+  holat bilan (ikki oyna), «yangi kalit» bloki holat bilan mos bo'lsagina (review236 L2 / M2).
+
+- (kech170, zip 235) Fayl orqali ommaviy tahrir — o'zgarish fayldagi qiymatni BAZA bilan emas, fayl yuklab olingan paytdagi qiymat bilan
+  solishtirib aniqlansin (yashirin ustun); aks holda eski fayl orada boshqa joyda kiritilgan narxni jimgina qaytaradi / o'chiradi (review235
+  Y1). Qatorni bog'laydigan raqam narx ustunlaridan uzoqda bo'lsa — qisman saralash narxni boshqa qatorga o'tkazadi: raqamning ikkinchi
+  (yashirin) nusxasi va «faqat joy almashgan» tekshiruvi (Y2). Saqlash so'rovi ko'rishdagi qator nomini ham olib kelsin (O1). openpyxl
+  «=…» matnni formula qiladi — `data_type = "s"`; boshqaruv belgisi — `IllegalCharacterError`. Formatlangan bo'sh qatorlar chegaraga
+  sanalmasin (O3). Fayl o'qilayotganda baza ulanishi band turmasin.
+
+- (kech169, zip 234) Narxni o'zgartiradigan qoida (chegirma) — BITTA funksiyada (`dokon_chegirma_narx`), komplekt / API / sahifa shundan;
+  sahifa narxni o'zi hisoblamaydi (faqat «yangi narx» → foiz). Tannarx kerak bo'lsa — ERP ning o'z funksiyasi bilan AYNANligi sinovda
+  (o'lchamlar to'rida) tekshirilsin; tannarx raqami jurnalga yozilmasin. Mutatsiya «tirik» qolsa — sinov ma'lumotida o'sha holat
+  (masalan qoplamali narx ham tannarxdan past, yashirin «past» qator) bormi — tekshiring.
+
+- (kech168, zip 233b) Zipning «bog'liq testlar» ro'yxatiga BUTUN kodni skanerlaydigan linter-testlarni HAR DOIM qo'shing
+  (`test_xabar_miqdorlar193` — jurnal / xabar f-stringidagi `:.Nf` / `:g` miqdor, `tenant_lint`, `test_html_escape`, `test_rollar`,
+  `test_pasport` …): zip 232 jurnaldagi rasm hajmini `f"{x:.1f}"` bilan yozdi — ro'yxatda `test_xabar_miqdorlar193` yo'q edi, xato faqat
+  etalon d241 da (bir zip kechikib) chiqdi. Jurnal / xabardagi son — faqat `audit_son` / `xabar_son` / `_miqdor_jurnal` / `_miqdor_matn`.
+
+- (kech168, zip 233) Yangi sahifa — kontent `.erp-content` (yoki o'z `overflow-y:auto` o'rami) ichida va `tools/test_sahifa_skroll_ui.py`
+  `SAHIFALAR` ro'yxatida bo'lsin: `.erp-main` — `overflow:hidden` flex ustun, o'ramsiz kartochkalar 2 px gacha siqiladi va sahifa
+  surilmaydi (zip 231 «Sayt katalogi» — 2 zip davomida sezilmagan; jonli sinovda kompyuterda pastga surib tekshiring). Sozlama qatori
+  (`CompanySetting.value`) — 255 belgi (PG xato beradi): ro'yxat / uzun matn — alohida jadval. Ko'p qatorli qoida («kamida bitta …», «oxirgisi
+  o'chmaydi») — hamma yo'lda bir xil qulf (korxona qatori) ostida, sinovda tekshiruvdan KEYIN kechikish bilan PG da.
+
+- (kech167, zip 232) Ochiq (login siz) beriladigan fayl — HAR doim qayta yozilsin va natija TUZILMA bo'yicha tekshirilsin (matn qidiruvi
+  emas): Pillow `im.info` dagi JPEG izohini qayta yozishda o'tkazib yuboradi, «kichraytirish kerak emas — ASLICHA» yo'li GPS ni qoldiradi;
+  Pillow yo'q / o'qib bo'lmadi — saqlamaslik (yopiq holatda xato). Ko'p qatorli amal (tartib / o'chirish / qo'shish) — bir xil QULF
+  TARTIBI (ota qator → bola qatorlar): aks holda PG da bir vaqtdagi amal o'chirilgan qatorni yangilab 500 beradi. Surib tartiblash —
+  Pointer Events `document` da (ushlagichdagi `setPointerCapture` element DOM da ko'chirilganda yo'qoladi — O'LCHANGAN Chromium); sinovda
+  surishdan oldin oldingi saqlash tugaganini kuting (tugmalar `disabled`). Pillow versiyasi o'zgarsa — xotira chegarali sinovlar qayta
+  o'lchansin (test_mayda202 L1: 12.3 — 194 MB, 13.0 — 143…204 MB; chegara 240). Rasm ICC sinovi — sRGB profili bilan o'tkazish sezilmaydi:
+  P3 matritsali profil (`p3_profil`) bilan sinang.
 
 - (kech165, zip 230) Bir amalda yozilgan ikki yozuv (xarid va uning transporti) — USTUN bilan bog'lansin; eski yozuvlar uchun izoh + vaqt
   + yaratgan bo'yicha qidiruv faqat bir ma'noli bo'lsa (savol baribir so'raladi — xato moslash summani ko'rsatadi, jim o'zgartirmaydi).
@@ -6767,27 +7749,30 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 27. `_migrate_kirim_tannarx_manba` — kech87 (104-band) — IDEMPOTENT, PG va SQLite.
 28. `_migrate_kechirilgan_qarz` — kech110 (K110-1, egasi QARORI "Kechirilgan so'mda qolsin") — IDEMPOTENT, PG va SQLite.
 29. `_migrate_platforma_obuna` — kech111 (admin paneli — egasi QARORLARI kech109 / kech110 / kech111) — IDEMPOTENT, PG va SQLite.
-30. `_migrate_yonalishlar` — kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08) — IDEMPOTENT, PG va SQLite.
-31. `_migrate_pul_hisoblari` — kech155 (zip 210 «Naqd / Bank / Karta») — IDEMPOTENT, PG va SQLite (`_migrate_yonalishlar` naqshi).
-32. `auth.create_default_admin`
-33. `_migrate_rollar` — kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30) — IDEMPOTENT, PG va SQLite.
-34. `crud.backfill_employee_compensation_history`
-35. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
-36. `_migrate_yuk_xati_ulush` — kech123 (zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi YUK XATLARI bo'yicha) — IDEMPOTENT, PostgreSQL va SQLite.
-37. `_migrate_loyiha_yuk_seq` — kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, «ORD-001-2/Y-6») — IDEMPOTENT, PostgreSQL va SQLite.
-38. `_migrate_brak_taqdir` — kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri») — IDEMPOTENT, PostgreSQL va SQLite.
-39. `_migrate_material_narx_ruxsati` — kech127 (zip 150 — egasi QARORI 07.10 20:1x: «Xomashyo narxlari va «Ombor qiymati» Menejerga ko'rinmasin») — IDEMPOTENT, PostgreSQL va SQLite.
-40. `_migrate_ord066_loy_xatosi` — kech127 (zip 150) — BIR MARTALIK ma'lumot tuzatishi, IDEMPOTENT, PostgreSQL va SQLite. Faqat AYNAN shu holatda ishlaydi (aks holda hech narsa qilmaydi va sababini logga…
-41. `_migrate_avans_manba` — kech134 (zip 160 — egasi QARORLARI 09.10: «C — hodim tasdig'i bilan» va «Faqat joriy oy») — IDEMPOTENT, PostgreSQL va SQLite. Ustunlarni (`employee_advances.avans_manba`…
-42. `_migrate_ish_davrlari` — kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10 / 12.10) — IDEMPOTENT, PostgreSQL va SQLite. `hodim_ish_davrlari` jadvalini `init_database()` (`create_all`), `empl…
-43. `_migrate_himoya143` — kech143 (zip 171, AUDIT A-X09): bazadagi XOM sessiya tokenlari — SHA-256 xeshga (`auth.sessiya_tokenlarini_xeshla`; cookie o'zgarmaydi — hech kim chiqib ketmaydi), eski…
-44. `app.include_router(production_router)`
-45. `app.add_middleware`
-46. `app.add_middleware`
-47. `_yuklama_marshrutini_oldinga`
-48. `_scheduler.add_job`
-49. `_scheduler.add_job`
-50. `_scheduler.start`
+30. `_migrate_dokon_ustuni` — kech166 (zip 231) — IDEMPOTENT, PG va SQLite: `companies.dokon_yoqilgan` (sayt katalogi belgisi). Odatda `database.sync_missing_columns()` qo'shadi (NULL, standart qiyma…
+31. `_migrate_yonalishlar` — kech117 (A2 — YO'NALISHLAR BO'YICHA MOLIYA; egasi QARORLARI kech114 00:08) — IDEMPOTENT, PG va SQLite.
+32. `_migrate_pul_hisoblari` — kech155 (zip 210 «Naqd / Bank / Karta») — IDEMPOTENT, PG va SQLite (`_migrate_yonalishlar` naqshi).
+33. `auth.create_default_admin`
+34. `_migrate_rollar` — kech118 (ROLLAR VA RUXSATLAR — egasi QARORI 15:23, tugmali javoblar 15:30) — IDEMPOTENT, PG va SQLite.
+35. `crud.backfill_employee_compensation_history`
+36. `_migrate_loyiha_tolangan_sinxron` — 17c (2026-09-21): `projects.total_paid` ni HAQIQIY to'lovlar bilan bir marta tenglashtiradi.
+37. `_migrate_yuk_xati_ulush` — kech123 (zip 143 — qoplamachi bonusi va «har birlik uchun» hodim haqi YUK XATLARI bo'yicha) — IDEMPOTENT, PostgreSQL va SQLite.
+38. `_migrate_loyiha_yuk_seq` — kech124 (zip 144 — egasi QARORI 06.10: yuk xati raqami LOYIHA bo'yicha davom etadi, «ORD-001-2/Y-6») — IDEMPOTENT, PostgreSQL va SQLite.
+39. `_migrate_brak_taqdir` — kech125 (zip 146 — EGASI QARORLARI 07.10 «Brak taqdiri») — IDEMPOTENT, PostgreSQL va SQLite.
+40. `_migrate_material_narx_ruxsati` — kech127 (zip 150 — egasi QARORI 07.10 20:1x: «Xomashyo narxlari va «Ombor qiymati» Menejerga ko'rinmasin») — IDEMPOTENT, PostgreSQL va SQLite.
+41. `_migrate_ord066_loy_xatosi` — kech127 (zip 150) — BIR MARTALIK ma'lumot tuzatishi, IDEMPOTENT, PostgreSQL va SQLite. Faqat AYNAN shu holatda ishlaydi (aks holda hech narsa qilmaydi va sababini logga…
+42. `_migrate_avans_manba` — kech134 (zip 160 — egasi QARORLARI 09.10: «C — hodim tasdig'i bilan» va «Faqat joriy oy») — IDEMPOTENT, PostgreSQL va SQLite. Ustunlarni (`employee_advances.avans_manba`…
+43. `_migrate_ish_davrlari` — kech141 (zip 169, audit A-P02 — egasi QARORLARI 11.10 / 12.10) — IDEMPOTENT, PostgreSQL va SQLite. `hodim_ish_davrlari` jadvalini `init_database()` (`create_all`), `empl…
+44. `_migrate_kpi_qotir253` — kech186 (zip 253 — egasi QARORI 04.11 «KPI foizi — faqat yangilari») — IDEMPOTENT, PostgreSQL va SQLite. Ustunlar `orders.usta_kpi_foizi`, `finished_product_sales.usta_k…
+45. `_migrate_himoya143` — kech143 (zip 171, AUDIT A-X09): bazadagi XOM sessiya tokenlari — SHA-256 xeshga (`auth.sessiya_tokenlarini_xeshla`; cookie o'zgarmaydi — hech kim chiqib ketmaydi), eski…
+46. `app.include_router(production_router)`
+47. `app.add_middleware`
+48. `app.add_middleware`
+49. `_yuklama_marshrutini_oldinga`
+50. `_scheduler.add_job`
+51. `_scheduler.add_job`
+52. `_scheduler.add_job`
+53. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -6820,7 +7805,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /finished` → `main.py:finished_page` → `templates/finished.html`
 - Qorovul: auth.ruxsat_biri(('tayyor', 'korish'), ('sotuv', 'korish'))
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
-- `finished.html` API: `/api/finished`, `/api/finished/produce`, `/api/finished/sales/batch/{}/pdf`, `/api/finished/sales/{}/pdf`, `/api/finished/sell`, `/api/finished/sell-batch`, `/api/finished/stats`, `/api/finished/{}`, `/api/finished/{}/add`, `/api/finished/{}/complete`, `/api/finished/{}/image`, `/api/finished/{}/kam-chegara`, `/api/finished/{}/profit`, `/api/finished/{}/release-reservation`, `/api/loy-cost`
+- `finished.html` API: `/api/finished`, `/api/finished/katalog-detallar`, `/api/finished/produce`, `/api/finished/sales/batch/{}/pdf`, `/api/finished/sales/{}/pdf`, `/api/finished/sell`, `/api/finished/sell-batch`, `/api/finished/stats`, `/api/finished/{}`, `/api/finished/{}/add`, `/api/finished/{}/complete`, `/api/finished/{}/image`, `/api/finished/{}/kam-chegara`, `/api/finished/{}/profit`, `/api/finished/{}/release-reservation`, `/api/loy-cost`, `/api/sayt-bandlar`
 
 ### `GET /hodim` → `main.py:hodim_panel` → `templates/hodim_kutish.html`, `templates/hodim_panel.html`, `templates/hodim_pin.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
@@ -6850,7 +7835,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /kpi` → `main.py:kpi_page` → `templates/kpi.html`
 - Qorovul: auth.ruxsat('kpi', 'korish')
 - Server chaqiruvlari: auth.ruxsat
-- `kpi.html` API: `/api/admin/avans-nizolar`, `/api/employees`, `/api/employees/advance/{}`, `/api/employees/advance/{}/nizo-korildi`, `/api/employees/{}`, `/api/employees/{}/advance`, `/api/employees/{}/advances`, `/api/employees/{}/compensation-history`, `/api/employees/{}/monthly-adjustment`, `/api/employees/{}/qurilma/rad`, `/api/employees/{}/qurilma/ruxsat`, `/api/employees/{}/qurilma/uzish`, `/api/employees/{}/set-login`, `/api/finance/report`, `/api/gift-period`, `/api/gift-period/add-master`, `/api/gift-period/close`, `/api/gift-period/open`, `/api/gift-period/redeem/{}/{}`, `/api/gift-period/tier/{}`, `/api/masters`, `/api/masters/kpi-report`, `/api/masters/{}`, `/api/masters/{}/kpi`, `/api/masters/{}/kpi-detail`, `/api/settings/company`, `/api/settings/ehson-percent`
+- `kpi.html` API: `/api/admin/avans-nizolar`, `/api/employees`, `/api/employees/advance/{}`, `/api/employees/advance/{}/nizo-korildi`, `/api/employees/{}`, `/api/employees/{}/advance`, `/api/employees/{}/advances`, `/api/employees/{}/compensation-history`, `/api/employees/{}/monthly-adjustment`, `/api/employees/{}/qurilma/rad`, `/api/employees/{}/qurilma/ruxsat`, `/api/employees/{}/qurilma/uzish`, `/api/employees/{}/set-login`, `/api/finance/report`, `/api/gift-period`, `/api/gift-period/add-master`, `/api/gift-period/close`, `/api/gift-period/open`, `/api/gift-period/redeem/{}/{}`, `/api/gift-period/tier/{}`, `/api/masters`, `/api/masters/keshbek/{}`, `/api/masters/kpi-keshbek`, `/api/masters/kpi-report`, `/api/masters/{}`, `/api/masters/{}/keshbek`, `/api/masters/{}/kpi`, `/api/masters/{}/kpi-detail`, `/api/settings/company`, `/api/settings/ehson-percent`
 
 ### `GET /kunlik-xarajat` → `main.py:kunlik_xarajat_page` → `templates/kunlik_xarajat.html`
 - Qorovul: auth.ruxsat_biri(('kunlik', 'korish'), ('kunlik', 'yaratish'))
@@ -6876,13 +7861,13 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /orders` → `main.py:orders_page` → `templates/orders.html`
 - Qorovul: auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish'))
-- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
-- `orders.html` API: `/api/deliveries`, `/api/deliveries/{}`, `/api/deliveries/{}/pdf`, `/api/finished`, `/api/finished/search`, `/api/loy-stock`, `/api/order-items/{}/image`, `/api/orders`, `/api/orders/attachments/{}`, `/api/orders/pinned`, `/api/orders/{}`, `/api/orders/{}/activate`, `/api/orders/{}/agreed-amount`, `/api/orders/{}/attachments`, `/api/orders/{}/coating-notify`, `/api/orders/{}/delivery-status`, `/api/orders/{}/pdf`, `/api/orders/{}/pin`, `/api/orders/{}/planned-loy`, `/api/orders/{}/profit`, `/api/orders/{}/ready`, `/api/orders/{}/summary-pdf`, `/api/payments`, `/api/payments/{}`, `/api/production/product-types`, `/api/projects/{}/berilgan-detallar`, `/api/takliflar`, `/api/takliflar/{}`, `/api/takliflar/{}/bekor`, `/api/takliflar/{}/pdf`, `/api/takliflar/{}/rasmiylashtir`, `/api/warnings/low-stock`
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.dokon_yoqilganmi, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.sayt_yangi_soni, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
+- `orders.html` API: `/api/deliveries`, `/api/deliveries/{}`, `/api/deliveries/{}/pdf`, `/api/finished`, `/api/finished/search`, `/api/loy-stock`, `/api/order-items/{}/image`, `/api/orders`, `/api/orders/attachments/{}`, `/api/orders/pinned`, `/api/orders/{}`, `/api/orders/{}/activate`, `/api/orders/{}/agreed-amount`, `/api/orders/{}/attachments`, `/api/orders/{}/coating-notify`, `/api/orders/{}/delivery-status`, `/api/orders/{}/pdf`, `/api/orders/{}/pin`, `/api/orders/{}/planned-loy`, `/api/orders/{}/profit`, `/api/orders/{}/ready`, `/api/orders/{}/summary-pdf`, `/api/payments`, `/api/payments/{}`, `/api/production/product-types`, `/api/projects/{}/berilgan-detallar`, `/api/sayt-buyurtmalari`, `/api/sayt-buyurtmalari/{}`, `/api/sayt-buyurtmalari/{}/bekor`, `/api/sayt-buyurtmalari/{}/tasdiqla`, `/api/takliflar`, `/api/takliflar/{}`, `/api/takliflar/{}/bekor`, `/api/takliflar/{}/pdf`, `/api/takliflar/{}/rasmiylashtir`, `/api/warnings/low-stock`
 
 ### `GET /platforma` → `main.py:platforma_page` → `templates/platforma.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
 - Server chaqiruvlari: auth.get_current_user
-- `platforma.html` API: `/api/platform/companies`, `/api/platform/companies/{}/block`, `/api/platform/companies/{}/extend`, `/api/platform/companies/{}/reset-admin-password`, `/api/platform/companies/{}/unblock`, `/api/platform/contact-phone`, `/api/platform/errors`, `/api/platform/murojaatlar`, `/api/platform/murojaatlar/{}`, `/api/platform/murojaatlar/{}/javob`, `/api/platform/murojaatlar/{}/yopish`, `/api/platform/summary`
+- `platforma.html` API: `/api/platform/companies`, `/api/platform/companies/{}/block`, `/api/platform/companies/{}/dokon`, `/api/platform/companies/{}/extend`, `/api/platform/companies/{}/reset-admin-password`, `/api/platform/companies/{}/unblock`, `/api/platform/contact-phone`, `/api/platform/errors`, `/api/platform/murojaatlar`, `/api/platform/murojaatlar/{}`, `/api/platform/murojaatlar/{}/javob`, `/api/platform/murojaatlar/{}/yopish`, `/api/platform/summary`
 
 ### `GET /production` → `main.py:production_page` → `templates/production.html`
 - Qorovul: auth.ruxsat('mahsulot_turi', 'korish')
@@ -6907,11 +7892,16 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /returns` → `main.py:returns_page` → `templates/returns.html`
 - Qorovul: auth.ruxsat('qaytarish', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.brak_taqdir_xaritasi, crud.brak_yozuv_qiymatlari, crud.get_employees, crud.get_return_items_for_main_page, crud.hodim_nomlari
-- `returns.html` API: `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`, `/api/tanlov/buyurtmalar`, `/api/tanlov/buyurtmalar/{}/detallar`
+- `returns.html` API: `/api/reports/brak-materials`, `/api/reports/brak-tahlil`, `/api/returns`, `/api/returns/komplekt`, `/api/returns/komplekt/reja`, `/api/returns/stats`, `/api/returns/{}`, `/api/returns/{}/image`, `/api/returns/{}/refund`, `/api/tanlov/buyurtmalar`, `/api/tanlov/buyurtmalar/{}/detallar`
 
 ### `GET /rollar` → `main.py:rollar_page` → `templates/rollar.html`
 - Qorovul: auth.admin_only
 - `rollar.html` API: `/api/rollar`, `/api/rollar/{}`, `/api/rollar/{}/andoza`, `/api/users/{}/rol`
+
+### `GET /sayt-katalogi` → `main.py:sayt_katalogi_page` → `templates/sayt_katalogi.html`
+- Qorovul: auth.admin_only
+- Server chaqiruvlari: auth.company_id_of, crud.dokon_yoqilganmi
+- `sayt_katalogi.html` API: `/api/sayt-katalogi`, `/api/sayt-katalogi/api-kalit`, `/api/sayt-katalogi/bolimlar`, `/api/sayt-katalogi/bolimlar/{}`, `/api/sayt-katalogi/detallar`, `/api/sayt-katalogi/detallar/{}`, `/api/sayt-katalogi/detallar/{}/tm`, `/api/sayt-katalogi/dokon-bot`, `/api/sayt-katalogi/dokon-bot/ulash`, `/api/sayt-katalogi/excel`, `/api/sayt-katalogi/excel/korish`, `/api/sayt-katalogi/excel/saqla`, `/api/sayt-katalogi/galereya`, `/api/sayt-katalogi/galereya-rasmlari/{}`, `/api/sayt-katalogi/galereya/{}`, `/api/sayt-katalogi/galereya/{}/rasmlar`, `/api/sayt-katalogi/ish-vaqti`, `/api/sayt-katalogi/koeff`, `/api/sayt-katalogi/komplekt`, `/api/sayt-katalogi/kutishlar`, `/api/sayt-katalogi/mijozlar`, `/api/sayt-katalogi/mijozlar/{}/blokla`, `/api/sayt-katalogi/mijozlar/{}/ochish`, `/api/sayt-katalogi/mijozlar/{}/rad`, `/api/sayt-katalogi/mijozlar/{}/tasdiqla`, `/api/sayt-katalogi/modellar`, `/api/sayt-katalogi/modellar/{}`, `/api/sayt-katalogi/modellar/{}/chegirma`, `/api/sayt-katalogi/modellar/{}/chegirma/korish`, `/api/sayt-katalogi/modellar/{}/komplekt`, `/api/sayt-katalogi/modellar/{}/rasmlar`, `/api/sayt-katalogi/rasmlar/{}`, `/api/sayt-katalogi/telefonlar`, `/api/sayt-katalogi/telefonlar/{}`, `/api/sayt-katalogi/tm-mahsulotlar`
 
 ### `GET /sozlamalar` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.ruxsat('jurnal', 'korish')
@@ -6988,6 +7978,30 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/deliveries/{delivery_id}` → `main.py:api_delete_delivery` · 🔒 auth.ruxsat('yetkazish', 'ochirish') · auth.company_id_of, auth.delivery_of_company, auth.ruxsat, crud.delete_delivery
 - `GET /api/deliveries/{delivery_id}/pdf` → `main.py:api_delivery_pdf` · 🔒 auth.ruxsat('yetkazish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_delivery, delivery_pdf.generate_delivery_pdf
 
+#### `/api/dokon` (22)
+- `POST /api/dokon/v1/buyurtmalar` → `main.py:api_dokon_v1_buyurtma` · 🔓 · crud.dokon_sessiya_mijoz_ixtiyoriy, crud.sayt_buyurtma_yarat, crud.sayt_dokon_javobi, crud.sayt_mijoz_yorligi, crud.sayt_telegram_matni
+- `POST /api/dokon/v1/buyurtmalar/pdf` → `main.py:api_dokon_v1_buyurtma_pdf` · 🔓 · crud.sayt_buyurtma_pdf_ol, crud.sayt_pdf_buyurtma, pdf_service.generate_sayt_pdf
+- `GET /api/dokon/v1/galereya` → `main.py:api_dokon_v1_galereya` · 🔓 · crud.dokon_api_galereya
+- `GET /api/dokon/v1/katalog` → `main.py:api_dokon_v1_katalog` · 🔓 · crud.dokon_api_katalog
+- `POST /api/dokon/v1/kirish` → `main.py:api_dokon_v1_kirish` · 🔓 · crud.dokon_kirish_boshla
+- `POST /api/dokon/v1/kirish/holat` → `main.py:api_dokon_v1_kirish_holat` · 🔓 · crud.dokon_kirish_holat
+- `GET /api/dokon/v1/kutish` → `main.py:api_dokon_v1_kutish` · 🔓 · crud.dokon_kutish_royxati
+- `POST /api/dokon/v1/kutish` → `main.py:api_dokon_v1_kutish_qosh` · 🔓 · crud.dokon_kutish_qosh
+- `POST /api/dokon/v1/kutish/bekor` → `main.py:api_dokon_v1_kutish_bekor` · 🔓 · crud.dokon_kutish_bekor
+- `GET /api/dokon/v1/mijoz` → `main.py:api_dokon_v1_mijoz` · 🔓 · crud.dokon_mijoz_korinish, crud.dokon_sessiya_mijoz
+- `GET /api/dokon/v1/mijoz/buyurtmalar` → `main.py:api_dokon_v1_mijoz_buyurtmalar` · 🔓 · crud.dokon_mijoz_buyurtmalari
+- `POST /api/dokon/v1/mijoz/buyurtmalar/pdf` → `main.py:api_dokon_v1_mijoz_buyurtma_pdf` · 🔓 · crud.dokon_mijoz_buyurtma_pdf_ol, crud.dokon_mijoz_pdf_malumoti, pdf_service.generate_sayt_pdf
+- `POST /api/dokon/v1/mijoz/chiqish` → `main.py:api_dokon_v1_mijoz_chiqish` · 🔓 · crud.dokon_mijoz_chiqish
+- `GET /api/dokon/v1/mijoz/keshbek` → `main.py:api_dokon_v1_mijoz_keshbek` · 🔓 · crud.dokon_mijoz_keshbek
+- `POST /api/dokon/v1/mijoz/royxat` → `main.py:api_dokon_v1_mijoz_royxat` · 🔓 · crud.dokon_mijoz_korinish, crud.dokon_mijoz_royxat, crud.dokon_royxat_telegram_matni
+- `POST /api/dokon/v1/savat/pdf` → `main.py:api_dokon_v1_savat_pdf` · 🔓 · crud.sayt_pdf_savat, pdf_service.generate_sayt_pdf
+- `GET /api/dokon/v1/sozlamalar` → `main.py:api_dokon_v1_sozlamalar` · 🔓 · crud.dokon_api_sozlamalar
+- `GET /api/dokon/v1/tayyor` → `main.py:api_dokon_v1_tayyor` · 🔓 · crud.dokon_api_tayyor
+- `GET /api/dokon/v1/ulgurji` → `main.py:api_dokon_v1_ulgurji` · 🔓 · crud.dokon_api_ulgurji, crud.dokon_ulgurji_mijoz
+- `POST /api/dokon/v1/ulgurji/buyurtmalar` → `main.py:api_dokon_v1_ulgurji_buyurtma` · 🔓 · crud.dokon_ulgurji_mijoz, crud.sayt_buyurtma_yarat, crud.sayt_dokon_javobi, crud.sayt_mijoz_yorligi, crud.sayt_telegram_matni
+- `GET /api/dokon/v1/ulgurji/narxlar/pdf` → `main.py:api_dokon_v1_ulgurji_narxlar_pdf` · 🔓 · crud.ulgurji_narxlar_hisob_chegarasi, crud.ulgurji_narxlar_pdf_malumoti, pdf_service.generate_ulgurji_narxlar_pdf
+- `POST /api/dokon/v1/ulgurji/savat/pdf` → `main.py:api_dokon_v1_ulgurji_savat_pdf` · 🔓 · crud.ulgurji_savat_pdf_malumoti, pdf_service.generate_sayt_pdf
+
 #### `/api/employees` (18)
 - `GET /api/employees` → `main.py:api_get_employees` · 🔒 auth.ruxsat('hodim', 'korish') · auth.company_id_of, auth.ruxsat, crud.avans_holat_xulosasi, crud.get_employees, crud.hodim_qurilma_xulosa, crud.yonalish_nomlari, services.hodim_kirgan_sanasi
 - `POST /api/employees` → `main.py:api_create_employee` · 🔒 auth.ruxsat('hodim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.create_employee
@@ -7036,12 +8050,13 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/finance/transactions/{tx_id}/ozim` → `main.py:api_ozim_xarajatni_ochirish` · 🔒 auth.ruxsat('kunlik', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.log_activity
 - `GET /api/finance/yonalishlar` → `main.py:api_finance_yonalishlar` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.calculate_split_profit_report
 
-#### `/api/finished` (22)
+#### `/api/finished` (23)
 - `GET /api/finished` → `main.py:api_get_finished` · 🔒 auth.ruxsat('tayyor', 'korish') · auth.company_id_of, auth.ruxsat, crud._fp_ombor_qiymati, crud.fp_ishlab_chiqarish_raqamlari, crud.get_finished_products, crud.get_finished_products_for_main_page, production_service.royxat_qoshimchalari
+- `GET /api/finished/katalog-detallar` → `main.py:api_finished_katalog_detallar` · 🔒 auth.ruxsat('tayyor', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.dokon_tm_katalog
 - `POST /api/finished/loss` → `main.py:api_record_finished_loss` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.record_finished_product_loss
 - `DELETE /api/finished/loss/{loss_id}` → `main.py:api_delete_finished_loss` · 🔒 auth.ruxsat('brak', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_finished_product_loss
 - `POST /api/finished/loss/{loss_id}/taqdir` → `main.py:api_finished_loss_taqdir` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.ruxsat
-- `POST /api/finished/produce` → `main.py:api_produce` · 🔒 auth.ruxsat('tayyor', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.get_low_stock_items, crud.produce_finished_product, crud.xabar_son
+- `POST /api/finished/produce` → `main.py:api_produce` · 🔒 auth.ruxsat('tayyor', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.dokon_partiya_katalogga, crud.get_low_stock_items, crud.produce_finished_product, crud.xabar_son
 - `POST /api/finished/production-brak` → `main.py:api_finished_production_brak` · 🔒 auth.ruxsat('brak', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.record_finished_product_production_brak
 - `GET /api/finished/sales` → `main.py:api_get_finished_sales` · 🔒 auth.ruxsat('sotuv', 'korish') · auth.company_id_of, auth.ruxsat
 - `GET /api/finished/sales/batch/{group_id}/pdf` → `main.py:api_finished_sale_batch_pdf` · 🔒 auth.ruxsat('sotuv', 'korish') · auth.company_id_of, auth.ruxsat, delivery_pdf.generate_finished_sale_batch_pdf
@@ -7114,13 +8129,17 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/api/loy-stock` (1)
 - `GET /api/loy-stock` → `main.py:api_loy_stock` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, services.get_or_create_loy_stock
 
-#### `/api/masters` (8)
+#### `/api/masters` (12)
 - `GET /api/masters` → `main.py:api_get_masters` · 🔒 auth.ruxsat('usta', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_masters
 - `POST /api/masters` → `main.py:api_create_master` · 🔒 auth.ruxsat('usta', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._clean_create, crud.create_master
+- `DELETE /api/masters/keshbek/{kid}` → `main.py:api_master_keshbek_ochir` · 🔒 auth.ruxsat('kassa', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_ochir
+- `GET /api/masters/kpi-keshbek` → `main.py:api_masters_keshbek_qoldiqlari` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_qoldiqlari
 - `GET /api/masters/kpi-report` → `main.py:api_masters_kpi_report` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_masters_kpi_report
 - `PUT /api/masters/{master_id}` → `main.py:api_update_master` · 🔒 auth.ruxsat('usta', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud._clean_update, crud.get_master, crud.update_master
 - `DELETE /api/masters/{master_id}` → `main.py:api_delete_master` · 🔒 auth.ruxsat('usta', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_master
 - `DELETE /api/masters/{master_id}/delete` → `main.py:api_delete_master_permanent` · 🔒 auth.ruxsat('savat', 'ochirish') · auth.company_id_of, auth.master_of_company, auth.ruxsat
+- `GET /api/masters/{master_id}/keshbek` → `main.py:api_master_keshbek` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_holati
+- `POST /api/masters/{master_id}/keshbek` → `main.py:api_master_keshbek_ber` · 🔒 auth.ruxsat('kassa', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_ber
 - `PUT /api/masters/{master_id}/kpi` → `main.py:api_update_master_kpi` · 🔒 auth.ruxsat('kpi', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.update_master_kpi
 - `GET /api/masters/{master_id}/kpi-detail` → `main.py:api_master_kpi_detail` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_master_kpi_detail
 
@@ -7158,7 +8177,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/orders/coating-notify-new` → `main.py:api_coating_notify_with_loy` · 🔒 auth.ruxsat('buyurtma', 'yaratish') · auth.ruxsat
 - `POST /api/orders/mark-all-ready` → `main.py:api_mark_all_ready` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.ruxsat
 - `GET /api/orders/pinned` → `main.py:api_get_pinned_orders` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_pinned_orders
-- `GET /api/orders/{order_id}` → `main.py:api_get_order` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.buyurtma_hisob_qatorlari, crud.get_order, crud.pul_qaytarish_kamaytirgan, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti, production_service.get_order_mrp_readiness, services.get_order_item_unit_cost
+- `GET /api/orders/{order_id}` → `main.py:api_get_order` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, crud.buyurtma_hisob_qatorlari, crud.get_order, crud.kmp_dict, crud.pul_qaytarish_kamaytirgan, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti, production_service.get_order_mrp_readiness, services.get_order_item_unit_cost
 - `PUT /api/orders/{order_id}` → `main.py:api_update_order` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._query_loy, crud.get_low_stock_items, crud.get_order, crud.update_order_full, crud.update_order_loy, crud.xabar_son
 - `DELETE /api/orders/{order_id}` → `main.py:api_delete_order` · 🔒 auth.ruxsat('buyurtma', 'ochirish') · auth.company_id_of, auth.ruxsat, crud._buyurtma_ochirish_matni, crud._buyurtma_tm_oldindan_qulf, crud._pul_qulfi, crud._query_loy, crud._return_finished_for_order, crud.audit_son, crud.bitta_tranzaksiya, crud.delete_order, crud.get_order, crud.ochirishda_topshirilganni_yopish, crud.ochirishda_yopiladimi, crud.ochirishda_yumshoqmi, services._get_planned_loy, services.buyurtmadan_qisman_chiqqan, services.deduct_loy_ingredients, services.loy_manba_ochirish_boshla, services.loy_manba_rejimi, services.loy_relevant_remaining_fraction, services.return_inventory_for_order, services.return_inventory_for_order_partial, services.return_loy_ingredients
 - `POST /api/orders/{order_id}/activate` → `main.py:api_activate_draft` · 🔒 auth.ruxsat('buyurtma', 'tahrirlash') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud.activate_draft_order
@@ -7189,10 +8208,11 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/api/penoplasts` (1)
 - `GET /api/penoplasts` → `main.py:api_get_penoplasts` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.company_id_of, auth.ruxsat, services.get_default_penoplast, services.get_penoplast_list
 
-#### `/api/platform` (13)
+#### `/api/platform` (14)
 - `GET /api/platform/companies` → `main.py:api_platform_companies` · 🔒 auth.platform_admin_only
 - `POST /api/platform/companies` → `main.py:api_platform_create_company` · 🔒 auth.platform_admin_only · auth.create_user, crud.korxona_kodi_yarat, crud.pul_hisoblari, crud.set_setting, crud.standart_yonalish
 - `POST /api/platform/companies/{company_id}/block` → `main.py:api_platform_block_company` · 🔒 auth.platform_admin_only
+- `POST /api/platform/companies/{company_id}/dokon` → `main.py:api_platform_dokon` · 🔒 auth.platform_admin_only · crud.dokon_belgila
 - `POST /api/platform/companies/{company_id}/extend` → `main.py:api_platform_extend_company` · 🔒 auth.platform_admin_only
 - `POST /api/platform/companies/{company_id}/reset-admin-password` → `main.py:api_platform_reset_admin_password` · 🔒 auth.platform_admin_only · auth.hash_password, crud.log_activity
 - `POST /api/platform/companies/{company_id}/unblock` → `main.py:api_platform_unblock_company` · 🔒 auth.platform_admin_only
@@ -7264,13 +8284,15 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/reports/top-products` → `main.py:api_reports_top_products` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_products_report
 - `GET /api/reports/top-suppliers` → `main.py:api_reports_top_suppliers` · 🔒 auth.ruxsat('hisobot', 'korish') · auth.company_id_of, auth.ruxsat, services.get_top_suppliers_report
 
-#### `/api/returns` (7)
+#### `/api/returns` (9)
 - `GET /api/returns` → `main.py:api_get_returns` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_return_items
 - `POST /api/returns` → `main.py:api_create_return` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.order_of_company, auth.ruxsat, crud._clean_val, crud.bitta_tranzaksiya, crud.create_return_item
+- `POST /api/returns/komplekt` → `main.py:api_create_komplekt_return` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.bitta_tranzaksiya, crud.create_komplekt_return, crud.kqt_tana
+- `GET /api/returns/komplekt/reja` → `main.py:api_komplekt_qaytarish_reja` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud._pul2, crud._som_butun, crud.kqt_tekshir, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti
 - `GET /api/returns/stats` → `main.py:api_return_stats` · 🔒 auth.ruxsat('qaytarish', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_return_stats
-- `DELETE /api/returns/{return_id}` → `main.py:api_delete_return` · 🔒 auth.ruxsat('qaytarish', 'ochirish') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.delete_return_item
+- `DELETE /api/returns/{return_id}` → `main.py:api_delete_return` · 🔒 auth.ruxsat('qaytarish', 'ochirish') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.bitta_tranzaksiya, crud.delete_komplekt_return, crud.delete_return_item, crud.kqt_sanogi
 - `POST /api/returns/{return_id}/image` → `main.py:api_upload_return_image` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat
-- `POST /api/returns/{return_id}/refund` → `main.py:api_mark_refunded` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.mark_refunded, services.son_korinish
+- `POST /api/returns/{return_id}/refund` → `main.py:api_mark_refunded` · 🔒 auth.ruxsat('qaytarish', 'tahrirlash') · auth.company_id_of, auth.return_of_company, auth.ruxsat, crud.bitta_tranzaksiya, crud.mark_refunded, crud.refund_komplekt
 - `POST /api/returns/{return_id}/taqdir` → `main.py:api_return_brak_taqdir` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.ruxsat
 
 #### `/api/rollar` (5)
@@ -7279,6 +8301,64 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `PUT /api/rollar/{rol_id}` → `main.py:api_rol_yangila` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_of_company, crud.log_activity
 - `DELETE /api/rollar/{rol_id}` → `main.py:api_rol_ochir` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_foydalanuvchilari, auth.rol_of_company, crud.log_activity
 - `POST /api/rollar/{rol_id}/andoza` → `main.py:api_rol_andoza` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_of_company, crud.log_activity
+
+#### `/api/sayt-bandlar` (1)
+- `GET /api/sayt-bandlar` → `main.py:api_sayt_bandlar` · 🔒 auth.ruxsat('tayyor', 'korish') · auth.company_id_of, auth.ruxsat, crud.sayt_band_tmlar
+
+#### `/api/sayt-buyurtmalari` (4)
+- `GET /api/sayt-buyurtmalari` → `main.py:api_sayt_buyurtmalari` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.ruxsat, crud.sayt_royxati
+- `GET /api/sayt-buyurtmalari/{sb_id}` → `main.py:api_sayt_buyurtma` · 🔒 auth.ruxsat('buyurtma', 'korish') · auth.ruxsat, crud._sayt_qatorlari, crud.sayt_korinish, crud.sayt_ol
+- `POST /api/sayt-buyurtmalari/{sb_id}/bekor` → `main.py:api_sayt_bekor` · 🔒 auth.ruxsat('buyurtma', 'yaratish') · auth.ruxsat, crud._sayt_qatorlari, crud.sayt_bekor, crud.sayt_korinish
+- `POST /api/sayt-buyurtmalari/{sb_id}/tasdiqla` → `main.py:api_sayt_tasdiqla` · 🔒 auth.ruxsat('buyurtma', 'yaratish') · auth.ruxsat, crud.SaytHolatXatosi, crud._clean_create, crud._sayt_qatorlari, crud.bitta_tranzaksiya, crud.create_project, crud.sayt_band_tegadi, crud.sayt_buyurtma_tanasi, crud.sayt_korinish, crud.sayt_loyiha_tanasi, crud.sayt_mijoz_ustasi, crud.sayt_ol, crud.sayt_tasdiq_tekshir, crud.sayt_tasdiqlandi, crud.sayt_tm_taqsimla
+
+#### `/api/sayt-katalogi` (47)
+- `GET /api/sayt-katalogi` → `main.py:api_sayt_katalogi` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_katalog
+- `GET /api/sayt-katalogi/api-kalit` → `main.py:api_dokon_api_kalit` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_api_kalit_holati
+- `POST /api/sayt-katalogi/api-kalit` → `main.py:api_dokon_api_kalit_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_api_kalit_yarat
+- `DELETE /api/sayt-katalogi/api-kalit` → `main.py:api_dokon_api_kalit_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_api_kalit_ochir
+- `POST /api/sayt-katalogi/bolimlar` → `main.py:api_dokon_bolim_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_bolim_dict, crud.dokon_bolim_yarat
+- `PUT /api/sayt-katalogi/bolimlar/{bolim_id}` → `main.py:api_dokon_bolim_yangila` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_bolim_dict, crud.dokon_bolim_yangila
+- `DELETE /api/sayt-katalogi/bolimlar/{bolim_id}` → `main.py:api_dokon_bolim_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_bolim_ochir
+- `POST /api/sayt-katalogi/detallar` → `main.py:api_dokon_detal_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_detal_javobi, crud.dokon_detal_yarat
+- `PUT /api/sayt-katalogi/detallar/{detal_id}` → `main.py:api_dokon_detal_yangila` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_detal_javobi, crud.dokon_detal_yangila
+- `DELETE /api/sayt-katalogi/detallar/{detal_id}` → `main.py:api_dokon_detal_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_detal_ochir
+- `PUT /api/sayt-katalogi/detallar/{detal_id}/tm` → `main.py:api_dokon_detal_tm` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_detal_javobi, crud.dokon_detal_tm_bogla, crud.dokon_tm_mahsulotlar
+- `GET /api/sayt-katalogi/dokon-bot` → `main.py:api_sayt_dokon_bot` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_yoqilganmi
+- `POST /api/sayt-katalogi/dokon-bot/ulash` → `main.py:api_sayt_dokon_bot_ulash` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_bot_sir, crud.dokon_yoqilganmi, crud.log_activity
+- `GET /api/sayt-katalogi/excel` → `main.py:api_dokon_excel` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_bugun, crud.dokon_excel_yarat
+- `POST /api/sayt-katalogi/excel/korish` → `main.py:api_dokon_excel_korish` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_excel_korish, crud.dokon_tekshir
+- `POST /api/sayt-katalogi/excel/saqla` → `main.py:api_dokon_excel_saqla` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_excel_saqla
+- `GET /api/sayt-katalogi/galereya` → `main.py:api_dokon_galereya` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_galereya_royxat
+- `POST /api/sayt-katalogi/galereya` → `main.py:api_dokon_galereya_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_galereya_yarat
+- `DELETE /api/sayt-katalogi/galereya-rasmlari/{rasm_id}` → `main.py:api_dokon_galereya_rasm_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_galereya_rasm_ochir
+- `PUT /api/sayt-katalogi/galereya/{galereya_id}` → `main.py:api_dokon_galereya_saqla` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_galereya_yangila
+- `DELETE /api/sayt-katalogi/galereya/{galereya_id}` → `main.py:api_dokon_galereya_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_galereya_ochir
+- `POST /api/sayt-katalogi/galereya/{galereya_id}/rasmlar` → `main.py:api_dokon_galereya_rasm_qosh` · 🔒 auth.admin_only · auth.company_id_of, crud._dokon_galereya_of, crud._dokon_gl_rasmlari, crud.dokon_galereya_rasm_dict, crud.dokon_galereya_rasm_qosh, crud.dokon_galereya_rasm_toliq_matni, crud.dokon_tekshir
+- `PUT /api/sayt-katalogi/galereya/{galereya_id}/rasmlar` → `main.py:api_dokon_galereya_rasm_tartib` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_galereya_rasm_dict, crud.dokon_galereya_rasm_tartib, crud.dokon_tekshir
+- `PUT /api/sayt-katalogi/ish-vaqti` → `main.py:api_dokon_ish_vaqti` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_ish_vaqti_saqla
+- `PUT /api/sayt-katalogi/koeff` → `main.py:api_dokon_koeff` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_koeff_saqla, crud.dokon_tekshir
+- `PUT /api/sayt-katalogi/komplekt` → `main.py:api_dokon_komplekt` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_komplekt_saqla
+- `GET /api/sayt-katalogi/kutishlar` → `main.py:api_sayt_kutishlar` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_kutishlar_admin
+- `GET /api/sayt-katalogi/mijozlar` → `main.py:api_sayt_mijozlar` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_mijozlar_royxati
+- `POST /api/sayt-katalogi/mijozlar/{mijoz_id}/blokla` → `main.py:api_sayt_mijoz_blokla` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_mijoz_blokla, crud.dokon_mijoz_korinish
+- `POST /api/sayt-katalogi/mijozlar/{mijoz_id}/ochish` → `main.py:api_sayt_mijoz_ochish` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_mijoz_korinish, crud.dokon_mijoz_ochish
+- `POST /api/sayt-katalogi/mijozlar/{mijoz_id}/rad` → `main.py:api_sayt_mijoz_rad` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_mijoz_korinish, crud.dokon_mijoz_rad
+- `POST /api/sayt-katalogi/mijozlar/{mijoz_id}/tasdiqla` → `main.py:api_sayt_mijoz_tasdiqla` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_mijoz_korinish, crud.dokon_mijoz_tasdiqla
+- `POST /api/sayt-katalogi/modellar` → `main.py:api_dokon_model_yarat` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_model_dict, crud.dokon_model_yarat
+- `PUT /api/sayt-katalogi/modellar/{model_id}` → `main.py:api_dokon_model_yangila` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_model_dict, crud.dokon_model_yangila
+- `DELETE /api/sayt-katalogi/modellar/{model_id}` → `main.py:api_dokon_model_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_model_ochir
+- `PUT /api/sayt-katalogi/modellar/{model_id}/chegirma` → `main.py:api_dokon_chegirma_saqla` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_chegirma_saqla
+- `DELETE /api/sayt-katalogi/modellar/{model_id}/chegirma` → `main.py:api_dokon_chegirma_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_chegirma_ochir
+- `POST /api/sayt-katalogi/modellar/{model_id}/chegirma/korish` → `main.py:api_dokon_chegirma_korish` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_chegirma_korish
+- `GET /api/sayt-katalogi/modellar/{model_id}/komplekt` → `main.py:api_dokon_model_komplekt` · 🔒 auth.admin_only · auth.company_id_of, crud._dokon_model_of, crud.dokon_komplekt_narxlari, crud.dokon_tekshir
+- `POST /api/sayt-katalogi/modellar/{model_id}/rasmlar` → `main.py:api_dokon_rasm_qosh` · 🔒 auth.admin_only · auth.company_id_of, crud._dokon_model_of, crud._dokon_model_rasmlari, crud.dokon_rasm_dict, crud.dokon_rasm_qosh, crud.dokon_rasm_toliq_matni, crud.dokon_tekshir
+- `PUT /api/sayt-katalogi/modellar/{model_id}/rasmlar` → `main.py:api_dokon_rasm_tartib` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_rasm_dict, crud.dokon_rasm_tartib, crud.dokon_tekshir
+- `DELETE /api/sayt-katalogi/rasmlar/{rasm_id}` → `main.py:api_dokon_rasm_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_rasm_ochir
+- `POST /api/sayt-katalogi/telefonlar` → `main.py:api_dokon_telefon_qosh` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_telefon_dict, crud.dokon_telefon_qosh
+- `PUT /api/sayt-katalogi/telefonlar` → `main.py:api_dokon_telefon_tartib` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_tekshir, crud.dokon_telefon_dict, crud.dokon_telefon_tartib
+- `PUT /api/sayt-katalogi/telefonlar/{telefon_id}` → `main.py:api_dokon_telefon_yangila` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_telefon_dict, crud.dokon_telefon_yangila
+- `DELETE /api/sayt-katalogi/telefonlar/{telefon_id}` → `main.py:api_dokon_telefon_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_telefon_ochir
+- `GET /api/sayt-katalogi/tm-mahsulotlar` → `main.py:api_dokon_tm_mahsulotlar` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_tekshir, crud.dokon_tm_mahsulotlar
 
 #### `/api/settings` (10)
 - `GET /api/settings/categories` → `main.py:api_get_categories` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat
@@ -7326,7 +8406,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 
 #### `/api/tanlov` (4)
 - `GET /api/tanlov/buyurtmalar` → `main.py:api_tanlov_buyurtmalar` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat
-- `GET /api/tanlov/buyurtmalar/{order_id}/detallar` → `main.py:api_tanlov_buyurtma_detallari` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti
+- `GET /api/tanlov/buyurtmalar/{order_id}/detallar` → `main.py:api_tanlov_buyurtma_detallari` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.kmp_dict, crud.kmp_qaytar_max, crud.qaytarish_birlik_narxi, crud.qaytarish_narx_koeffitsienti
 - `GET /api/tanlov/loyihalar` → `main.py:api_tanlov_loyihalar` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat
 - `GET /api/tanlov/loyihalar/{project_id}/detallar` → `main.py:api_tanlov_loyiha_detallari` · 🔒 auth.ruxsat('qaytarish', 'yaratish') · auth.company_id_of, auth.ruxsat
 
@@ -7358,6 +8438,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 
 #### `/debts` (1)
 - `GET /debts` → `main.py:debts_page` · 🔒 auth.ruxsat('qarz', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_ortiqcha_tolovlar, crud.get_suppliers_with_debt, crud.qarz_hisobidagi_buyurtma_sharti, services.get_company_obligations_status, services.get_recurring_obligations
+
+#### `/favicon.ico` (1)
+- `GET /favicon.ico` → `main.py:favicon_ico` · 🔓
 
 #### `/finance` (1)
 - `GET /finance` → `main.py:finance_page` · 🔒 auth.ruxsat('moliya', 'korish') · auth.ruxsat
@@ -7398,7 +8481,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /murojaat` → `main.py:murojaat_page` · 🔒 auth.admin_only
 
 #### `/orders` (1)
-- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
+- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.dokon_yoqilganmi, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.sayt_yangi_soni, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
 
 #### `/platforma` (1)
 - `GET /platforma` → `main.py:platforma_page` · 🔓 · auth.get_current_user
@@ -7421,6 +8504,9 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/rollar` (1)
 - `GET /rollar` → `main.py:rollar_page` · 🔒 auth.admin_only
 
+#### `/sayt-katalogi` (1)
+- `GET /sayt-katalogi` → `main.py:sayt_katalogi_page` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_yoqilganmi
+
 #### `/sozlamalar` (1)
 - `GET /sozlamalar` → `main.py:logs_page` · 🔒 auth.ruxsat('jurnal', 'korish') · auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.jurnal_tannarx_yashir, crud.kirish_tarixi_sahifasi
 
@@ -7431,7 +8517,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /suppliers` → `main.py:suppliers_page` · 🔒 auth.ruxsat('taminotchi', 'korish') · auth.ruxsat
 - `GET /suppliers/receive` → `main.py:supplier_receive_page` · 🔒 auth.ruxsat('kirim', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.get_suppliers
 
-#### `/telegram` (2)
+#### `/telegram` (3)
+- `POST /telegram/dokon` → `main.py:telegram_dokon_webhook` · 🔓 · crud.dokon_bot_sir
 - `POST /telegram/webhook` → `main.py:telegram_webhook` · 🔓
 - `POST /telegram/webhook/{company_id}` → `main.py:telegram_korxona_webhook` · 🔓 · crud.get_setting
 
@@ -7449,7 +8536,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 349 (main.py: 328, production_routes.py: 21).
+Jami marshrutlar: 434 (main.py: 413, production_routes.py: 21).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -7466,10 +8553,26 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `brak_taqdirlari` — `BrakTaqdir` (`models.py`, 19) — o'z `company_id`
 - `buyurtma_tuzatishlari` — `BuyurtmaTuzatish` (`models.py`, 9) — o'z `company_id` + ota tekshiruvi (order_id→Order)
 - `cash_transactions` — `CashTransaction` (`models.py`, 8) — o'z `company_id`
-- `companies` — `Company` (`production_models.py`, 22) — korxonasiz
+- `companies` — `Company` (`production_models.py`, 23) — korxonasiz
 - `company_settings` — `CompanySetting` (`models.py`, 4) — o'z `company_id`
 - `deliveries` — `Delivery` (`models.py`, 11) — ota orqali (order_id→Order)
 - `delivery_items` — `DeliveryItem` (`models.py`, 7) — ota orqali (delivery_id→Delivery)
+- `dokon_api_kalitlar` — `DokonApiKalit` (`models.py`, 10) — o'z `company_id`
+- `dokon_bolimlar` — `DokonBolim` (`models.py`, 10) — o'z `company_id`
+- `dokon_buyurtma_qatorlari` — `DokonBuyurtmaQator` (`models.py`, 26) — o'z `company_id` + ota tekshiruvi (buyurtma_id→DokonBuyurtma)
+- `dokon_buyurtmalar` — `DokonBuyurtma` (`models.py`, 28) — o'z `company_id`
+- `dokon_chegirmalar` — `DokonChegirma` (`models.py`, 10) — o'z `company_id`
+- `dokon_detallar` — `DokonDetal` (`models.py`, 18) — o'z `company_id`
+- `dokon_galereya` — `DokonGalereya` (`models.py`, 9) — o'z `company_id`
+- `dokon_galereya_qatorlari` — `DokonGalereyaQator` (`models.py`, 10) — o'z `company_id` + ota tekshiruvi (galereya_id→DokonGalereya)
+- `dokon_galereya_rasmlari` — `DokonGalereyaRasm` (`models.py`, 12) — o'z `company_id` + ota tekshiruvi (galereya_id→DokonGalereya)
+- `dokon_kirishlar` — `DokonKirish` (`models.py`, 9) — o'z `company_id`
+- `dokon_kutishlar` — `DokonKutish` (`models.py`, 16) — o'z `company_id`
+- `dokon_mijozlar` — `DokonMijoz` (`models.py`, 19) — o'z `company_id`
+- `dokon_modellar` — `DokonModel` (`models.py`, 13) — o'z `company_id`
+- `dokon_rasmlar` — `DokonRasm` (`models.py`, 12) — o'z `company_id`
+- `dokon_sessiyalar` — `DokonSessiya` (`models.py`, 8) — o'z `company_id`
+- `dokon_telefonlar` — `DokonTelefon` (`models.py`, 9) — o'z `company_id`
 - `employee_advances` — `EmployeeAdvance` (`models.py`, 15) — ota orqali (employee_id→Employee)
 - `employee_compensation_history` — `EmployeeCompensationHistory` (`models.py`, 13) — ota orqali (employee_id→Employee)
 - `employee_monthly_adjustments` — `EmployeeMonthlyAdjustment` (`models.py`, 10) — ota orqali (employee_id→Employee)
@@ -7478,7 +8581,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `error_logs` — `ErrorLog` (`models.py`, 8) — o'z `company_id`
 - `expense_transactions` — `ExpenseTransaction` (`models.py`, 13) — o'z `company_id`
 - `finished_product_losses` — `FinishedProductLoss` (`models.py`, 14) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct)
-- `finished_product_sales` — `FinishedProductSale` (`models.py`, 19) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct, master_id→Master)
+- `finished_product_sales` — `FinishedProductSale` (`models.py`, 20) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct, master_id→Master)
 - `finished_products` — `FinishedProduct` (`models.py`, 44) — o'z `company_id` + ota tekshiruvi (from_order_id→Order, recipe_id→Recipe, penoplast_id→Inventory)
 - `gift_period_participants` — `GiftPeriodParticipant` (`models.py`, 3) — ota orqali (period_id→GiftPeriod)
 - `gift_period_tiers` — `GiftPeriodTier` (`models.py`, 6) — o'z `company_id` + ota tekshiruvi (period_id→GiftPeriod)
@@ -7499,8 +8602,8 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `order_attachments` — `OrderAttachment` (`models.py`, 6) — ota orqali (order_id→Order)
 - `order_gips_additives` — `OrderGipsAdditive` (`models.py`, 6) — ota orqali (order_id→Order)
 - `order_item_sub_details` — `OrderItemSubDetail` (`models.py`, 12) — ota orqali (order_item_id→OrderItem)
-- `order_items` — `OrderItem` (`models.py`, 27) — o'z `company_id` + ota tekshiruvi (order_id→Order)
-- `orders` — `Order` (`models.py`, 35) — o'z `company_id` + ota tekshiruvi (project_id→Project)
+- `order_items` — `OrderItem` (`models.py`, 31) — o'z `company_id` + ota tekshiruvi (order_id→Order)
+- `orders` — `Order` (`models.py`, 36) — o'z `company_id` + ota tekshiruvi (project_id→Project)
 - `payments` — `Payment` (`models.py`, 11) — ota orqali (order_id→Order)
 - `product_types` — `ProductType` (`production_models.py`, 13) — o'z `company_id`
 - `production_orders` — `ProductionOrder` (`production_models.py`, 21) — o'z `company_id`
@@ -7511,7 +8614,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `recipe_ingredients` — `RecipeIngredient` (`models.py`, 4) — ota orqali (recipe_id→Recipe)
 - `recipes` — `Recipe` (`models.py`, 8) — o'z `company_id`
 - `recurring_obligations` — `RecurringObligation` (`models.py`, 9) — o'z `company_id`
-- `return_items` — `ReturnItem` (`models.py`, 27) — o'z `company_id` + ota tekshiruvi (order_id→Order, finished_product_id→FinishedProduct)
+- `return_items` — `ReturnItem` (`models.py`, 30) — o'z `company_id` + ota tekshiruvi (order_id→Order, finished_product_id→FinishedProduct)
 - `rollar` — `Rol` (`models.py`, 9) — o'z `company_id`
 - `supplier_payments` — `SupplierPayment` (`models.py`, 8) — ota orqali (supplier_id→Supplier)
 - `suppliers` — `Supplier` (`models.py`, 7) — o'z `company_id`
@@ -7520,9 +8623,10 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `transport_expenses` — `TransportExpense` (`models.py`, 11) — o'z `company_id`
 - `user_sessions` — `UserSession` (`models.py`, 4) — korxonasiz
 - `users` — `User` (`models.py`, 11) — o'z `company_id`
+- `usta_keshbeklar` — `UstaKeshbek` (`models.py`, 13) — o'z `company_id`
 - `yonalishlar` — `Yonalish` (`models.py`, 8) — o'z `company_id`
 
-Jami jadvallar: 63.
+Jami jadvallar: 80.
 <!-- AVTO:MODELLAR OXIRI -->
 
 ### 9.6 Testlar katalogi
@@ -7567,6 +8671,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_brak_tahlil.py` · PG — 13-band 7-qadam darvozasi (kech56, 2026-09-24).
 - `test_brak_taqdir.py` · PG — kech125 (zip 146) darvozasi: BRAK TAQDIRI (EGASI QARORLARI 07.10, QAYTA SO'RALMAYDI).
 - `test_brak_taqdir_ui.py` · PG — kech125 (zip 146) darvozasi: BRAK TAQDIRI — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
+- `test_brend241.py` · PG — kech176 (zip 241): platforma nomi «epserp» + logotipi; korxona hujjatlarida FAQAT o'z logotipi / nomi.
 - `test_buyurtma_almashtirish194.py` · PG — kech152 (zip 194, egasi tanlovi 17.10 «Buyurtmalarni tez almashtirish»): «Buyurtmalar» sahifasida bir buyurtmada boshlangan amal / so'rov javobi KELGUNCHA boshqa bu…
 - `test_buyurtma_himoya173.py` · PG — kech144 (zip 173): «Buyurtmalar» / «Qarzdorlar» — server himoyalari (audit 2-to'lqin va egasi QARORLARI 13.10).
 - `test_buyurtma_imzo215b.py` · PG — kech157 (zip 215b — zip 215 JONLI sinovida topilgan ESKI nuqson): 8 soniyalik «ikki marta yuborish» himoyasi o'lchami boshqa buyurtmani YUTMASIN.
@@ -7585,6 +8690,18 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_dash_yuklash_ui.py` · PG — kech137 (zip 163): Dashboard sahifasi har bir so'rov xatosida QOTMAYDI va yolg'on ko'rsatmaydi — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lokal server bilan (uvicor…
 - `test_detal_poyga.py` · PG — 5-bo'lim 14-band darvozasi (kech41, 2026-09-23): detal tahriri / o'chirish / "Tayyor" va yetkazish orasidagi poygalar.
 - `test_dizayn114_ui.py` · PG — kech114: dizayn 5–10 (egasi QARORLARI «7A — Guruh, bosilsa ochiladi», «5B — Jadval», «6A — Bir qator + tugmalar»; 9 / 10 — texnik) va K114-1 ning sahifadagi qismi — HAQIQIY sah…
+- `test_dokon_api236.py` · PG — kech170 (zip 236 «Do'kon API»; egasi QARORLARI «Onlayn do'kon rejasi» 30.10: do'kon ↔ ERP faqat server ↔ server, maxfiy kalit bilan, faqat PenoDecorPro korxonasi doirasida; kor…
+- `test_dokon_buyurtma237.py` · PG — kech171 (zip 237 «Saytdan kelgan buyurtmalar»; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, «Buyurtma jarayoni» 1–7: mijoz savatni yig'ib ism + telefon bilan buyurtma ber…
+- `test_dokon_chegirma234.py` · PG — kech169 (zip 234 «Chegirmalar»; egasi QARORLARI «Onlayn do'kon rejasi» 30.10).
+- `test_dokon_excel235.py` · PG — kech170 (zip 235 «Excel»; egasi QARORI «Onlayn do'kon rejasi» 30.10 «Narxlar qayerda turadi»).
+- `test_dokon_hisob249.py` · PG — kech182 (zip 249: do'kon — buyurtma ↔ hisob, kabinet tarixi va PDF, bloklangan kirish holati; do'kon 2-bosqich, ERP tomoni 2-qism).
+- `test_dokon_kirish248.py` · PG — kech181 (zip 248: do'kon — usta / magazin Telegram orqali kirish va ro'yxat; do'kon 2-bosqich, ERP tomoni).
+- `test_dokon_kutish252.py` · PG — kech185 (zip 252: do'kon — «Kelganda xabar bering»; ERP tomoni).
+- `test_dokon_rasm232.py` · PG — kech167 (zip 232 «Sayt katalogi rasmlari»; egasi QARORLARI «Onlayn do'kon rejasi» 30.10).
+- `test_dokon_sozlama233.py` · PG — kech168 (zip 233 «Do'kon sozlamalari: telefonlar, ish vaqti, komplekt retsepti»; egasi QARORLARI «Onlayn do'kon rejasi» 30.10).
+- `test_dokon_tayyor238.py` · PG — kech172 (zip 238 «Tayyor mahsulotlar saytda»; egasi QARORLARI «Onlayn do'kon rejasi» 30.10: «Tayyor mahsulotlar» — omborda bor, faqat QOPLAMALI, katalog narxida, qoldiq ERP…
+- `test_dokon_ulgurji250.py` · PG — kech184 (zip 250: do'kon — ulgurji bo'lim: katalog va magazin buyurtmasi; ERP tomoni).
+- `test_dokon_ulgurji_pdf251.py` · PG — kech184 (zip 251: do'kon — magazin narxlar ro'yxati PDF i va ulgurji tanlov PDF i; ERP tomoni).
 - `test_donalik_hajm_snapshot.py` · PG — kech96 (2026-09-27), 126-band.
 - `test_e_hodim_kod.py` · PG — kech120, E BOSQICH 5-qism (HODIM KIRISHI: korxona kodi va QR, audit G6-07).
 - `test_e_rasm.py` · PG — kech120, E BOSQICH 6-qism (RASMLAR: kichraytirish va kichik nusxa, audit G5-16 ikkinchi qismi; uzun ro'yxat animatsiyasi).
@@ -7607,7 +8724,9 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_foydalanuvchi_ui175.py` · PG — kech144 (zip 175, audit 2-to'lqin): «Foydalanuvchilar», «Rollar va ruxsatlar», «Sozlamalar», «O'chirilganlar» va umumiy tasdiqlash oynasi — HAQIQIY Chromium, HAQIQIY lok…
 - `test_fp_product_type.py` — Bosqich 3, 10-band tekshiruvi.
 - `test_g_qaror.py` · PG — kech121, EGASI QARORLARI 02.10 (zip 138): G1-08, G3-24, G4-13, G5-05, G5-23, G6-13 (+ .webp turi).
+- `test_galereya243.py` · PG — kech178 (zip 243): «Bajarilgan ishlar» galereyasi (onlayn do'kon rejasi, 1-bosqich).
 - `test_hajm217.py` · PG — kech157 (zip 217 «Kirim bekori — blok hajmi» — egasi tanlovi 25.10: «Kirim bekori — blok hajmi (Tavsiya)»).
+- `test_havola254.py` · PG — kech186 (zip 254: do'kon 3-bosqich «Ustaning shaxsiy havolasi», ERP tomoni).
 - `test_himoya_ui.py` — kech143 (zip 171): HAQIQIY brauzer (Chromium) — himoya qatlami (A-X04, A-X06) va kech142 jonli sinovi topilmalari N2, N3, guruh «Sotish» bekor qilinishi.
 - `test_hisoblar210.py` · PG — kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, ko'rinish tasdig'i 16:1x).
 - `test_hisobot_kesh.py` · PG — kech89 darvozasi (2026-09-26, 52-band: Moliya hisobotidagi N+1 so'rovlar).
@@ -7634,16 +8753,19 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_jurnal183.py` · PG — kech146 (zip 183): «TIZIM JURNALLARI» VA «SOZLAMALAR» — AUDIT 2-to'lqin (J1 … J14, N1, N2).
 - `test_kam_qoldiq_yagona.py` · PG — kech108, K108-2 (19-band) darvozasi.
 - `test_karusel_nuqta_ui.py` · PG — kech136 (zip 162): Dashboard yuqori kartalar karuseli («Buyurtmalar holati» / «Ishlab chiqarish») va uning nuqtalari — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lok…
+- `test_katalog242.py` · PG — kech177 (zip 242): «Tayyor mahsulotlar» → ishlab chiqarish oynasida «📖 Katalogdan tanlash».
 - `test_kategoriyalar.py` — buyurtma oynasida qaysi turkum ko'rinadi.
 - `test_kelishilgan_nisbat.py` · PG — kech110 darvozasi: K110-1. Buyurtma jami o'zgarganda KELISHILGAN summaning YAGONA qoidasi (`crud.kelishilgan_qayta_hisob`) — to'liq tahrir, detal tahriri / o'chirish, qis…
 - `test_kelishilgan_tahrir.py` · PG — kech43 darvozasi: 28-band (K42-2). Kelishilgan summani QAYTA hisoblaydigan joylar pul qaytarish kamaytirishini (`refund_agreed_delta`) yo'qotmasin.
 - `test_kesh_oquvchi.py` · PG — kech90 darvozasi (2026-09-26, 110-band: Moliyadan tashqaridagi N+1 o'quvchilar).
+- `test_keshbek253.py` · PG — kech186 (zip 253: do'kon 3-bosqich «KESHBEK», ERP tomoni + do'kon kabineti API si).
 - `test_kichik103.py` · PG — kech103 kichik bandlari darvozasi (server tomoni + shablonlar): 45, 63, 83, 90, 69 (+ 11, 25, 55, 64 — statik). UI funksiyalari (58 / 63 / 83 / 90 / 62 / 66 / K103-3 / K103-4) — `…
 - `test_kirim_a115.py` · PG — kech115, A bosqich (pul va ma'lumot xatolari), «Kirim qilish» guruhi: G4-01, G4-02, G4-03 va K115-1.
 - `test_kirim_bekor.py` · PG — kech107 darvozasi (5-bo'lim 10-band, "Kirim hujjatini bekor qilish"): Ombor KIRIM HUJJATINI butunlay bekor qilish va xarid o'chirilganda O'RTACHA NARXning qaytishi. UI qismi — `…
 - `test_kirim_qiymat.py` — 17b: ombor kirimi, kirim HUJJATI va retseptlar tanalarining QAT'IY tekshiruvi.
 - `test_kirim_tolov_chegara.py` · PG — kech96 (2026-09-27), 125-band (server + brauzer↔server paritet qismi).
 - `test_kirim_xarajat226.py` · PG — kech162 (zip 226 «Kirim xarajati ko'rinsin»; egasi 30.10 16:32, tanlov «Kirim xarajati ko'rinsin (Tavsiya)»).
+- `test_komplekt239.py` · PG — kech173 (zip 239 «ERP buyurtma qatorlarida komplekt belgisi»; reja «Onlayn do'kon rejasi» 30.10, «Komplekt ERP'da qanday bilinadi» 4-band: saytdan kelgan komplekt detallarga ajr…
 - `test_kpi_loyiha_yuklash_ui.py` · PG — kech138 (zip 165): «Ustalar KPI» va «Loyihalar» sahifalari bitta so'rov xatosida QOTMAYDI, yolg'on qiymat («0 so'm», «Hodim qo'shilmagan», «Yopiq», «Mahsulot yo'q», «x…
 - `test_lint_func_royxat.py` · PG — kech109, K107-3: `tools/tenant_lint.py` ko'r nuqtalari.
 - `test_lint_taxallus.py` · PG — kech99 (2026-09-27), 113-band.
@@ -7665,6 +8787,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_material_royxat.py` · PG — kech135 (zip 161): «Materiallar ro'yxati (retsept va tarkib uchun)» ruxsati — SERVER va SHABLONLAR (statik).
 - `test_material_royxat_ui.py` · PG — kech135 (zip 161): «Materiallar ro'yxati (retsept va tarkib uchun)» ruxsati — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lokal server bilan (uvicorn, test bazasi)…
 - `test_mayda202.py` · PG — kech154 (zip 202 «Qolgan 3 mayda qoldiq»; egasi TANLOVI 22.10 02:0x): «Faoliyat jurnali» yozuvi yo'qolmaydi (V5), ruxsatsiz rolda loyiha tugmalari yo'q, katta logotip kichraytirila…
+- `test_mayda247.py` · PG — kech180 (zip 247: mayda tuzatishlar — favicon, do'kon API keshi, sayt detal nomi).
 - `test_maydon214.py` · PG — kech156 (zip 214 «1 m³ narxi kengroq» — egasi tanlovi 24.10: ««1 m³ narxi» kengroq (Tavsiya)»).
 - `test_mijozga_qaytarish.py` · PG — kech100 darvozasi (2026-09-27, 131-band, FOYDALANUVCHI QARORI "B" — "Kerak").
 - `test_moliya_pdf205.py` · PG — kech154 (zip 205 «Oylik moliyaviy hisobot — tartibli PDF»; EGASI so'rovi 22.10 09:42 «oylik hisob PDF ni tartiblash kerak … juda ko'p malumotlar», 09:5x «Ha, qo'shilsin» — old…
@@ -7715,10 +8838,12 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_pul_query.py` · PG — 17f-band: pul maydonlarining ANIQLIGI (1 tiyindan kichik musbat summa) va SIG'IMI (Numeric(12,2)), kirish transporti, mijoz to'lovi, sovg'a davri, xarid tahriri va xarid / kirim h…
 - `test_qarz_ochirilgan.py` · PG — kech100 darvozasi (2026-09-27, 134-band, FOYDALANUVCHI QARORI "A"; K100-4).
 - `test_qarz_tiyin.py` · PG — kech92 darvozasi (2026-09-26, 119-band / K91-1): mijoz buyurtmasining qarzi va to'lov holati tiyin aniqligida, 0.5 so'mdan oshmaydigan qoldiq — qarz YO'Q (`models.QARZ_BARDOSH`).
+- `test_qaytarish_komplekt240.py` · PG — kech174 (zip 240 «Komplekt bo'yicha qaytarish»; reja «Onlayn do'kon rejasi» 30.10, «Komplekt ERP'da qanday bilinadi» 4-band: «Qaytarish yoki bekor qilishda butun kompl…
 - `test_qaytarish_korinish204.py` · PG — kech154 (zip 204 «Qaytarishlar ixcham»; EGASI SAVOLI 22.10 09:06 «nimaga Qaytarishlar bo'limidagi ayrimlari juda katta», TANLOVI «1 · Hammasi yig'ma»): Qaytarishlar ro…
 - `test_qaytarish_moliya.py` · PG — kech102 darvozasi (2026-09-27, 144-band + K102-1).
 - `test_qaytarish_narx.py` · PG — kech42 darvozasi: 4-band, 24-band, brak pul qaytarish va K42-1.
 - `test_qaytarish_ochirish.py` · PG — 5-bo'lim 22-band (K39-1) va K40-1 darvozasi (kech40, 2026-09-23).
+- `test_qaytarish_qoralama240c.py` · PG — kech175 (zip 240c; review240 M2 izohi — «oddiy `POST /api/returns` qoralama buyurtmaga ham qaytarish yozadi», ASL kodda ham bor).
 - `test_qaytarish_query.py` · PG — 17g-band: qaytarish (`POST /api/returns`), yetkazish (`POST /api/deliveries`), xarid narxi va jamisining yaxlitlanishi (3 xonali narx), ta'minotchi to'lovining xarid bilan b…
 - `test_qaytarish_yigindi.py` · PG — 5-bo'lim 3-band darvozasi (kech39, 2026-09-23).
 - `test_qaytgan215.py` · PG — kech157 (zip 215 «Qaytgan miqdor eslatmada» — egasi tanlovlari 25.10: «Qaytgan miqdor eslatmada (Tavsiya)»; review213 №5; mustaqil tekshiruvdan keyin — «Brak alohida (Tavsiya)»).
@@ -7746,6 +8871,10 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_sahifalar189.py` · PG — kech147 (zip 189): PRODUCTION skrinshotidan kichik ko'rinish nuqsonlari (16.10 23:24) va server chizadigan summalar bitta son qoidasida. HAQIQIY Chromium (Playwright, `is_mobil…
 - `test_sahifalar190.py` · PG — kech150 (zip 190): BRAUZER chizadigan summalar bitta son qoidasida — raqam qator oxirida bo'linmaydi (bo'linmas bo'shliq), kasr — vergul. HAQIQIY Chromium (Playwright, `is_mobi…
 - `test_sahifalar_almashtirish195.py` · PG — kech152 (zip 195, egasi tanlovi 20.10 «Boshqa sahifalarda ham»): ZIP 194 dagi «kutish paytida tanlov o'zgaradi» xavfi boshqa sahifalarda. HAQIQIY Chromium, HAQIQIY…
+- `test_sayt_katalogi231.py` · PG — kech166 (zip 231 «Sayt katalogi» poydevori; egasi QARORLARI «Onlayn do'kon rejasi» 30.10, 31.10 «Onlayn do'kon»).
+- `test_sayt_nom246.py` · PG — kech179 (zip 246: sayt detal nomida katalog O'LCHAMI — nomda bo'lmasa).
+- `test_sayt_olcham245.py` · PG — kech179 (zip 245: sayt buyurtmasi — alohida detal guruh nomida o'lcham takrori va PDF qatorida o'lcham yo'qolishi).
+- `test_sayt_pdf244.py` · PG — kech178 (zip 244: do'kon — buyurtma va savat PDF i; egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF»: savatda va buyurtma berilgandan keyingi sahifada «PDF y…
 - `test_shtorka225.py` · PG — kech160 (zip 225 «Tizim jurnallari — Sozlamalardan, shtorkalar»; egasi 29.10 18:24, tanlovlar 18:2x, prototip «zo'r boshla»).
 - `test_soat_utc.py` — kech96 (2026-09-27), 123-band.
 - `test_sovga_davr_tenant.py` · PG — kech108, K107-1 darvozasi: Telegram usta boti «🎁 Sovg'alar» ikki korxonada.
@@ -7795,6 +8924,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_transport_foyda.py` · PG — kech87 darvozasi (2026-09-26, 104-band).
 - `test_u13.py` · PG — kech123, U-13 YAGONA KO'RINISH (egasi QARORI 02.10 «Avval yagona ko'rinish», `main` keyin) — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
 - `test_umumiy_rang208.py` · PG — kech155 (zip 208 «Umumiy rang — Toza ko'k»; EGASI 23.10: «2 oy ishlatib bildimki, rang tanlashda o'zim xato qilgan ekanman — dasturning umumiy rangi juda bo'g'iq, charchatadi…
+- `test_unicode231c.py` · PG — kech166 (zip 231c «Buzilgan Unicode — ulanish buzilmasin»; sinov saytida JONLI tasdiqlandi 31.10, review231 №6).
 - `test_usta_oxirgi_sana.py` · PG — kech91 darvozasi (2026-09-26, 115-band): Usta KPI hisobotidagi "Oxirgi buyurtma" sanasi (`crud.get_masters_kpi_report` → `last_order_date`, `/api/masters/kpi-report`, `/mas…
 - `test_xabar_miqdorlar193.py` · PG — kech152 (zip 193): server yozadigan MATNLARDAGI miqdorlar (kg, blok, metr, dona, MB, kasrli foiz) BITTA son qoidasida.
 - `test_xabar_summalar192.py` · PG — kech151 (zip 192): server yozadigan MATNLARDAGI pul summalari BITTA son qoidasida.
@@ -7847,5 +8977,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 314 (Python 276, JS 38).
+Jami test fayllari: 340 (Python 302, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->

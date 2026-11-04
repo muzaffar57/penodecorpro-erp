@@ -313,6 +313,7 @@ ESKI = {
     "GET /api/reports/top-suppliers": "AF",
     "GET /api/returns": "AMW",
     "POST /api/returns": "AMW",
+    "POST /api/returns/komplekt": "AMW", "GET /api/returns/komplekt/reja": "AMW",     # kech174 (zip 240, MOSLANDI): komplekt qaytarish
     "GET /api/returns/stats": "AMW",
     "DELETE /api/returns/{return_id}": "AMW",
     "POST /api/returns/{return_id}/image": "AMW",
@@ -391,6 +392,59 @@ ESKI = {
 }
 # Rollar sahifasi va API (kech118) — FAQAT Admin (topshirilmaydi)
 YANGI_MARSHRUTLAR = {
+    # kech186 (zip 253): usta keshbegi — ko'rish «Ustalar KPI: Ko'rish» (kpi-report bilan bir xil), berish / o'chirish — «Kassa» (Moliya
+    # «Usta KPI to'landi» bilan bir xil); do'kon kabineti — kalit + sessiya
+    "GET /api/masters/kpi-keshbek": "AF", "GET /api/masters/{master_id}/keshbek": "AF", "POST /api/masters/{master_id}/keshbek": "A",
+    "DELETE /api/masters/keshbek/{kid}": "A", "GET /api/dokon/v1/mijoz/keshbek": "-",
+    # kech166 (zip 231): sayt katalogi — FAQAT Admin (korxonada belgi yoqilmagan bo'lsa 404); belgi — platforma admini
+    "GET /sayt-katalogi": "A", "GET /api/sayt-katalogi": "A", "POST /api/sayt-katalogi/bolimlar": "A",
+    "PUT /api/sayt-katalogi/bolimlar/{bolim_id}": "A", "DELETE /api/sayt-katalogi/bolimlar/{bolim_id}": "A",
+    "POST /api/sayt-katalogi/modellar": "A", "PUT /api/sayt-katalogi/modellar/{model_id}": "A",
+    "DELETE /api/sayt-katalogi/modellar/{model_id}": "A", "POST /api/sayt-katalogi/detallar": "A",
+    "PUT /api/sayt-katalogi/detallar/{detal_id}": "A", "DELETE /api/sayt-katalogi/detallar/{detal_id}": "A",
+    "PUT /api/sayt-katalogi/koeff": "A", "POST /api/platform/companies/{company_id}/dokon": "PLAT",
+    # kech167 (zip 232): sayt modeli rasmlari — FAQAT Admin
+    "POST /api/sayt-katalogi/modellar/{model_id}/rasmlar": "A", "PUT /api/sayt-katalogi/modellar/{model_id}/rasmlar": "A",
+    "DELETE /api/sayt-katalogi/rasmlar/{rasm_id}": "A",
+    # kech168 (zip 233): do'kon sozlamalari — FAQAT Admin
+    "POST /api/sayt-katalogi/telefonlar": "A", "PUT /api/sayt-katalogi/telefonlar": "A",
+    "PUT /api/sayt-katalogi/telefonlar/{telefon_id}": "A", "DELETE /api/sayt-katalogi/telefonlar/{telefon_id}": "A",
+    "PUT /api/sayt-katalogi/ish-vaqti": "A", "PUT /api/sayt-katalogi/komplekt": "A",
+    "GET /api/sayt-katalogi/modellar/{model_id}/komplekt": "A",
+    # kech169 (zip 234): model chegirmasi — FAQAT Admin
+    "PUT /api/sayt-katalogi/modellar/{model_id}/chegirma": "A", "DELETE /api/sayt-katalogi/modellar/{model_id}/chegirma": "A",
+    "POST /api/sayt-katalogi/modellar/{model_id}/chegirma/korish": "A",
+    # kech170 (zip 235): Excel orqali narxlar — FAQAT Admin (ulgurji narx bor)
+    "GET /api/sayt-katalogi/excel": "A", "POST /api/sayt-katalogi/excel/korish": "A", "POST /api/sayt-katalogi/excel/saqla": "A",
+    # kech170 (zip 236): do'kon kaliti — FAQAT Admin; do'kon yo'llari — login siz, kalit ichida tekshiriladi (`crud.dokon_api_korxona`)
+    "GET /api/sayt-katalogi/api-kalit": "A", "POST /api/sayt-katalogi/api-kalit": "A", "DELETE /api/sayt-katalogi/api-kalit": "A",
+    "GET /api/dokon/v1/katalog": "-", "GET /api/dokon/v1/sozlamalar": "-",
+    # kech171 (zip 237): do'kon buyurtmasi — kalit bilan (sessiyasiz); ERP — «Buyurtmalar» ruxsati (ro'yxat — ko'rish, bekor / tasdiq — yaratish)
+    "POST /api/dokon/v1/buyurtmalar": "-",
+    "GET /api/sayt-buyurtmalari": "AM", "GET /api/sayt-buyurtmalari/{sb_id}": "AM",
+    "POST /api/sayt-buyurtmalari/{sb_id}/bekor": "AM", "POST /api/sayt-buyurtmalari/{sb_id}/tasdiqla": "AM",
+    # kech172 (zip 238): «Tayyor mahsulotlar» saytda — do'kon qoldig'i (kalit bilan), omborga bog'lash (FAQAT Admin), sahifa bandlari
+    # («Tayyor mahsulotlar: Ko'rish» — GET /api/finished bilan bir xil)
+    "GET /api/dokon/v1/tayyor": "-", "GET /api/sayt-katalogi/tm-mahsulotlar": "A", "PUT /api/sayt-katalogi/detallar/{detal_id}/tm": "A",
+    # kech177 (zip 242 «Katalogdan tanlash»): ishlab chiqarish oynasidagi katalog ro'yxati — ishlab chiqarish ruxsati bilan (narxsiz; katalog o'chiq — 404)
+    "GET /api/finished/katalog-detallar": "AWM",
+    # kech178 (zip 243): «Bajarilgan ishlar» galereyasi — FAQAT Admin; do'kon yo'li — kalit bilan (sessiyasiz)
+    "GET /api/sayt-katalogi/galereya": "A", "POST /api/sayt-katalogi/galereya": "A",
+    "PUT /api/sayt-katalogi/galereya/{galereya_id}": "A", "DELETE /api/sayt-katalogi/galereya/{galereya_id}": "A",
+    "POST /api/sayt-katalogi/galereya/{galereya_id}/rasmlar": "A", "PUT /api/sayt-katalogi/galereya/{galereya_id}/rasmlar": "A",
+    "DELETE /api/sayt-katalogi/galereya-rasmlari/{rasm_id}": "A", "GET /api/dokon/v1/galereya": "-",
+    # kech178 (zip 244): do'kon — buyurtma / savat PDF i (kalit bilan, sessiyasiz)
+    "POST /api/dokon/v1/buyurtmalar/pdf": "-", "POST /api/dokon/v1/savat/pdf": "-",
+    # kech180 (zip 247): platforma belgisi — login siz (statik fayl kabi)
+    "GET /favicon.ico": "-", "HEAD /favicon.ico": "-",
+    # kech181 (zip 248): do'kon — Telegram orqali kirish / hisob (kalit + sessiya, login siz), do'kon boti; admin — FAQAT Admin
+    "POST /api/dokon/v1/kirish": "-", "POST /api/dokon/v1/kirish/holat": "-", "GET /api/dokon/v1/mijoz": "-",
+    "POST /api/dokon/v1/mijoz/royxat": "-", "POST /api/dokon/v1/mijoz/chiqish": "-", "GET /api/dokon/v1/mijoz/buyurtmalar": "-", "POST /api/dokon/v1/mijoz/buyurtmalar/pdf": "-", "GET /api/dokon/v1/ulgurji": "-", "POST /api/dokon/v1/ulgurji/buyurtmalar": "-", "GET /api/dokon/v1/ulgurji/narxlar/pdf": "-", "POST /api/dokon/v1/ulgurji/savat/pdf": "-", "GET /api/dokon/v1/kutish": "-", "POST /api/dokon/v1/kutish": "-", "POST /api/dokon/v1/kutish/bekor": "-", "POST /telegram/dokon": "-",
+    "GET /api/sayt-katalogi/mijozlar": "A", "GET /api/sayt-katalogi/kutishlar": "A", "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/tasdiqla": "A",
+    "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/rad": "A", "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/blokla": "A",
+    "POST /api/sayt-katalogi/mijozlar/{mijoz_id}/ochish": "A", "GET /api/sayt-katalogi/dokon-bot": "A",
+    "POST /api/sayt-katalogi/dokon-bot/ulash": "A",
+    "GET /api/sayt-bandlar": "AWM",
     "GET /rollar": "A", "GET /api/rollar": "A", "POST /api/rollar": "A", "PUT /api/rollar/{rol_id}": "A",
     "DELETE /api/rollar/{rol_id}": "A", "POST /api/rollar/{rol_id}/andoza": "A", "PUT /api/users/{user_id}/rol": "A",
     # kech118 (D-1, G5-11): TM «Kam» chegarasi — «Tayyor mahsulotlar: Tahrirlash» (PUT /api/finished/{fp_id} bilan bir xil)

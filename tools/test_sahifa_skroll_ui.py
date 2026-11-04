@@ -89,11 +89,17 @@ with contextlib.redirect_stdout(io.StringIO()):
     _u = auth.create_user(s, "skr_a", "Parol123!", UserRole.ADMIN, "Skroll admin", company_id=1)
 s.query(User).filter(User.id == _u.id).update({User.is_platform_admin: True})
 s.commit()
+# kech168 (zip 233): «Sayt katalogi» (onlayn do'kon) — korxona 1 da belgi yoqiladi (9 standart bo'lim), sahifa ro'yxatga qo'shiladi
+import crud as _crud233                            # noqa: E402
+from production_models import Company as _Co233    # noqa: E402
+s.get(_Co233, 1).dokon_yoqilgan = True
+_crud233._dokon_bolimlarni_yarat(s, 1, "skroll")
+s.commit()
 s.close()
 
 SAHIFALAR = ["/", "/inventory", "/orders", "/projects", "/production", "/finished", "/returns", "/debts", "/finance", "/reports", "/kpi",
              "/ustalar", "/suppliers", "/suppliers/receive", "/recipes", "/users", "/rollar", "/logs", "/sozlamalar", "/trash",
-             "/kunlik-xarajat", "/platforma"]
+             "/kunlik-xarajat", "/platforma", "/sayt-katalogi"]
 OLCHAMLAR = [("telefon", 375, 420, True), ("kompyuter", 1280, 520, False)]
 
 ENG_PAST = r"""() => {

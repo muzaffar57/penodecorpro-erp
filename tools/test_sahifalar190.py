@@ -109,7 +109,9 @@ check("S2 Buyurtmalar `formatNum` — ming ajratgich bo'linmas bo'shliq (son o'z
 }""" in _ORD and "(?!\\d))/g, ' ');\n}" not in _ORD.split("function formatNum(num)")[1][:200])
 # `narxKorinishi(` — faqat kiritish maydoni QIYMATIDA (`.value =`, `value="${…}"`, `kiritishOyna` `qiymat`); matnda — `pulKor(`
 # kech155 (zip 211, MOSLANDI): orders.html 16 → 19 (blok maydonlari va review211 №8 solishtiruvi), finished.html 4 → 3
-_KUT = {"debts.html": (3, 15), "finance.html": (2, 1), "finished.html": (3, 2), "kunlik_xarajat.html": (0, 2), "orders.html": (19, 9),
+# kech172 (zip 238, MOSLANDI): orders.html matnda 9 → 16 — zip 237 «🛒 Saytdan» paneli (`_sbMiqdor`, guruh / detal summalari, ro'yxat summasi,
+# tasdiq oynasi — hammasi MATN, maydon emas); zip 237 bog'liq ro'yxatida bu test yo'q edi (d245 da yiqiladi)
+_KUT = {"debts.html": (3, 15), "finance.html": (2, 1), "finished.html": (3, 2), "kunlik_xarajat.html": (0, 2), "orders.html": (19, 16),
         "supplier_receive.html": (2, 14), "suppliers.html": (1, 8)}
 _SON = {}
 for _f, (_nk, _pk) in _KUT.items():

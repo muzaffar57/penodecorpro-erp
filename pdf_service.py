@@ -165,6 +165,159 @@ def _logo_tayyorla(yol):
     return natija
 
 
+# kech176 (zip 241 — egasi QARORI 02.11) «7 hujjatga ham logo»): yuk xati, hisob-kitob varaqasi, sotuv cheki (yakka /
+# savat), yuk xatlari jamlanmasi, moliya hisobotlari (oylik, yo'nalishlar) — to'q sarlavha CHAPIDA korxonaning O'Z logotipi, OQ katakda
+# (logotiplar odatda oq fon uchun chiziladi — to'q fonda ko'rinmay qolardi). Quti 34 × 12 mm. Logotip — FAQAT `company_brand.get_brand`
+# bergani (o'z korxonasi; begona — hech qachon); yo'q / o'qilmaydi — sarlavha AYNAN avvalgidek (faqat nom).
+# review241 (mustaqil tekshiruv): H1 — katak sarlavha ustunini toraytiradi: uzun nom (~40 harf) keng logotip yonida 2 qatorga o'tib, yuk
+# xati 2 sahifa bo'lardi (O'LCHANGAN) → `sarlavha_uslubi`: tor ustunga sig'magan matn shrifti tor / keng nisbatida kichrayadi (qatorlar
+# logotipsizdagidek bo'linadi, balandlik OSHMAYDI); M1 — logotip almashtirilayotganda PDF faylni ikkinchi marta o'qib 500 berardi →
+# `_logo_baytlari`: baytlar BIR marta o'qiladi, PDF ga baytlar beriladi; M2 — 16 bitli kulrang PNG ReportLab da OQ quti → 8 bitga.
+SARLAVHA_LOGO_QUTI_MM = (34, 12)
+SARLAVHA_LOGO_CHET = 5          # katak ichidagi chap / o'ng bo'sh joy (nuqta)
+# JONLI sinov (staging, kech176): platforma logotipi (1000 × 798, shaffof) asl o'lchamda — yuk xati / moliya PDF i ~900 KB (ilgari bir
+# necha KB; yuk xati Telegram ga ham boradi). Sarlavhadagi logotip chizilgan o'lchamining 300 dpi siga kichraytiriladi (bosmada farqsiz).
+# kech177 (zip 241c): «Buyurtma hisobi» / «Taklif» (`generate_nakladnoy`) ham shu qoidada — platforma logotipi bilan 913 KB edi (O'LCHANGAN).
+SARLAVHA_LOGO_DPI = 300
+_SARLAVHA_LOGO_KESH = _OrderedDict202()
+
+
+def _sarlavha_logo_kichik(data, eni_nuqta):
+    """Logotip baytlari → chizilgan eni (nuqta) ning `SARLAVHA_LOGO_DPI` siga kichraytirilgan PNG (shaffoflik saqlanadi); kichik bo'lsa /
+    o'qilmasa — asl baytlar. Natija jarayon keshida (md5 + eni)."""
+    import math as _math241
+    import hashlib as _hashlib241
+    tw = max(1, int(_math241.ceil(eni_nuqta / 72.0 * SARLAVHA_LOGO_DPI)))
+    kalit = (_hashlib241.md5(data).hexdigest(), tw)
+    with _LOGO_QULF:
+        if kalit in _SARLAVHA_LOGO_KESH:
+            _SARLAVHA_LOGO_KESH.move_to_end(kalit)
+            return _SARLAVHA_LOGO_KESH[kalit]
+    natija = data
+    try:
+        from PIL import Image as _PilImage241k
+        with _PilImage241k.open(io.BytesIO(data)) as _im:
+            _im.load()
+            if _im.width > tw * 1.1:
+                th = max(1, int(round(_im.height * tw / float(_im.width))))
+                # kech177 (zip 241c), review241c M1 / L1: JPEG manba — JPEG bo'lib qoladi (ReportLab uni o'zgartirmay qo'yadi), CMYK — CMYK da
+                # (PIL ning oddiy CMYK → RGB o'girishi rangni buzardi: brend ko'ki (32, 86, 174) → (0, 77, 255) — O'LCHANGAN); JPEG → PNG
+                # hajmni oshirardi (static/logo_wide.jpg 126 → 160 KB)
+                if _im.format == "JPEG" and _im.mode in ("RGB", "L", "CMYK"):
+                    _n = _im.resize((tw, th), resample=_PilImage241k.LANCZOS)
+                    _b = io.BytesIO()
+                    _n.save(_b, "JPEG", quality=92)
+                    natija = _b.getvalue()
+                else:
+                    if _im.mode in ("RGBA", "LA", "PA") or "transparency" in _im.info:
+                        _rej = "RGBA"
+                    elif _im.mode == "L":
+                        _rej = "L"
+                    else:
+                        _rej = "RGB"
+                    _n = _im.convert(_rej).resize((tw, th), resample=_PilImage241k.LANCZOS)
+                    _b = io.BytesIO()
+                    _n.save(_b, "PNG", optimize=True)
+                    natija = _b.getvalue()
+    except Exception:
+        natija = data
+    if natija is data:
+        return natija              # kech177 (zip 241c), review241c L2: kichraytirilmagan asl baytlar keshga yozilmaydi (xotira)
+    with _LOGO_QULF:
+        _SARLAVHA_LOGO_KESH[kalit] = natija
+        while len(_SARLAVHA_LOGO_KESH) > _LOGO_KESH_CHEGARA:
+            _SARLAVHA_LOGO_KESH.popitem(last=False)
+    return natija
+
+
+def _logo_baytlari(yol):
+    """(eni_px, bo'yi_px, PNG / asl baytlar) yoki None — PDF ga chiziladigan logotip, fayl BIR marta o'qiladi (o'lcham ham shu baytlardan;
+    o'qish paytida fayl almashtirilsa ham PDF yiqilmaydi). Katta (eski) fayl — `_logo_tayyorla` keshidagi kichraytirilgan nusxa; 16 bitli /
+    butun sonli / kasr kulrang — 8 bitli kulrangga (ReportLab ularni OQ chizadi)."""
+    _t = _logo_tayyorla(yol)
+    if not _t or not _t[0] or not _t[1]:
+        return None
+    if _t[2] is not None:
+        return _t
+    try:
+        from PIL import Image as _PilImage241
+        with open(yol, "rb") as _f:
+            data = _f.read()
+        with _PilImage241.open(io.BytesIO(data)) as _im:
+            _im.load()
+            w, h = _im.size
+            if _im.mode in ("I;16", "I;16B", "I;16L", "I;16N", "I", "F"):
+                _b = io.BytesIO()
+                _im.convert("I").point(lambda v: v * (1 / 256)).convert("L").save(_b, "PNG")
+                data = _b.getvalue()
+    except Exception:
+        return None
+    if not w or not h:
+        return None
+    return w, h, data
+
+
+def sarlavha_uslubi(uslub, satrlar, tor, keng):
+    """Logotip katagi sarlavha ustunini toraytirganda (`tor` < `keng` — matn uchun eni, nuqta): eng uzun satr tor ustunga sig'sa — uslub
+    o'zi; sig'masa — shrift va qator oralig'i tor / keng nisbatida kichraytirilgan nusxa (Helvetica o'lchami chiziqli: matn AYNAN logotipsiz
+    sarlavhadagidek bo'linadi — bir qatorli nom bir qatorda qoladi, balandlik oshmaydi)."""
+    if not tor or not keng or tor >= keng:
+        return uslub
+    try:
+        from reportlab.pdfbase.pdfmetrics import stringWidth as _sw241
+        eng = max([_sw241(str(x or ""), uslub.fontName, uslub.fontSize) for x in satrlar] or [0])
+    except Exception:
+        return uslub
+    if eng <= tor:
+        return uslub
+    k = tor / float(keng)
+    return ParagraphStyle(f"{uslub.name}_241", parent=uslub, fontSize=uslub.fontSize * k, leading=uslub.leading * k)
+
+
+def pdf_logo_katagi(brand, quti_mm=SARLAVHA_LOGO_QUTI_MM):
+    """(RLImage, katak_eni_nuqta) yoki None. `brand` — `company_brand.get_brand` natijasi (`logo` — mutlaq yo'l yoki None)."""
+    import os as _os
+    yol = (brand or {}).get("logo")
+    if not yol or not _os.path.exists(yol):
+        return None
+    _t = _logo_baytlari(yol)
+    if not _t:
+        return None
+    w, h = _t[0], _t[1]
+    qe, qb = quti_mm[0] * mm, quti_mm[1] * mm
+    nisbat = w / float(h)
+    if nisbat > qe / qb:
+        e, b = qe, qe / nisbat
+    else:
+        e, b = qb * nisbat, qb
+    try:
+        from reportlab.platypus import Image as _RLImage241
+        rasm = _RLImage241(io.BytesIO(_sarlavha_logo_kichik(_t[2], e)), width=e, height=b)
+    except Exception:
+        return None
+    return rasm, e + 2 * SARLAVHA_LOGO_CHET
+
+
+def logoli_sarlavha(ichki, katak, eni, fon, ost_chiziq=None):
+    """Sarlavha jadvali `ichki` (eni = `eni` − katak eni) chapiga OQ katakda logotip; `katak` None — `ichki` o'zi (o'zgarishsiz).
+    `ost_chiziq` — sarlavha ostidagi chiziq rangi (ichki jadvalniki bo'lsa — butun eniga, logotip katagi ostidan ham; review241 L1)."""
+    if not katak:
+        return ichki
+    rasm, ke = katak
+    t = Table([[rasm, ichki]], colWidths=[ke, eni - ke])
+    t.setStyle(TableStyle(([("LINEBELOW", (0, 0), (-1, 0), 2, ost_chiziq)] if ost_chiziq is not None else []) + [
+        ("BACKGROUND", (0, 0), (0, 0), colors.white),
+        ("BACKGROUND", (1, 0), (1, 0), fon),
+        ("BOX", (0, 0), (0, 0), 1, fon),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, 0), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (0, 0), 3), ("BOTTOMPADDING", (0, 0), (0, 0), 3),
+        ("TOPPADDING", (1, 0), (1, 0), 0), ("BOTTOMPADDING", (1, 0), (1, 0), 0),
+    ]))
+    return t
+
+
 def _logo_kichik(yol):
     """Katta logotipning kichraytirilgan PNG baytlari (keshdan) yoki None — logotip o'z holicha chiziladi."""
     _t = _logo_tayyorla(yol)
@@ -211,6 +364,7 @@ RED    = colors.HexColor("#E74C3C")
 GREEN  = colors.HexColor("#27AE60")
 GRAY   = colors.HexColor("#7F8C8D")
 LGRAY  = colors.HexColor("#BDC3C7")
+KMP_BG239 = colors.HexColor("#E8F0FE")      # kech173 (zip 239): komplekt guruhi sarlavha qatori foni
 # kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): shior, kontakt va «Imzo / Sana» — LGRAY (#BDC3C7, oq qog'ozda ~1,8:1) chop
 # etilganda deyarli ko'rinmasdi; endi to'qroq kulrang (~7,5:1)
 IZOH_RANG = colors.HexColor("#4B5563")
@@ -219,9 +373,13 @@ IZOH_RANG = colors.HexColor("#4B5563")
 def _pul_matni(n) -> str:
     """kech120 (zip 136 — G6-12): buyurtma hisobidagi summa — boshqa hujjatlardagidek ming ajratgich BO'SHLIQ («900 000»;
     ilgari «900,000» — vergul, yuk xati / hisob-kitob / moliya PDF larida bo'shliq). Butun so'mgacha yaxlitlanadi (avvalgidek)."""
+    # kech178 (review244 M2): yarim so'm — YUQORIGA (ERP qoidasi, ROUND_HALF_UP). Ilgari `:,.0f` — «bankir» yaxlitlashi: 6 172,5 →
+    # «6 172», 6 173,5 → «6 174» (bir hujjatda ikki xil qoida)
+    from decimal import Decimal as _D244p, ROUND_HALF_UP as _RHU244p, InvalidOperation as _IO244p
     try:
-        return f"{float(n or 0):,.0f}".replace(",", " ")
-    except (TypeError, ValueError):
+        _d = _D244p(repr(float(n or 0))).quantize(_D244p("1"), rounding=_RHU244p)
+        return f"{int(_d):,}".replace(",", " ")
+    except (TypeError, ValueError, _IO244p, OverflowError):
         return "0"
 
 
@@ -300,6 +458,8 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     _hujjat_vaqti = None
     if taklif:
         doc.title, doc.subject = f"Taklif {order.order_number}", "Taklif (hisob-kitob)"
+        if taklif.get("fayl_nomi"):             # kech178 (zip 244): do'kon buyurtmasi / savati — o'z nomi
+            doc.title, doc.subject = taklif["fayl_nomi"], taklif.get("fayl_mavzu") or taklif["fayl_nomi"]
         _hujjat_vaqti = taklif.get("sana")
 
     W = A4[0] - 36*mm
@@ -329,15 +489,18 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     logo_path = _brand["logo"]
     # kech129 (zip 153): o'lcham — fayl nisbatidan (`_logo_olcham`); fayl o'qilmasa — logotipsiz sarlavha (korxona nomi)
     _lo = _logo_olcham(logo_path) if logo_path and os.path.exists(logo_path) else None
+    # kech176 (zip 241 — egasi QARORI 02.11), review241 M1 / M2: chiziladigan baytlar — BIR marta o'qilgan (`_logo_baytlari`); fayl shu orada almashtirilsa /
+    # o'qilmasa — logotipsiz sarlavha (nom), PDF yiqilmaydi; 16 bitli kulrang — 8 bitga (ReportLab OQ chizardi)
+    _lb241 = _logo_baytlari(logo_path) if _lo else None
 
-    if _lo:
+    if _lo and _lb241:
         # MUHIM (2026-08-29): endi haqiqiy shaffof fonli PNG ishlatiladi
         # (nisbati 1.779) — shu nisbatga mos o'lcham berilmasa, logotip
         # cho'zilib/torayib, buzilib ko'rinardi.
         # kech154 (zip 202, N5): avval yuklangan katta logotip — kichraytirilgan nusxa (keshdan; fayl o'zgarmaydi)
-        _kichik202 = _logo_kichik(logo_path)
-        if _kichik202 is not None:
-            logo_path = io.BytesIO(_kichik202)
+        # kech177 (zip 241c): chizilgan eni (`_lo[0]`) ning 300 dpi siga (`_sarlavha_logo_kichik`; qutisi / joyi AYNAN) — platforma logotipi
+        # (1000 × 798) asl o'lchamda «Buyurtma hisobi» / «Taklif» PDF i 913 KB edi (boshqa 7 hujjat ~80 KB; O'LCHANGAN)
+        logo_path = io.BytesIO(_sarlavha_logo_kichik(_lb241[2], _lo[0]))
         logo_img = RLImage(logo_path, width=_lo[0], height=_lo[1])
         logo_img.hAlign = 'LEFT'
         header_left = [
@@ -362,8 +525,9 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
             # kech118 (D-1, G6-11 — egasi QARORI «Taklif qilingan lug'at»): «Buyurtma hisobi» (ilgari «NAKLADNOY» — yuk xati va
             # sotuv hujjati bilan bir xil nomda edi, mijoz qog'ozni sarlavhasidan ajrata olmasdi)
             # kech126 (zip 148): taklif — «TAKLIF (HISOB-KITOB)» (egasi qarori), sana — taklif sanasi (narxlar shu kundan 3 kun)
-            Paragraph("TAKLIF (HISOB-KITOB)", st["doc_title"]) if taklif else Paragraph("BUYURTMA HISOBI", st["doc_title"]),
-            Paragraph(f"# {_x(order.order_number)}", st["doc_num"]),
+            # kech178 (zip 244): do'kon — «BUYURTMA» / «SAVAT (HISOB-KITOB)» (`taklif["sarlavha"]`); savatda raqam yo'q (`raqamsiz`)
+            Paragraph(_x(taklif.get("sarlavha") or "TAKLIF (HISOB-KITOB)"), st["doc_title"]) if taklif else Paragraph("BUYURTMA HISOBI", st["doc_title"]),
+        ] + ([] if (taklif and taklif.get("raqamsiz")) else [Paragraph(f"# {_x(order.order_number)}", st["doc_num"])]) + [
             Paragraph(f"Sana: {_tashkent_vaqt(_hujjat_vaqti).strftime('%d.%m.%Y')}", st["doc_num"]),
         ],
     ]]
@@ -413,7 +577,19 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         ],
     ]]
 
-    if taklif:
+    if taklif and taklif.get("info"):
+        # kech178 (zip 244): do'kon — ustunlar tayyor: [[(yorliq, qiymat), …], …] (birinchi qiymat — katta, qolgani — kichik)
+        info_data = [[]]
+        for _u244 in taklif["info"]:
+            _ust244 = []
+            for _i244, (_l244, _q244) in enumerate(_u244):
+                if _i244:
+                    _ust244.append(Spacer(1, 4*(1-cx*0.7)))
+                _ust244.append(Paragraph(_x(_l244), st["section_label"]))
+                _ust244.append(Paragraph(_x(_q244 if _q244 not in (None, "") else "—"),
+                                         st["section_value"] if _i244 == 0 else st["section_value_sm"]))
+            info_data[0].append(_ust244)
+    elif taklif:
         # kech126 (zip 148): taklifda loyiha, buyurtma holati va usta yo'q — mijoz va taklif ma'lumoti (ikki ustun)
         info_data = [[
             [
@@ -431,7 +607,7 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
                 Paragraph(f"{_tashkent_vaqt(_hujjat_vaqti).strftime('%d.%m.%Y')}", st["section_value_sm"]),
             ],
         ]]
-    info_tbl = Table(info_data, colWidths=([W/2, W/2] if taklif else [W/3, W/3, W/3]))
+    info_tbl = Table(info_data, colWidths=([W / len(info_data[0])] * len(info_data[0]) if taklif else [W/3, W/3, W/3]))
     info_tbl.setStyle(TableStyle([
         ("VALIGN", (0,0), (-1,-1), "TOP"),
         ("BACKGROUND", (0,0), (-1,-1), LIGHT),
@@ -483,8 +659,17 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
 
     items = order.items if order.items else []
     row_bg = [DARK]
+    # kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha qatori, tagida detallari (`models.kmp_bloklari`; raqam — detallar bo'yicha)
+    from models import kmp_pdf_bloklari as _kb239
+    _bl239 = _kb239(items)
+    _boshi239 = {id(qs[0]): s for s, _t, qs in _bl239 if s}
+    _sarlavha239 = []
 
-    for i, item in enumerate(items):
+    for i, item in enumerate([q for _s, _t, qs in _bl239 for q in qs]):
+        if id(item) in _boshi239:
+            row_bg.append(KMP_BG239)
+            _sarlavha239.append(len(table_data))
+            table_data.append([Paragraph(f"<b>{_x(_boshi239[id(item)])}</b>", st["table_cell"]), "", "", "", "", ""])
         unit_price  = float(item.unit_price  or 0)
         total_price = float(item.total_price or 0)
         unit = get_unit(item)
@@ -512,7 +697,8 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
 
         # kech159 (zip 222): detal nomi — tartibli ko'rinishda (bazadagi eski «PADAKOLNIK» ham «Padakolnik»)
         from schemas import detal_nomi_tartib as _dnt222
-        _nom222 = _dnt222(item.name)
+        # kech178 (zip 244, review244 L1): do'kon PDF ida — katalogdagi nom AYNAN («AB-12» — «Ab-12» bo'lib qolmasin, sayt bilan bir xil)
+        _nom222 = item.name if (taklif and taklif.get("nom_asl")) else _dnt222(item.name)
         if (item.category or '').lower() == 'gips':
             item_label = f"{_nom222} (GIPS)"
         elif item.is_coated:
@@ -555,6 +741,9 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     ]
     for idx, bg in enumerate(row_bg):
         tbl_style.append(("BACKGROUND", (0,idx), (-1,idx), bg))
+    for _r239 in _sarlavha239:          # kech173 (zip 239)
+        tbl_style.append(("SPAN", (0, _r239), (-1, _r239)))
+        tbl_style.append(("ALIGN", (0, _r239), (-1, _r239), "LEFT"))
     items_tbl.setStyle(TableStyle(tbl_style))
     story.append(items_tbl)
     story.append(Spacer(1, 10*(1-cx*0.7)))
@@ -577,7 +766,8 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
     import crud as _crud_nak
     # kech126 (zip 148): taklif — qatorlar `generate_taklif` da o'sha qoida bilan hisoblangan (to'lov yo'q)
     _hisob = taklif["hisob"] if taklif else _crud_nak.buyurtma_hisob_qatorlari(db, order, mijoz_hujjati=True)
-    _NOMI = {"jami": "Umumiy jami:", "kelishilgan": "TO'LOV SUMMASI:"}
+    # kech178 (zip 244): do'kon buyurtmasi / savati — «JAMI:» (yetkazish narxi telefonda kelishiladi — hali to'lov summasi emas)
+    _NOMI = {"jami": "Umumiy jami:", "kelishilgan": (taklif or {}).get("jami_nomi") or "TO'LOV SUMMASI:"}
     totals_data = []
     grand_total_row = None
     for q in _hisob["qatorlar"]:
@@ -606,7 +796,7 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # kech120 (zip 136 — F bosqichi 5-qism, audit G6-12): chegirma / qaytarish / kechirilgan yo'q — kelishilgan = jami. Ilgari
         # «Umumiy jami» va «TO'LOV SUMMASI» — bir xil raqam, ketma-ket ikki qator edi; endi BITTA qator «TO'LOV SUMMASI».
         totals_data[0] = [
-            Paragraph("TO'LOV SUMMASI:", st["total_label"]),
+            Paragraph(_x(_NOMI["kelishilgan"]), st["total_label"]),
             Paragraph(f"{_pul_matni(_hisob['korinish']['kelishilgan'])} so'm", st["total_value"]),
         ]
         grand_total_row = 0
@@ -652,12 +842,18 @@ def generate_nakladnoy(order, db=None, taklif=None) -> bytes:
         # topshirish yo'q). Muddat `crud.TAKLIF_MUDDAT_KUN` bilan bir xil (tools/test_taklif.py tekshiradi).
         story.append(Spacer(1, 10*(1-cx*0.7)))
         story.append(HRFlowable(width="100%", thickness=1, color=GOLD, spaceAfter=6))
-        story.append(Paragraph("Narxlar 3 kun amal qiladi", st["total_label"]))
+        if taklif.get("pastki") is not None:
+            # kech178 (zip 244): do'kon — pastdagi yozuvlar (`crud._sayt_pdf_pastki`): birinchisi — qalin (tasdiqlash raqamlari / holat)
+            _qalin244 = ParagraphStyle("sayt_pastki244", parent=st["note"], fontName="Helvetica-Bold", textColor=DARK)
+            for _i244, _p244 in enumerate(taklif["pastki"]):
+                story.append(Paragraph(_x(_p244), _qalin244 if _i244 == 0 else st["note"]))
+        else:
+            story.append(Paragraph("Narxlar 3 kun amal qiladi", st["total_label"]))
         story.append(Spacer(1, 16*(1-cx*0.7)))
         story.append(HRFlowable(width="100%", thickness=0.5, color=LGRAY, spaceAfter=6))
         story.append(Paragraph(
             f"{_x(_brand['name'])} · Chiqarilgan: {_tashkent_vaqt().strftime('%d.%m.%Y %H:%M')} · "
-            f"Taklif: {_x(order.order_number)}",
+            f"{_x(taklif.get('pastki_yorliq') or ('Taklif: ' + str(order.order_number)))}",
             st["footer"]
         ))
         doc.build(story)
@@ -715,6 +911,8 @@ def generate_taklif(t, db=None) -> bytes:
             length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
             unit_price=_d.get("unit_price"), total_price=_d.get("total_price"), delivery_unit=None,
             gips_unit=_d.get("gips_unit"), blok_birlik=_d.get("blok_birlik"),      # kech155 (zip 211)
+            kmp_guruh=_d.get("kmp_guruh"), kmp_turi=_d.get("kmp_turi"), kmp_nomi=_d.get("kmp_nomi"),     # kech173 (zip 239)
+            kmp_soni=_d.get("kmp_soni"),
         ))
     _jami, _kel = float(_sh["total_amount"] or 0), float(_sh["kelishilgan"] or 0)
     # summa qatorlari — buyurtma hujjati qoidasi: to'lov 0, qarz = kelishilgan (qatorlari hujjatda ko'rsatilmaydi)
@@ -727,3 +925,177 @@ def generate_taklif(t, db=None) -> bytes:
         project=_NS(client_name=t.mijoz, client_phone=t.telefon, client_address=None, project_name=None),
     )
     return generate_nakladnoy(_hujjat, db, taklif={"sana": t.tahrirlangan or t.yaratilgan, "hisob": _hisob})
+
+
+def generate_sayt_pdf(h: dict, db=None) -> bytes:
+    """kech178 (zip 244 — egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF»): do'kon buyurtmasi / savati PDF i —
+    «Buyurtma hisobi» / «Taklif» shablonining O'ZI (korxona logotipi, nomi, telefonlari; komplekt sarlavhasi). `h` —
+    `crud.sayt_pdf_buyurtma` / `crud.sayt_pdf_savat`: qatorlar — tasdiqlanganda ERP buyurtmasiga tushadiganlarning O'ZI
+    (`crud._sayt_erp_qatorlari`), summa — qator narxi × miqdor (2 xona; buyurtmadagi summa bilan AYNAN), jami — sayt buyurtmasi /
+    savat hisobi. To'lov / qarz / imzo qatori yo'q."""
+    from types import SimpleNamespace as _NS
+    from decimal import Decimal as _D244, ROUND_HALF_UP as _RHU244
+    import crud as _crud244
+    _items = []
+    for _d in h["items"]:
+        _kat = (_d.get("category") or "").lower()
+        _miq = _d.get("quantity") if _kat != "profil" else 1
+        _jami = (_D244(str(_d.get("unit_price") or 0)) * _D244(str(_miq or 0))).quantize(_D244("0.01"), rounding=_RHU244)
+        _items.append(_NS(
+            name=str(_d.get("name") or ""), category=_d.get("category"), is_coated=bool(_d.get("is_coated")),
+            length=_d.get("length"), quantity=_d.get("quantity"), width=_d.get("width"), thickness=_d.get("thickness"),
+            unit_price=_d.get("unit_price"), total_price=float(_jami), delivery_unit=None, gips_unit=None,
+            blok_birlik=_d.get("blok_birlik"), kmp_guruh=_d.get("kmp_guruh"), kmp_turi=_d.get("kmp_turi"),
+            kmp_nomi=_d.get("kmp_nomi"), kmp_soni=_d.get("kmp_soni"),
+        ))
+    _jami_h = float(h["jami"] or 0)
+    _ord = _NS(total_amount=_jami_h, kechirilgan=0.0, kelishilgan_summa=_jami_h, paid_amount=0.0, debt_amount=_jami_h,
+               ortiqcha_tolov=0.0)
+    _hisob = _crud244.buyurtma_hisob_qatorlari(None, _ord, qaytarish=0.0, mijoz_hujjati=True)
+    _sana = _tashkent_vaqt(h["sana"]).strftime("%d.%m.%Y %H:%M")
+    savat = h["turi"] == "savat"
+    if savat:
+        # kech184 (zip 251): magazinning ulgurji tanlovi — magazin nomi ham (oddiy savatda mijoz yo'q — avvalgidek)
+        info = [[("HUJJAT", "Savat — buyurtma hali berilmagan")] + ([("MAGAZIN", h["mijoz"])] if h.get("mijoz") else []),
+                [("SANA", _sana)]]
+    else:
+        info = [[("MIJOZ", h.get("mijoz")), ("TELEFON", h.get("telefon")), ("VILOYAT", h.get("viloyat_nomi"))],
+                [("BUYURTMA RAQAMI", h.get("raqam")), ("SANA", _sana), ("HOLATI", h.get("holat_nomi"))]]
+    _hujjat = _NS(
+        id=0, company_id=h["company_id"], order_number=h.get("raqam") or "", items=_items, notes=None, created_at=h["sana"],
+        status=None, master=None,
+        project=_NS(client_name=h.get("mijoz") or "—", client_phone=h.get("telefon"), client_address=None, project_name=None),
+    )
+    return generate_nakladnoy(_hujjat, db, taklif={
+        "sana": h["sana"], "hisob": _hisob, "info": info, "pastki": list(h.get("pastki") or []), "jami_nomi": "JAMI:", "nom_asl": True,
+        "sarlavha": (("ULGURJI SAVAT (HISOB-KITOB)" if h.get("ulgurji") else "SAVAT (HISOB-KITOB)") if savat      # kech184 (zip 251)
+                     else ("ULGURJI BUYURTMA" if h.get("ulgurji") else "BUYURTMA")),   # kech184 (zip 250)
+        "raqamsiz": savat,
+        "pastki_yorliq": ("Ulgurji savat" if h.get("ulgurji") else "Savat") if savat else f"Buyurtma: {h.get('raqam')}",
+        "fayl_nomi": ("Ulgurji savat (hisob-kitob)" if h.get("ulgurji") else "Savat (hisob-kitob)") if savat
+        else f"Buyurtma {h.get('raqam')}"})
+
+
+def generate_ulgurji_narxlar_pdf(h: dict, db=None) -> bytes:
+    """kech184 (zip 251 — egasi QARORI «Onlayn do'kon rejasi» 30.10: «Magazin butun ulgurji katalogni o'z narxlari bilan PDF qilib oladi —
+    vitrina va mijozlari uchun»): magazin narxlar ro'yxati. `h` — `crud.ulgurji_narxlar_pdf_malumoti`. Ko'p sahifali (jadval sarlavhasi
+    har sahifada takrorlanadi); sarlavha — korxona logotipi / nomi / telefonlari (`generate_nakladnoy` qoidasi, o'sha yordamchilar);
+    bo'limlar bo'yicha detallar (1 sotish birligi — qoplamasiz / qoplamali), rom komplektlari; narx yo'q — «—»; pastida — har sahifada
+    korxona, sana va sahifa raqami."""
+    import os
+    from reportlab.platypus import Image as RLImage
+    buf = io.BytesIO()
+    st = get_styles(0.0)
+    _brand = get_brand(db, h["company_id"])
+    _sana = _tashkent_vaqt(h["sana"])
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=14*mm, bottomMargin=16*mm,
+                            title=f"Ulgurji narxlar {_sana.strftime('%d.%m.%Y')}", author=_brand["name"] or "",
+                            subject="Ulgurji narxlar ro'yxati")
+    W = A4[0] - 30*mm
+    story = []
+
+    # ── SARLAVHA (generate_nakladnoy qoidasi: logotip bo'lmasa / o'qilmasa — korxona nomi) ──
+    if _brand.get("tel_qatori"):
+        _kontakt = "\n".join([x for x in (_brand["address"], _brand["tel_qatori"]) if x])
+    else:
+        _tels = _brand.get("telefonlar")
+        _tel1 = (_tels[0] if _tels else "") if _tels is not None else _brand["phone"]
+        _kontakt = "  ·  ".join([x for x in (_brand["address"], _tel1) if x])
+    logo_path = _brand["logo"]
+    _lo = _logo_olcham(logo_path) if logo_path and os.path.exists(logo_path) else None
+    _lb = _logo_baytlari(logo_path) if _lo else None
+    if _lo and _lb:
+        logo_img = RLImage(io.BytesIO(_sarlavha_logo_kichik(_lb[2], _lo[0])), width=_lo[0], height=_lo[1])
+        logo_img.hAlign = "LEFT"
+        chap = [logo_img]
+    else:
+        chap = [Paragraph(_x(_brand["name"]), st["company"])]
+    chap += [Paragraph(_x(_brand["slogan"]), st["company_sub"]), Paragraph(_x(_kontakt).replace("\n", "<br/>"), st["company_sub"])]
+    chap = [x for x in chap if not (hasattr(x, "text") and not str(x.text).strip())]
+    sarlavha = Table([[chap, [Paragraph("ULGURJI NARXLAR RO'YXATI", st["doc_title"]),
+                              Paragraph(f"Sana: {_sana.strftime('%d.%m.%Y')}", st["doc_num"])]]], colWidths=[W*0.58, W*0.42])
+    sarlavha.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                                  ("BOTTOMPADDING", (0, 0), (-1, -1), 8)]))
+    story.append(sarlavha)
+    story.append(HRFlowable(width="100%", thickness=2, color=GOLD, spaceAfter=10))
+
+    # ── MAGAZIN ──
+    _mag = h.get("magazin") or "—"
+    if h.get("shahar"):
+        _mag = f"{_mag} ({h['shahar']})"
+    info = Table([[[Paragraph("MAGAZIN", st["section_label"]), Paragraph(_x(_mag), st["section_value"])],
+                   [Paragraph("NARXLAR", st["section_label"]),
+                    Paragraph("Ulgurji, so'mda — 1 sotish birligi uchun", st["section_value_sm"])]]], colWidths=[W/2, W/2])
+    info.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+                              ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                              ("LEFTPADDING", (0, 0), (-1, -1), 12), ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                              ("LINEAFTER", (0, 0), (0, -1), 0.5, LGRAY)]))
+    story.append(info)
+    story.append(Spacer(1, 12))
+
+    def _narx(v):
+        return "—" if v is None else _pul_matni(v)
+
+    def _jadval(sarlavhalar, qatorlar, enlar, guruh_qatorlari):
+        data = [[Paragraph(_x(t), st["table_header"]) for t in sarlavhalar]] + qatorlar
+        t = Table(data, colWidths=enlar, repeatRows=1)
+        uslub = [("BACKGROUND", (0, 0), (-1, 0), DARK), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                 ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                 ("LEFTPADDING", (0, 0), (-1, -1), 4), ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                 ("GRID", (0, 0), (-1, -1), 0.3, LGRAY), ("LINEBELOW", (0, 0), (-1, 0), 1.5, GOLD)]
+        for r in guruh_qatorlari:
+            uslub += [("SPAN", (0, r), (-1, r)), ("BACKGROUND", (0, r), (-1, r), LIGHT)]
+        t.setStyle(TableStyle(uslub))
+        return t
+
+    bolim_st = ParagraphStyle("ulg_bolim", parent=st["section_value"], fontSize=9.5, leading=12)
+    n = 0
+    if h["bolimlar"]:
+        qatorlar, guruh = [], []
+        for b in h["bolimlar"]:
+            guruh.append(len(qatorlar) + 1)
+            qatorlar.append([Paragraph(_x(b["nom"]), bolim_st), "", "", "", ""])
+            for q in b["qatorlar"]:
+                n += 1
+                qatorlar.append([Paragraph(_x(n), st["table_cell_c"]), Paragraph(_x(q["nom"]), st["table_cell"]),
+                                 Paragraph(_x(q["birlik"]), st["table_cell_c"]), Paragraph(_x(_narx(q["narx"])), st["table_cell_r"]),
+                                 Paragraph(_x(_narx(q["narx_qoplamali"])), st["table_cell_r"])])
+        story.append(_jadval(["№", "Mahsulot", "Birlik", "Qoplamasiz", "Qoplamali"], qatorlar,
+                             [W*0.07, W*0.49, W*0.14, W*0.15, W*0.15], guruh))
+    if h["komplektlar"]:
+        story.append(Spacer(1, 14))
+        story.append(Paragraph("ROM KOMPLEKTLARI — 1 komplekt narxi", st["section_value"]))
+        # review251 L3: tarkib — har komplekt qatorida (kapitel-bazasiz modelda kapitel / baza yo'q); umumiy izoh — faqat o'chirish imkoni
+        _kb_izoh = " Kapitel va bazani o'chirsa bo'ladi — narxi «kapitel va bazasiz» qatorida." if any(k.get("kb_bor") for k in h["komplektlar"]) else ""
+        story.append(Paragraph(_x("Tarkibi — har komplekt nomi bilan birga yozilgan." + _kb_izoh), st["note"]))
+        story.append(Spacer(1, 6))
+        qatorlar = []
+        for k in h["komplektlar"]:
+            n += 1
+            qatorlar.append([Paragraph(_x(n), st["table_cell_c"]),
+                             [Paragraph(_x(k["nom"]), st["table_cell"]), Paragraph(_x(k["tarkib"]), st["note"])],
+                             Paragraph(_x(_narx(k["qoplamasiz"])), st["table_cell_r"]),
+                             Paragraph(_x(_narx(k["qoplamali"])), st["table_cell_r"])])
+            if k.get("kb_bor"):
+                qatorlar.append(["", Paragraph("— kapitel va bazasiz", st["table_cell"]),
+                                 Paragraph(_x(_narx(k["qoplamasiz_kbsiz"])), st["table_cell_r"]),
+                                 Paragraph(_x(_narx(k["qoplamali_kbsiz"])), st["table_cell_r"])])
+        story.append(_jadval(["№", "Komplekt", "Qoplamasiz", "Qoplamali"], qatorlar, [W*0.07, W*0.63, W*0.15, W*0.15], []))
+    if not h["bolimlar"] and not h["komplektlar"]:
+        story.append(Paragraph("Hozircha ulgurji narxli mahsulot yo'q.", st["section_value"]))
+
+    story.append(Spacer(1, 12))
+    for p in h.get("pastki") or []:
+        story.append(Paragraph(_x(p), st["note"]))
+        story.append(Spacer(1, 3))
+
+    _pastki_matn = f"{_brand['name'] or ''} · Ulgurji narxlar · {_sana.strftime('%d.%m.%Y')}"
+
+    def _sahifa(canvas, _doc):
+        canvas.saveState()
+        canvas.setFont(st["footer"].fontName, 7.5)
+        canvas.setFillColor(GRAY)
+        canvas.drawCentredString(A4[0] / 2, 9*mm, f"{_pastki_matn} · {canvas.getPageNumber()}-sahifa")
+        canvas.restoreState()
+    doc.build(story, onFirstPage=_sahifa, onLaterPages=_sahifa)
+    return buf.getvalue()

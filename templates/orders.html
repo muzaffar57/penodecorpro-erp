@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Buyurtmalar — PenoDecorPro ERP{% endblock %}
+{% block title %}Buyurtmalar — epserp{% endblock %}
 {% block page_title %}Buyurtmalar{% endblock %}
 {% block page_sub %}Jami {{ orders|length }} ta · {{ orders|selectattr('status.value', 'ne', 'ready')|list|length }} faol{% endblock %}
 
@@ -214,6 +214,12 @@
 .detal-summary b{color:var(--text);font-weight:600}
 .detal-summary .val{color:var(--m-15803d);font-weight:700;white-space:nowrap}
 .detal-badge{font-size:13px;font-weight:700;color:var(--gold-dark);background:var(--gold-tint);padding:6px 14px;border-radius:8px;border:1px solid var(--ch-dbeafe);flex-shrink:0}
+/* kech173 (zip 239): komplekt belgisi — buyurtma / yetkazish oynasida guruh sarlavhasi, tahrir formasida qator yorlig'i */
+.kmp-blok{border-left:3px solid var(--m-1d4ed8);padding-left:8px;margin:4px 0 12px;min-width:0}
+.kmp-sarlavha{font-size:13px;font-weight:600;color:var(--m-1d4ed8);background:var(--f-dbeafe);border-radius:8px;padding:6px 10px;margin:0 0 8px;overflow-wrap:anywhere}
+.kmp-qator{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 2px;min-width:0}
+.kmp-belgi{font-size:12px;font-weight:600;color:var(--m-1d4ed8);background:var(--f-dbeafe);padding:4px 8px;border-radius:6px;min-width:0;max-width:100%;overflow-wrap:anywhere}
+.kmp-olib{font-size:12px;color:var(--m-b91c1c);background:none;border:1px solid var(--ch-dddddd);border-radius:6px;padding:3px 8px;cursor:pointer;flex-shrink:0;white-space:nowrap}
 .detal-rm{background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;transition:color .15s, background .15s;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn)}
 .detal-rm:hover{background:var(--f-fee2e2)}
 .detal-rm:hover{color:var(--m-dc2626)}
@@ -666,6 +672,8 @@ input[type=number]{-moz-appearance:textfield}
       {% if current_user.ruxsat('buyurtma', 'yaratish') or current_user.ruxsat('buyurtma', 'korish') %}
       <div class="tk-tugmalar">
         {% if current_user.ruxsat('buyurtma', 'yaratish') %}<button type="button" id="tezHisobBtn" class="btn btn-outline btn-md" onclick="tezHisobOch()" title="Loyiha va buyurtma ochmasdan mijozga narx hisoblab, TAKLIF hujjatini berish">⚡ Tez hisob</button>{% endif %}
+        {# kech171 (zip 237): «🛒 Saytdan» — do'kon saytidan kelgan buyurtmalar (sayt katalogi yoqilgan korxonada, ko'rish ruxsati), son — tasdiqlanmaganlari #}
+        {% if sayt_bor %}<button type="button" id="saytBtn" class="btn btn-outline btn-md" onclick="saytOch()" title="Do'kon saytidan kelgan buyurtmalar: mijozga qo'ng'iroq qilib tasdiqlash yoki bekor qilish">🛒 Saytdan<span class="tk-soni" id="saytSoni"{% if not sayt_soni %} style="display:none"{% endif %}>{{ sayt_soni }}</span></button>{% endif %}
         {% if current_user.ruxsat('buyurtma', 'korish') %}<button type="button" id="takliflarBtn" class="btn btn-outline btn-md" onclick="takliflarOch()" title="Saqlangan takliflar: PDF, tahrirlash, rasmiylashtirish">📝 Takliflar<span class="tk-soni" id="tkSoni"{% if not takliflar_soni %} style="display:none"{% endif %}>{{ takliflar_soni }}</span></button>{% endif %}
       </div>
       {% endif %}
@@ -752,6 +760,67 @@ input[type=number]{-moz-appearance:textfield}
       <div id="tkRoyxat"><div class="tk-bosh-holat">Yuklanmoqda…</div></div>
       <div id="tkSahifa" class="tk-sahifa" style="display:none"></div>
     </div>
+
+    <!-- kech171 (zip 237): do'kon saytidan kelgan buyurtmalar — qidiruv (mijoz, telefon, raqam), holat filtri, tasdiqlash / bekor qilish -->
+    {% if sayt_bor %}
+    <div id="saytPanel" class="card" style="display:none" data-yaratish="{{ 1 if current_user.ruxsat('buyurtma', 'yaratish') else 0 }}"
+         data-loyiha="{{ 1 if current_user.ruxsat('loyiha', 'yaratish') else 0 }}">
+      <div class="card-head" style="flex-wrap:wrap;row-gap:8px">
+        <h3>🛒 Saytdan kelgan buyurtmalar</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-outline btn-md" onclick="saytYukla()">↻ Yangilash</button>
+          <button type="button" class="btn btn-outline btn-md" onclick="saytYop()">✕ Yopish</button>
+        </div>
+      </div>
+      <div style="padding:12px 14px 4px">
+        <div class="tk-izoh" style="margin:0 0 8px">Mijozga qo'ng'iroq qilib buyurtmani tasdiqlang — tasdiqlansa yangi loyiha va oddiy buyurtma ochiladi
+          (narx — mijoz buyurtma bergan paytdagi narx). Mijoz voz kechsa — bekor qiling.</div>
+        <input type="search" id="saytQidiruv" class="maydon" placeholder="Qidirish: mijoz ismi, telefon yoki S-raqam" aria-label="Sayt buyurtmalarini qidirish"
+               oninput="saytQidir()" style="width:100%">
+        <div class="tk-filtrlar" role="group" aria-label="Sayt buyurtmalari filtri">
+          <button type="button" class="chip sb-f active" data-f="hammasi" aria-pressed="true" onclick="saytFiltr('hammasi')">Hammasi <span class="f-son"></span></button>
+          <button type="button" class="chip sb-f" data-f="yangi" aria-pressed="false" onclick="saytFiltr('yangi')">Yangi <span class="f-son"></span></button>
+          <button type="button" class="chip sb-f" data-f="tasdiqlandi" aria-pressed="false" onclick="saytFiltr('tasdiqlandi')">Tasdiqlangan <span class="f-son"></span></button>
+          <button type="button" class="chip sb-f" data-f="bekor" aria-pressed="false" onclick="saytFiltr('bekor')">Bekor qilingan <span class="f-son"></span></button>
+        </div>
+      </div>
+      <div id="saytRoyxat"><div class="tk-bosh-holat">Yuklanmoqda…</div></div>
+      <div id="saytSahifaQator" class="tk-sahifa" style="display:none"></div>
+    </div>
+    <!-- kech171 (zip 237): tasdiqlash / bekor qilish oynasi -->
+    <div id="saytOynaOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;align-items:center;justify-content:center;padding:20px">
+      <div style="background:var(--white);border-radius:16px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column">
+        <div style="padding:20px 22px 14px;border-bottom:1px solid var(--ch-f1f5f9)">
+          <div id="saytOynaSarlavha" style="font-size:16px;font-weight:700;color:var(--m-0f172a)"></div>
+          <div id="saytOynaMijoz" style="font-size:13px;color:var(--m-64748b);margin-top:3px;overflow-wrap:anywhere"></div>
+        </div>
+        <div style="padding:16px 22px;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:12px">
+          <div id="saytOynaTasdiq" style="display:flex;flex-direction:column;gap:12px">
+            <label class="tk-meta" for="saytMuddat" style="margin:0">Topshirish sanasi <span style="color:var(--m-dc2626)">*</span>
+              <input type="date" id="saytMuddat" class="maydon" style="width:100%;margin-top:4px"></label>
+            <label class="tk-meta" for="saytLoyihaNomi" style="margin:0">Yangi loyiha nomi
+              <input type="text" id="saytLoyihaNomi" class="maydon" maxlength="200" style="width:100%;margin-top:4px"></label>
+            {# review237 L2: qoplamali mahsulot bo'lsa — qoplama retsepti SHART (buyurtma formasining «Majburiy tanlov» qoidasi) #}
+            <label class="tk-meta" for="saytRetsept" id="saytRetseptBlok" style="margin:0;display:none">Qoplama retsepti <span style="color:var(--m-dc2626)">*</span>
+              <select id="saytRetsept" class="maydon" style="width:100%;margin-top:4px">
+                <option value="">— Tanlang —</option>
+                {% for r in recipes %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+              </select></label>
+            <div id="saytOynaOgoh" class="tk-izoh" style="margin:0"></div>
+          </div>
+          <div id="saytOynaBekor" style="display:none">
+            <label class="tk-meta" for="saytSabab" style="margin:0">Sabab (ixtiyoriy)
+              <input type="text" id="saytSabab" class="maydon" maxlength="200" placeholder="Masalan: mijoz voz kechdi" style="width:100%;margin-top:4px"></label>
+          </div>
+          <div id="saytOynaXato" role="alert" style="display:none;padding:11px 13px;border-radius:10px;background:var(--f-fef2f2);border:1px solid var(--ch-fecaca);color:var(--m-b91c1c);font-size:13px;line-height:1.5;overflow-wrap:anywhere"></div>
+        </div>
+        <div style="padding:14px 22px 20px;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ch-f1f5f9)">
+          <button type="button" data-yopish class="btn btn-outline" onclick="saytOynaYop()" style="flex:1 1 140px">Yopish</button>
+          <button type="button" id="saytOynaOk" class="btn btn-green" onclick="saytOynaYubor(false)" style="flex:1 1 140px">✓ Tasdiqlash</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- YANGI BUYURTMA FORMASI (boshlangʻichda yashirin) -->
     <div id="newOrderForm" style="display:none">
@@ -2558,7 +2627,8 @@ async function loadOrderItems(id) {
       container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--text3);font-size:14px">Detallar yo'q</div>`;
       return;
     }
-    container.innerHTML = items.map(item => {
+    // kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha, tagida detallari (`kmpBloklari`)
+    const _odQator239 = item => {
       const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
       const thumb = item.image_url
         ? `<img src="${escapeHtml(kichikRasm(item.image_url))}" alt="" onclick="event.stopPropagation();openItemImgLightbox('${jsAttrEscape(item.image_url)}')">
@@ -2576,7 +2646,10 @@ async function loadOrderItems(id) {
         </div>
         <div class="prod-total">${formatNum(item.total_price)} so'm</div>
       </div>`;
-    }).join('');
+    };
+    container.innerHTML = kmpBloklari(items).map(b => b.sarlavha
+      ? `<div class="kmp-blok"><div class="kmp-sarlavha">${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}</div>${b.qatorlar.map(_odQator239).join('')}</div>`
+      : b.qatorlar.map(_odQator239).join('')).join('');
   } catch (e) {
     if (!joriy()) return;
     container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:16px;color:var(--m-b91c1c);font-size:14px">${escapeHtml(yukXatoMatn('Detallar', yukXato('server')))}</div>`;
@@ -2950,7 +3023,8 @@ function openDeliveryModal() {
     }).catch(() => { if (qarzJoriy()) debtEl.textContent = ''; });
   }
 
-  document.getElementById('dlvForm').innerHTML = dlvData.items.map(it => {
+  // kech173 (zip 239): komplekt / «o'z o'lchami» guruhi — sarlavha (omborchi nima yuklashini ko'radi)
+  const _dlvQator239 = it => {
     const dis = it.is_done ? 'opacity:.45;pointer-events:none' : '';
     // kech103 (58-band): omborga ORTIQCHA qaytarilgan qism — "To'liq topshirilgan" emas (topshirilgan + ortiqcha).
     // kech103 (83-band): MRP detali — TAYYOR (ishlab chiqarilgan) miqdor ko'rsatiladi; undan ko'pi yuborilmaydi.
@@ -2975,7 +3049,10 @@ function openDeliveryModal() {
         <span style="font-size:13px;color:var(--text3);width:32px">${escapeHtml(it.unit === 'metr' ? 'm' : (it.unit === 'dona' ? 'ta' : (it.unit || '')))}</span>
       </div>
     </div>`;
-  }).join('');
+  };
+  document.getElementById('dlvForm').innerHTML = kmpBloklari(dlvData.items).map(b => b.sarlavha
+    ? `<div class="kmp-blok"><div class="kmp-sarlavha">${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}</div>${b.qatorlar.map(_dlvQator239).join('')}</div>`
+    : b.qatorlar.map(_dlvQator239).join('')).join('');
 
   document.getElementById('dlv-received-by').value = '';
   document.getElementById('dlv-notes').value = '';
@@ -4068,12 +4145,309 @@ function hideNewForm() {
   // kech126 (zip 148): buyurtma tanlansa / forma yopilsa — «📝 Takliflar» ro'yxati ham yashiriladi (kerak bo'lsa qayta ochiladi)
   const _tkp126 = document.getElementById('takliflarPanel');
   if (_tkp126) _tkp126.style.display = 'none';
+  const _sbp237 = document.getElementById('saytPanel');          // kech171 (zip 237): «🛒 Saytdan» ro'yxati ham
+  if (_sbp237) _sbp237.style.display = 'none';
   if (typeof ordLayoutYangiForma === 'function') ordLayoutYangiForma(false);
   const livePanel = document.getElementById('liveTotal');
   if (livePanel) livePanel.style.display = 'none';
   statPanellari(false);
   // kech152 (zip 194): forma yopildi (boshqa buyurtma tanlandi va h.k.) — yuklanayotgan tahrir (`editSelected`) eskirdi
   if (typeof yukNavbat === 'function') yukNavbat('forma');
+}
+
+// ══ kech171 (zip 237 — EGASI QARORLARI 30.10 «Onlayn do'kon rejasi», «Buyurtma jarayoni») ═══════════════════════════════════════
+// «🛒 Saytdan»: do'kon saytidan kelgan buyurtmalar. Xodim mijozga qo'ng'iroq qiladi → «✅ Tasdiqlash» (topshirish sanasi; server BITTA
+// tranzaksiyada yangi loyiha + oddiy buyurtma ochadi, narx — sayt buyurtmasida qotgan narx) yoki «⛔ Bekor qilish» (sabab ixtiyoriy).
+// Omborda yetmasa — ro'yxat va «Ha, baribir tasdiqlash» (`confirm_shortage`). Hamma server matni — `escapeHtml`.
+let _sbFiltr = 'hammasi', _sbSahifa = 1, _sbQidTaymer = null, _sbOyna = null, _sbYuborilmoqda = false;
+
+function _sbEl(id) { return document.getElementById(id); }
+
+async function saytOch() {
+  if (typeof taklifRejim !== 'undefined' && taklifRejim) taklifRejiminiTozala(true);
+  hideNewForm();
+  ['orderDetail', 'emptyMid', 'sumCard'].forEach(id => { const e = _sbEl(id); if (e) e.style.display = 'none'; });
+  document.querySelectorAll('.ord-item').forEach(i => i.classList.remove('active'));
+  selectedOrderId = null;
+  const p = _sbEl('saytPanel');
+  if (p) p.style.display = 'block';
+  try { if (p && telefonKorinishimi()) p.scrollIntoView({ block: 'start' }); } catch (e) {}
+  await saytYukla();
+}
+
+function saytYop() {
+  const p = _sbEl('saytPanel');
+  if (p) p.style.display = 'none';
+  const em = _sbEl('emptyMid');
+  if (!selectedOrderId && em) em.style.display = '';
+}
+
+function saytQidir() {
+  clearTimeout(_sbQidTaymer);
+  _sbQidTaymer = setTimeout(() => { _sbSahifa = 1; saytYukla(); }, 300);
+}
+
+function saytFiltr(f) {
+  _sbFiltr = f;
+  _sbSahifa = 1;
+  document.querySelectorAll('#saytPanel .sb-f').forEach(b => {
+    const a = b.dataset.f === f;
+    b.classList.toggle('active', a);
+    b.setAttribute('aria-pressed', a ? 'true' : 'false');
+  });
+  saytYukla();
+}
+
+function saytSahifaga(n) { _sbSahifa = n; saytYukla(); }
+
+async function saytYukla() {
+  const joriy = yukNavbat('sayt237');
+  const q = ((_sbEl('saytQidiruv') || {}).value || '').trim();
+  const p = new URLSearchParams({ filtr: _sbFiltr, sahifa: String(_sbSahifa) });
+  if (q) p.set('q', q);
+  const box = _sbEl('saytRoyxat');
+  try {
+    const res = await fetch('/api/sayt-buyurtmalari?' + p.toString(), { cache: 'no-store' });
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!joriy()) return;
+    if (!res.ok || !d) {
+      if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ ${escapeHtml(xatoSababi(d, "Sayt buyurtmalari yuklanmadi"))}</div>`;
+      return;
+    }
+    saytChiz(d);
+  } catch (e) {
+    if (!joriy()) return;
+    if (box) box.innerHTML = `<div class="tk-bosh-holat">❌ Server bilan aloqa yo'q — sayt buyurtmalari yuklanmadi</div>`;
+  }
+}
+
+function _sbBelgi(b) {
+  if (b.holat === 'tasdiqlandi') return `<span class="tk-belgi rasmiy">✅ Tasdiqlangan</span>`;
+  if (b.holat === 'bekor') return `<span class="tk-belgi bekor">⛔ Bekor qilingan</span>`;
+  return `<span class="tk-belgi otgan">🆕 Yangi — qo'ng'iroq qiling</span>`;
+}
+
+function _sbMiqdor(x) {
+  const b = x.birlik === 'm2' ? 'm²' : (x.birlik === 'metr' ? 'm' : 'dona');
+  return `${pulKor(x.miqdor)} ${b}`;
+}
+
+function _sbGuruhHtml(g) {
+  const det = (g.detallar || []).map(x => `<li>${escapeHtml(x.nom)}${x.ombordan ? ' <b style="color:var(--m-15803d)">🏭 ombordan</b>' : ''}`
+    + ` · ${escapeHtml(x.olcham || '')} — ${escapeHtml(_sbMiqdor(x))} × `
+    + `${pulKor(x.narx)}${x.chegirma_foiz ? ` <span style="color:var(--m-15803d)">(−${escapeHtml(String(x.chegirma_foiz))} %)</span>` : ''}`
+    + ` = <b>${pulKor(x.summa)}</b></li>`).join('');
+  return `<div class="tk-meta" style="color:var(--text)"><b>${escapeHtml(g.guruh_nomi)}</b> — ${pulKor(g.summa)} so'm`
+    + `<ul style="margin:3px 0 4px 18px;padding:0">${det}</ul></div>`;
+}
+
+function saytChiz(d) {
+  const box = _sbEl('saytRoyxat');
+  if (!box) return;
+  const son = d.sonlar || {};
+  document.querySelectorAll('#saytPanel .sb-f').forEach(b => {
+    const sp = b.querySelector('.f-son');
+    if (sp) sp.textContent = son[b.dataset.f] ? String(son[b.dataset.f]) : '';
+  });
+  const ss = _sbEl('saytSoni');
+  if (ss && !d.qidiruv) { const n = Number(son.yangi) || 0; ss.textContent = String(n); ss.style.display = n ? '' : 'none'; }
+  const pn = _sbEl('saytPanel') || { dataset: {} };
+  const yarat = pn.dataset.yaratish === '1';
+  const rs = d.royxat || [];
+  if (!rs.length) {
+    box.innerHTML = `<div class="tk-bosh-holat">${d.qidiruv || (d.filtr && d.filtr !== 'hammasi') ? "Bu qidiruv / filtr bo'yicha buyurtma yo'q"
+      : "Saytdan hali buyurtma kelmagan."}</div>`;
+  } else {
+    box.innerHTML = rs.map(b => {
+      const id = Number(b.id);
+      const tel = String(b.telefon || '').replace(/[^0-9+]/g, '');
+      const mij = escapeHtml(b.mijoz) + (tel ? ` · <a href="tel:${escapeHtml(tel)}">${escapeHtml(b.telefon_korinish || b.telefon)}</a>` : '');
+      const joy = `📍 ${escapeHtml(b.viloyat_nomi || '')} — ${escapeHtml(String(b.yetkazish_matni || '').toLowerCase())}`
+        + (b.manzil ? ` · ${escapeHtml(b.manzil)}` : '')
+        + (b.lokatsiya ? ` · <a href="https://maps.google.com/?q=${encodeURIComponent(b.lokatsiya)}" target="_blank" rel="noopener">🗺 xarita</a>` : '');
+      let holat = `Keldi: ${escapeHtml(tkSanaVaqt(b.yaratilgan))}`;
+      if (b.holat === 'tasdiqlandi') {
+        holat += ` · tasdiqlandi: ${escapeHtml(tkSanaVaqt(b.tasdiqlangan))}${b.tasdiqlagan ? ' · ' + escapeHtml(b.tasdiqlagan) : ''} — `
+          + (b.buyurtma_bor ? `<a href="/orders?order=${Number(b.order_id)}" style="color:var(--gold-dark);font-weight:600">${escapeHtml(b.order_raqam || '')}</a>`
+                            : `${escapeHtml(b.order_raqam || '')} (o'chirilgan)`);
+      } else if (b.holat === 'bekor') {
+        holat += ` · bekor qilindi: ${escapeHtml(tkSanaVaqt(b.bekor_vaqti))}${b.bekor_qilgan ? ' · ' + escapeHtml(b.bekor_qilgan) : ''}`
+          + (b.bekor_sababi ? ` — ${escapeHtml(b.bekor_sababi)}` : '');
+      }
+      // kech172 (zip 238): ombordan qator bo'lsa — 48 soatlik band (faol / muddati o'tgan)
+      if (b.holat === 'yangi' && b.band_tugash) {
+        holat += b.band_faol ? ` · 🔒 ombor bandi: ${escapeHtml(tkSanaVaqt(b.band_tugash))} gacha` : ` · 🔓 ombor bandi muddati o'tgan`;
+      }
+      const tej = Number(b.chegirmasiz) - Number(b.jami);
+      const chegirma = tej > 0.005 ? `<div class="tk-meta">chegirmasiz ${pulKor(b.chegirmasiz)}</div>` : '';
+      let amallar = '';
+      if (b.holat === 'yangi' && yarat) {
+        amallar += `<button type="button" class="btn btn-green btn-sm" onclick="saytTasdiqOch(${id})">✅ Tasdiqlash</button>`
+          + `<button type="button" class="btn btn-outline btn-sm" onclick="saytBekorOch(${id})">⛔ Bekor qilish</button>`;
+      }
+      if (b.holat === 'tasdiqlandi' && b.buyurtma_bor) {
+        amallar += `<a class="btn btn-outline btn-sm" href="/orders?order=${Number(b.order_id)}">📦 Buyurtmani ochish</a>`;
+      }
+      const ogoh = (b.holat === 'yangi' && (b.ogohlantirishlar || []).length)
+        ? `<div class="tk-meta" style="color:var(--m-b45309)">⚠️ ${(b.ogohlantirishlar || []).map(x => escapeHtml(x)).join('<br>⚠️ ')}</div>` : '';
+      return `<div class="tk-qator" data-id="${id}">
+        <div style="min-width:0">
+          <div class="tk-bosh"><span class="tk-raqam">${escapeHtml(b.raqam)}</span>${_sbBelgi(b)}${b.ulgurji ? '<span class="tk-belgi rasmiy">🏪 Ulgurji (magazin)</span>' : ''}</div>
+          <div class="tk-mijoz">${mij}</div>
+          <div class="tk-meta">${joy}</div>
+          ${(b.guruhlar || []).map(g => _sbGuruhHtml(g)).join('')}
+          ${b.izoh ? `<div class="tk-meta">📝 ${escapeHtml(b.izoh)}</div>` : ''}
+          ${ogoh}
+          <div class="tk-meta">${holat}</div>
+        </div>
+        <div class="tk-summa">${pulKor(b.jami)} so'm${chegirma}</div>
+        ${amallar ? `<div class="tk-amallar">${amallar}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+  const pg = _sbEl('saytSahifaQator');
+  if (pg) {
+    const ko = Number(d.sahifalar) > 1;
+    pg.style.display = ko ? 'flex' : 'none';
+    pg.innerHTML = ko ? `<button type="button" class="btn btn-outline btn-sm" ${d.sahifa <= 1 ? 'disabled' : ''} onclick="saytSahifaga(${Number(d.sahifa) - 1})">← Oldingi</button>`
+      + `<span>${Number(d.sahifa)} / ${Number(d.sahifalar)}</span>`
+      + `<button type="button" class="btn btn-outline btn-sm" ${d.sahifa >= d.sahifalar ? 'disabled' : ''} onclick="saytSahifaga(${Number(d.sahifa) + 1})">Keyingi →</button>` : '';
+  }
+}
+
+async function _sbOl(id) {
+  try {
+    const res = await fetch(`/api/sayt-buyurtmalari/${Number(id)}`, { cache: 'no-store' });
+    let d = null;
+    try { d = await res.json(); } catch (e) { d = null; }
+    if (!res.ok || !d) { showMsg('❌ ' + xatoSababi(d, 'Sayt buyurtmasi ochilmadi'), 'error'); saytYukla(); return null; }
+    if (d.holat !== 'yangi') { showMsg(`❌ ${d.raqam} — ${String(d.holat_nomi || '').toLowerCase()}`, 'error'); saytYukla(); return null; }
+    return d;
+  } catch (e) {
+    showMsg("❌ Server bilan aloqa yo'q", 'error');
+    return null;
+  }
+}
+
+function _sbOynaXato(html) {
+  const x = _sbEl('saytOynaXato');
+  if (!x) return;
+  x.innerHTML = html || '';
+  x.style.display = html ? 'block' : 'none';
+}
+
+function _sbOynaOch(b, tur) {
+  _sbOyna = { id: Number(b.id), tur, raqam: b.raqam, shortage: false };
+  _sbEl('saytOynaSarlavha').textContent = tur === 'tasdiq' ? `✅ ${b.raqam} — tasdiqlash` : `⛔ ${b.raqam} — bekor qilish`;
+  _sbEl('saytOynaMijoz').textContent = `${b.mijoz} · ${b.telefon_korinish || b.telefon} · ${pulKor(b.jami)} so'm`;
+  _sbEl('saytOynaTasdiq').style.display = tur === 'tasdiq' ? 'flex' : 'none';
+  _sbEl('saytOynaBekor').style.display = tur === 'bekor' ? 'block' : 'none';
+  const ok = _sbEl('saytOynaOk');
+  ok.textContent = tur === 'tasdiq' ? '✓ Tasdiqlash — buyurtma ochish' : '⛔ Bekor qilish';
+  ok.className = tur === 'tasdiq' ? 'btn btn-green' : 'btn btn-dark';
+  ok.disabled = false;
+  ok.onclick = () => saytOynaYubor(false);
+  _sbOynaXato('');
+  if (tur === 'tasdiq') {
+    const m = _sbEl('saytMuddat');
+    m.min = tkISO();                 // kech172 (238b): Toshkent «bugun» — tk yordamchisi (ilgari o'z `new Date` / `toISOString`)
+    m.value = '';
+    _sbEl('saytLoyihaNomi').value = `Sayt ${b.raqam} — ${b.mijoz}`.slice(0, 200);
+    const og = (b.ogohlantirishlar || []);
+    _sbEl('saytOynaOgoh').innerHTML = "Tasdiqlansa: mijoz uchun yangi loyiha va buyurtma ochiladi, ombordan xomashyo yechiladi, narxlar — mijoz buyurtma bergan "
+      + "paytdagi narx. Buyurtma keyin tahrirlansa — saqlashdan oldin narxlarni tekshiring." + (og.length ? '<br>⚠️ ' + og.map(x => escapeHtml(x)).join('<br>⚠️ ') : '');
+    const rb = _sbEl('saytRetseptBlok');
+    if (rb) rb.style.display = b.qoplamali_bor ? '' : 'none';
+    const rs = _sbEl('saytRetsept');
+    if (rs) rs.value = '';
+    if (_sbEl('saytPanel').dataset.loyiha !== '1') {
+      _sbOynaXato("Tasdiqlash yangi loyiha ochadi — sizda «Loyihalar: Yaratish» ruxsati yo'q (administratorga murojaat qiling).");
+      ok.disabled = true;
+    }
+  } else {
+    _sbEl('saytSabab').value = '';
+  }
+  _sbEl('saytOynaOverlay').style.display = 'flex';
+  setTimeout(() => { try { (tur === 'tasdiq' ? _sbEl('saytMuddat') : _sbEl('saytSabab')).focus(); } catch (e) {} }, 30);
+}
+
+async function saytTasdiqOch(id) {
+  const b = await _sbOl(id);
+  if (b) _sbOynaOch(b, 'tasdiq');
+}
+
+async function saytBekorOch(id) {
+  const b = await _sbOl(id);
+  if (b) _sbOynaOch(b, 'bekor');
+}
+
+function saytOynaYop() {
+  if (_sbYuborilmoqda) return;
+  _sbEl('saytOynaOverlay').style.display = 'none';
+  _sbOyna = null;
+}
+
+async function saytOynaYubor(yetmasaHam) {
+  if (!_sbOyna || _sbYuborilmoqda) return;
+  const o = _sbOyna;
+  let url, tana;
+  if (o.tur === 'tasdiq') {
+    const sana = (_sbEl('saytMuddat').value || '').trim();
+    if (!sana) { _sbOynaXato('Topshirish sanasini kiriting'); _sbEl('saytMuddat').focus(); return; }
+    const nom = (_sbEl('saytLoyihaNomi').value || '').trim();
+    const rb = _sbEl('saytRetseptBlok');
+    const rid = parseInt((_sbEl('saytRetsept') || {}).value) || null;
+    if (rb && rb.style.display !== 'none' && !rid) { _sbOynaXato('Qoplamali mahsulot bor — qoplama retseptini tanlang'); _sbEl('saytRetsept').focus(); return; }
+    url = `/api/sayt-buyurtmalari/${o.id}/tasdiqla` + (yetmasaHam ? '?confirm_shortage=true' : '');
+    tana = { deadline: sana };
+    if (nom) tana.loyiha_nomi = nom;
+    if (rid && rb && rb.style.display !== 'none') tana.recipe_id = rid;
+  } else {
+    url = `/api/sayt-buyurtmalari/${o.id}/bekor`;
+    const sabab = (_sbEl('saytSabab').value || '').trim();
+    tana = sabab ? { sabab } : {};
+  }
+  const ok = _sbEl('saytOynaOk');
+  _sbYuborilmoqda = true;
+  ok.disabled = true;
+  _sbOynaXato('');
+  let res = null, d = null;
+  try {
+    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tana) });
+    try { d = await res.json(); } catch (e) { d = null; }
+  } catch (e) {
+    res = null;
+  }
+  _sbYuborilmoqda = false;
+  ok.disabled = false;
+  if (!res) {
+    _sbOynaXato("Server bilan aloqa yo'q — natija noma'lum. Ro'yxatni yangilab tekshiring (qayta bosilsa ikkinchi buyurtma ochilmaydi).");
+    return;
+  }
+  if (res.ok) {
+    _sbEl('saytOynaOverlay').style.display = 'none';
+    _sbOyna = null;
+    if (o.tur === 'tasdiq') {
+      showMsg(`✅ ${o.raqam} tasdiqlandi — buyurtma ${d && d.order_number ? d.order_number : ''} ochildi`, 'success');
+      // yangi buyurtma chap ro'yxatda ham ko'rinsin — sahifa shu buyurtma bilan qayta ochiladi
+      if (d && d.order_id) { setTimeout(() => { location.href = `/orders?order=${Number(d.order_id)}`; }, 900); return; }
+    } else {
+      showMsg(`⛔ ${o.raqam} bekor qilindi`, 'success');
+    }
+    saytYukla();
+    return;
+  }
+  const det = d && d.detail;
+  if (res.status === 409 && det && det.type === 'stock_shortage_warning') {
+    _sbOynaXato(`<b>${escapeHtml(det.message || 'Omborda yetishmayotgan xomashyo bor')}</b><ul style="margin:6px 0 0 18px;padding:0">`
+      + (det.shortages || []).map(s => `<li>${escapeHtml(s)}</li>`).join('') + '</ul>');
+    ok.textContent = '⚠️ Ha, baribir tasdiqlash';
+    ok.onclick = () => saytOynaYubor(true);
+    return;
+  }
+  _sbOynaXato(escapeHtml(xatoSababi(d, o.tur === 'tasdiq' ? 'Tasdiqlanmadi' : 'Bekor qilinmadi')));
+  if (res.status === 409 || res.status === 404) saytYukla();
 }
 
 // ══ kech126 (zip 148 — EGASI QARORLARI 07.10 «TEZ HISOB / TAKLIF», QAYTA SO'RALMAYDI) ══════════════════════════════════════
@@ -6755,7 +7129,8 @@ function openDuplicatePickModal(order) {
   document.getElementById('dup-modal-sub').textContent =
     `${order.order_number} · ${order.client_name || order.project_name || '—'} · ${order.items.length} ta detal`;
 
-  document.getElementById('dupPickList').innerHTML = order.items.map((item, idx) => {
+  // kech173 (zip 239, review239 L5): nusxa tanlovida ham komplekt guruhi (bir nomli detallar qaysi komplektdan — ko'rinadi)
+  const _dupQator239 = ({item, idx}) => {
     const icon = ITEM_TYPE_ICON[(item.category || '').toLowerCase()] || 'ti-box';
     return `
     <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--ch-f5f5f5);cursor:pointer">
@@ -6767,7 +7142,10 @@ function openDuplicatePickModal(order) {
         <div style="font-size:13px;color:var(--text3);margin-top:2px">${itemParamsText(item)}</div>
       </div>
     </label>`;
-  }).join('');
+  };
+  document.getElementById('dupPickList').innerHTML = kmpBloklari(order.items.map((item, idx) => ({item, idx})), q => q.item).map(b => b.sarlavha
+    ? `<div class="kmp-blok"><div class="kmp-sarlavha">${escapeHtml(kmpBelgisi(b.turi) + ' ' + b.sarlavha)}</div>${b.qatorlar.map(_dupQator239).join('')}</div>`
+    : b.qatorlar.map(_dupQator239).join('')).join('');
 
   updateDupPickState();
   document.getElementById('dupPickModal').style.display = 'flex';
@@ -6976,6 +7354,8 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
         // kech108 (71): tahrir ochilgandagi SAQLANGAN narx — saqlashda 0 ga tushsa ogohlantiriladi (`_narxiNolgaTushgan`).
         // Nusxa olishda (yangi buyurtma) belgilanmaydi.
         if (!isDup) row.dataset.saqlanganNarx = String(parseFloat(item.unit_price || 0) || 0);
+        // kech173 (zip 239): komplekt belgisi (saqlashda qaytariladi); nusxada — faqat guruhi TO'LIQ ko'chirilgan bo'lsa (review239 L5)
+        kmpQatorgaYoz239(row, kmpTolikmi239(item, itemsToUse, order.items) ? item : null);
 
         const typeEl = row.querySelector('.i-type');
         const cat = item.category || 'profil';
@@ -7439,6 +7819,73 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
 }
 
 // ── Buyurtmani yangilash ──────────────────────────────────
+// kech173 (zip 239 — reja «Komplekt ERP'da qanday bilinadi» 4-band): tahrir formasida komplekt belgisi — qator sarlavhasida «🧩 …» yorlig'i;
+// saqlashda qatorning belgisi QAYTARILADI (guruhsiz qatorga — null: server shu qiymatni yozadi). Komplekt qatorida «✕ butun komplekt» —
+// shu komplektning hamma detali formadan olinadi (bekor qilish — butun komplekt yoki ✕ bilan alohida detal). Yorliq matni — textContent.
+function kmpQatorgaYoz239(row, item) {
+  const s = kmpSarlavha(item);
+  if (!row || !s) return;
+  row.dataset.kmpGuruh = String(Number(item.kmp_guruh));
+  row.dataset.kmpTuri = String(item.kmp_turi);
+  row.dataset.kmpNomi = String(item.kmp_nomi);
+  if (item.kmp_turi !== 'oz_olcham' && item.kmp_soni) row.dataset.kmpSoni = String(Number(item.kmp_soni));
+  // sarlavha qatori TAGIDA alohida qator (telefonda sarlavha siqilmaydi, matn o'raladi)
+  const top = row.querySelector('.detal-top');
+  if (!top) return;
+  const q = document.createElement('div');
+  q.className = 'kmp-qator';
+  const b = document.createElement('span');
+  b.className = 'kmp-belgi';
+  b.textContent = kmpBelgisi(item.kmp_turi) + ' ' + s;
+  q.appendChild(b);
+  top.insertAdjacentElement('afterend', q);
+  if (item.kmp_turi !== 'oz_olcham') {
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.className = 'kmp-olib';
+    t.textContent = '✕ butun komplekt';
+    t.title = 'Shu komplektning hamma detalini formadan olib tashlash';
+    t.onclick = (e) => { e.stopPropagation(); kmpButunOlib239(row); };
+    b.insertAdjacentElement('afterend', t);
+  }
+}
+function kmpTolikmi239(item, tanlangan, hammasi) {
+  const s = kmpSarlavha(item);
+  if (!s) return false;
+  const k = x => JSON.stringify([x.kmp_guruh, x.kmp_turi, x.kmp_nomi, x.kmp_soni || null]);
+  const n = l => (l || []).filter(x => kmpSarlavha(x) && k(x) === k(item)).length;
+  return n(tanlangan) === n(hammasi);
+}
+function kmpQatorlari239(row) {
+  const k = ['kmpGuruh', 'kmpTuri', 'kmpNomi', 'kmpSoni'].map(n => row.dataset[n] || '').join('\u0001');
+  return Array.from(document.querySelectorAll('.detal')).filter(r =>
+    ['kmpGuruh', 'kmpTuri', 'kmpNomi', 'kmpSoni'].map(n => r.dataset[n] || '').join('\u0001') === k);
+}
+async function kmpButunOlib239(row) {
+  if (!row || !row.dataset.kmpGuruh) return;
+  const qatorlar = kmpQatorlari239(row);
+  const s = kmpSarlavha({kmp_guruh: row.dataset.kmpGuruh, kmp_turi: row.dataset.kmpTuri, kmp_nomi: row.dataset.kmpNomi,
+                         kmp_soni: row.dataset.kmpSoni});
+  const ok = await showConfirmModal(s + "\n\nShu komplektning " + qatorlar.length + " ta detali formadan olib tashlansinmi? "
+    + "O'zgarish «Saqlash» bosilgandan keyin kuchga kiradi.", {danger: true, okText: 'Ha, olib tashlash'});
+  if (!ok) return;
+  qatorlar.forEach(r => r.remove());
+  updateTotal();
+}
+function kmpTanaga239(x, row) {
+  if (!x || typeof x !== 'object') return;
+  const d = (row && row.dataset) || {};
+  const g = parseInt(d.kmpGuruh);
+  if (Number.isFinite(g) && g > 0 && d.kmpTuri && d.kmpNomi) {
+    x.kmp_guruh = g;
+    x.kmp_turi = d.kmpTuri;
+    x.kmp_nomi = d.kmpNomi;
+    x.kmp_soni = (d.kmpTuri !== 'oz_olcham' && parseInt(d.kmpSoni) > 0) ? parseInt(d.kmpSoni) : null;
+  } else {
+    x.kmp_guruh = null; x.kmp_turi = null; x.kmp_nomi = null; x.kmp_soni = null;
+  }
+}
+
 function collectItems() {
   const items = [];
   // kech108 (71): har yuboriladigan detalga uning qatori — sanalmaydigan `_qator` xossasi (JSON.stringify uni YUBORMAYDI);
@@ -7575,6 +8022,7 @@ function collectItems() {
     const _q220 = x && x._qator;
     const _id220 = _q220 && _q220.dataset ? parseInt(_q220.dataset.itemId) : NaN;
     if (Number.isFinite(_id220) && _id220 > 0) x.id = _id220;
+    kmpTanaga239(x, _q220);       // kech173 (zip 239)
   });
   return items;
 }

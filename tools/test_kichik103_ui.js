@@ -128,7 +128,9 @@ const ESC = (olib(BASE, 'escapeHtml') || 'function escapeHtml(s){return String(s
   // kech144 (zip 173, MOSLANDI): yuklash / sabab yordamchilari (base.html) va `tanlovJoriy` (orders.html)
   + '\n' + ['xatoSababi', 'yukXato', 'yukOl', 'yukSabab', 'yukXatoMatn', 'yukNavbat', 'yukSessiyaKor', 'amalSababi']
     .map(n => olib(BASE, n)).filter(Boolean).join('\n')
-  + '\n' + (olib(ORDERS, 'tanlovJoriy') || '');
+  + '\n' + (olib(ORDERS, 'tanlovJoriy') || '')
+  // kech173 (zip 239, MOSLANDI): yetkazish oynasi komplekt guruhlarini chizadi (base.html yordamchilari)
+  + '\n' + ['kmpSarlavha', 'kmpBelgisi', 'kmpBloklari'].map(n => olib(BASE, n)).filter(Boolean).join('\n');
 
 (async () => {
   // ═══════════════════════════════════════════════════════════
