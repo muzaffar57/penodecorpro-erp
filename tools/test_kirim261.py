@@ -764,6 +764,21 @@ def _j_ssenariy():
         check(f"J32 {w} px: materiallar — jadval bo'lsa material ustuni ≥ 170 px, aks holda kartalar (material — butun qator)",
               (_mw[0] == "table-row" and _mw[1] >= 170) or (_mw[0] == "grid" and _mw[1] >= 150), _mw)
         ctx.close()
+    # egasi so'rovi 06.11 03:25: xomashyo nomi — BITTA qator (1440 jadval, 390 karta, «Ombordan tanlash» oynasi)
+    for w, tel in ((1440, False), (390, True)):
+        ctx, pg = kontekst(w, 900, tel=tel)
+        sahifa(pg)
+        pg.click("#rcv-ombordan-btn")
+        pg.click("#ot-chiplar [data-filtr='hammasi']")
+        _oq = pg.evaluate("() => [...document.querySelectorAll('#ot-royxat .ot-nm > b')].map(b => Math.round(b.getBoundingClientRect().height))")
+        for nm in ("K261 Penoplast 15", "K261 Granula", "K261 Mikrokalsit"):
+            pg.locator(f"#ot-royxat .ot-it[data-id='{ID[nm]}'] input").check()
+        pg.click("#ot-qosh-btn")
+        _mq = pg.evaluate("() => [...document.querySelectorAll('#rcv-basket-body .rcv-matnom')].map(e => [Math.round(e.getBoundingClientRect().height),"
+                          " getComputedStyle(e).whiteSpace, e.title === e.textContent])")
+        check(f"J34 {w} px: xomashyo nomi bitta qatorda — savat qatorlari (balandlik = maydon, `nowrap`, to'liq nomi izohda) va oyna ro'yxati",
+              len(_mq) == 3 and all(h <= 44 and ws == "nowrap" and t for h, ws, t in _mq) and _oq and max(_oq) <= 20, (_mq, _oq))
+        ctx.close()
     ctx, pg = kontekst(1440, 900)
     sahifa(pg)
     _xy = pg.evaluate("() => [...document.querySelectorAll('#rcv-xarajat-karta .rcv-field label')].map(l => [l.textContent.trim(), Math.round(l.getBoundingClientRect().height)])")

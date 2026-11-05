@@ -122,11 +122,13 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-1
 .rcv-mat thead th .rcv-req{color:var(--r-danger)}
 .rcv-mat thead th.r,.rcv-mat td.c-omb,.rcv-mat td.c-sum{text-align:right}
 .rcv-mat td{padding:0 5px;vertical-align:top}
-.rcv-mat col.k-nr{width:40px}.rcv-mat col.k-omb{width:80px}.rcv-mat col.k-qty{width:84px}.rcv-mat col.k-unit{width:48px}
-.rcv-mat col.k-narx{width:158px}.rcv-mat col.k-sum{width:140px}.rcv-mat col.k-del{width:46px}
+/* kech195 (egasi so'rovi 06.11 03:25: «xomashyo nomi bir qatorda yozilsin, ikki-uch qator bo'lib qolmasin»): material ustuniga ko'proq joy —
+   narx belgisi endi maydon chegarasida (narx ustuni torroq), summa 13 px; nom — bitta qator (sig'masa «…», to'liq nomi — sichqoncha ostida) */
+.rcv-mat col.k-nr{width:38px}.rcv-mat col.k-omb{width:76px}.rcv-mat col.k-qty{width:76px}.rcv-mat col.k-unit{width:52px}
+.rcv-mat col.k-narx{width:120px}.rcv-mat col.k-sum{width:140px}.rcv-mat col.k-del{width:46px}
 .rcv-nr{width:34px;height:var(--h-btn);border-radius:9px;background:var(--r-bg);display:grid;place-items:center;font-weight:700;color:var(--r-text2);font-size:13px}
 .rcv-nr-yangi{color:var(--r-primary);background:var(--r-primary-tint)}
-.rcv-matnom{min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);display:flex;align-items:center;padding:6px 12px;font-weight:600;color:var(--r-text);background:var(--r-bg);line-height:18px;overflow-wrap:anywhere}
+.rcv-matnom{min-height:var(--h-btn);height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 12px;font-weight:600;color:var(--r-text);background:var(--r-bg);line-height:calc(var(--h-btn) - 2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rcv-mat input.rcv-q{width:100%;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 10px;font-size:var(--fs-maydon);font-weight:600;color:var(--r-text);background:var(--white);text-align:right;outline:none;font-family:inherit}
 .rcv-mat input.rcv-q:focus{border-color:var(--r-primary)}
 .rcv-mat input.rcv-q:disabled{background:var(--r-bg);color:var(--r-primary);font-weight:800}
@@ -141,7 +143,7 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-1
 .rcv-trend.dn{color:var(--r-success);background:var(--r-success-tint)}
 html[data-theme="dark"] .rcv-trend{color:#FBBF24;background:rgba(251,191,36,.14)}
 html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.12)}
-.rcv-sum{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-primary-tint);display:flex;align-items:center;justify-content:flex-end;text-align:right;padding:2px 8px;font-weight:800;color:var(--r-text);font-size:13px;line-height:16px}
+.rcv-sum{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-primary-tint);display:flex;align-items:center;justify-content:flex-end;text-align:right;padding:2px 6px;font-weight:800;color:var(--r-text);font-size:13px;line-height:16px}
 .rcv-mat tr.chala .rcv-sum{color:var(--r-text3);font-weight:600;background:var(--r-bg)}
 .rcv-omb{min-height:var(--h-btn);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-weight:700;color:var(--r-text2);font-size:13px;line-height:16px;white-space:nowrap}
 .rcv-omb.kam{color:var(--r-danger)}
@@ -324,7 +326,7 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 .ot-it.dis{opacity:.6;cursor:default}
 .ot-it input{width:18px;height:18px;flex-shrink:0;cursor:inherit;accent-color:var(--r-primary)}
 .ot-nm{flex:1;min-width:0}
-.ot-nm > b{display:block;font-size:14px;color:var(--r-text);overflow-wrap:anywhere}
+.ot-nm > b{display:block;font-size:14px;color:var(--r-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ot-nm small{color:var(--r-text3);font-size:12px;line-height:1.4;display:block}
 .ot-nm small b{color:var(--r-text2)}
 .ot-royxatda{white-space:nowrap;background:var(--r-success-tint);color:var(--r-success);border-radius:999px;padding:1px 7px;font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle}
@@ -1873,7 +1875,7 @@ function ombordanChiz() {
         + (kam ? 'kam · min ' + escapeHtml(sonKor(Number(i.min_stock) || 0, 2)) : 'omborda') + '</div>';
       return `<label class="ot-it${bor ? ' dis' : (on ? ' on' : '')}" data-id="${i.id}"><input type="checkbox"${on ? ' checked' : ''}${bor ? ' disabled' : ''}`
         + ` onchange="ombordanBelgi(${i.id}, this.checked)" aria-label="${escapeHtml(i.item_name)}">`
-        + `<div class="ot-nm"><b>${escapeHtml(i.item_name)}${bor ? '<span class="ot-royxatda">✓ ro\'yxatda</span>' : ''}</b><small>${narxMatn}</small></div>${stk}</label>`;
+        + `<div class="ot-nm"><b title="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}${bor ? '<span class="ot-royxatda">✓ ro\'yxatda</span>' : ''}</b><small>${narxMatn}</small></div>${stk}</label>`;
     }).join('')).join('');
   }
   html += '<button type="button" class="ot-yangi" onclick="apToggleNewItem(true); ombordanYop(true)"><i class="ti ti-sparkles" style="font-size:18px"></i>'
