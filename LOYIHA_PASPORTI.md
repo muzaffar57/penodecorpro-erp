@@ -5445,8 +5445,8 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   rad, balandlik / 1 m³ / formula / o'chirib-yoqishda saqlanishi, ro'yxat (kam, yashirin, kapitel sanalmaydi), avto, ulgurji; E — Excel;
   M — «Boshqa o'lcham» qoplamalisi (mustaqil hisob, teng balandlik, teng masofa, yashirin qator, manfiy ulush, koeffitsient, kapitel) va oraliq
   25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
-  (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 90/0, TF1 90/0, PG 80/0; asl (zip 256) —
-  72 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
+  (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 92/0, TF1 92/0, PG 81/0; asl (zip 256) —
+  74 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
 - (kech189, zip 256) Moliya «Usta KPI to'landi» — ustaga: `tools/test_usta_kpi256.py` (S; R — ro'yxat: maydonlar, qoldiq AYNAN, tartib,
   ruxsat, ikkinchi korxona; K — `usta_kpi` 400, Ehson, eski yozuv, `bogsiz`; T — to'lov bir marta, 409, ro'yxatdan chiqish; U — oyna: tanlov,
   XSS yo'q, tekshiruvlar, saqlash yo'li, «Bekor», 409 da qayta yuklash, server izoh xatosi, takror, kechikkan javob, boshlang'ich / Ehson,
