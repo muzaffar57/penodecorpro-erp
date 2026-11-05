@@ -106,6 +106,9 @@ def kontrast(a, b):
 section("S — manba")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 ORD = open(os.path.join(ROOT, "templates", "orders.html"), encoding="utf-8").read()
+# kech192 (zip 260, MOSLANDI — egasi QARORI 05.11: ro'yxatda «Muddati o'tgan» / «Bugun muddati» / «Ertaga muddati» belgisi va muddat chizig'i
+# YO'Q; chap chiziq — to'lov holati `data-pul`). Versiya manbadan aniqlanadi: eski kodda (zip 203 … 259) eski talab, yangisida — yangi.
+Z260 = 'data-pul="{{' in ORD
 _qb = ORD[ORD.find("{% for o in g.orders %}"):ORD.find("{% endfor %}", ORD.find("{% for o in g.orders %}"))]
 _pin = ORD[ORD.find("function renderPinnedOrders(rows)"):ORD.find("async function toggleOrderPin(")]
 _gr = ORD[ORD.find("{% for g in grouped %}"):ORD.find("<!-- Loyiha sarlavhasi -->")]
@@ -402,9 +405,13 @@ if PW_BOR and all(O.values()):
     check("D1b bugungi, to'langan tugagan, qarzli tugagan (ilgari pushti fon o'zgarmasdi), qoralama qatorlari ham — xuddi shunday",
           all(tanlangan_aniq(_kor.get(k)) for k in ("bugun", "tolangan", "qarzli", "qoralama")),
           {k: (_kor.get(k) or {}).get("keyin") for k in ("bugun", "tolangan", "qarzli", "qoralama")})
-    check("D1c muddat chizig'i ramka bilan birga: muddati o'tgan tanlangan qatorda 7 px qizil chiziq + oltin ramka",
-          "rgb(220, 38, 38) 7px 0px 0px 0px inset" in (((_kor.get("otgan") or {}).get("keyin") or {}).get("soya") or ""),
-          ((_kor.get("otgan") or {}).get("keyin") or {}).get("soya"))
+    _d1c = ((_kor.get("otgan") or {}).get("keyin") or {}).get("soya") or ""
+    if Z260:      # kech192 (zip 260, MOSLANDI): muddat chizig'i yo'q — tanlangan qatorda FAQAT 3 px ramka
+        check("D1c (zip 260) muddati o'tgan tanlangan qatorda muddat chizig'i YO'Q — faqat 3 px aksent ramka",
+              _d1c == "rgb(37, 99, 235) 0px 0px 0px 3px inset", _d1c)
+    else:
+        check("D1c muddat chizig'i ramka bilan birga: muddati o'tgan tanlangan qatorda 7 px qizil chiziq + oltin ramka",
+              "rgb(220, 38, 38) 7px 0px 0px 0px inset" in _d1c, _d1c)
     check("D2 ustuvor (pin) ro'yxatdan tanlansa — loyiha ichidagi nusxasi ham tanlangan (2 ta, faqat shu buyurtma); boshqasida — 1 ta",
           tanlangan_aniq(_kor.get("pin")) and sorted((_kor.get("pin") or {}).get("faollar") or []) == [O["pin"], O["pin"]]
           and ((_kor.get("pin") or {}).get("ikkinchi") or {}).get("yorliq") == '"▶ OCHIQ"'
@@ -453,14 +460,18 @@ if PW_BOR and all(O.values()):
               for v in _q.values()), _q)
     check("D6b belgilar: muddati o'tgan — «Muddati o'tgan», «Qarz: …», topshirish % ; bugungi — «Bugun muddati»; to'langan tugagan — "
           "«✓ To'langan», «To'liq topshirildi» (klass oi-tolangan); qarzli tugagan — «Qarz: …» (oi-qarzli)",
-          "Muddati o'tgan" in _bel["otgan"] and any(b.startswith("Qarz:") for b in _bel["otgan"]) and any(b.endswith("%") for b in _bel["otgan"])
-          and "Bugun muddati" in _bel["bugun"] and "✓ To'langan" in _bel["tolangan"] and "To'liq topshirildi" in _bel["tolangan"]
+          (("Muddati o'tgan" in _bel["otgan"] and "Bugun muddati" in _bel["bugun"]) if not Z260 else      # kech192 (zip 260, MOSLANDI):
+           not any(re.search(r"Muddati o'tgan|Bugun muddati|Ertaga muddati", b) for v in _bel.values() for b in v))   # muddat belgisi YO'Q
+          and any(b.startswith("Qarz:") for b in _bel["otgan"]) and any(b.endswith("%") for b in _bel["otgan"])
+          and "✓ To'langan" in _bel["tolangan"] and "To'liq topshirildi" in _bel["tolangan"]
           and "oi-tolangan" in (_q.get("tolangan") or {}).get("klass", "") and any(b.startswith("Qarz:") for b in _bel["qarzli"])
           and "oi-qarzli" in (_q.get("qarzli") or {}).get("klass", "") and not any(b.startswith("Qarz:") for b in _bel["tolangan"]), _bel)
     _g = NAT.get("guruh") or []
     check("D6c loyiha guruhi: muddat — `data-urgency` (inline chiziq yo'q), muddati o'tgan / qarz — belgi (emoji yo'q)",
           len(_g) == 2 and all(not re.search(r"border-left", x["inline"]) for x in _g) and all(x["urg"] == "overdue" for x in _g)
-          and all(any("pg-belgi qizil|Muddati o'tgan" in b for b in x["belgi"]) and any(b.startswith("proj-debt|Qarz:") for b in x["belgi"]) for x in _g), _g)
+          and all((any("pg-belgi qizil|Muddati o'tgan" in b for b in x["belgi"]) if not Z260 else      # kech192 (zip 260, MOSLANDI):
+                   not any("pg-belgi" in b or "Muddati" in b for b in x["belgi"]))                      # guruhda muddat belgisi YO'Q
+                  and any(b.startswith("proj-debt|Qarz:") for b in x["belgi"]) for x in _g), _g)
     check("D6d ro'yxat bo'lim sarlavhalari (Ustuvor, So'nggi 90 kun) — klass bilan, inline uslubsiz",
           len(NAT.get("bolim") or []) == 2 and all(b.startswith("|") for b in NAT["bolim"]), NAT.get("bolim"))
     _h = NAT.get("hisob") or []

@@ -140,8 +140,21 @@ def qoida(sel):
     return _STYLE[i + len(sel) + 1:_STYLE.find("}", i)]
 
 
-_pg = qoida(".proj-group.open")
-check("S1 OCHIQ loyiha — papka: och ko'k fon (`--f-e6f1fb`), 1 px chegara (`--ch-bfdbfe`), yumaloq burchak, soya, atrofida bo'shliq; "
+# kech192 (zip 260, MOSLANDI — egasi QARORI 05.11: 2-namuna «Aksentli chap chiziq»): har loyiha — oq KARTA, chap chiziq — to'lov holati
+# (`data-pul`), ochiq loyiha — o'sha karta ko'k chegara bilan (papka quloq'i / 20 px bo'shliq YO'Q), ro'yxatda muddat belgisi YO'Q. Versiya
+# manbadan aniqlanadi: eski kodda (zip 207 … 259) eski talab, yangisida — yangi (S1, S4, S5, D1 … D6, D7b, D8 … D11, D16).
+Z260 = 'data-pul="{{' in ORD
+_pg = qoida(".ord-list .proj-group.open") if Z260 else qoida(".proj-group.open")
+if Z260:
+    _kg = qoida(".ord-list .proj-group") or ""
+    check("S1 (zip 260) loyiha — oq KARTA (oq fon, 1 px chegara, 12 px burchak, oraliq 8 px); OCHIQ — ko'k chegara 1,5 px + soya, "
+          "papka quloq'i (`::before`) YO'Q; ochiq sarlavha `--f-eff6ff`",
+          "background:var(--white)" in _kg and "border:1px solid var(--border)" in _kg and "border-radius:12px" in _kg
+          and "margin:0 10px 8px" in _kg and _pg is not None and "border:1.5px solid var(--gold)" in _pg
+          and "box-shadow:var(--shadow-card)" in _pg and ".proj-group.open::before" not in _STYLE
+          and "background:var(--f-eff6ff)" in (qoida(".proj-group.open > .proj-head, .proj-group.open > .proj-head:hover") or ""), (_kg, _pg))
+else:
+  check("S1 OCHIQ loyiha — papka: och ko'k fon (`--f-e6f1fb`), 1 px chegara (`--ch-bfdbfe`), yumaloq burchak, soya, atrofida bo'shliq; "
       "tepada «quloq» (`::before`); sarlavha `--f-dbeafe`",   # kech155 (zip 208 — «Toza ko'k», MOSLANDI): ilgari och qum `--f-f3eee0` / `--ch-e5dfd3` / `--f-ede6d8`
       _pg is not None and "background:var(--f-e6f1fb)" in _pg and "border:1px solid var(--ch-bfdbfe)" in _pg and "border-radius:" in _pg
       and "box-shadow:var(--shadow-card)" in _pg and "margin:20px 8px 12px" in _pg
@@ -156,15 +169,23 @@ check("S3 qator belgilari (`.oi-belgi*`, `.ort-qaytarish`) — FONSIZ, yumaloq c
       len(_bel) >= 8 and not [b for b in _bel if "background" in b[1] or "border-radius" in b[1]]
       and "padding:0;" in (qoida(".oi-belgi, .oi-belgilar .ort-qaytarish") or "")
       and qoida(".oi-belgi.qizil") == "color:var(--m-b91c1c)", [b for b in _bel if "background" in b[1] or "border-radius" in b[1]] or _bel)
-check("S4 loyiha SARLAVHASI belgilari — o'sha (pushti / sariq / yashil fon): `.proj-debt`, `.pg-belgi.qizil`, `.pg-belgi.sariq`, `.proj-paid`",
-      qoida(".proj-debt, .pg-belgi.qizil") == "background:var(--f-fee2e2);color:var(--m-b91c1c)"
-      and qoida(".pg-belgi.sariq") == "background:var(--f-fef3c7);color:var(--m-92400e)"
-      and qoida(".proj-paid") == "background:var(--f-dcfce7);color:var(--m-15803d)")
+if Z260:
+    check("S4 (zip 260) loyiha SARLAVHASI belgilari: `.proj-debt` (pushti), `.proj-paid` (yashil) — o'sha; muddat belgisi (`.pg-belgi`) YO'Q",
+          qoida(".proj-debt") == "background:var(--f-fee2e2);color:var(--m-b91c1c)"
+          and qoida("\n.proj-paid") == "background:var(--f-dcfce7);color:var(--m-15803d)" and 'class="pg-belgi' not in ORD
+          and not re.search(r"(^|\n)\.pg-belgi", _STYLE))
+else:
+    check("S4 loyiha SARLAVHASI belgilari — o'sha (pushti / sariq / yashil fon): `.proj-debt`, `.pg-belgi.qizil`, `.pg-belgi.sariq`, `.proj-paid`",
+          qoida(".proj-debt, .pg-belgi.qizil") == "background:var(--f-fee2e2);color:var(--m-b91c1c)"
+          and qoida(".pg-belgi.sariq") == "background:var(--f-fef3c7);color:var(--m-92400e)"
+          and qoida(".proj-paid") == "background:var(--f-dcfce7);color:var(--m-15803d)")
 _tp = ORD[ORD.find("function toggleProject(pid)"):ORD.find("}", ORD.find("ordHolatSaqla();", ORD.find("function toggleProject(pid)"))) + 1]
 check("S5 HTML / JS o'sha: `toggleProject` (klass `open` + tana ko'rinishi), qator `onclick` / `data-*`, guruh `data-urgency`",
       "const open = g.classList.toggle('open');" in _tp and "body.style.display = open ? 'block' : 'none';" in _tp
       and 'id="oi-{{ o.id }}" onclick="selectOrder({{ o.id }}, this)"' in ORD and 'data-urgency="{{ g_urgency }}"' in ORD
-      and '<span class="oi-belgi qizil">Muddati o\'tgan</span>' in ORD and '<span class="oi-belgi qarz">Qarz: {{ (debt)|son(0) }} so\'m</span>' in ORD, _tp)
+      and (('<span class="oi-belgi qizil">Muddati o\'tgan</span>' in ORD) if not Z260 else      # kech192 (zip 260, MOSLANDI)
+           ('oi-belgi qizil">Muddati' not in ORD and 'oi-belgi sariq">Bugun' not in ORD and 'oi-belgi sariq">Ertaga' not in ORD
+            and 'data-pul="{{' in ORD)) and '<span class="oi-belgi qarz">Qarz: {{ (debt)|son(0) }} so\'m</span>' in ORD, _tp)
 check("S6 ranglar — umumiy belgilar (xom hex YO'Q): yangi papka qoidalari va belgilar", not re.search(
     r"#[0-9A-Fa-f]{3,6}\b", "".join(x[1] for x in _bel) + (_pg or "") + (_kart or "") + (qoida(".proj-group.open::before") or "")))
 with contextlib.redirect_stdout(io.StringIO()):
@@ -373,7 +394,7 @@ OLCH = r"""() => {
     gr[nom] = {ochiq: g.classList.contains('open'), fon: cs(g, 'backgroundColor'), chegara: cs(g, 'borderTopWidth') + ' ' + cs(g, 'borderTopColor'),
       burchak: cs(g, 'borderBottomRightRadius'), soya: cs(g, 'boxShadow'), mt: cs(g, 'marginTop'), mb: cs(g, 'marginBottom'), r: r(g),
       quloq: q.content, quloq_fon: q.backgroundColor, quloq_h: q.height, quloq_d: q.display,
-      sarlavha_fon: cs(h, 'backgroundColor'), nom_rang: cs(g.querySelector('.proj-name'), 'color'), tana_fon: cs(b, 'backgroundColor'),
+      sarlavha_fon: cs(h, 'backgroundColor'), sarlavha_soya: cs(h, 'boxShadow'), pul: g.dataset.pul || null, nom_rang: cs(g.querySelector('.proj-name'), 'color'), tana_fon: cs(b, 'backgroundColor'),
       tana_korinadi: !!b && b.offsetParent !== null, sarlavha_r: r(h),
       belgilar: [...g.querySelectorAll('.proj-head .pg-belgi, .proj-head .proj-debt, .proj-head .proj-paid')].map(x => ({k: x.className, fon: cs(x, 'backgroundColor'), t: x.innerText.trim(), r: r(x)})),
       son_rang: cs(g.querySelector('.proj-count'), 'color'), faol_rang: cs(g.querySelector('.proj-faol'), 'color'),
@@ -479,32 +500,49 @@ if PW_BOR and all(O.values()):
     QUM, QUM_SARLAVHA, QUM_CHEG = hexrgb("#E6F1FB"), hexrgb("#DBEAFE"), hexrgb("#BFDBFE")
     OQ, OLTIN, OLTIN_OCH, BG = (255.0, 255.0, 255.0), (37.0, 99.0, 235.0), (238.0, 244.0, 255.0), hexrgb("#F4F6FA")
     AKSENT_MATN = (29.0, 78.0, 216.0)      # `--gold-dark` #1D4ED8 (ilgari #8F5B2A)
-    check("D1 OCHIQ loyiha — papka: fon och ko'k (#E6F1FB, ilgari #FCFCFB), 1 px chegara (#BFDBFE), yumaloq (12 px), soya, tepada 20 px "
+    if Z260:
+        check("D1 (zip 260) OCHIQ loyiha — KARTA: oq fon, ko'k chegara (#2563EB), yumaloq (12 px), soya; quloq YO'Q; chap chiziq — qizil "
+              "(qarzi bor, `data-pul=qarz`)",
+              A.get("ochiq") and rgb(A.get("fon")) == OQ and re.match(r"1(\.5)?px rgb\(37, 99, 235\)$", A.get("chegara") or "")
+              and A.get("burchak") == "12px" and (A.get("soya") or "none") != "none" and A.get("quloq") in ("none", "normal")
+              and A.get("pul") == "qarz" and "rgb(220, 38, 38) 4px 0px 0px 0px inset" in (A.get("sarlavha_soya") or ""),
+              {k: A.get(k) for k in ("ochiq", "fon", "chegara", "burchak", "soya", "mt", "quloq", "pul", "sarlavha_soya")})
+    else:
+      check("D1 OCHIQ loyiha — papka: fon och ko'k (#E6F1FB, ilgari #FCFCFB), 1 px chegara (#BFDBFE), yumaloq (12 px), soya, tepada 20 px "
           "bo'shliq, «quloq» (#DBEAFE)",
           A.get("ochiq") and rgb(A.get("fon")) == QUM and A.get("chegara") == "1px rgb(191, 219, 254)" and A.get("burchak") == "12px"
           and (A.get("soya") or "none") != "none" and A.get("mt") == "20px" and A.get("quloq") == '""' and rgb(A.get("quloq_fon")) == QUM_SARLAVHA
           and A.get("quloq_d") == "block" and A.get("quloq_h") == "11px",
           {k: A.get(k) for k in ("ochiq", "fon", "chegara", "burchak", "soya", "mt", "quloq", "quloq_fon", "quloq_d", "quloq_h")})
-    check("D2 ochiq loyiha SARLAVHASI yopiqdan farqli (#DBEAFE ↔ yopiq #F4F6FA — ilgari AYNAN bir xil), nomi aksent matn (#1D4ED8)",
-          rgb(A.get("sarlavha_fon")) == QUM_SARLAVHA and rgb(N.get("sarlavha_fon")) == BG and rgb(A.get("nom_rang")) == AKSENT_MATN
+    check("D2 ochiq loyiha SARLAVHASI yopiqdan farqli (#DBEAFE ↔ yopiq #F4F6FA — ilgari AYNAN bir xil), nomi aksent matn (#1D4ED8)"
+          + (" — zip 260: ochiq #EFF6FF ↔ yopiq oq" if Z260 else ""),
+          (rgb(A.get("sarlavha_fon")) == hexrgb("#EFF6FF") and rgb(N.get("sarlavha_fon")) == OQ if Z260      # kech192 (zip 260, MOSLANDI)
+           else rgb(A.get("sarlavha_fon")) == QUM_SARLAVHA and rgb(N.get("sarlavha_fon")) == BG) and rgb(A.get("nom_rang")) == AKSENT_MATN
           and rgb(N.get("nom_rang")) != AKSENT_MATN, (A.get("sarlavha_fon"), N.get("sarlavha_fon"), A.get("nom_rang"), N.get("nom_rang")))
     _qa = {q["id"]: q for q in A.get("qatorlar") or []}
     _oq = [q for q in (A.get("qatorlar") or []) + (Y.get("qatorlar") or []) if not q["faol"]]
     check("D3 papka ichidagi TANLANMAGAN buyurtmalar — OQ kartochka (fon #FFF, 1 px #DBEAFE chegara, 10 px burchak)",
-          len(_oq) == 6 and all(rgb(q["fon"]) == OQ and q["chegara"] == "1px rgb(219, 234, 254)" and q["burchak"] == "10px" for q in _oq),
+          len(_oq) == 6 and all(rgb(q["fon"]) == OQ and q["chegara"] == ("1px rgb(226, 231, 239)" if Z260 else "1px rgb(219, 234, 254)")   # zip 260: `--border`
+                                and q["burchak"] == "10px" for q in _oq),
           _oq)
     _f = _qa.get(O["otgan"]) or {}
     check("D4 TANLANGAN buyurtma ajralib turadi: och aksent fon, 3 px aksent ramka (+ muddat chizig'i), «▶ OCHIQ», aksent chegara",
           _f.get("faol") and rgb(_f.get("fon")) == OLTIN_OCH and "rgb(37, 99, 235) 0px 0px 0px 3px inset" in (_f.get("soya") or "")
-          and "rgb(220, 38, 38) 7px 0px 0px 0px inset" in (_f.get("soya") or "") and _f.get("yorliq") == '"▶ OCHIQ"'
+          and (_f.get("soya") == "rgb(37, 99, 235) 0px 0px 0px 3px inset" if Z260      # kech192 (zip 260, MOSLANDI): muddat chizig'i YO'Q
+               else "rgb(220, 38, 38) 7px 0px 0px 0px inset" in (_f.get("soya") or "")) and _f.get("yorliq") == '"▶ OCHIQ"'
           and _f.get("chegara") == "1px rgb(37, 99, 235)", _f)
     _ichida = all(A["r"]["x"] + 7 <= q["r"]["x"] and q["r"]["o"] <= A["r"]["o"] - 7 and A["sarlavha_r"]["b"] <= q["r"]["y"] and q["r"]["b"] <= A["r"]["b"] - 7
                   for q in A.get("qatorlar") or []) if A.get("r") else False
     _qr = sorted((q["r"] for q in A.get("qatorlar") or []), key=lambda r: r["y"])
     check("D5 kartochkalar papka ICHIDA (har chetdan ≥ 8 px), orasida bo'shliq (≥ 5 px); papkalar orasida ≥ 12 px",
           len(_qr) == 4 and _ichida and all(_qr[i + 1]["y"] - _qr[i]["b"] >= 5 for i in range(3))
-          and Y.get("r") and A.get("r") and Y["r"]["y"] - A["r"]["b"] >= 12, (A.get("r"), _qr, Y.get("r")))
-    check("D6 YOPIQ guruh o'zgarmagan: fon / chegara / bo'shliq yo'q, sarlavha #F8F8F6, tana yashirin",
+          and Y.get("r") and A.get("r") and Y["r"]["y"] - A["r"]["b"] >= (8 if Z260 else 12), (A.get("r"), _qr, Y.get("r")))   # zip 260: kartalar oralig'i 8 px
+    if Z260:      # kech192 (zip 260, MOSLANDI)
+        check("D6 (zip 260) YOPIQ loyiha — oq KARTA: oq fon va sarlavha, 1 px kulrang chegara, 12 px burchak, pastda 8 px, quloq yo'q, tana yashirin",
+              not N.get("ochiq") and rgb(N.get("fon")) == OQ and rgb(N.get("sarlavha_fon")) == OQ and N.get("chegara") == "1px rgb(226, 231, 239)"
+              and N.get("burchak") == "12px" and N.get("mb") == "8px" and N.get("quloq") in ("none", "normal") and not N.get("tana_korinadi"), N)
+    else:
+      check("D6 YOPIQ guruh o'zgarmagan: fon / chegara / bo'shliq yo'q, sarlavha #F8F8F6, tana yashirin",
           not N.get("ochiq") and shaffof(N.get("fon")) and N.get("chegara", "").startswith("0px") and N.get("mt") == "0px"
           and N.get("quloq") in ("none", "normal") and not N.get("tana_korinadi"), N)
     _bl = K.get("bel") or []
@@ -529,12 +567,15 @@ if PW_BOR and all(O.values()):
     check("D7c belgilar fonsiz bo'lgach bir-biriga yopishmaydi: bir satrdagi qo'shni belgilar orasida ≥ 10 px (12 px)",
           _or and all(x >= 10 for x in _or), _or)
     check("D7b belgilar matni o'sha: «Muddati o'tgan», «Qarz: …», «✓ To'langan», «To'liq topshirildi», «Bugun muddati», topshirish %",
-          {"Muddati o'tgan", "✓ To'langan", "To'liq topshirildi", "Bugun muddati"} <= _matn and any(t.startswith("Qarz: ") for t in _matn)
+          ({"✓ To'langan", "To'liq topshirildi"} <= _matn and not any(re.search(r"Muddati o'tgan|Bugun muddati|Ertaga muddati", t) for t in _matn)
+           if Z260 else {"Muddati o'tgan", "✓ To'langan", "To'liq topshirildi", "Bugun muddati"} <= _matn)   # zip 260: muddat belgisi YO'Q
+          and any(t.startswith("Qarz: ") for t in _matn)
           and any(t.endswith("%") for t in _matn), _matn)
     _qz = [b for b in _bl if "qizil" in b["k"]]
     check("D8 «Muddati o'tgan» — qizil MATN (#B91C1C, ilgari oq yozuv to'q qizil fonda), «Qarz» ham qizil; har belgi o'z kartochkasida "
           "≥ 4,5:1 kontrast",
-          _qz and all(rgb(b["rang"]) == (185.0, 28.0, 28.0) for b in _qz)
+          (not _qz if Z260 else _qz and all(rgb(b["rang"]) == (185.0, 28.0, 28.0) for b in _qz))   # zip 260: «qizil» (muddat) belgisi YO'Q
+          and any("qarz" in b["k"] for b in _bl)
           and all(rgb(b["rang"]) == (185.0, 28.0, 28.0) for b in _bl if "qarz" in b["k"])
           and all(kontrast(rgb(b["rang"]), rgb(b["qator_fon"])) >= 4.5 for b in _bl),
           [(b["t"], b["rang"], b["qator_fon"], round(kontrast(rgb(b["rang"]), rgb(b["qator_fon"])), 2)) for b in _bl])
@@ -543,11 +584,19 @@ if PW_BOR and all(O.values()):
           _iz and all(rgb(x) == (219.0, 234.0, 254.0) for x in _iz), _iz)
     _sb = A.get("belgilar") or []
     check("D9 loyiha SARLAVHASI belgilari o'sha: «Muddati o'tgan» va «Qarz: …» — pushti fon (#FEE2E2)",
-          any(b["t"].startswith("Muddati o'tgan") and rgb(b["fon"]) == (254.0, 226.0, 226.0) for b in _sb)
+          (not any(b["t"].startswith("Muddati") or "pg-belgi" in b["k"] for b in _sb) if Z260      # kech192 (zip 260, MOSLANDI)
+           else any(b["t"].startswith("Muddati o'tgan") and rgb(b["fon"]) == (254.0, 226.0, 226.0) for b in _sb))
           and any(b["t"].startswith("Qarz:") and rgb(b["fon"]) == (254.0, 226.0, 226.0) for b in _sb), _sb)
     _yp = ((NAT.get("yopildi") or {}).get("gr") or {}).get(nom("Andijon kottej")) or {}
     _qy = ((NAT.get("qayta") or {}).get("gr") or {}).get(nom("Andijon kottej")) or {}
-    check("D10 yopilganda papka uslubi ketadi (fon / chegara / bo'shliq yo'q, sarlavha #F4F6FA), qayta ochilganda qaytadi; tanlov saqlanadi",
+    if Z260:      # kech192 (zip 260, MOSLANDI)
+        check("D10 (zip 260) yopilganda ochiq uslub ketadi (oq sarlavha, kulrang chegara), qayta ochilganda ko'k chegara qaytadi; tanlov saqlanadi",
+              not _yp.get("ochiq") and rgb(_yp.get("fon")) == OQ and rgb(_yp.get("sarlavha_fon")) == OQ
+              and _yp.get("chegara") == "1px rgb(226, 231, 239)" and _qy.get("ochiq")
+              and re.match(r"1(\.5)?px rgb\(37, 99, 235\)$", _qy.get("chegara") or "")
+              and any(q["faol"] and q["id"] == O["otgan"] for q in _qy.get("qatorlar") or []), (_yp, _qy.get("chegara")))
+    else:
+      check("D10 yopilganda papka uslubi ketadi (fon / chegara / bo'shliq yo'q, sarlavha #F4F6FA), qayta ochilganda qaytadi; tanlov saqlanadi",
           not _yp.get("ochiq") and shaffof(_yp.get("fon")) and _yp.get("mt") == "0px" and rgb(_yp.get("sarlavha_fon")) == BG
           and _qy.get("ochiq") and rgb(_qy.get("fon")) == QUM and any(q["faol"] and q["id"] == O["otgan"] for q in _qy.get("qatorlar") or []),
           (_yp, _qy.get("fon")))
@@ -558,7 +607,8 @@ if PW_BOR and all(O.values()):
     _ta = _TG.get(nom("Andijon kottej")) or {}
     _tq = {q["id"]: q for q in _ta.get("qatorlar") or []}
     check("D11 tungi rejim: papka (#202C36) va sarlavha (#1B2F42) qorong'i, kartochkalar qorong'i karta (#1E212A), tanlangani #1A2741",   # kech155 (zip 208 — «Toza ko'k», MOSLANDI)
-          _T.get("tema") == "dark" and rgb(_ta.get("fon")) == hexrgb("#202C36") and rgb(_ta.get("sarlavha_fon")) == hexrgb("#1B2F42")
+          _T.get("tema") == "dark" and ((rgb(_ta.get("fon")) == hexrgb("#1E212A") and rgb(_ta.get("sarlavha_fon")) == hexrgb("#222A32")) if Z260
+                                        else (rgb(_ta.get("fon")) == hexrgb("#202C36") and rgb(_ta.get("sarlavha_fon")) == hexrgb("#1B2F42")))   # zip 260: karta / och sarlavha
           and all(rgb(q["fon"]) == hexrgb("#1E212A") for q in _tq.values() if not q["faol"])
           and rgb((_tq.get(O["otgan"]) or {}).get("fon")) == hexrgb("#1A2741"), (_T.get("tema"), _ta.get("fon"), _ta.get("sarlavha_fon"), _tq))
     _tb = _T.get("bel") or []
@@ -610,7 +660,8 @@ if PW_BOR and all(O.values()):
     check("D16 (mustaqil tekshiruv U4) loyiha sarlavhasida «Muddati o'tgan · 2 ta buyurtma» va «Qarz: …» bir-birining ustiga chiqmaydi (ilgari "
           "50–107 px)",
           len(_ust) == 8 and not any(_ust.values())
-          and any(b["t"].startswith("Muddati o'tgan · 2 ta") for b in (A.get("belgilar") or [])), _ust)
+          and (not any(b["t"].startswith("Muddati") for b in (A.get("belgilar") or [])) if Z260      # zip 260: muddat belgisi YO'Q
+               else any(b["t"].startswith("Muddati o'tgan · 2 ta") for b in (A.get("belgilar") or []))), _ust)
     _son = [(nm, g.get("son_rang"), g.get("faol_rang"), g.get("sarlavha_fon")) for v in (K, NAT.get("t") or {})
             for nm, g in (v.get("gr") or {}).items() if g.get("ochiq")]
     check("D17 (mustaqil tekshiruv U2) ochiq papka sarlavhasida «N ta ·» va «N faol» ≥ 4,5:1 (yorug' va tungi; ilgari 4,17 / 4,04); «faol» "
