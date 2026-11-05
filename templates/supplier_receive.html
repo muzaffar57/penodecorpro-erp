@@ -157,7 +157,9 @@ html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.
 #ap-newitem-yorliq{min-height:var(--h-btn);border:1.5px dashed var(--r-primary);border-radius:var(--r-btn);display:flex;align-items:center;padding:6px 12px;font-weight:700;color:var(--r-primary-d);background:var(--r-primary-tint);font-size:13px}
 .rcv-yorliq-ichki{display:none}
 /* tor joy (kartalar): har qator — karta; birlik ustuni — miqdor yorlig'ida («Miqdor (kg)») */
-@container rcvmat (max-width:700px){
+/* kech195 (JONLI sinov, sinov sayti 743 px oynada O'LCHANGAN: 700 … 760 px kartada jadval qolib, material ustuni ~60 px — nom harflab
+   bo'linardi): jadval — kamida ~200 px material ustuni sig'adigan kenglikda, undan torda KARTA */
+@container rcvmat (max-width:760px){
   .rcv-mat, .rcv-mat > tbody{display:block;width:100%}
   .rcv-mat > thead, .rcv-mat > colgroup{display:none}
   .rcv-mat > tbody > tr{display:grid;grid-template-columns:34px minmax(0,1fr) minmax(0,1fr) 42px;

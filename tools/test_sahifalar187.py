@@ -134,7 +134,7 @@ check("S8 Kirim — «Materiallar ro'yxati» va «Kirimlar tarixi» jadvallari `
       # kech195 (zip 261, MOSLANDI): «Materiallar» jadvali — o'z karta qoidasi (konteyner so'rovi `@container rcvmat`, kataklarda `data-label`
       # va ichki yorliq), «Kirimlar tarixi» — avvalgidek `telefon-karta`
       ((_SR.count('<table class="rcv-table telefon-karta">') == 1 and '<table class="rcv-mat" id="rcv-mat-jadval">' in _SR
-        and "@container rcvmat (max-width:700px){" in _SR and '<td class="c-mat" data-label="Material nomi">' in _SR
+        and "@container rcvmat (max-width:760px){" in _SR and '<td class="c-mat" data-label="Material nomi">' in _SR
         and '<td class="c-del" data-label=""><button type="button" class="rcv-del rcv-icon-btn" onclick="apRemoveFromBasket(${i})"' in _SR)
        if _Z261 else
        (_SR.count('<table class="rcv-table telefon-karta">') == 2

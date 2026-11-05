@@ -743,6 +743,19 @@ def _j_ssenariy():
         check(f"J30 kompyuter {w}: jadval (qator — table-row, sarlavha ko'rinadi), gorizontal surilish yo'q",
               _tr == ["table-row", "table-header-group"] and _sw[0] <= _sw[1] + 1, (_tr, _sw))
         ctx.close()
+    # kech195 (JONLI sinov — 743 px oynada material ustuni ~60 px edi): jadval faqat material ustuniga ≥ 170 px qolganda, aks holda — kartalar
+    for w in (743, 1280, 1440):
+        ctx, pg = kontekst(w, 900)
+        sahifa(pg)
+        tanla(pg, "#ap-item", str(ID["K261 Granula"]))
+        pg.fill("#ap-qty", "1")
+        pg.fill("#ap-price", "270")
+        pg.click("#rcv-kiritish-body .rcv-qosh")
+        _mw = pg.evaluate("() => { const tr = document.querySelector('#rcv-basket-body tr'); const td = tr.querySelector('.c-mat');"
+                          " return [getComputedStyle(tr).display, Math.round(td.getBoundingClientRect().width)]; }")
+        check(f"J32 {w} px: materiallar — jadval bo'lsa material ustuni ≥ 170 px, aks holda kartalar (material — butun qator)",
+              (_mw[0] == "table-row" and _mw[1] >= 170) or (_mw[0] == "grid" and _mw[1] >= 150), _mw)
+        ctx.close()
     check("J31 JS xatosi yo'q", not JS_XATO, JS_XATO[:5])
 
 
