@@ -124,14 +124,22 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-1
 .rcv-mat td{padding:0 5px;vertical-align:top}
 /* kech195 (egasi so'rovi 06.11 03:25: «xomashyo nomi bir qatorda yozilsin, ikki-uch qator bo'lib qolmasin»): material ustuniga ko'proq joy —
    narx belgisi endi maydon chegarasida (narx ustuni torroq), summa 13 px; nom — bitta qator (sig'masa «…», to'liq nomi — sichqoncha ostida) */
-.rcv-mat col.k-nr{width:38px}.rcv-mat col.k-omb{width:76px}.rcv-mat col.k-qty{width:76px}.rcv-mat col.k-unit{width:52px}
+/* kech196 (egasi so'rovi 06.11 03:57: «summa to'liq sig'mayapti — shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar
+   qolmasin»; O'LCHANGAN work/k262/olchov262.py — 19 kenglik × katta qiymatlar): kiritish qatorida «43 960 000 so'm» (140 / 128 px),
+   miqdor «12 345,5» / «12500» (78 / 64 px) qirqilardi, «1 234 567,25 kg» qoldig'i material katagiga toshardi, № katagi (34 px) ustundan
+   (28 px) 6 px chiqardi → «Omborda» 80, «Miqdor» 84 px, maydon ichki chegarasi 8 px, kiritish summasi — savat qatoridagi summa
+   o'lchamida (13 px), raqamlar sig'masa — `rcvSigdir` (shrift kichrayadi, raqam o'rtasidan bo'linmaydi) */
+.rcv-mat col.k-nr{width:38px}.rcv-mat col.k-omb{width:80px}.rcv-mat col.k-qty{width:84px}.rcv-mat col.k-unit{width:52px}
 .rcv-mat col.k-narx{width:120px}.rcv-mat col.k-sum{width:140px}.rcv-mat col.k-del{width:46px}
+.rcv-mat td.c-nr{padding-right:0}
+.rcv-mat .rcv-nr{width:32px}
 .rcv-nr{width:34px;height:var(--h-btn);border-radius:9px;background:var(--r-bg);display:grid;place-items:center;font-weight:700;color:var(--r-text2);font-size:13px}
 .rcv-nr-yangi{color:var(--r-primary);background:var(--r-primary-tint)}
 .rcv-matnom{min-height:var(--h-btn);height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 12px;font-weight:600;color:var(--r-text);background:var(--r-bg);line-height:calc(var(--h-btn) - 2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rcv-mat input.rcv-q{width:100%;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 10px;font-size:var(--fs-maydon);font-weight:600;color:var(--r-text);background:var(--white);text-align:right;outline:none;font-family:inherit}
+.rcv-mat input.rcv-q{width:100%;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 8px;font-size:var(--fs-maydon);font-weight:600;color:var(--r-text);background:var(--white);text-align:right;outline:none;font-family:inherit}
 .rcv-mat input.rcv-q:focus{border-color:var(--r-primary)}
 .rcv-mat input.rcv-q:disabled{background:var(--r-bg);color:var(--r-primary);font-weight:800}
+.rcv-mat tr.rcv-kiritish td.c-sum input.rcv-q{font-size:13px;padding:0 6px}
 .rcv-mat tr.chala input.rcv-q.bosh{border-color:var(--r-danger);background:var(--r-danger-tint)}
 .rcv-unit{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-bg);display:grid;place-items:center;font-weight:700;color:var(--r-text2);border:1px dashed var(--r-border);font-size:13px;padding:0 4px;overflow-wrap:anywhere;text-align:center}
 /* review261 №1: belgi maydon ICHIDA bo'lsa tor katakda raqam qirqilardi («1 375 000» → «1 375 0», telefonda «1 375») — endi belgi maydonning
@@ -147,6 +155,7 @@ html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.
 .rcv-mat tr.chala .rcv-sum{color:var(--r-text3);font-weight:600;background:var(--r-bg)}
 .rcv-omb{min-height:var(--h-btn);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-weight:700;color:var(--r-text2);font-size:13px;line-height:16px;white-space:nowrap}
 .rcv-omb.kam{color:var(--r-danger)}
+.rcv-omb > span{max-width:100%;white-space:normal;text-align:right;overflow-wrap:normal}
 .rcv-omb small{font-size:12px;font-weight:700;display:flex;align-items:center;gap:2px}
 .rcv-del{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-danger-tint);color:var(--r-danger);border:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
 .rcv-del:hover{background:var(--r-danger);color:#fff}
@@ -187,7 +196,11 @@ html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.
   .rcv-mat td.c-sum .rcv-yorliq-ichki{margin:0;font-weight:600;color:var(--r-text3);font-size:13px}
   .rcv-mat td.c-sum .rcv-sum, .rcv-mat td.c-sum input.rcv-q{background:transparent;padding:0;min-height:0;border:0;font-size:16px;width:auto}
   .rcv-mat td.c-sum input.rcv-q{min-height:var(--h-btn);height:var(--h-btn)}
-  .rcv-mat td.c-sum input.rcv-q{width:60%;min-width:0;flex:0 1 auto}
+  .rcv-mat tr.rcv-kiritish td.c-sum input.rcv-q{font-size:16px;padding:0}
+  .rcv-mat td.c-sum input.rcv-q{width:auto;min-width:0;flex:1 1 0}
+  .rcv-mat td.c-sum .rcv-yorliq-ichki{flex-shrink:0;white-space:nowrap}
+  .rcv-mat td.c-sum .rcv-sum{min-width:0;flex:0 1 auto}
+  .rcv-omb > span{text-align:left}
   .rcv-addbar{flex-direction:column}
   .rcv-addbar .rcv-ab{flex:none;width:100%}
   .rcv-addbar .rcv-ab-qator{display:flex;gap:8px;width:100%;flex-wrap:wrap;align-items:flex-start}
@@ -217,7 +230,21 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 .rcv-ro.on .dot{border:5px solid var(--r-primary)}
 @media(max-width:700px){.rcv-tolov-turi{flex-direction:column}.rcv-ro{flex:none}}
 .rcv-row-tolov{grid-template-columns:1fr 1.15fr .9fr}
-@media(max-width:900px){.rcv-row-tolov{grid-template-columns:1fr}}
+/* kech196 (O'LCHANGAN 1024 … 1366 px: «Qaysi hisobdan» ustuni 230 … 255 px — «Naqd pul», «Bank», «Karta» «N…», «B…», «K…» bo'lib qolardi;
+   uchala bo'lak ~ 275 px so'raydi): kartaning o'z kengligi bo'yicha — keng: uch ustun; o'rtacha: summa | muddat, ostida hisob butun
+   qator; tor: bitta ustun. Yorliq ikki qator bo'lsa ham maydonlar bir chiziqda (yorliq o'sadi) */
+#rcv-tolov-karta > .rcv-card-body{container:rcvtolov / inline-size}
+.rcv-row-tolov > .rcv-field{display:flex;flex-direction:column}
+.rcv-row-tolov > .rcv-field > label{flex:1 0 auto}
+@container rcvtolov (max-width:759px){
+  .rcv-row-tolov{grid-template-columns:1fr 1fr}
+  .rcv-row-tolov > .rcv-field:nth-child(2){grid-column:1 / -1;grid-row:2}
+  .rcv-row-tolov:has(> #ap-due-wrap[style*="none"]) > .rcv-field:first-child{grid-column:1 / -1}
+}
+@container rcvtolov (max-width:439px){
+  .rcv-row-tolov{grid-template-columns:1fr}
+  .rcv-row-tolov > .rcv-field:nth-child(2){grid-row:auto}
+}
 .rcv-izoh{font-size:12px;color:var(--r-text3);line-height:1.5}
 
 /* ── Yig'iladigan bo'limlar ── */
@@ -233,7 +260,8 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 
 /* ── Hisob-kitob (o'ng ustun) ── */
 .rcv-kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;font-size:14px;color:var(--r-text2)}
-.rcv-kv b{color:var(--r-text);font-weight:700;text-align:right;overflow-wrap:anywhere}
+.rcv-kv > span{flex-shrink:0;white-space:nowrap}
+.rcv-kv b{color:var(--r-text);font-weight:700;text-align:right;min-width:0}
 .rcv-kv.tot{background:var(--r-primary-tint);margin:6px -10px;padding:12px 10px;border-radius:10px;font-size:16px}
 .rcv-kv.tot span{color:var(--r-text);font-weight:800}
 .rcv-kv.tot b{color:var(--r-primary-d);font-weight:800;font-size:16px}
@@ -258,7 +286,7 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 .rcv-stat-grid > *{min-width:0}
 .rcv-stat-box{background:var(--r-bg);border-radius:10px;padding:9px 10px}
 .rcv-stat-label{font-size:12px;color:var(--r-text3);font-weight:700}
-.rcv-stat-value{font-size:13px;font-weight:800;color:var(--r-text);margin-top:2px;overflow-wrap:anywhere;line-height:17px}
+.rcv-stat-value{font-size:13px;font-weight:800;color:var(--r-text);margin-top:2px;line-height:17px}
 @media(max-width:420px){
   .rcv-stat-grid{grid-template-columns:1fr}
   .rcv-stat-box{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 14px}
@@ -280,6 +308,21 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 .rcv-wrap.rcv-boshl div.rcv-note.faqat-boshl{display:flex}
 
 /* ── Tarix jadvali (avvalgidek) ── */
+/* kech196 (O'LCHANGAN 1180 px: tarix kartasi 518 px — 6 ustun siqilib, «999 999 / so'm» ikki qatorga, material nomlari 3 qatorga
+   bo'linardi): pul kataklari bir qatorda; karta tor bo'lsa (< 640 px) — har kirim alohida karta (telefondagi `telefon-karta` ko'rinishi) */
+#rcv-tarix-yigma > .rcv-card-body{container:rcvtarix / inline-size}
+.rcv-table td.rcv-pul{white-space:nowrap}
+@container rcvtarix (max-width:639px){
+  .rcv-table.telefon-karta, .rcv-table.telefon-karta > tbody, .rcv-table.telefon-karta > tbody > tr, .rcv-table.telefon-karta > tbody > tr > td{display:block;width:100%}
+  .rcv-table.telefon-karta{min-width:0 !important}
+  .rcv-table.telefon-karta > thead{display:none}
+  .rcv-table.telefon-karta > tbody > tr{border:1px solid var(--r-border);border-radius:12px;padding:8px 12px;margin-bottom:10px;background:var(--r-card)}
+  .rcv-table.telefon-karta > tbody > tr > td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 0 !important;border:none !important;text-align:right !important;min-width:0;overflow-wrap:anywhere}
+  .rcv-table.telefon-karta > tbody > tr > td::before{content:attr(data-label);color:var(--r-text3);font-size:12px;font-weight:600;text-align:left;flex-shrink:0;max-width:45%;margin-right:auto}
+  .rcv-table.telefon-karta > tbody > tr > td[colspan]{justify-content:center;text-align:center !important}
+  .rcv-table.telefon-karta > tbody > tr > td[colspan]::before{content:none}
+  .rcv-table td.rcv-pul{white-space:normal}
+}
 .rcv-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
 .rcv-table thead th{text-align:left;padding:10px 12px;color:var(--r-text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--r-border)}
 .rcv-table tbody td{padding:12px;border-bottom:1px solid var(--r-border);color:var(--r-text2)}
@@ -294,7 +337,8 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 @media(max-width:700px){
   .rcv-wrap{padding-bottom:0}
   .rcv-dock{display:block;position:sticky;bottom:0;z-index:5;margin:4px -16px 0;background:var(--r-card);border-top:1px solid var(--r-border);padding:10px 14px 14px;box-shadow:0 -6px 20px rgba(0,0,0,.08)}
-  .rcv-dock-qator{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--r-text2);margin-bottom:8px}
+  .rcv-dock-qator{display:flex;justify-content:space-between;flex-wrap:wrap;column-gap:10px;row-gap:2px;font-size:13px;color:var(--r-text2);margin-bottom:8px}
+  .rcv-dock-qator > span{min-width:0}
   .rcv-dock-qator b{color:var(--r-text)}
   .rcv-dock-qator .qarz{color:var(--r-danger)}
   .rcv-dock .rcv-btn{width:100%;min-height:var(--h-btn);font-size:16px;font-weight:800}
@@ -326,10 +370,14 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 .ot-it.dis{opacity:.6;cursor:default}
 .ot-it input{width:18px;height:18px;flex-shrink:0;cursor:inherit;accent-color:var(--r-primary)}
 .ot-nm{flex:1;min-width:0}
-.ot-nm > b{display:block;font-size:14px;color:var(--r-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* kech196 (O'LCHANGAN: uzun nomda «✓ ro'yxatda» belgisi «…» bilan birga qirqilib yo'qolardi): nom — «…», belgi — doim ko'rinadi */
+.ot-nm > b{display:flex;align-items:center;min-width:0;font-size:14px;color:var(--r-text);white-space:nowrap}
+.ot-nm > b > .ot-nom{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* telefonda (O'LCHANGAN 320 … 430 px: belgi 75 px — nom 8 … 78 px gacha qisqarardi): faqat «✓» (katak ham belgilangan va o'chiq) */
+@media(max-width:480px){.ot-royxatda .ot-r-matn{display:none}.ot-nm .ot-royxatda{padding:1px 6px}}
 .ot-nm small{color:var(--r-text3);font-size:12px;line-height:1.4;display:block}
 .ot-nm small b{color:var(--r-text2)}
-.ot-royxatda{white-space:nowrap;background:var(--r-success-tint);color:var(--r-success);border-radius:999px;padding:1px 7px;font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle}
+.ot-royxatda{flex-shrink:0;white-space:nowrap;background:var(--r-success-tint);color:var(--r-success);border-radius:999px;padding:1px 7px;font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle}
 .ot-stk{text-align:right;font-size:13px;color:var(--r-text3);white-space:nowrap}
 .ot-stk b{display:block;font-size:14px;color:var(--r-text)}
 .ot-stk.kam b{color:var(--r-danger)}
@@ -438,16 +486,18 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
                 <td class="c-mat" data-label="Material">
                   <div id="ap-item-wrap"><select id="ap-item" onchange="apOnItemChange()" data-qidiruvli data-qidiruv-joy="Material nomi…" aria-label="Material"><option value="">Yuklanmoqda...</option></select></div>
                   <div id="ap-newitem-yorliq" style="display:none"><i class="ti ti-sparkles"></i>&nbsp;Yangi material — nomini formada yozing</div>
-                  <div class="rcv-vol" id="ap-volume-wrap" style="display:none">
+                  {# kech196 (O'LCHANGAN: `#ap-volume-wrap` ko'rinishi JS da `style.display = 'block'` — `.rcv-vol` flex qoidasi bekor bo'lib, kiritish
+                     qatorida «1 blok =» belgiga yopishgan va maydon savat qatorlaridagidan 10 px chapda edi): ko'rinish — tashqi o'ramda, joylashuv — ichkida #}
+                  <div id="ap-volume-wrap" style="display:none"><div class="rcv-vol">
                     {# kech120 (zip 132 — G4-18): materialning joriy blok hajmi o'zi yoziladi (ilgari bo'sh, namuna «1.4» — boshqa materialniki) #}
                     <i class="ti ti-cube"></i><label for="ap-volume">1 blok =</label><input type="text" class="i-m3price" id="ap-volume" placeholder="m³" inputmode="decimal"><span>m³</span>
-                  </div>
+                  </div></div>
                 </td>
                 <td class="c-omb" data-label="Omborda" id="ap-omborda"><div class="rcv-omb">—</div></td>
-                <td class="c-qty" data-label="Miqdor"><span class="rcv-yorliq-ichki" id="ap-qty-yorliq">Miqdor</span><input class="rcv-q" type="number" id="ap-qty" placeholder="0" min="0" step="0.01" aria-label="Miqdor"></td>
+                <td class="c-qty" data-label="Miqdor"><span class="rcv-yorliq-ichki" id="ap-qty-yorliq">Miqdor</span><input class="rcv-q rcv-sig" type="number" id="ap-qty" placeholder="0" min="0" step="0.01" aria-label="Miqdor"></td>
                 <td class="c-unit" data-label="Birlik"><div class="rcv-unit" id="ap-unit">—</div></td>
-                <td class="c-narx" data-label="1 birlik narxi"><span class="rcv-yorliq-ichki" id="ap-price-yorliq">1 birlik narxi</span><div class="rcv-narxbox" id="ap-narxbox"><span id="ap-trend"></span><input class="rcv-q" type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this)" inputmode="decimal" aria-label="1 birlik narxi"></div></td>
-                <td class="c-sum" data-label="Summa"><span class="rcv-yorliq-ichki">Summa</span><input class="rcv-q" type="text" id="ap-total" value="—" disabled aria-label="Summa"></td>
+                <td class="c-narx" data-label="1 birlik narxi"><span class="rcv-yorliq-ichki" id="ap-price-yorliq">1 birlik narxi</span><div class="rcv-narxbox" id="ap-narxbox"><span id="ap-trend"></span><input class="rcv-q rcv-sig" type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this)" inputmode="decimal" aria-label="1 birlik narxi"></div></td>
+                <td class="c-sum" data-label="Summa"><span class="rcv-yorliq-ichki">Summa</span><input class="rcv-q rcv-sig" type="text" id="ap-total" value="—" disabled aria-label="Summa"></td>
                 <td class="c-del" data-label=""><button type="button" class="rcv-qosh" onclick="apAddToBasket()" title="Qatorni ro'yxatga qo'shish" aria-label="Qatorni ro'yxatga qo'shish"><i class="ti ti-plus"></i></button></td>
               </tr>
             </tbody>
@@ -506,10 +556,10 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
         <div class="rcv-card-body">
           <div class="rcv-sec"><i class="ti ti-truck"></i><b>Qo'shimcha xarajatlar</b><span class="rcv-sec-izoh">ixtiyoriy · korxona xarajati, ta'minotchi qarziga kirmaydi</span></div>
           <div class="rcv-row rcv-row-4" style="margin-bottom:0">
-            <div class="rcv-field"><label for="ap-cost-transport"><i class="ti ti-truck"></i> Transport</label><input type="text" id="ap-cost-transport" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
-            <div class="rcv-field"><label for="ap-cost-tushirish"><i class="ti ti-forklift"></i> Tushirish</label><input type="text" id="ap-cost-tushirish" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
-            <div class="rcv-field"><label for="ap-cost-yuklash"><i class="ti ti-package-export"></i> Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
-            <div class="rcv-field"><label for="ap-cost-boshqa"><i class="ti ti-dots"></i> Boshqa xarajat</label><input type="text" id="ap-cost-boshqa" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-transport"><i class="ti ti-truck"></i> Transport</label><input type="text" class="rcv-sig" id="ap-cost-transport" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-tushirish"><i class="ti ti-forklift"></i> Tushirish</label><input type="text" class="rcv-sig" id="ap-cost-tushirish" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-yuklash"><i class="ti ti-package-export"></i> Yuklash</label><input type="text" class="rcv-sig" id="ap-cost-yuklash" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-boshqa"><i class="ti ti-dots"></i> Boshqa xarajat</label><input type="text" class="rcv-sig" id="ap-cost-boshqa" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
           </div>
           <label class="rcv-chk">
             <input type="checkbox" id="ap-add-to-cost" onchange="updateSummary()">
@@ -530,7 +580,7 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
           </div>
           <div class="rcv-row rcv-row-tolov" style="margin-bottom:8px">
             <div class="rcv-field"><label for="ap-paid-now">To'langan summa <span class="rcv-req" id="ap-paid-req" style="display:none">*</span> <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — materiallar uchun)</span></label>
-              <div class="rcv-ikonli"><i class="ti ti-cash"></i><input type="text" id="ap-paid-now" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this)"></div>
+              <div class="rcv-ikonli"><i class="ti ti-cash"></i><input type="text" class="rcv-sig" id="ap-paid-now" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this)"></div>
             </div>
             {# kech155 (zip 210): hoziroq to'lov va qo'shimcha xarajatlar qaysi pul hisobidan #}
             <div class="rcv-field"><label>Qaysi hisobdan</label>
@@ -567,14 +617,14 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
       <div class="rcv-card" id="rcv-hisob-karta">
         <div class="rcv-card-body">
           <div class="rcv-sec"><i class="ti ti-calculator"></i><b>Hisob-kitob</b></div>
-          <div class="rcv-kv"><span id="sum-products-yorliq">Materiallar summasi</span><b id="sum-products">0 so'm</b></div>
-          <div class="rcv-kv faqat-kirim"><span>Qo'shimcha xarajatlar</span><b id="sum-transport">0 so'm</b></div>
-          <div class="rcv-kv tot faqat-kirim"><span>Umumiy summa</span><b id="sum-grand">0 so'm</b></div>
+          <div class="rcv-kv"><span id="sum-products-yorliq">Materiallar summasi</span><b class="rcv-sig" id="sum-products">0 so'm</b></div>
+          <div class="rcv-kv faqat-kirim"><span>Qo'shimcha xarajatlar</span><b class="rcv-sig" id="sum-transport">0 so'm</b></div>
+          <div class="rcv-kv tot faqat-kirim"><span>Umumiy summa</span><b class="rcv-sig" id="sum-grand">0 so'm</b></div>
           <div class="rcv-kv tot faqat-boshl"><span>Omborga kiradi</span><b id="sum-omborga">0 ta material</b></div>
           <hr class="rcv-hr faqat-kirim">
-          <div class="rcv-kv paid faqat-kirim"><span>Ta'minotchiga to'landi</span><b id="sum-paid">0 so'm</b></div>
-          <div class="rcv-kv debt faqat-kirim"><span>Qarzga qoladi</span><b id="sum-debt">0 so'm</b></div>
-          <div class="rcv-kv faqat-kirim" style="padding-top:2px"><span id="sum-xarajat-yorliq">Xarajatlar (naqd puldan)</span><b id="sum-xarajat">0 so'm</b></div>
+          <div class="rcv-kv paid faqat-kirim"><span>Ta'minotchiga to'landi</span><b class="rcv-sig" id="sum-paid">0 so'm</b></div>
+          <div class="rcv-kv debt faqat-kirim"><span>Qarzga qoladi</span><b class="rcv-sig" id="sum-debt">0 so'm</b></div>
+          <div class="rcv-kv faqat-kirim" style="padding-top:2px"><span id="sum-xarajat-yorliq">Xarajatlar (naqd puldan)</span><b class="rcv-sig" id="sum-xarajat">0 so'm</b></div>
           {# kech120 (G4-21): qarz — faqat materiallar summasidan; qo'shimcha xarajatlar (transport …) ta'minotchi qarziga kirmaydi #}
           <div class="rcv-note faqat-kirim"><i class="ti ti-info-circle"></i><span>Qarz — faqat materiallar uchun. Qo'shimcha xarajatlar korxona xarajati: tanlangan hisobdan chiqadi (ta'minotchi qarziga kirmaydi).</span></div>
           <div id="sum-opening-warn" class="rcv-note amb" style="display:none"><i class="ti ti-alert-triangle"></i><span><b>Boshlang'ich qoldiq:</b> omborda allaqachon bor material (Boshlang'ich ombor). Ta'minotchiga qarz yozilmaydi, to'lov yo'q, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — «Kirim (xarid)» ni tanlang.</span></div>
@@ -589,15 +639,15 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
           <div class="rcv-sup-nom"><i class="ti ti-building-store"></i><b id="sup-nom">Ta'minotchi tanlanmagan</b><small>umumiy hisob</small></div>
           <div class="rcv-stat-grid">
             {# kech120 (zip 132 — G4-16): jami — hamma xarid (ilgari «Jami nasiya» — har xarid nasiya deb sanalardi) #}
-            <div class="rcv-stat-box"><div class="rcv-stat-label">Jami xarid</div><div class="rcv-stat-value" id="sup-credit">—</div></div>
-            <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value" style="color:var(--r-success)" id="sup-paid">—</div></div>
-            <div class="rcv-stat-box"><div class="rcv-stat-label">Eski qarz</div><div class="rcv-stat-value" style="color:var(--m-b91c1c)" id="sup-debt">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">Jami xarid</div><div class="rcv-stat-value rcv-sig" id="sup-credit">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value rcv-sig" style="color:var(--r-success)" id="sup-paid">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">Eski qarz</div><div class="rcv-stat-value rcv-sig" style="color:var(--m-b91c1c)" id="sup-debt">—</div></div>
           </div>
           <div class="rcv-quickpay">
             {# kech120 (G4-21): bu — ta'minotchiga ESKI qarzni to'lash (shu kirim to'lovi emas — u «To'langan summa» da) #}
             <button type="button" class="rcv-pay2" id="sup-quickpay-och" onclick="rcvEskiQarzOch()"><i class="ti ti-coins"></i>Eski qarzni to'lash</button>
             <div class="rcv-quickpay-joy" id="sup-quickpay-joy" hidden>
-              <input type="text" id="sup-quickpay-amount" placeholder="Summa" inputmode="decimal" oninput="formatPriceInput(this)" aria-label="Eski qarz to'lovi summasi">
+              <input type="text" class="rcv-sig" id="sup-quickpay-amount" placeholder="Summa" inputmode="decimal" oninput="formatPriceInput(this)" aria-label="Eski qarz to'lovi summasi">
               <button id="sup-quickpay-btn" onclick="quickPaySupplier()">💰 To'lov</button>
             </div>
           </div>
@@ -1038,6 +1088,7 @@ loadHistoryForSupplier.chiz = function (d) {
   document.getElementById('sup-credit').textContent = fmt(d.total_purchases != null ? d.total_purchases : d.total_credit)+" so'm";
   document.getElementById('sup-paid').textContent = fmt((Number(d.total_paid) || 0) + (Number(d.paid_cash) || 0))+" so'm";
   document.getElementById('sup-debt').textContent = fmt(d.debt)+" so'm";
+  if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
   const tbody = document.getElementById('rcv-history-body');
   if (!d.purchases.length){
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Xarid tarixi yo\'q</td></tr>';
@@ -1057,8 +1108,8 @@ loadHistoryForSupplier.chiz = function (d) {
         <td data-label="Sana" style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
         <td data-label="Material" style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.receipt_id ? ` <span style="color:var(--r-text3);font-size:12px;font-weight:500">· Kirim #${p.receipt_id}</span>` : ''}</td>
         <td data-label="Miqdor" style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
-        <td data-label="1 birlik narxi" style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
-        <td data-label="Summa" style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
+        <td data-label="1 birlik narxi" class="rcv-pul" style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
+        <td data-label="Summa" class="rcv-pul" style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
         <td data-label="Holati" class="kirim-holat" data-holat="${holat}" title="${escapeHtml(holatIzoh)}" style="text-align:right;font-size:12px;font-weight:700;color:${holatRang}">${holatMatn}</td>
       </tr>`;
     }).join('');
@@ -1305,7 +1356,7 @@ function rcvOmbordaKatak(item) {
   const min = Number(item.min_stock) || 0;
   const kam = min > 0 && qoldiq < min;
   const izoh = kam ? ('Omborda kam — eng kam miqdor: ' + sonKor(min, 2) + ' ' + (item.unit || '')) : 'Omborda bor qoldiq';
-  return `<div class="rcv-omb${kam ? ' kam' : ''}" title="${escapeHtml(izoh)}"><span>${escapeHtml(sonKor(qoldiq, 2) + ' ' + (item.unit || ''))}</span>`
+  return `<div class="rcv-omb${kam ? ' kam' : ''}" title="${escapeHtml(izoh)}"><span class="rcv-sig">${escapeHtml(sonKor(qoldiq, 2) + ' ' + (item.unit || ''))}</span>`
     + (kam ? '<small><i class="ti ti-arrow-down"></i>kam</small>' : '') + '</div>';
 }
 
@@ -1383,6 +1434,7 @@ function apCalc(){
   const price = parseNum(document.getElementById('ap-price').value)||0;
   // kech144 (zip 180, audit C6): server qoidasi (`buyurtmaJami` — savatdagi bilan bir xil; ilgari `qty × narx` butun so'mga)
   document.getElementById('ap-total').value = (qty*price>0) ? narxKorinishi(buyurtmaJami(qty, price).jami)+" so'm" : '—';
+  if (typeof rcvSigdir === 'function') ['ap-qty', 'ap-price', 'ap-total'].forEach(id => rcvSigdir(document.getElementById(id)));
   // kech194 (zip 261): kiritish qatorida ham narx o'zgarishi belgisi
   if (typeof rcvTrendJoyla === 'function' && document.getElementById('ap-trend')) {
     const itemId = parseInt(document.getElementById('ap-item').value);
@@ -1552,6 +1604,41 @@ function apQatorniSavatga(itemId, item, qty, price){
 
 function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); if (ombordanOchiqmi()) ombordanChiz(); }
 
+// kech196 (egasi so'rovi 06.11 03:57: «summa to'liq sig'mayapti — shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar
+// qolmasin»; O'LCHANGAN work/k262/olchov262.py): `.rcv-sig` — raqamli maydon / katak. Matn sig'masa shrift kichrayadi (eng kami 11 px;
+// raqam guruhlari bo'linmas bo'shliq bilan — raqam o'rtasidan bo'linmaydi, «so'm» keyingi qatorga o'tishi mumkin); shunda ham sig'masa —
+// to'liq qiymat izohda (sichqoncha ostida). Ko'rinmaydigan element (yopiq bo'lim, boshqa rejim) o'tkaziladi — kenglik o'zgarsa qayta o'lchanadi.
+const RCV_SIG_MIN = 11;
+function rcvSigdir(el) {
+  if (!el || !el.style || !el.dataset) return;
+  if (el.style.fontSize) el.style.fontSize = '';
+  const cw = el.clientWidth;
+  if (!cw) return;
+  const izohOchir = () => { if (el.dataset.sigIzoh) { el.removeAttribute('title'); delete el.dataset.sigIzoh; } };
+  const sw = el.scrollWidth;
+  if (sw <= cw + 1) { izohOchir(); return; }
+  const asl = parseFloat(getComputedStyle(el).fontSize) || 13;
+  let f = Math.max(RCV_SIG_MIN, Math.floor(asl * cw / sw * 2) / 2);
+  el.style.fontSize = f + 'px';
+  while (el.scrollWidth > el.clientWidth + 1 && f > RCV_SIG_MIN) { f = Math.max(RCV_SIG_MIN, f - 0.5); el.style.fontSize = f + 'px'; }
+  if (el.scrollWidth > el.clientWidth + 1) { el.title = el.tagName === 'INPUT' ? el.value : el.textContent; el.dataset.sigIzoh = '1'; }
+  else izohOchir();
+}
+function rcvSigHammasi() {
+  try { document.querySelectorAll('#rcvWrap .rcv-sig').forEach(rcvSigdir); } catch (e) { /* o'lchov — faqat ko'rinish */ }
+}
+let _rcvSigNav = 0;
+function rcvSigKeyin() {
+  if (_rcvSigNav) return;
+  const keyin = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f => setTimeout(f, 16));
+  _rcvSigNav = keyin(() => { _rcvSigNav = 0; rcvSigHammasi(); });
+}
+if (typeof ResizeObserver === 'function' && document.getElementById('rcvWrap')) {
+  new ResizeObserver(() => rcvSigKeyin()).observe(document.getElementById('rcvWrap'));
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => rcvSigKeyin());
+document.addEventListener('input', e => { if (e.target && e.target.classList && e.target.classList.contains('rcv-sig')) rcvSigdir(e.target); });
+
 // kech194 (zip 261): qator miqdori maydonda ko'rinishi (bo'sh — chala qator; narx — `narxKorinishi`, 0 — bo'sh)
 function _rcvQtyMatn(q) { return (q === null || q === undefined || !(Number(q) > 0)) ? '' : sonKor(Number(q), 4).replace(/[\u00a0\u202f]/g, ' '); }
 
@@ -1573,10 +1660,10 @@ function renderBasket(){
         <td class="c-nr" data-label="№"><span class="rcv-nr">${i+1}</span></td>
         <td class="c-mat" data-label="Material nomi"><div class="rcv-matnom" title="${escapeHtml(b.itemName)}">${escapeHtml(b.itemName)}</div>${vol}</td>
         <td class="c-omb" data-label="Omborda">${rcvOmbordaKatak(item)}</td>
-        <td class="c-qty" data-label="Miqdor"><span class="rcv-yorliq-ichki">${escapeHtml(unit ? 'Miqdor (' + unit + ')' : 'Miqdor')}</span><input class="rcv-q rcv-q-qty${qtyBosh ? ' bosh' : ''}" type="text" inputmode="decimal" value="${escapeHtml(_rcvQtyMatn(b.qty))}" placeholder="0" aria-label="${escapeHtml((i+1) + '-qator miqdori')}" oninput="apQatorTahrir(${i}, 'qty', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"></td>
+        <td class="c-qty" data-label="Miqdor"><span class="rcv-yorliq-ichki">${escapeHtml(unit ? 'Miqdor (' + unit + ')' : 'Miqdor')}</span><input class="rcv-q rcv-sig rcv-q-qty${qtyBosh ? ' bosh' : ''}" type="text" inputmode="decimal" value="${escapeHtml(_rcvQtyMatn(b.qty))}" placeholder="0" aria-label="${escapeHtml((i+1) + '-qator miqdori')}" oninput="apQatorTahrir(${i}, 'qty', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"></td>
         <td class="c-unit" data-label="Birlik"><div class="rcv-unit">${escapeHtml(unit || '—')}</div></td>
-        <td class="c-narx" data-label="1 birlik narxi"><span class="rcv-yorliq-ichki">${escapeHtml(unit ? '1 ' + unit + ' narxi' : '1 birlik narxi')}</span><div class="rcv-narxbox${t ? ' trendli' : ''}"><span class="rcv-trend-joy">${rcvTrendHtml(t)}</span><input class="rcv-q rcv-q-price${narxBosh ? ' bosh' : ''}" type="text" inputmode="decimal" value="${narxKorinishi(Number(b.price) > 0 ? b.price : 0).replace(/^0$/, '')}" placeholder="0" aria-label="${escapeHtml((i+1) + '-qator narxi')}" oninput="formatPriceInput(this); apQatorTahrir(${i}, 'price', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"></div></td>
-        <td class="c-sum" data-label="Summa"><span class="rcv-yorliq-ichki">Summa</span><span class="rcv-sum">${b.chala ? '—' : pulKor(b.total) + " so'm"}</span></td>
+        <td class="c-narx" data-label="1 birlik narxi"><span class="rcv-yorliq-ichki">${escapeHtml(unit ? '1 ' + unit + ' narxi' : '1 birlik narxi')}</span><div class="rcv-narxbox${t ? ' trendli' : ''}"><span class="rcv-trend-joy">${rcvTrendHtml(t)}</span><input class="rcv-q rcv-sig rcv-q-price${narxBosh ? ' bosh' : ''}" type="text" inputmode="decimal" value="${narxKorinishi(Number(b.price) > 0 ? b.price : 0).replace(/^0$/, '')}" placeholder="0" aria-label="${escapeHtml((i+1) + '-qator narxi')}" oninput="formatPriceInput(this); apQatorTahrir(${i}, 'price', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"></div></td>
+        <td class="c-sum" data-label="Summa"><span class="rcv-yorliq-ichki">Summa</span><span class="rcv-sum rcv-sig">${b.chala ? '—' : pulKor(b.total) + " so'm"}</span></td>
         <td class="c-del" data-label=""><button type="button" class="rcv-del rcv-icon-btn" onclick="apRemoveFromBasket(${i})" title="Ro'yxatdan olib tashlash" aria-label="Ro'yxatdan olib tashlash"><i class="ti ti-trash"></i></button></td>
       </tr>`;
     }).join('');
@@ -1711,6 +1798,7 @@ function updateSummary(){
       dw.style.display = 'none';
     }
   }
+  if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
   saveDraft();
 }
 
@@ -1875,7 +1963,7 @@ function ombordanChiz() {
         + (kam ? 'kam · min ' + escapeHtml(sonKor(Number(i.min_stock) || 0, 2)) : 'omborda') + '</div>';
       return `<label class="ot-it${bor ? ' dis' : (on ? ' on' : '')}" data-id="${i.id}"><input type="checkbox"${on ? ' checked' : ''}${bor ? ' disabled' : ''}`
         + ` onchange="ombordanBelgi(${i.id}, this.checked)" aria-label="${escapeHtml(i.item_name)}">`
-        + `<div class="ot-nm"><b title="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}${bor ? '<span class="ot-royxatda">✓ ro\'yxatda</span>' : ''}</b><small>${narxMatn}</small></div>${stk}</label>`;
+        + `<div class="ot-nm"><b title="${escapeHtml(i.item_name)}"><span class="ot-nom">${escapeHtml(i.item_name)}</span>${bor ? '<span class="ot-royxatda" title="Ro\'yxatda bor"><span aria-hidden="true">✓</span><span class="ot-r-matn"> ro\'yxatda</span></span>' : ''}</b><small>${narxMatn}</small></div>${stk}</label>`;
     }).join('')).join('');
   }
   html += '<button type="button" class="ot-yangi" onclick="apToggleNewItem(true); ombordanYop(true)"><i class="ti ti-sparkles" style="font-size:18px"></i>'
