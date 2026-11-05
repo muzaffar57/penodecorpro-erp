@@ -560,7 +560,8 @@ input[type=number]{-moz-appearance:textfield}
         {% set tomorrow_n = g.orders|selectattr('deadline_urgency', 'equalto', 'tomorrow')|list|length %}
         {% set g_urgency = 'overdue' if overdue_n > 0 else ('today' if today_n > 0 else ('tomorrow' if tomorrow_n > 0 else 'normal')) %}
         {# kech191 (zip 260): `data-pul` — chap chiziq rangi (to'lov holati, sarlavhadagi «Qarz» / «✓ To'langan» bilan bir shart);
-           `data-urgency` — faqat filtr uchun (ko'rinmaydi) #}
+           guruhning `data-urgency` si — endi ko'rinmaydi va filtr uni o'qimaydi (filtr — QATORLARNING `data-urgency` si; kech192, review260
+           P6); eski testlar va tashqi o'qish uchun qoldirildi #}
         <div class="proj-group" data-project-id="{{ g.project_id }}" data-urgency="{{ g_urgency }}"
              data-pul="{{ 'qarz' if g.debt > 0 else ('tolangan' if g.total > 0 else 'yoq') }}">
           <!-- Loyiha sarlavhasi -->
@@ -597,7 +598,8 @@ input[type=number]{-moz-appearance:textfield}
             {% set urgency = o.deadline_urgency %}
             {% set ort131 = o.ortiqcha_tolov %}
             {% set dpct = o.delivery_percent %}
-            {# kech154 (zip 203 «Buyurtmalar ko'rinishi»): holat — klass / `data-urgency` (CSS chizadi). Ilgari fon va chap chegara INLINE edi —
+            {# kech154 (zip 203 «Buyurtmalar ko'rinishi»): holat — klass / `data-urgency` (kech192, zip 260: muddat endi CHIZILMAYDI —
+               `data-urgency` faqat «Muddati o'tgan» / «Bugun» filtri uchun). Ilgari fon va chap chegara INLINE edi —
                tanlangan qatorning `.active` uslubini bosib ketardi (O'LCHANGAN `work/k203/olchov203.py`). `oi-tolangan` / `oi-qarzli` — tugagan
                buyurtmaning to'lov holati belgisi (ilgari yashil / pushti fon; endi «✓ To'langan» / «Qarz» belgisi ko'rsatadi) #}
             <div class="ord-item{{ ' oi-tolangan' if (is_finished and debt <= 0) else '' }}{{ ' oi-qarzli' if (is_finished and debt > 0) else '' }}"
@@ -3788,6 +3790,7 @@ async function editAgreedAmount() {
       let d = null;
       try { d = await res.json(); } catch (e) { d = null; }
       if (String(oid) === String(selectedOrderId)) loadPayments(oid);
+      royxatPulSinxron(oid);                   // kech192 (zip 260, review260 O1): kelishilgan summa — qarz / chiziq / qator summasi
       if (!d) { showMsg('✓ Yangilandi!', 'success'); return; }
       // kech141 (zip 169, A-P05): «Tayyor» buyurtmada — qaysi oy hisobotiga yozilgani; to'lovdan kam bo'lsa — mijozga qaytarish
       let qosh = '';
@@ -3927,6 +3930,7 @@ async function savePayment() {
         setTimeout(()=>location.reload(), 1500);
       } else {
         showMsg('✓ To\'lov qo\'shildi! Qarz: ' + formatNum(r.debt_amount) + ' so\'m', 'success');
+        royxatPulSinxron(selectedOrderId);     // kech192 (zip 260, review260 O1): ro'yxatdagi to'lov chizig'i / belgilari
       }
     } else {
       // 17f: server yuborgan aniq SABAB. kech144 (zip 173): `amalSababi` (401 — kirish oynasi, 5xx — «server javob bermadi»);
@@ -3973,6 +3977,7 @@ async function deletePayment(paymentId) {
     if (res.ok) {
       loadPayments(selectedOrderId);
       showMsg('✓ To\'lov o\'chirildi', 'success');
+      royxatPulSinxron(selectedOrderId);       // kech192 (zip 260, review260 O1)
     } else if (res.status >= 500 || res.status === 401) {
       // kech144 (zip 173): 5xx — natija noma'lum (ro'yxat yangilanadi), 401 — kirish oynasi
       showMsg((res.status === 401 ? "❌ To'lov o'chirilmadi: " : "❌ Natija noma'lum — ") + await amalSababi(res), 'error');
@@ -8815,7 +8820,7 @@ function renderPinnedOrders(rows) {
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>';
     const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
-    // kech154 (zip 203): ro'yxat qatori bilan bir xil tuzilma; muddat — `data-urgency` (CSS chizadi, tanlov uslubini bosib ketmaydi)
+    // kech154 (zip 203): ro'yxat qatori bilan bir xil tuzilma; muddat — `data-urgency` (kech192, zip 260: endi chizilmaydi — faqat filtr)
     // kech191 (zip 260 — egasi QARORI 05.11): «Muddati o'tgan» / «Bugun» / «Ertaga» belgisi yo'q (muddat sanasi — kulrang, avvalgidek)
     const urg = ['overdue', 'today', 'tomorrow'].includes(o.deadline_urgency) ? o.deadline_urgency : 'normal';
     return `
@@ -8933,6 +8938,42 @@ function royxatniQoll() {
   });
   const bosh = document.getElementById('ordFiltrBosh');
   if (bosh) bosh.style.display = (faol && jami === 0) ? 'block' : 'none';
+}
+
+// kech192 (zip 260 — mustaqil tekshiruv review260 O1): to'lov qo'shilsa (qarz qolsa), o'chirilsa yoki kelishilgan summa o'zgarsa sahifa
+// qayta yuklanmaydi — ro'yxatdagi to'lov chizig'i (`data-pul`), sarlavhadagi «Qarz» / «✓ To'langan», qator belgilari / summasi va
+// «Qarzi bor» filtri (`data-qarz`) eskirib qolardi (chiziq — butun karta bo'yi, ko'zga tashlanadi). Shu sahifaning YANGI HTML idan
+// faqat shu loyiha guruhining shu qismlari ko'chiriladi: ochiq / yopiq holat, tanlov, filtr, surilish — o'zgarmaydi. Xato bo'lsa — jim
+// (keyingi yuklashda baribir to'g'ri). Filtr sonlari qayta sanaladi; ko'rinadigan qatorlar qayta filtrlanmaydi (ochiq buyurtma yo'qolmasin).
+async function royxatPulSinxron(oid) {
+  try {
+    const qator = document.querySelector(`.ord-list .ord-item[data-order-id="${Number(oid)}"]`);
+    const g = qator ? qator.closest('.proj-group') : null;
+    if (!g) return;
+    const pid = g.dataset.projectId;
+    const res = await fetch(window.location.pathname + window.location.search, {credentials: 'same-origin', cache: 'no-store'});
+    if (!res.ok) return;
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const yg = doc.querySelector(`.ord-list .proj-group[data-project-id="${CSS.escape(String(pid))}"]`);
+    if (!yg) return;
+    g.dataset.pul = yg.dataset.pul || 'yoq';
+    const eskiO = g.querySelector(':scope > .proj-head > div:last-child');
+    const yangiO = yg.querySelector(':scope > .proj-head > div:last-child');
+    if (eskiO && yangiO) eskiO.innerHTML = yangiO.innerHTML;
+    yg.querySelectorAll('.proj-body .ord-item[data-order-id]').forEach(y => {
+      g.querySelectorAll(`.proj-body .ord-item[data-order-id="${CSS.escape(y.dataset.orderId)}"]`).forEach(e => {
+        ['.oi-belgilar', '.oi-summa'].forEach(sel => {
+          const a = e.querySelector(sel), b = y.querySelector(sel);
+          if (a && b) a.innerHTML = b.innerHTML;
+        });
+        ['oi-tolangan', 'oi-qarzli'].forEach(k => e.classList.toggle(k, y.classList.contains(k)));
+        ['qarz', 'total'].forEach(k => { if (y.dataset[k] !== undefined) e.dataset[k] = y.dataset[k]; });
+      });
+    });
+    royxatSanoqlari();
+  } catch (e) {
+    console.warn('royxatPulSinxron:', e);
+  }
 }
 
 // filtr tugmalaridagi sonlar — sahifadagi hamma qatordan (qidiruvdan qat'i nazar)

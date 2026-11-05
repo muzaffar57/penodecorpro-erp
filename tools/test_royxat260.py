@@ -160,8 +160,11 @@ O = {"tolangan": buyurtma(ID["PT"], kun(-3), 12, 25000),        # 300 000 — mu
      "bugun": buyurtma(ID["PQ"], kun(0), 10, 15000),            # bugun muddati, qarzi bor
      "qoralama": buyurtma(ID["PB"], kun(5), 8, 18000, qoralama=True)}
 _am = []
+PAY_T = None
 if all(O.values()):
-    _am.append(tolov(O["tolangan"], 300000, "final").status_code)
+    _rt = tolov(O["tolangan"], 300000, "final")
+    _am.append(_rt.status_code)
+    PAY_T = (_rt.json() or {}).get("payment_id") if _rt.status_code == 200 else None     # kech192: J12 — o'chirib, ro'yxat sinxroni
     _am.append(tolov(O["qarzli"], 100000, "zaklat").status_code)
     _am.append(C.post(f"/api/orders/{O['qarzli']}/pin").status_code)
 INFO = {k: (C.get(f"/api/orders/{v}").json() if v else {}) for k, v in O.items()}
@@ -238,7 +241,7 @@ XATO = []
 try:
     with sync_playwright() as pw:
         br = pw.chromium.launch()
-        for nom, w, h, tungi in (("kompyuter", 1440, 900, False), ("telefon", 390, 844, False), ("tungi", 1440, 900, True)):
+        for nom, w, h, tungi in (("kompyuter", 1440, 900, False), ("telefon", 390, 844, False), ("tungi", 1440, 900, True), ("tor", 1000, 900, False)):
             ctx = br.new_context(viewport={"width": w, "height": h})
             pg = ctx.new_page()
             pg.on("pageerror", lambda e: XATO.append(str(e)[:200]))
@@ -265,6 +268,42 @@ try:
                 J["filtr"] = pg.evaluate("""() => [...document.querySelectorAll('.ord-list .ord-item')].filter(x => x.offsetParent !== null)
                                            .map(x => x.dataset.urgency)""")
             ctx.close()
+        # kech192 (zip 260 — review260 O1): to'lov o'chirilsa / qo'shilsa sahifa qayta yuklanmaydi — ro'yxat (chiziq, sarlavha belgisi,
+        # qator belgisi, `data-qarz`, filtr soni) shu joyda yangilanishi kerak (ilgari eskirib qolardi). Holat o'zgaradi — eng OXIRIDA.
+        if PAY_T:
+            ctx = br.new_context(viewport={"width": 1440, "height": 900})
+            pg = ctx.new_page()
+            pg.on("pageerror", lambda e: XATO.append(str(e)[:200]))
+            pg.goto(BU + "/login", wait_until="networkidle")
+            pg.fill("input[name=username]", "r260_a")
+            pg.fill("input[name=password]", PAROL)
+            pg.click("button[type=submit]")
+            pg.wait_for_load_state("networkidle")
+            pg.goto(BU + "/orders", wait_until="networkidle")
+            pg.evaluate(f"() => toggleProject({ID['PT']})")
+            pg.wait_for_timeout(300)
+            pg.locator(f".proj-group[data-project-id='{ID['PT']}'] #oi-{O['tolangan']}").first.click()
+            pg.wait_for_timeout(800)
+            SINX = '''(a) => { const g = document.querySelector(`.ord-list .proj-group[data-project-id="${a.pid}"]`);
+              const q = g.querySelector(`.ord-item[data-order-id="${a.oid}"]`);
+              const f = document.querySelector('#ordFiltr [data-f="qarz"] .f-son');
+              return {belgi: window.belgi260 || null, pul: g.dataset.pul, chiziq: getComputedStyle(g.querySelector('.proj-head')).boxShadow,
+                      sarlavha: g.querySelector('.proj-head > div:last-child').innerText, qator: q.querySelector('.oi-belgilar').innerText,
+                      qarz: q.dataset.qarz, ochiq: g.classList.contains('open'), tanlangan: q.classList.contains('active'),
+                      fson: f ? f.textContent.trim() : null}; }'''
+            _a = {"pid": ID["PT"], "oid": O["tolangan"]}
+            J["s0"] = pg.evaluate(SINX, _a)
+            pg.evaluate("() => { window.belgi260 = 'shu-sahifa'; window.showConfirmModal = async () => true; }")
+            pg.evaluate(f"() => deletePayment({PAY_T})")
+            pg.wait_for_timeout(2500)
+            J["s1"] = pg.evaluate(SINX, _a)
+            _yr = pg.evaluate(f'''async () => {{ const r = await fetch('/api/payments', {{method: 'POST', headers: {{'Content-Type': 'application/json'}},
+                body: JSON.stringify({{order_id: {O['tolangan']}, amount: 300000, payment_type: 'final', payment_method: 'naqd', notes: 'R260 J12'}})}});
+                await royxatPulSinxron({O['tolangan']}); return r.status; }}''')
+            pg.wait_for_timeout(500)
+            J["s2"] = pg.evaluate(SINX, _a)
+            J["s2"]["post"] = _yr
+            ctx.close()
         br.close()
 except Exception as e:                     # noqa: BLE001
     J["xato"] = f"{type(e).__name__}: {e}"
@@ -283,7 +322,8 @@ check("J1 kompyuter: loyihalar — alohida kartalar: orasi ≥ 6 px, yumaloq ≥
       "(#DC2626), qoralama — kulrang", _k and len(_k["guruh"]) == 3 and all(x >= 6 for x in _k["oraliq"])
       and all(g["radius"] >= 10 for g in _k["guruh"])
       and rang(_guruh(_k, ID["PT"])["chiziq"], "rgb(21,128,61)") and rang(_guruh(_k, ID["PQ"])["chiziq"], "rgb(220,38,38)")
-      and not rang(_guruh(_k, ID["PB"])["chiziq"], "rgb(220,38,38)") and not rang(_guruh(_k, ID["PB"])["chiziq"], "rgb(21,128,61)"),
+      and not rang(_guruh(_k, ID["PB"])["chiziq"], "rgb(220,38,38)") and not rang(_guruh(_k, ID["PB"])["chiziq"], "rgb(21,128,61)")
+      and rang(_guruh(_k, ID["PB"])["chiziq"], "rgb(226,231,239)") and "4px" in _guruh(_k, ID["PB"])["chiziq"],   # kech192 (review260 P1): kulrang chiziq BOR
       (J.get("xato"), _k))
 check("J2 ro'yxat va «Ustuvor buyurtmalar» ko'rinadigan matnida «Muddati o'tgan» / «Bugun muddati» / «Ertaga muddati» yo'q (yopiq va "
       "ochilganda; muddati o'tgan va bugungi qarzli buyurtmalar bor); filtr tugmasi «Muddati o'tgan» ko'rinadi",
@@ -308,7 +348,9 @@ check("J6 telefon (390): kartalar orasi ≥ 6 px, chiziq ranglari o'sha, ochilga
 _q = J.get(("tungi", "ochiq"))
 check("J7 tungi rejim: karta foni to'q (sahifa bilan bir xil emas — ajralib turadi), chiziq ranglari bor, ochiq loyiha ko'k chegarada",
       _q and _guruh(_q, ID["PQ"])["ochiq"] and _guruh(_q, ID["PT"])["fon"] not in ("rgb(255, 255, 255)",)
-      and rang(_guruh(_q, ID["PT"])["chiziq"], "rgb(") and _guruh(_q, ID["PQ"])["chegaraEn"] >= 1
+      and "4px" in _guruh(_q, ID["PT"])["chiziq"] and "4px" in _guruh(_q, ID["PQ"])["chiziq"]      # kech192 (review260 P1): ilgari «rgb(» — har rang o'tardi
+      and not rang(_guruh(_q, ID["PT"])["chiziq"], "rgba(0,0,0,0)") and _guruh(_q, ID["PT"])["chiziq"] != _guruh(_q, ID["PQ"])["chiziq"]
+      and _guruh(_q, ID["PT"])["fon"] != (_q.get("listFon") or "") and _guruh(_q, ID["PQ"])["chegaraEn"] >= 1
       and _guruh(_q, ID["PQ"])["chegara"] != _guruh(_q, ID["PT"])["chegara"], _q)
 _tp = {k: (J.get(k) or {}).get("tepa") for k in (("kompyuter", "yopiq"), ("telefon", "yopiq"), ("tungi", "yopiq"))}
 check("J9 (kech192) ro'yxat tepasida birinchi karta yopishmaydi — bo'shliq ≥ 8 px (namunadagidek; kompyuter, telefon, tungi)",
@@ -319,6 +361,26 @@ _lf = {k[0]: ((J.get(k) or {}).get("listFon"), (J.get(k) or {}).get("kartaFon"))
 check("J11 (kech192) kartalar tagi — kulrang ro'yxat foni (`--bg`, #F4F6FA), karta foni undan farqli (oq); tungi rejimda ham farqli",
       _lf.get("kompyuter") == ("rgb(244, 246, 250)", "rgb(255, 255, 255)")
       and all(a and b and a != b and a not in ("rgba(0, 0, 0, 0)", "transparent") for a, b in _lf.values()), _lf)
+_tr, _tro = J.get(("tor", "yopiq")), J.get(("tor", "ochiq"))
+check("J13 (kech192, review260 P1) tor ekran 1000 px (ro'yxat ustuni 260 px — media qoidasi o'zgargan): kartalar orasi ≥ 6 px, chiziq ranglari, "
+      "ochilganda ham gorizontal surilish yo'q, ichki buyurtmalar alohida",
+      _tr and _tro and all(x >= 6 for x in _tr["oraliq"]) and rang(_guruh(_tr, ID["PT"])["chiziq"], "rgb(21,128,61)")
+      and rang(_guruh(_tr, ID["PQ"])["chiziq"], "rgb(220,38,38)") and not _tr["surilish"] and not _tro["surilish"]
+      and _guruh(_tro, ID["PQ"])["ochiq"] and all(x >= 5 for x in _tro["ichOraliq"]), (_tr, _tro and _tro["surilish"]))
+_s0, _s1, _s2 = J.get("s0") or {}, J.get("s1") or {}, J.get("s2") or {}
+check("J12 (kech192, review260 O1) to'lov o'chirilganda sahifa QAYTA YUKLANMAYDI, ro'yxat shu joyda yangilanadi: to'langan loyiha — "
+      "yashil → qizil chiziq, sarlavhada «Qarz: …», qatorda «Qarz: …», `data-qarz` 1, «Qarzi bor» soni +1; ochiq / tanlangan holat saqlanadi; "
+      "to'lov qaytarilib `royxatPulSinxron` — yana yashil «✓ To'langan»",
+      _s0.get("pul") == "tolangan" and "✓ To'langan" in (_s0.get("sarlavha") or "")
+      and _s1.get("belgi") == "shu-sahifa" and _s1.get("pul") == "qarz" and rang(_s1.get("chiziq"), "rgb(220,38,38)")
+      and "Qarz:" in (_s1.get("sarlavha") or "") and "Qarz:" in (_s1.get("qator") or "") and _s1.get("qarz") == "1"
+      and _s1.get("ochiq") and _s1.get("tanlangan") and str(int(_s0.get("fson") or 0) + 1) == _s1.get("fson")
+      and _s2.get("post") == 200 and _s2.get("pul") == "tolangan" and "✓ To'langan" in (_s2.get("sarlavha") or "")
+      and _s2.get("fson") == _s0.get("fson"), (_s0, _s1, _s2))
+_srcs = ORD.count("royxatPulSinxron(")
+check("S7 (kech192, review260 O1) `royxatPulSinxron` — to'lov qo'shilganda (qarz qolsa), o'chirilganda, kelishilgan summa o'zgarganda "
+      "chaqiriladi (3 joy + ta'rif)", _srcs == 4 and "royxatPulSinxron(selectedOrderId);     //" in ORD
+      and "royxatPulSinxron(oid);                   //" in ORD, _srcs)
 check("J8 sahifalarda JS xatosi yo'q", not XATO and "xato" not in J, (XATO[:3], J.get("xato")))
 
 print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
