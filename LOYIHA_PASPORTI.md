@@ -3732,7 +3732,8 @@ DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH (kech181, zip 248; egasi QAROR
     `dokon_kub_narx` (`PUT /api/sayt-katalogi/kub-narx`, saqlanganda formulali modellar qayta hisoblanadi; formulali model bor — o'chirilmaydi).
     Model ustunlari `formula_asos_sm`, `formula_blok_sm`, `formula_bolak` (faqat juft / butun metr qolipida). Formula FAQAT ASOSIY (metrdagi)
     qatorga (`crud.dokon_formula_qatormi`; kapitel / baza — qo'lda narx, review255 M2): narxni server yozadi (`dokon_formula_narx_tekshir`:
-    balandlik ≥ 5 sm, narx > 0 va ≤ DOKON_NARX_MAX); qo'lda / Excel orqali — rad (DOKON_FORMULA_RAD). «Boshqa o'lcham» 15 … 40 sm (0,1 sm):
+    balandlik ≥ 5 sm, narx > 0 va ≤ DOKON_NARX_MAX); qo'lda / Excel orqali — rad (DOKON_FORMULA_RAD; zip 257 dan — faqat QOPLAMASIZ,
+    qoplamali — qo'lda). «Boshqa o'lcham» 15 … 40 sm (zip 257 dan — 25 … 60) (0,1 sm):
     `GET /api/dokon/v1/maxsus-narx` (`dokon_api_maxsus_narx`), savatda `{"maxsus": {"model_id", "balandlik_sm"}, "qoplamali", "miqdor"}`
     (chegirmasiz; `_dokon_maxsus_detal` — chuqurlik eng yaqin YOQILGAN asosiy qatordan mutanosib); ERP ga «… <h> sm (maxsus o'lcham)».
     `dokon_avto_qoplamali` — butun so'm (1 000 ga yaxlitlash olib tashlandi); chegirmali narx ham — butun so'm
@@ -3751,6 +3752,18 @@ DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH (kech181, zip 248; egasi QAROR
     review256: javobda `bogsiz` (`crud.usta_kpi_bogsiz` — hech bir keshbekka ulanmagan eski `usta_kpi` yozuvlari soni / jami) — oynada
     ogohlantirish («Oldin berilgan» bilan kiritish — egasi QARORI 04.11, zip 253); 409 dan keyin ro'yxat qayta yuklanadi (tanlov saqlanadi),
     bir xil ismli ustalar — «(#id)», takror yuborish — `amalTakrorIzoh` xabari.
+  * kech190 (zip 257) — FORMULALI KARNIZDA QOPLAMALI NARX — QO'LDA (egasi QARORLARI 05.11, QAYTA SO'RALMAYDI: «qoplamali narxni ham qo'lda
+    yozaman — × 2 bunda ishlamaydi»; «Boshqa o'lcham» — «Yaqin o'lchamdan»; oraliq 25 … 60 sm, undan kattasi — «korxona bilan bog'laning»).
+    Formulali asosiy qatorda `narx` — FAQAT formula (qo'lda / Excel — DOKON_FORMULA_RAD), `narx_qoplamali` — qo'lda (yozilsa — o'sha, bo'sh —
+    × koeffitsient). Formula (1 m³ narxi, model formulasi, balandlik, formula o'chirib-yoqish) qo'lda yozilgan qoplamaliga TEGMAYDI
+    (`_dokon_formula_qayta`); o'zgargan qatorlar ro'yxati — `_dokon_qolda_qoplamali_royxat` → javobda `qolda_qoplamali` / `qoplamali_qatorlar`
+    (kub-narx va model PUT; «kam» — qoplamali ≤ qoplamasiz, «yashirin»), sahifada YOPILMAYDIGAN oyna «Qoplamali narxlarni tekshiring» va katak
+    ostida «⚠ qoplamasizdan kam» (narx avtomatik o'zgartirilmaydi, saqlash rad etilmaydi), jurnalda soni. «Boshqa o'lcham» qoplamalisi —
+    `_dokon_maxsus_qoplamali`: aynan shu balandlikdagi ko'rinadigan asosiy qator bo'lsa — uning qoplamalisi (qo'lda yoki avto); aks holda
+    ko'rinadigan, qoplamalisi qo'lda yozilgan asosiy qatorlardan eng yaqini (teng masofada — kichik balandlik, keyin id): formula(h) +
+    (qoplamali − qoplamasiz, manfiy — 0) × h ÷ eni (Fraction, HALF_UP); bunday qator yo'q — × koeffitsient. Narx so'rovi va buyurtma yo'li —
+    bir xil (`_dokon_maxsus_detal`). Oraliq — `DOKON_MAXSUS_MIN_SM` 25 / `DOKON_MAXSUS_MAX_SM` 60 (do'kon oraliqni ERP katalogidan oladi).
+    Do'kon: chegara matnlari («Eng kichik oʻlcham — 25 sm», «60 sm dan katta … korxona bilan bogʻlaning»), misol — oraliq boshidan, ?v=11.
   `GET /api/dokon/v1/katalog` — `crud.dokon_api_katalog`: versiya, bugun (Toshkent); bo'limlar (FAQAT yoqilgan; id, nom, qolip,
   tizim_kaliti, tartib, qolip_nomi); modellar (yoqilgan, yoqilgan bo'limda; tartib — bo'lim → model tartibi → id, sahifadagidek): kod, nom,
   tavsif, qolip, kapitel_baza_bor, rasmlar (url, kichik, eni, boyi — `/static/uploads/dokon/…`, login siz), detallar (yoqilgan qatorlar:
@@ -5428,6 +5441,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   TO'G'RI chiqqanlar: tahrir, nusxa, taklif, qoralama — yig'ilgan qatorlar avvalgidek; ochish / yopish / boshqa buyurtma / o'lcham
   o'zgarishi — ustunlar to'g'ri almashadi; eski UI testlari (blok211 99, ui173 40, c_telefon 53, korinish203 28, sahifalar190 206) o'tadi.
 
+- (kech190, zip 257) Formulali karnizda qoplamali — qo'lda: `tools/test_karniz_qoplamali257.py` (S; Q — qo'lda qoplamali: tahrir, yangi qator,
+  rad, balandlik / 1 m³ / formula / o'chirib-yoqishda saqlanishi, ro'yxat (kam, yashirin, kapitel sanalmaydi), avto, ulgurji; E — Excel;
+  M — «Boshqa o'lcham» qoplamalisi (mustaqil hisob, teng balandlik, teng masofa, yashirin qator, manfiy ulush, koeffitsient, kapitel) va oraliq
+  25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
+  (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 90/0, TF1 90/0, PG 80/0; asl (zip 256) —
+  72 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
 - (kech189, zip 256) Moliya «Usta KPI to'landi» — ustaga: `tools/test_usta_kpi256.py` (S; R — ro'yxat: maydonlar, qoldiq AYNAN, tartib,
   ruxsat, ikkinchi korxona; K — `usta_kpi` 400, Ehson, eski yozuv, `bogsiz`; T — to'lov bir marta, 409, ro'yxatdan chiqish; U — oyna: tanlov,
   XSS yo'q, tekshiruvlar, saqlash yo'li, «Bekor», 409 da qayta yuklash, server izoh xatosi, takror, kechikkan javob, boshlang'ich / Ehson,
@@ -8790,6 +8809,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_jurnal183.py` · PG — kech146 (zip 183): «TIZIM JURNALLARI» VA «SOZLAMALAR» — AUDIT 2-to'lqin (J1 … J14, N1, N2).
 - `test_kam_qoldiq_yagona.py` · PG — kech108, K108-2 (19-band) darvozasi.
 - `test_karniz255.py` · PG — kech187 (zip 255: karniz formula narxi, «Boshqa o'lcham», yaxlitlashsiz narx, «kelishuv asosida» yetkazish, zaxira tiklashdagi aylana bog'lam, o'tish indeksi).
+- `test_karniz_qoplamali257.py` · PG — kech190 (zip 257: formulali karnizda QOPLAMALI narx — qo'lda).
 - `test_karusel_nuqta_ui.py` · PG — kech136 (zip 162): Dashboard yuqori kartalar karuseli («Buyurtmalar holati» / «Ishlab chiqarish») va uning nuqtalari — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lok…
 - `test_katalog242.py` · PG — kech177 (zip 242): «Tayyor mahsulotlar» → ishlab chiqarish oynasida «📖 Katalogdan tanlash».
 - `test_kategoriyalar.py` — buyurtma oynasida qaysi turkum ko'rinadi.
@@ -9016,5 +9036,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 342 (Python 304, JS 38).
+Jami test fayllari: 343 (Python 305, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
