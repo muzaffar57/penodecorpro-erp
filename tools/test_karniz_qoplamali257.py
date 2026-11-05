@@ -591,6 +591,14 @@ else:
             pg.wait_for_timeout(400)
             UI["oyna_yopildi"] = "Qoplamali narxlarni tekshiring" not in pg.evaluate("() => document.body.innerText")
             UI["qayta_kam"] = pg.evaluate(f"""() => document.querySelector('tr[data-detal="{DK[30]}"] [data-avto="narx_qoplamali"]').textContent""")
+            # formula saqlansa ham — o'sha oyna (review257 L1)
+            if not pg.is_visible(f"[data-fsaqla='{MK}']"):
+                pg.click(f"[data-och='{MK}']")
+                pg.wait_for_timeout(300)
+            pg.fill(f".sk-model[data-model='{MK}'] [data-ff='blok_sm']", "10")
+            pg.click(f"[data-fsaqla='{MK}']")
+            pg.wait_for_timeout(5000)
+            UI["formula_xabar"] = pg.evaluate("() => document.body.innerText")
             br.close()
 
     try:
@@ -616,6 +624,10 @@ else:
           lambda: UI["kam_server"] == 20000 and "⚠ qoplamasizdan kam" in UI["kam_izoh"] and "⚠ qoplamasizdan kam" in UI["qayta_kam"],
           lambda: (UI.get("kam_server"), UI.get("kam_izoh"), UI.get("qayta_kam")))
     check("U10 oyna tugma bilan yopiladi", lambda: UI["oyna_yopildi"] is True, lambda: UI.get("oyna_yopildi"))
+    check("U11 formula saqlanganda ham — yopilmaydigan oyna, qo'lda qoplamali qatorlar ro'yxati",
+          lambda: "Qoplamali narxlarni tekshiring" in UI["formula_xabar"] and "K-20 · 30 sm" in UI["formula_xabar"],
+          lambda: UI.get("formula_xabar", "")[-600:])
+    CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
     check("U8 sahifada JS xatosi / xom oyna yo'q", lambda: not XATOLAR and "xato" not in UI, lambda: (XATOLAR, UI.get("xato")))
     CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
     CA.put(API + f"/detallar/{DK[40]}", json={"eni_sm": 40})
