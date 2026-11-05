@@ -103,7 +103,7 @@ function element(qiymat) {
  * tarmoq xatosi), `tasdiq` — tasdiq oynasi javobi.
  */
 function muhit(elementlar, javoblar, tasdiq, qoshimcha) {
-  const sorovlar = [], xabarlar = [], tasdiqlar = [], alertlar = [];
+  const sorovlar = [], xabarlar = [], tasdiqlar = [], alertlar = [], sinxronlar = [];
   let reload = 0, ji = 0;
   const ctx = Object.assign({
     console, JSON, String, Number, Math, Promise, parseFloat, parseInt, isNaN, Array, Object,
@@ -127,11 +127,14 @@ function muhit(elementlar, javoblar, tasdiq, qoshimcha) {
     setTimeout: () => 0,
     closePaymentForm: () => {},
     loadPayments: () => {},
+    // kech192 (zip 260, MOSLANDI): to'lovdan keyin ro'yxatdagi to'lov chizig'i / belgilarini yangilash — sahifa yordamchisi
+    // (o'zi alohida — `test_royxat260` J12); bu yerda faqat chaqiruvlar yoziladi. Eski shablon uni chaqirmaydi — farqi yo'q.
+    royxatPulSinxron: (id) => { sinxronlar.push(id); },
     formatNum: (n) => String(n),
     fmt: (n) => String(n),
   }, qoshimcha || {});
   vm.createContext(ctx);
-  return { ctx, sorovlar, xabarlar, tasdiqlar, alertlar, reloadSoni: () => reload };
+  return { ctx, sorovlar, xabarlar, tasdiqlar, alertlar, sinxronlar, reloadSoni: () => reload };
 }
 
 async function ishga(m, kod, chaqiruv) {
@@ -198,6 +201,15 @@ async function ordersBolimi() {
   tekshir('O muvaffaqiyat: yashil xabar qarz bilan',
           m.xabarlar.length === 1 && m.xabarlar[0].tur === 'success' && m.xabarlar[0].t.includes('850000'),
           JSON.stringify(m.xabarlar));
+  // kech192 (zip 260): versiya manbadan — sahifada `royxatPulSinxron` bo'lsa (zip 260), savePayment muvaffaqiyatda uni AYNAN bir marta,
+  // shu buyurtma bilan chaqirishi SHART (chaqiruv olib tashlansa — yiqiladi)
+  if (/async\s+function\s+royxatPulSinxron\s*\(/.test(ORDERS)) {
+    tekshir('O muvaffaqiyat (zip 260): ro\'yxatdagi to\'lov chizig\'i bir marta sinxronlanadi (buyurtma 55)',
+            !m.xato && JSON.stringify(m.sinxronlar) === '[55]', m.xato || JSON.stringify(m.sinxronlar));
+    const mx = await oSina({}, [javob(400, { detail: 'xato' })]);
+    tekshir('O xato (zip 260): saqlanmagan to\'lovda ro\'yxat sinxronlanmaydi',
+            !mx.xato && mx.sinxronlar.length === 0, mx.xato || JSON.stringify(mx.sinxronlar));
+  }
 
   m = await oSina({}, [javob(400, { detail: "'amount' juda katta" })]);
   tekshir('O 400 (`detail` matn) → xabarda server SABABI',
