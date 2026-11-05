@@ -665,6 +665,18 @@ logotipsiz korxonada rasm yo'q, faqat o'z nomi (`company_brand.get_brand`; hujja
 «Korxona nomi»: «Logotip — dastur menyusida, yuk xati va hisobotlarda chiqadi»; o'z logotipi yo'q bo'lsa izoh `#co-logo-yoq` («dastur
 menyusida hozir epserp logotipi turibdi, hujjatlarda — faqat korxona nomingiz»), yuklangach yashiriladi. `static_version` → 20261105-1
 (style.css).
+**Buyurtmalar ro'yxati — 2-namuna «Aksentli chap chiziq» (kech191 / kech192, zip 260 — egasi so'rovi 05.11 18:18: «hodimlar —
+buyurtmalar jadvali juda zich, ko'z toliqyapti»; 4 namunadan QARORI — 2-namuna; «Muddati o'tgan degan yozuv bo'lmasin»; ochilgandagi
+ko'rinishi — «ma'qul»).** O'LCHANGAN (asl — zip 259): loyiha guruhlari bir-biriga yopishgan kulrang qatorlar, chap chiziq — MUDDAT,
+sarlavha / qator / ustuvor ro'yxatda «Muddati o'tgan» / «Bugun muddati» / «Ertaga muddati» belgilari, ochiq loyiha — papka quloq'i.
+Endi `templates/orders.html`: har loyiha — alohida oq KARTA (`.ord-list .proj-group` — oraliq 8 px, yumaloq 12 px, ro'yxat foni
+`--bg`, tepada 10 px), sarlavhaning chap chetida 4 px TO'LOV chizig'i — `data-pul` (qarz — qizil `--m-dc2626`, tolangan — yashil
+`--m-15803d`, yoq — kulrang `--border`; shart sarlavhadagi «Qarz» / «✓ To'langan» bilan bir xil: `g.debt > 0` / `g.total > 0`).
+Muddat belgilari va muddat chiziqlari (`[data-urgency]` CSS) — guruh, qator, tanlangan qator, ustuvor (`renderPinnedOrders`) da YO'Q;
+`data-urgency` atributi QOLADI — tepadagi «Muddati o'tgan» / «Bugun» filtri shundan. Ochiq loyiha — o'sha karta: ko'k chegara 1,5 px,
+sarlavha `--f-eff6ff`, tana `--f-f8fafc`, ichki buyurtmalar — oq kartalar (oraliq 6 px, 10 px); tanlangan — zip 203 uslubi («▶ OCHIQ»,
+3 px ramka). Loyiha nomi — 14 px (umumiy shkala, `test_u13`). MOSLANGAN eski testlar (versiya manbadan — `data-pul="{{`):
+`test_buyurtma_korinish203` (D1c, D6b, D6c), `test_loyiha_papka207` (S1, S4, S5, D1 … D11, D16).
 **Telegram: bot manzili, holati va har korxonaga o'z boti (kech130, zip 154 — kech129 da O'LCHANGAN; egasi QARORLARI 08.10 17:3x–17:42).**
 (1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish» (`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
 `TELEGRAM_BOT_TOKEN`) o'sha saytga ulanadi (`request.base_url`) — kech129 da bot sinov saytiga ulanib qolgan edi (ustalar sinov bazasini
@@ -5471,6 +5483,10 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
   (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 92/0, TF1 92/0, PG 81/0; asl (zip 256) —
   74 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
+- (kech192, zip 260) Buyurtmalar ro'yxati — «Aksentli chap chiziq»: `tools/test_royxat260.py` (S — manba: `data-pul`, muddat
+  belgilari va chiziqlari yo'q, filtr o'sha, karta / ochiq loyiha CSS; H — /orders HTML: `data-pul` uch holati, ro'yxatda muddat matni
+  yo'q, `data-urgency` saqlangan; J — Chromium 1440 / 390 / tungi: kartalar oralig'i, chiziq ranglari, ochiq loyiha, ichki kartalar,
+  filtr, tepadagi bo'shliq, shrift shkalasi, surilish, JS xato). SQ 24/0, TF1 24/0; asl (zip 259) — 19 ta yiqiladi, qulamaydi.
 - (kech191, zip 259) Logotipsiz korxona menyusida epserp logotipi: `tools/test_epserp_logo259.py` (S — statik: base / style / Sozlamalar
   izohi, hujjat kodi epserp ga havola qilmaydi; M — menyu: logotipsiz, o'z logotipli, platforma egasi, fayli yo'q, nomda HTML, 4 sahifa;
   B — `get_brand` va 9 PDF da rasm / «epserp» yo'q, nom bor; Z — Sozlamalar API, logotip fayli o'chsa; J — Chromium: 1440 / 390, tungi
@@ -8954,6 +8970,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_retsept_oyna.py` · PG — kech133 (zip 157): «Loy retseptlari» oynalari — SERVER (takror nom, o'chirilgan material) va SHABLON (statik).
 - `test_retsept_oyna_ui.py` · PG — kech133 (zip 157): «Loy retseptlari» oynalari (yangi / tahrir) — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lokal server bilan (uvicorn, test bazasi) O'LCHANADI.
 - `test_rollar.py` · PG — kech118 ROLLAR VA RUXSATLAR (egasi QARORI 2026-09-30 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»; tugmali javoblar 15:30 — rasmdagidek 4 belgi (Ko'rish / Yaratish / Ta…
+- `test_royxat260.py` · PG — kech191 (zip 260): «Buyurtmalar» ro'yxati — 2-namuna «Aksentli chap chiziq».
 - `test_royxat_n1.py` · PG — kech97 (2026-09-27), 116-band 1-qadam (buyurtma / loyiha N+1) + 114-band (ro'yxat tartibi).
 - `test_saas_marshrut.py` · PG — kech129 (zip 153): SaaS migratsiya HTTP sahifasi (`/saas-migratsiya`, `/api/saas-migration/*`, 8 marshrut) OLIB TASHLANDI; migratsiya DVIGATELI (`saas_migration.STEPS`, `run_s…
 - `test_saas_otish.py` · PG — kech109 darvozasi: `main` ko'chirishi (K108-1) — `saas_otish.py` va korxona id ketma-ketligi (K109-3).
@@ -9071,5 +9088,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 345 (Python 307, JS 38).
+Jami test fayllari: 346 (Python 308, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
