@@ -2929,6 +2929,8 @@ class DokonModel(Base):
     # kech187 (zip 255 — egasi QARORI 04.11 «1 m³ narxidan formula»): karniz formula narxi — 1 m qoplamasiz =
     # balandlik × (balandlik × blok / asos) × 1 m³ narxi ÷ bo'lak (butun so'm, yaxlitlashsiz). Uchalasi to'ldirilgan model —
     # formulali: katalog qatorlari narxi shundan yoziladi, saytda «Boshqa o'lcham» (15 … 40 sm). NULL — oddiy (qo'lda narx).
+    # kech190 (zip 257 — egasi QARORI 05.11): formula faqat QOPLAMASIZ narxni yozadi, qoplamali — qo'lda (bo'sh — × koeffitsient);
+    # «Boshqa o'lcham» — 25 … 60 sm.
     formula_asos_sm = Column(Float, nullable=True)       # asos balandlik (masalan 20 sm)
     formula_blok_sm = Column(Float, nullable=True)       # shu balandlikdagi blok chuqurligi (masalan 9,97 sm)
     formula_bolak = Column(Integer, nullable=True)       # bir blokdan nechta detal chiqadi (masalan 2)

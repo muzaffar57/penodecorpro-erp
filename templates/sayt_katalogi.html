@@ -633,7 +633,7 @@ function skDetalQator(d) {
     return '<input type="text" inputmode="decimal" data-df="' + k + '" value="' + escapeHtml(skPul(d[k])) + '"' +
       (qulf ? ' disabled title="Formula bilan hisoblanadi"' : '') +
       (avto !== undefined ? ' placeholder="avto"' : '') + '>' +
-      (avto !== undefined ? '<div class="sk-avto" data-avto="' + k + '">' + skAvtoMatn(avto) + '</div>' : '');
+      (avto !== undefined ? '<div class="sk-avto" data-avto="' + k + '">' + (k === 'narx_qoplamali' ? skQopIzoh(d) : skAvtoMatn(avto)) + '</div>' : '');   // zip 257
   }
   return '<tr data-detal="' + d.id + '"' + (d.yoqilgan ? '' : ' class="yashirin"') + '>' +
     '<td data-label="Detal"><div>' + escapeHtml(d.turi_nomi) + '<div class="sk-birlik">' + escapeHtml(skBirlikMatn(d.birlik)) + ' · ulgurji ' + escapeHtml(skUlgurjiMatn(d.birlik)) + '</div>' +
@@ -868,10 +868,32 @@ async function skKubSaqla() {
   skBo('kub');
   if (!n.ok) { showMsg('❌ 1 m³ narxi saqlanmadi: ' + n.sabab, 'error'); return; }
   var q = (n.d && n.d.qayta_hisoblandi) || 0;
-  var qq = (n.d && n.d.qolda_qoplamali) || 0;                       // zip 257: qo'lda yozilgan qoplamali narxlar o'zgarmaydi — eslatma
-  showMsg('✓ 1 m³ narxi saqlandi' + (q ? ' — ' + q + ' ta narx qayta hisoblandi' : '') +
-    (qq ? '. Diqqat: ' + qq + ' ta qatorda qoplamali narx qo\'lda yozilgan — u o\'zgarmadi, tekshirib chiqing' : ''), 'success');
+  showMsg('✓ 1 m³ narxi saqlandi' + (q ? ' — ' + q + ' ta narx qayta hisoblandi' : ''), 'success');
   skYukla();
+  skQoplamaliOgoh(n.d && n.d.qoplamali_qatorlar);                  // zip 257 (review257 M1): qo'lda yozilgan qoplamali — o'zgarmadi
+}
+
+// ── kech190 (zip 257): formulali qatorda QOPLAMALI narx — qo'lda. Formula (1 m³ narxi / formula) faqat qoplamasizni o'zgartiradi — qo'lda
+// yozilgan qoplamalisi o'zgargan qatorlar YOPILMAYDIGAN oynada ro'yxat bo'lib chiqadi (qoplamasizdan kam / teng bo'lib qolganlari — birinchi).
+function skQoplamaliOgoh(royxat) {
+  if (!royxat || !royxat.length) return;
+  var kam = royxat.filter(function (x) { return x.kam; }).length;
+  var qator = royxat.map(function (x) {
+    return '• ' + x.kod + ' · ' + x.olcham + ' — qoplamasiz ' + sonKor(x.narx, 0) + ', qoplamali (qo\'lda) ' + sonKor(x.narx_qoplamali, 0) +
+      (x.kam ? ' ⚠ qoplamasizdan kam' : '') + (x.yashirin ? ' (saytda yashirin)' : '');
+  });
+  xabarOyna('Qoplamasiz narx formula bilan qayta hisoblandi, lekin bu qatorlarda qoplamali narx qo\'lda yozilgan — u O\'ZGARMADI:\n' +
+    qator.join('\n') + '\n\n' + (kam ? kam + ' ta qatorda qoplamali narx qoplamasizdan kam yoki teng — saytda shunday sotiladi. ' : '') +
+    'Kerak bo\'lsa, «Narx (qoplamali)» katagini yangilang yoki bo\'shating (bo\'sh — qoplamasiz × koeffitsient).',
+    {sarlavha: 'Qoplamali narxlarni tekshiring', tur: 'ogoh'});
+}
+function skQopKam(d) {                    // formulali asosiy qatorda qo'lda yozilgan qoplamali ≤ qoplamasiz
+  var m = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
+  return !!(m && m.formula) && d.turi === 'asosiy' && d.narx_qoplamali !== null && d.narx_qoplamali !== undefined &&
+    d.narx !== null && d.narx !== undefined && Number(d.narx_qoplamali) <= Number(d.narx);
+}
+function skQopIzoh(d) {
+  return skQopKam(d) ? '<span style="color:var(--m-dc2626,#dc2626)">' + escapeHtml('⚠ qoplamasizdan kam') + '</span>' : skAvtoMatn(d.narx_qoplamali_avto);
 }
 
 function skFormulaHtml(m) {
@@ -925,6 +947,7 @@ async function skFormulaSaqla(mid, tugma, ochir) {
   if (!n.ok) { showMsg('❌ Formula saqlanmadi: ' + n.sabab, 'error'); return; }
   showMsg(ochir ? '✓ Formula o\'chirildi — narxlarni endi qo\'lda o\'zgartirish mumkin' : '✓ Formula saqlandi — narxlar qayta hisoblandi', 'success');
   skYukla();
+  skQoplamaliOgoh(n.d && n.d.qoplamali_qatorlar);                  // zip 257 (review257 L1)
 }
 
 function skYangiBolimOch() { document.getElementById('skYangiBolim').classList.add('ko'); document.getElementById('skYbNom').focus(); }
@@ -1110,7 +1133,7 @@ async function skDetalMaydon(inp) {
   }
   [['narx_qoplamali', d.narx_qoplamali_avto], ['ulgurji_qoplamali', d.ulgurji_qoplamali_avto]].forEach(function (j) {
     var x = tr.querySelector('[data-avto="' + j[0] + '"]');
-    if (x) x.innerHTML = skAvtoMatn(j[1]);
+    if (x) x.innerHTML = j[0] === 'narx_qoplamali' ? skQopIzoh(d) : skAvtoMatn(j[1]);    // zip 257 (review257 M1): ⚠ qoplamasizdan kam
   });
   tr.classList.toggle('yashirin', !d.yoqilgan);
   skModelSoniYangila(d.model_id);

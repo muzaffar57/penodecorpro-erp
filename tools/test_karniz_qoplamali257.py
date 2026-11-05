@@ -13,7 +13,7 @@ NIMA UCHUN KERAK
 BO'LIMLAR
   S — tayyorgarlik. Q — qo'lda qoplamali (sahifa API: tahrir, yangi qator, rad, qayta hisoblarda saqlanishi, avto). E — Excel. M — «Boshqa
   o'lcham»: oraliq 25 … 60 va qoplamalisi (do'kon API; mustaqil hisob). B — savat / buyurtma (narx so'rovi bilan AYNAN). K — do'kon katalogi, chegirma.
-  U — sahifa (Chromium; PG da o'tkaziladi). Z — ikkinchi korxona, jurnal.
+  U — sahifa (Chromium; PG rejimida o'tkazib yuboriladi). Z — ikkinchi korxona (o'z do'koni bilan), jurnal.
 REJIMLAR: SQLite; `TENANT_FILTER=1`; `PG_URL=postgresql://postgres@127.0.0.1:5432`.
 """
 import os
@@ -144,6 +144,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     auth.create_user(s, "t257_plat", PAROL, UserRole.ADMIN, "T257 Platforma", company_id=1)
     auth.create_user(s, "t257_b", PAROL, UserRole.ADMIN, "T257 B", company_id=2)
 s.query(User).filter(User.username == "t257_plat").first().is_platform_admin = True
+s.query(User).filter(User.username == "t257_b").first().is_platform_admin = True     # review257 M2: B korxonaning HAQIQIY do'koni bo'lsin (Z)
 s.commit()
 s.close()
 
@@ -204,6 +205,10 @@ def mq(h):
     return js(maxsus(h)).get("narx_qoplamali")
 
 
+def mq_m(h, mid):
+    return js(maxsus(h, mid)).get("narx_qoplamali")
+
+
 _kn = [0]
 
 
@@ -248,9 +253,18 @@ r = CA.put(API + f"/detallar/{D35}", json={"eni_sm": 32})
 check("Q6 balandlik o'zgardi → qoplamasiz qayta (32 sm → 30 628), qo'lda qoplamali 80 000 O'ZGARMADI",
       r.status_code == 200 and detal(D35).get("narx") == f_narx(32) == 30628 and detal(D35).get("narx_qoplamali") == 80000, detal(D35))
 CA.delete(API + f"/detallar/{D35}")
+CA.put(API + f"/modellar/{MK}", json={"kapitel_baza_bor": True})
+_kp7 = js(CA.post(API + "/detallar", json={"model_id": MK, "turi": "kapitel", "olcham": "30 sm", "eni_sm": 30, "narx": 1000,
+                                           "narx_qoplamali": 5000})).get("id")
 r = CA.put(API + "/kub-narx", json={"kub_narx": 1300000})
-check("Q7 1 m³ narxi o'zgardi → 3 qator qayta, qo'lda qoplamali qatorlar soni 1 (eslatma uchun)",
-      r.status_code == 200 and js(r).get("qayta_hisoblandi") == 3 and js(r).get("qolda_qoplamali") == 1, (r.status_code, r.text[:200]))
+check("Q7 1 m³ narxi o'zgardi → 3 qator qayta, qo'lda qoplamali qatorlar soni 1 (kapitel — qo'lda narx, formulaga kirmaydi — sanalmaydi)",
+      _kp7 and r.status_code == 200 and js(r).get("qayta_hisoblandi") == 3 and js(r).get("qolda_qoplamali") == 1, (_kp7, r.status_code, r.text[:300]))
+check("Q7d javobda ro'yxat: K-20 · 30 sm — qoplamasiz 29 162, qoplamali 60 000, kam emas, ko'rinadi",
+      [{k: x.get(k) for k in ("detal_id", "kod", "olcham", "narx", "narx_qoplamali", "kam", "yashirin")} for x in js(r).get("qoplamali_qatorlar") or []]
+      == [{"detal_id": DK[30], "kod": "K-20", "olcham": "30 sm", "narx": 29162, "narx_qoplamali": 60000, "kam": False, "yashirin": False}],
+      r.text[:400])
+CA.delete(API + f"/detallar/{_kp7}")
+CA.put(API + f"/modellar/{MK}", json={"kapitel_baza_bor": False})
 check("Q7b 30 sm qoplamasiz 29 162, qoplamali 60 000 O'ZGARMADI; 25 sm avto (37 388 → 40 504)",
       detal(DK[30]).get("narx") == f_narx(30, 1300000) == 29162 and detal(DK[30]).get("narx_qoplamali") == 60000
       and detal(DK[25]).get("narx_qoplamali") is None and detal(DK[25]).get("narx_qoplamali_avto") == 2 * f_narx(25, 1300000) == 40504,
@@ -258,8 +272,22 @@ check("Q7b 30 sm qoplamasiz 29 162, qoplamali 60 000 O'ZGARMADI; 25 sm avto (37 
 r = CA.put(API + "/kub-narx", json={"kub_narx": 1300000})
 check("Q7c o'sha 1 m³ narxi qayta — 0 qayta hisob, eslatma yo'q", r.status_code == 200 and js(r).get("qayta_hisoblandi") == 0
       and not js(r).get("qolda_qoplamali"), r.text[:200])
-CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
+r = CA.put(API + "/kub-narx", json={"kub_narx": 3000000})
+_q13 = (js(r).get("qoplamali_qatorlar") or [{}])[0]
+check("Q7e 1 m³ 3 000 000: 30 sm qoplamasiz 67 298 > qo'lda 60 000 — ro'yxatda «kam», narx avtomatik O'ZGARMAYDI (egasi qarori)",
+      r.status_code == 200 and _q13.get("kam") is True and _q13.get("narx") == f_narx(30, 3000000) == 67298
+      and detal(DK[30]).get("narx_qoplamali") == 60000, r.text[:300])
+_j13 = bazadan(lambda d: [a.new_value or "" for a in d.query(models.ActivityLog).filter(models.ActivityLog.company_id == 1).all()])
+check("Q7f jurnalda: «1 ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi (1 tasida qoplamasizdan kam yoki teng)»",
+      _j13 and any("1 ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi (1 tasida qoplamasizdan kam yoki teng)" in x for x in _j13),
+      _j13 and _j13[-3:])
+CA.put(API + f"/detallar/{DK[30]}", json={"yoqilgan": False})
+r = CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
+check("Q7g yashirin qator ro'yxatda «yashirin» belgisi bilan", ((js(r).get("qoplamali_qatorlar") or [{}])[0]).get("yashirin") is True, r.text[:300])
+CA.put(API + f"/detallar/{DK[30]}", json={"yoqilgan": True})
 r = CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 10, "bolak": 2}})
+check("Q8a formula o'zgarganda ham javobda qo'lda qoplamali qatorlar (1)", r.status_code == 200 and js(r).get("qolda_qoplamali") == 1
+      and (js(r).get("qoplamali_qatorlar") or [{}])[0].get("detal_id") == DK[30], r.text[:300])
 check("Q8 formula o'zgardi (blok 10) → 30 sm 27 000, qoplamali 60 000 O'ZGARMADI",
       r.status_code == 200 and detal(DK[30]).get("narx") == 27000 and detal(DK[30]).get("narx_qoplamali") == 60000, detal(DK[30]))
 CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
@@ -416,6 +444,38 @@ check("B5 katalog o'lchami 30 sm qoplamali — qo'lda yozilgan 60 000", r.status
 _h = bazadan(lambda d: crud.sayt_buyurtma_hisobla(d, 1, [{"maxsus": {"model_id": MK, "balandlik_sm": 28}, "qoplamali": True, "miqdor": 2}]))
 check("B6 savat hisobi (ERP) = narx so'rovi (28 sm qoplamali 54 325 × 2)", lambda: _h is not None and float(_h["jami"]) == 2 * 54325
       == 2 * mq(28), _h and _h["jami"])
+# review257 M2: buyurtma yo'liga YASHIRIN qatorlar ham keladi — narx so'rovi bilan bir xil bo'lishi kerak
+CA.put(API + f"/detallar/{DK[40]}", json={"narx_qoplamali": 100000})
+CA.put(API + f"/detallar/{DK[30]}", json={"yoqilgan": False})
+
+
+def _hisob(h):
+    x = bazadan(lambda d: crud.sayt_buyurtma_hisobla(d, 1, [{"maxsus": {"model_id": MK, "balandlik_sm": h}, "qoplamali": True, "miqdor": 2}]))
+    return None if x is None else float(x["jami"]) / 2
+
+
+check("B7 30 sm yashirin: 28 sm buyurtma = narx so'rovi = 40 sm dan (yashirin 30 sm hisobga olinmaydi)",
+      lambda: _hisob(28) == mq(28) == f_qop(28, 40, 100000), lambda: (_hisob(28), mq(28), f_qop(28, 40, 100000)))
+check("B7b aynan 30 sm buyurtma = narx so'rovi, yashirin qo'lda 60 000 EMAS", lambda: _hisob(30) == mq(30) == f_qop(30, 40, 100000) != 60000,
+      lambda: (_hisob(30), mq(30)))
+CA.put(API + f"/detallar/{DK[30]}", json={"yoqilgan": True})
+CA.put(API + f"/detallar/{DK[40]}", json={"narx_qoplamali": None})
+# review257 M2: teng masofada — KICHIK balandlik (id tartibi teskari bo'lsa ham); bir balandlikda ikki qator — qo'lda yozilgani
+MK2 = js(CA.post(API + "/modellar", json={"bolim_id": BOL.get("Karnizlar"), "kod": "K-40", "nom": "Tartib"})).get("id")
+_d2 = {}
+for nom, e, q in (("30 sm B", 30, None), ("40 sm", 40, 110000), ("30 sm", 30, 65000)):
+    _t = {"model_id": MK2, "turi": "asosiy", "olcham": nom, "eni_sm": e, "qalinligi_sm": 10, "narx": 1}
+    _d2[nom] = js(CA.post(API + "/detallar", json=_t)).get("id")
+CA.put(API + f"/modellar/{MK2}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
+CA.put(API + f"/detallar/{_d2['40 sm']}", json={"narx_qoplamali": 110000})
+CA.put(API + f"/detallar/{_d2['30 sm']}", json={"narx_qoplamali": 65000})
+check("B8 tayyorgarlik: 30 sm B (avto, id kichik), 40 sm (qo'lda, id o'rtada), 30 sm (qo'lda, id katta)",
+      _d2["30 sm B"] < _d2["40 sm"] < _d2["30 sm"] and detal(_d2["30 sm"]).get("narx_qoplamali") == 65000, _d2)
+check("B8b teng masofa (35 sm: 30 va 40) — kichik balandlik (30 sm, id katta bo'lsa ham)", lambda: mq_m(35, MK2) == f_qop(35, 30, 65000),
+      lambda: (mq_m(35, MK2), f_qop(35, 30, 65000), f_qop(35, 40, 110000)))
+check("B8c aynan 30 sm — ikki qatordan QO'LDA yozilgani (65 000), avto emas", lambda: mq_m(30, MK2) == 65000, lambda: mq_m(30, MK2))
+check("B8d buyurtma yo'li ham shunday", lambda: bazadan(lambda d: float(crud.sayt_buyurtma_hisobla(d, 1, [
+      {"maxsus": {"model_id": MK2, "balandlik_sm": 35}, "qoplamali": True, "miqdor": 2}])["jami"])) == 2 * f_qop(35, 30, 65000))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("K. Do'kon katalogi va chegirma")
@@ -509,11 +569,24 @@ else:
             pg.wait_for_timeout(900)
             UI["yangi_server"] = next(((x.get("narx"), x.get("narx_qoplamali")) for x in katalog().get("detallar") or []
                                        if x.get("model_id") == MK and x.get("olcham") == "36 sm"), None)
-            # 1 m³ narxi saqlansa — eslatma
+            pg.click(f"[data-och='{MK}']") if not pg.is_visible(f"tr[data-detal='{DK[30]}'] [data-df='narx_qoplamali']") else None
+            # qoplamasizdan kam qoplamali — katak ostida ⚠ (saqlanadi, rad etilmaydi)
+            q = pg.locator(f"tr[data-detal='{DK[30]}'] [data-df='narx_qoplamali']")
+            q.fill("20 000")
+            q.dispatch_event("change")
+            pg.wait_for_timeout(800)
+            UI["kam_izoh"] = pg.evaluate(f"""() => document.querySelector('tr[data-detal="{DK[30]}"] [data-avto="narx_qoplamali"]').textContent""")
+            UI["kam_server"] = detal(DK[30]).get("narx_qoplamali")
+            # 1 m³ narxi saqlansa — YOPILMAYDIGAN oynada ro'yxat
             pg.fill("#skKub", "1 250 000")
             pg.click("#skKubSaqla")
-            pg.wait_for_timeout(700)
-            UI["kub_xabar"] = pg.evaluate("() => [...document.querySelectorAll('body > div')].map(x => x.textContent).join(' | ')")
+            pg.wait_for_timeout(5000)                       # showMsg 4 s da yo'qoladi — oyna qolishi kerak
+            UI["kub_xabar"] = pg.evaluate("() => document.body.innerText")
+            # formula saqlansa ham — oyna
+            pg.evaluate("() => document.querySelectorAll('button').forEach(b => { if (/^(OK|Yopish|Tushunarli)$/.test(b.textContent.trim())) b.click(); })")
+            pg.wait_for_timeout(400)
+            UI["oyna_yopildi"] = "Qoplamali narxlarni tekshiring" not in pg.evaluate("() => document.body.innerText")
+            UI["qayta_kam"] = pg.evaluate(f"""() => document.querySelector('tr[data-detal="{DK[30]}"] [data-avto="narx_qoplamali"]').textContent""")
             br.close()
 
     try:
@@ -532,19 +605,36 @@ else:
           lambda: UI["yangi"] == {"n": True, "q": False, "qp": "avto"}, lambda: UI.get("yangi"))
     check("U6 yangi qator 36 sm qoplamali 87 000 bilan yaratildi (qoplamasiz — formula)",
           lambda: UI["yangi_server"] == (f_narx(36), 87000), lambda: (UI.get("yangi_server"), f_narx(36)))
-    check("U7 1 m³ narxi saqlanganda eslatma: qo'lda yozilgan qoplamali o'zgarmadi",
-          lambda: "qoplamali narx qo'lda yozilgan" in UI["kub_xabar"] and "o'zgarmadi" in UI["kub_xabar"], lambda: UI.get("kub_xabar"))
+    check("U7 1 m³ narxi saqlanganda — 5 s dan keyin ham turgan oyna «Qoplamali narxlarni tekshiring», qatorlar ro'yxati, ⚠ kam",
+          lambda: "Qoplamali narxlarni tekshiring" in UI["kub_xabar"] and "K-20 · 30 sm" in UI["kub_xabar"] and "K-20 · 36 sm" in UI["kub_xabar"]
+          and "⚠ qoplamasizdan kam" in UI["kub_xabar"] and "O'ZGARMADI" in UI["kub_xabar"], lambda: UI.get("kub_xabar", "")[-900:])
+    check("U9 qoplamasizdan kam qoplamali (20 000) — saqlandi va katak ostida «⚠ qoplamasizdan kam»; jadval qayta chizilganda ham",
+          lambda: UI["kam_server"] == 20000 and "⚠ qoplamasizdan kam" in UI["kam_izoh"] and "⚠ qoplamasizdan kam" in UI["qayta_kam"],
+          lambda: (UI.get("kam_server"), UI.get("kam_izoh"), UI.get("qayta_kam")))
+    check("U10 oyna tugma bilan yopiladi", lambda: UI["oyna_yopildi"] is True, lambda: UI.get("oyna_yopildi"))
     check("U8 sahifada JS xatosi / xom oyna yo'q", lambda: not XATOLAR and "xato" not in UI, lambda: (XATOLAR, UI.get("xato")))
     CA.put(API + "/kub-narx", json={"kub_narx": 1200000})
     CA.put(API + f"/detallar/{DK[40]}", json={"eni_sm": 40})
     CA.put(API + f"/detallar/{DK[30]}", json={"narx_qoplamali": 60000})
+    for _x in [x for x in katalog().get("detallar") or [] if x.get("model_id") == MK and x.get("olcham") == "36 sm"]:
+        CA.delete(API + f"/detallar/{_x['id']}")                 # UI da qo'shilgan qator — keyingi bo'limlar SQ / PG da bir xil holatda
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("Z. Ikkinchi korxona, jurnal")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+check("Z0 B korxonaning o'z do'koni ochiq (sinov haqiqiy bo'lsin)", CB.get(API).status_code == 200, CB.get(API).text[:200])
 r = CB.put(API + f"/detallar/{DK[30]}", json={"narx_qoplamali": 1})
-check("Z1 B korxona begona qatorga qoplamali — 404, o'zgarmadi", r.status_code == 404 and detal(DK[30]).get("narx_qoplamali") == 60000,
-      (r.status_code, r.text[:200]))
+check("Z1 B korxona begona qatorga qoplamali — 404 «Narx qatori topilmadi», o'zgarmadi", r.status_code == 404
+      and "topilmadi" in js(r).get("detail", "") and detal(DK[30]).get("narx_qoplamali") == 60000, (r.status_code, r.text[:200]))
+_bol_b = {b.get("nom"): b.get("id") for b in (js(CB.get(API)).get("bolimlar") or [])}
+_mb = js(CB.post(API + "/modellar", json={"bolim_id": _bol_b.get("Karnizlar"), "kod": "K-20", "nom": "B karniz"})).get("id")
+_db = js(CB.post(API + "/detallar", json={"model_id": _mb, "turi": "asosiy", "olcham": "33 sm", "eni_sm": 33, "qalinligi_sm": 11,
+                                          "narx": 1, "narx_qoplamali": 9000000})).get("id")
+CB.put(API + "/kub-narx", json={"kub_narx": 1200000})
+_rb = CB.put(API + f"/modellar/{_mb}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
+check("Z1b B korxonada 33 sm qo'lda qoplamali 9 000 000 — A korxonaning 34 / 33 sm «Boshqa o'lcham»iga ta'sir qilmaydi",
+      _mb and _db and _rb.status_code == 200 and mq(34) == f_qop(34, 30, 60000) and mq(33) == f_qop(33, 30, 60000),
+      (_mb, _db, _rb.text[:200], mq(34), f_qop(34, 30, 60000)))
 _j = bazadan(lambda d: [a.new_value or "" for a in d.query(models.ActivityLog).filter(models.ActivityLog.company_id == 1).all()])
 check("Z2 jurnalda: 1 m³ narxi o'zgarganda «qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi»",
       _j and any("qoplamali narx qo'lda yozilgan — o'zgarmadi" in x for x in _j), _j and _j[-5:])

@@ -12070,7 +12070,11 @@ def api_dokon_model_yangila(data: dict = Body(...), model_id: int = _Path213(...
                                                          _dokon_kim(current_user)))
     if m is None:
         raise HTTPException(status_code=404, detail="Model topilmadi")
-    return crud.dokon_model_dict(m)
+    javob = crud.dokon_model_dict(m)
+    _qq257 = getattr(m, "qoplamali_qatorlar257", None)     # kech190 (review257 L1): formula o'zgarganda — qo'lda yozilgan qoplamali qatorlar
+    if _qq257:
+        javob["qolda_qoplamali"], javob["qoplamali_qatorlar"] = len(_qq257), _qq257
+    return javob
 
 
 @app.delete("/api/sayt-katalogi/modellar/{model_id}")
@@ -12142,7 +12146,8 @@ def api_sayt_bandlar(db: Session = Depends(get_db), current_user=Depends(auth.ru
 @app.put("/api/sayt-katalogi/kub-narx")
 def api_dokon_kub_narx(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     """kech187 (zip 255): 1 m³ mahsulot narxi (karniz formulasi): {"kub_narx": 1 … 1 000 000 000 | null}. Saqlanganda formulali modellar
-    narxi qayta hisoblanadi. Javob: {"kub_narx", "qayta_hisoblandi"}."""
+    narxi qayta hisoblanadi. Javob: {"kub_narx", "qayta_hisoblandi", "qolda_qoplamali", "qoplamali_qatorlar"} (zip 257: qoplamasizi o'zgargan,
+    qoplamalisi qo'lda yozilgan qatorlar — formula ularga tegmaydi)."""
     _dokon_bajar(db, lambda: crud.dokon_tekshir(db, auth.company_id_of(current_user)))    # o'chiq korxona — avval 404
     if not isinstance(data, dict) or set(data) != {"kub_narx"}:
         raise HTTPException(status_code=400, detail="Faqat 'kub_narx' yuboriladi")

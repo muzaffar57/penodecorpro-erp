@@ -22409,7 +22409,7 @@ def dokon_avto_qoplamali(narx, koeff):
 
 # ── Karniz formula narxi (kech187, zip 255) ──────────────────────────────────────────────────────────────────────────────
 # Egasi QARORLARI 04.11 (rasm bilan): 1 m qoplamasiz = balandlik × blok chuqurligi × 1 m³ narxi ÷ 2 (ikki karniz BITTA blokdan bir-birining
-# ichiga kirib kesiladi), qoplamali = qoplamasiz × koeffitsient; blok chuqurligi balandlikka mutanosib; tayyor o'lchamlar ham SHU formula
+# ichiga kirib kesiladi), qoplamali = qoplamasiz × koeffitsient (zip 257: qoplamali — QO'LDA, bo'sh — × koeffitsient); blok chuqurligi balandlikka mutanosib; tayyor o'lchamlar ham SHU formula
 # bilan; saytda «Boshqa o'lcham» — 15 … 40 sm (zip 257: 25 … 60); YAXLITLASH YO'Q (butun so'm). Texnik qarorlar (Claude): 1 m³ narxi — korxona sozlamasi
 # (bitta — o'zgarsa hamma formulali model qayta hisoblanadi); formula — MODEL darajasida (bo'lim nomi egasiniki, kodda «karniz» belgisi
 # yo'q), faqat metrli qolipda; formulali modelning katalog qatorlari narxi SERVER hisoblab YOZADI (qo'lda — rad) — shunda katalog API,
@@ -22538,10 +22538,11 @@ def dokon_formula_dict(m):
     return {"asos_sm": m.formula_asos_sm, "blok_sm": m.formula_blok_sm, "bolak": m.formula_bolak}
 
 
-def _dokon_formula_qayta(db: Session, company_id: int, m, kub) -> int:
+def _dokon_formula_qayta(db: Session, company_id: int, m, kub, ozgargan=None) -> int:
     """Formulali modelning ASOSIY (metrdagi) narx qatorlariga `narx` = formula(eni_sm) (review255 M2: kapitel / baza — qo'lda narx, tegilmaydi);
     qoplamali — TEGILMAYDI (zip 257: qo'lda yozilgani — o'sha, bo'sh — koeffitsient bilan). Eni yo'q qator — rad
-    (balandliksiz narx hisoblanmaydi). O'zgargan qatorlar sonini qaytaradi (commit — chaqiruvchida)."""
+    (balandliksiz narx hisoblanmaydi). O'zgargan qatorlar sonini qaytaradi (commit — chaqiruvchida); `ozgargan` (ro'yxat) berilsa — narxi
+    o'zgargan qatorlar (m, d) unga qo'shiladi (review257 M1: qo'lda yozilgan qoplamali narxlar ro'yxati egasiga)."""
     from models import DokonDetal
     n = 0
     for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id)
@@ -22552,15 +22553,31 @@ def _dokon_formula_qayta(db: Session, company_id: int, m, kub) -> int:
         if _dokon_qiymatlar((d.narx,)) != _dokon_qiymatlar((yangi,)):      # zip 257: qoplamali (qo'lda) — o'zgarmaydi
             d.narx = yangi
             n += 1
+            if ozgargan is not None:
+                ozgargan.append((m, d))
     return n
 
 
-def _dokon_formula_qolda_qoplamali(db: Session, company_id: int, m) -> int:
-    """zip 257: formulali modelning qoplamali narxi QO'LDA yozilgan asosiy qatorlari soni (formula ularga tegmaydi — egasiga eslatma)."""
-    from models import DokonDetal
-    return sum(1 for d in db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id,
-                                                       DokonDetal.narx_qoplamali.isnot(None)).all()
-               if dokon_formula_qatormi(m, d))
+DOKON_QOPLAMALI_ROYXAT_MAX = 100
+
+
+def _dokon_qolda_qoplamali_royxat(ozgargan) -> list:
+    """zip 257 (review257 M1 / L1): qoplamasiz narxi formula bilan HOZIR o'zgargan, qoplamalisi QO'LDA yozilgan qatorlar — egasiga ro'yxat
+    (formula ularga tegmaydi; qoplamali ≤ qoplamasiz bo'lib qolganlari — «kam», birinchi). Narx avtomatik o'zgartirilmaydi (egasi QARORI)."""
+    r = [{"model_id": m.id, "detal_id": d.id, "kod": m.kod, "olcham": d.olcham, "narx": _dokon_pul(d.narx),
+          "narx_qoplamali": _dokon_pul(d.narx_qoplamali), "kam": Decimal(str(d.narx_qoplamali)) <= Decimal(str(d.narx)),
+          "yashirin": not (d.yoqilgan and m.yoqilgan)}
+         for m, d in ozgargan if d.narx_qoplamali is not None and d.narx is not None]
+    r.sort(key=lambda x: (not x["kam"], x["kod"] or "", x["detal_id"]))
+    return r[:DOKON_QOPLAMALI_ROYXAT_MAX]
+
+
+def _dokon_qoplamali_jurnal(royxat) -> str:
+    if not royxat:
+        return ""
+    kam = sum(1 for x in royxat if x["kam"])
+    return (f"; {len(royxat)} ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi"
+            + (f" ({kam} tasida qoplamasizdan kam yoki teng)" if kam else ""))
 
 
 def dokon_kub_narx_saqla(db: Session, company_id: int, qiymat, kim: str):
@@ -22597,15 +22614,16 @@ def dokon_kub_narx_saqla(db: Session, company_id: int, qiymat, kim: str):
         row.value = None if k is None else str(k)
     else:
         db.add(CompanySetting(company_id=company_id, key=DOKON_KUB_NARX_KALIT, value=None if k is None else str(k)))
-    n = sum(_dokon_formula_qayta(db, company_id, m, k) for m in modellar) if k is not None else 0
-    q257 = sum(_dokon_formula_qolda_qoplamali(db, company_id, m) for m in modellar) if (k is not None and n) else 0
+    _oz257 = []
+    n = sum(_dokon_formula_qayta(db, company_id, m, k, _oz257) for m in modellar) if k is not None else 0
+    q257 = _dokon_qolda_qoplamali_royxat(_oz257)
     log_activity(db, "updated", "company_setting", company_id, "Sayt katalogi — 1 m³ narxi", kim,
                  old_value="—" if eski is None else audit_son(eski, 0),
                  new_value=("—" if k is None else audit_son(k, 0)) + (f"; {n} ta narx qatori qayta hisoblandi" if n else "")
-                 + (f"; {q257} ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi" if q257 else ""),
+                 + _dokon_qoplamali_jurnal(q257),
                  company_id=company_id, commit=False)
     db.commit()
-    return {"kub_narx": _dokon_pul(k), "qayta_hisoblandi": n, "qolda_qoplamali": q257}
+    return {"kub_narx": _dokon_pul(k), "qayta_hisoblandi": n, "qolda_qoplamali": len(q257), "qoplamali_qatorlar": q257}
 
 
 def _dokon_pul(x):
@@ -22981,7 +22999,8 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
         m.yoqilgan = _dokon_bool(data["yoqilgan"], "Yoqilgan")
     # kech187 (zip 255): karniz formulasi — faqat metrli qolipda, 1 m³ narxi kiritilgan bo'lsa; yoqilsa / o'zgarsa — narx qatorlari qayta
     # hisoblanadi (qator qulfi model qulfidan KEYIN — boshqa yo'llar bilan bir tartib); o'chirilsa — oxirgi narxlar qo'lda tahrirga qoladi
-    _fq255 = _qq257 = 0
+    _fq255 = 0
+    _qq257 = []
     if "formula" in data:
         f = _dokon_formula_kirish(data["formula"])
         if f is None:
@@ -22995,8 +23014,9 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
             _kub255 = dokon_kub_narx(db, company_id)
             if _kub255 is None:
                 raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
-            _fq255 = _dokon_formula_qayta(db, company_id, m, _kub255)
-            _qq257 = _dokon_formula_qolda_qoplamali(db, company_id, m) if _fq255 else 0
+            _oz257 = []
+            _fq255 = _dokon_formula_qayta(db, company_id, m, _kub255, _oz257)
+            _qq257 = _dokon_qolda_qoplamali_royxat(_oz257)
     yangi = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan),
              (m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak))
     if yangi == eski:
@@ -23009,13 +23029,14 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
     if _fq255:
         farq.append(f"{_fq255} ta narx formula bilan qayta hisoblandi")
     if _qq257:
-        farq.append(f"{_qq257} ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi")
+        farq.append(_dokon_qoplamali_jurnal(_qq257)[2:])
     log_activity(db, "updated", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
                  old_value=f"{eski[1]}; {DOKON_QOLIP_NOMI.get(eski[4])}",
                  new_value=f"{m.kod}; {DOKON_QOLIP_NOMI.get(m.qolip)}; o'zgardi: {', '.join(farq)}",
                  company_id=company_id, commit=False)
     db.commit()
     db.refresh(m)
+    m.qoplamali_qatorlar257 = _qq257            # review257 L1: javobga (main) — qo'lda yozilgan qoplamali qatorlar ro'yxati (bazaga yozilmaydi)
     return m
 
 
@@ -26020,7 +26041,8 @@ def _dokon_maxsus_qoplamali(m, h, narx, koeff, detallar):
     """zip 257 (egasi QARORI 05.11 «Yaqin o'lchamdan»): «Boshqa o'lcham» qoplamali narxi. Saytda ko'rinadigan asosiy qatorlardan QOPLAMALI
     narxi qo'lda yozilganlari orasida balandligi eng yaqini (teng masofada — kichigi, keyin id) olinadi; uning qoplama ulushi (qoplamali −
     qoplamasiz; manfiy bo'lsa — 0) balandlikka mutanosib: ulush × h ÷ eni (aniq kasr, HALF_UP — butun so'm); natija = formula narxi + shu.
-    Bunday qator yo'q — qoplamasiz × koeffitsient (avvalgidek). Misol: 20 sm — 11 964 / 30 000 (ulush 18 036), 25 sm — 18 694 + 22 545 = 41 239.
+    Bunday qator yo'q — qoplamasiz × koeffitsient (avvalgidek). Misol (1 m³ 1 200 000, 20 / 9,97 / 2): 30 sm — 26 919 / 60 000 (ulush 33 081),
+    35 sm — 36 640 + 38 595 = 75 235.
     Katalogdagi o'lchamning o'zi yozilsa — o'sha qatorning qoplamalisi AYNAN (qo'lda yozilgani yoki avto) chiqadi.
     Faqat yoqilgan qatorlar (narx so'rovi `dokon_api_maxsus_narx` ham, buyurtma `sayt_buyurtma_hisobla` ham bir xil natija)."""
     from fractions import Fraction as _Fr257
