@@ -1363,10 +1363,14 @@ else:
           pgl.goto(BASE + "/", wait_until="networkidle")
           _ly3 = pgl.evaluate(LOGO_JS)
           ctxl.close()
+          # kech191 (zip 259, MOSLANDI): boshqa korxonada — epserp logotipi + nom (zip 259 gacha — harf + nom); platforma logotipi berilmaydi
+          _e259b = "s-logo-epserp" in open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+          _ly3_ok = ((_ly3["plita"] and (_ly3["src"] or "").startswith("/static/epserp_logo.svg?v=") and not _ly3["kesim"]) if _e259b
+                     else (not _ly3["plita"] and _ly3["src"] is None))
           check("U29 yuklangan fayli yo'qolgan (sinov saytida — har yangilanishda): platforma egasida — platforma logotipi (`logo_menyu.webp`); "
-                "boshqa korxonada — harf + nom (platforma logotipi berilmaydi)",
+                "boshqa korxonada — epserp logotipi + nom (zip 259 gacha — harf + nom; platforma logotipi berilmaydi)",
                 _ly1["plita"] and _ly1["src"] == "/static/logo_menyu.webp" and main.company_logo_of(1) == "static/logo_transparent.png"
-                and not _ly3["plita"] and _ly3["src"] is None and _ly3["nom"] == "K211 Blok korxona" and main.company_logo_of(3) is None
+                and _ly3_ok and _ly3["nom"] == "K211 Blok korxona" and main.company_logo_of(3) is None
                 and not os.path.isfile(_tola3 or "/yoq"), (_ly1, _ly3))
           # Sozlamalar → «Korxona nomi» dagi logotip ko'rinishi (211e jonli sinovida — o'chgan fayl, singan rasm edi)
           _SZ_JS = """() => { const i = document.getElementById('co-logo-preview'); return i ? {src: i.getAttribute('src'),
