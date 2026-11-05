@@ -502,6 +502,9 @@ if br:
                                 s.value = '{ID["m3"]}'; s.dispatchEvent(new Event('change')); }}""")
         _vol = pg.evaluate("() => ({v: document.getElementById('ap-volume').value, kor: getComputedStyle(document.getElementById('ap-volume-wrap')).display})")
         check("B12 penoplast tanlansa blok hajmi O'ZI yoziladi (1,4 m³ — shu materialniki)", _vol == {"v": "1,4", "kor": "block"}, _vol)
+        # kech195 (zip 261, MOSLANDI): «Eski qarzni to'lash» — tugma bosilganda summa maydoni ochiladi
+        if pg.locator("#sup-quickpay-och").count():
+            pg.click("#sup-quickpay-och")
         pg.fill("#sup-quickpay-amount", "5000")
         del SOROV[:]
         pg.evaluate("() => { window.__qp = quickPaySupplier(); }")

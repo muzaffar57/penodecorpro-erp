@@ -105,7 +105,11 @@ OLCHAMLAR = [("telefon", 375, 420, True), ("kompyuter", 1280, 520, False)]
 ENG_PAST = r"""() => {
   const m = document.querySelector('.erp-main');
   if (!m) return {xato: 'erp-main yo\'q'};
+  // kech195 (zip 261, MOSLANDI): yopiq `<details>` ichidagi (summary dan tashqari) tugunlar ko'rinmaydi — Chromium ularni o'lchamli joylaydi
+  // (content-visibility), lekin ekranga chiqmaydi va sahifa balandligiga kirmaydi (yangi «Kirim qilish» — yig'iladigan «Kirimlar tarixi»)
   const korin = el => { const s = getComputedStyle(el); if (s.display === 'none' || s.visibility === 'hidden') return false;
+                        for (let d = el.closest('details:not([open])'); d; d = d.parentElement && d.parentElement.closest('details:not([open])')) {
+                          const sm = d.querySelector(':scope > summary'); if (!sm || !sm.contains(el)) return false; }
                         const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const qotgan = el => { for (let e = el; e && e !== m; e = e.parentElement) { const p = getComputedStyle(e).position;
                          if (p === 'fixed' || p === 'sticky') return true; } return false; };

@@ -438,7 +438,8 @@ async function ishlabBolimi() {
 (async () => {
   await sotishBolimi();
   await brakBolimi();
-  await materialBolimi('supplier_receive.html', RCV, "+ Material ro'yxatga qo'shish");
+  // kech195 (zip 261, MOSLANDI): yangi «Kirim qilish» oynasida qatorni qo'shish — kiritish qatoridagi «+» tugmasi (xabar shuni aytadi)
+  await materialBolimi('supplier_receive.html', RCV, RCV.indexOf('id="rcv-seg-boshl"') >= 0 ? "qatordagi «+» ni qayta bosing" : "+ Material ro'yxatga qo'shish");
   await materialBolimi('suppliers.html', SUP, '✓ Saqlash');
   await inventarBolimi();
   await ishlabBolimi();

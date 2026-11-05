@@ -113,8 +113,13 @@ check("S2 Buyurtmalar `formatNum` — ming ajratgich bo'linmas bo'shliq (son o'z
 # tasdiq oynasi — hammasi MATN, maydon emas); zip 237 bog'liq ro'yxatida bu test yo'q edi (d245 da yiqiladi)
 # kech189 (zip 256, MOSLANDI — QOBILIYAT bo'yicha): finance.html matnda 1 → 8 — «Usta KPI to'landi» oynasidagi usta tanlovi (qoldiq, xato,
 # tasdiq, ogohlantirish matnlari — hammasi MATN, maydon emas); eski kodda (oyna yo'q) — 1
-_KUT = {"debts.html": (3, 15), "finance.html": (2, 8 if "usta-keshbek" in oqi("templates/finance.html") else 1), "finished.html": (3, 2), "kunlik_xarajat.html": (0, 2), "orders.html": (19, 16),
-        "supplier_receive.html": (2, 14), "suppliers.html": (1, 8)}
+# kech195 (zip 261, MOSLANDI — QOBILIYAT bo'yicha): orders.html matnda 16 → 17 — «Ustuvor buyurtmalar» kartasidagi qarz summasi (MATN);
+# supplier_receive.html (2, 14) → (4, 22) — yangi «Kirim qilish»: maydonda +2 (savat qatorining narx maydoni, «To'liq to'langan» summasi),
+# matnda +8 (qator summasi, «Omborda», narx belgisi izohi, «Ombordan tanlash» narxlari, «Xarajatlar», telefon paneli, xabarlar)
+_Z261 = 'id="rcv-seg-boshl"' in oqi("templates/supplier_receive.html")
+_KUT = {"debts.html": (3, 15), "finance.html": (2, 8 if "usta-keshbek" in oqi("templates/finance.html") else 1), "finished.html": (3, 2), "kunlik_xarajat.html": (0, 2),
+        "orders.html": (19, 17 if "renderPinnedOrders" in oqi("templates/orders.html") and "pin-past" in oqi("templates/orders.html") else 16),
+        "supplier_receive.html": (4, 22) if _Z261 else (2, 14), "suppliers.html": (1, 8)}
 _SON = {}
 for _f, (_nk, _pk) in _KUT.items():
     _t = oqi("templates/" + _f)
@@ -146,7 +151,9 @@ check("S5 Buyurtmalar topshirish foizi — `|son(1)` / `foizKor(…, 1)` (vergul
       all(x in _ORD for x in _FOIZ) and not any(x in _ORD for x in _ESKI_FOIZ) and "width:{{ dpct }}%" in _ORD,
       ([x for x in _FOIZ if x not in _ORD], [x for x in _ESKI_FOIZ if x in _ORD]))
 check("S6 Kirim va ta'minotchi xaridi ro'yxatida miqdor — `sonKor(b.qty, 4)` (vergul)",
-      '<td data-label="Miqdor">${sonKor(b.qty, 4)} ${escapeHtml(b.unit)}</td>' in oqi("templates/supplier_receive.html")
+      # kech195 (zip 261, MOSLANDI): yangi «Kirim qilish» — miqdor savat qatorining maydonida (`_rcvQtyMatn` — `sonKor(…, 4)`)
+      (("sonKor(Number(q), 4)" in oqi("templates/supplier_receive.html") and "value=\"${escapeHtml(_rcvQtyMatn(b.qty))}\"" in oqi("templates/supplier_receive.html"))
+       if _Z261 else '<td data-label="Miqdor">${sonKor(b.qty, 4)} ${escapeHtml(b.unit)}</td>' in oqi("templates/supplier_receive.html"))
       and "— ${sonKor(b.qty, 4)} ${escapeHtml(b.unit)} × ${pulKor(b.price)}</span>" in oqi("templates/suppliers.html"))
 
 

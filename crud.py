@@ -21759,7 +21759,11 @@ def get_supplier_purchased_items(db: Session, supplier_id: int,
         InventoryPurchase.supplier_id == supplier_id,
         InventoryPurchase.inventory_id.in_(item_ids),
         InventoryPurchase.is_opening_stock.isnot(True),
-    ).order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc())
+    )
+    # tenant: materiallar yuqorida shu korxonaga cheklangan (`item_ids`); xaridlar ham AYNAN shu korxona materiallariga (tenant_lint)
+    if company_id is not None:
+        _lq = _lq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(Inventory.company_id == company_id)
+    _lq = _lq.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc())
     for _p in _lq.all():
         if _p.inventory_id in _oxirgi:
             continue
