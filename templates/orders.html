@@ -176,6 +176,24 @@
   border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);flex-shrink:0}
 .ro-bolim.ogoh{background:var(--f-fffbeb);color:var(--m-92400e)}
 .ro-bolim a{white-space:nowrap}
+/* kech194 (zip 261 — egasi so'rovi va QARORI 06.11: «ustuvor buyurtmalar ham qolgan jadvallar bilan bir xil», «bir xil bo'lsa bo'ldi»):
+   «⭐ Ustuvor buyurtmalar» — loyiha kartalari (`.ord-list .proj-group`) bilan BIR ko'rinish: kulrang tag, har buyurtma — oq karta (oraliq 8 px,
+   yumaloq 12 px, soya), chap chetida 4 px to'lov chizig'i (`data-pul`), balandligi loyiha yopiq kartasi bilan bir xil (min 58 px; O'LCHANGAN
+   namunada 67 / 67 px — `work/k261/namuna261b.py`). Tanlangani — ko'k ramka va «▶ OCHIQ» (avvalgidek). */
+#pinnedOrdersList{background:var(--bg);padding:10px 0 2px}
+#pinnedOrdersList .ord-item{margin:0 10px 8px;padding:9px 14px 9px 12px;min-height:58px;box-sizing:border-box;background:var(--white);
+  border:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:12px;box-shadow:inset 4px 0 0 var(--border),0 1px 2px rgba(15,23,42,.05)}
+#pinnedOrdersList .ord-item[data-pul="qarz"]{box-shadow:inset 4px 0 0 var(--m-dc2626),0 1px 2px rgba(15,23,42,.05)}
+#pinnedOrdersList .ord-item[data-pul="tolangan"]{box-shadow:inset 4px 0 0 var(--m-15803d),0 1px 2px rgba(15,23,42,.05)}
+#pinnedOrdersList .ord-item:hover{background:var(--f-f8fafc)}
+#pinnedOrdersList .ord-item.active{background:var(--gold-tint);border-color:var(--gold);box-shadow:inset 0 0 0 3px var(--gold);padding-top:24px}
+#pinnedOrdersList .ord-item.active::before{border-top-left-radius:11px}
+#pinnedOrdersList .oi-bosh .pin-toggle-btn{width:26px;height:26px;min-height:0;padding:0;font-size:13px}
+#pinnedOrdersList .oi-bosh .badge{line-height:18px;padding:0 8px}
+#pinnedOrdersList .pin-past{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:20px;padding-left:32px;margin-top:1px}
+#pinnedOrdersList .pin-loyiha{min-width:0;font-size:13px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pinnedOrdersList .pin-past .proj-debt, #pinnedOrdersList .pin-past .proj-paid{margin-top:0;flex-shrink:0}
+#pinnedOrdersList .pin-past .oi-summa{font-size:13px;flex-shrink:0}
 .ro-son{font-weight:800;color:var(--gold-dark)}
 /* ochilgan buyurtma sarlavhasi (o'rta ustun tepasida; kompyuterda surilganda ham tepada qoladi — `top:-12px`: `#ordPageWrap` ning
    12 px ichki chekkasi bilan ekran tepasiga tegib turadi, ustida surilayotgan mazmun ko'rinmaydi; O'LCHANGAN: `top:0` da 12 px oraliq) */
@@ -8821,21 +8839,35 @@ function renderPinnedOrders(rows) {
       : '<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>';
     const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
     // kech154 (zip 203): ro'yxat qatori bilan bir xil tuzilma; muddat — `data-urgency` (kech192, zip 260: endi chizilmaydi — faqat filtr)
-    // kech191 (zip 260 — egasi QARORI 05.11): «Muddati o'tgan» / «Bugun» / «Ertaga» belgisi yo'q (muddat sanasi — kulrang, avvalgidek)
+    // kech191 (zip 260 — egasi QARORI 05.11): «Muddati o'tgan» / «Bugun» / «Ertaga» belgisi yo'q
     const urg = ['overdue', 'today', 'tomorrow'].includes(o.deadline_urgency) ? o.deadline_urgency : 'normal';
+    // kech194 (zip 261 — egasi so'rovi va QARORI 06.11: «ustuvor buyurtmalar ham qolgan jadvallar bilan bir xil», «bir xil bo'lsa bo'ldi»):
+    // har ustuvor buyurtma — loyiha kartasi kabi oq KARTA, balandligi ham bir xil (ikki qator: 📌 raqam + holat; loyiha · mijoz + belgi);
+    // chap chiziq — to'lov holati (`data-pul`: qarz — qizil, tolangan — yashil, yoq — kulrang; shart ro'yxatdagi buyurtma qatori
+    // belgisi bilan bir: qarz > 0 → «Qarz», aks holda summa > 0 → «✓ To'langan»); summa yo'q (qoralama) — summa matni. Qarz — server
+    // `debt_amount` (ro'yxat qatoridagi `o.debt_amount` bilan bir manba); eski server javobida maydon bo'lmasa — belgisiz, summa.
+    const qarz = Number(o.debt_amount);
+    const kel = Number(o.kelishilgan_summa);
+    let pul = 'yoq';
+    if (qarz > 0) pul = 'qarz';
+    else if (Number.isFinite(qarz) && (Number.isFinite(kel) ? kel > 0 : amount > 0)) pul = 'tolangan';
+    const belgi = pul === 'qarz'
+      ? `<span class="proj-debt" title="Qarz: ${pulKor(qarz)} so'm">Qarz: ${escapeHtml(qisqaSumma(qarz))}</span>`
+      : (pul === 'tolangan' ? `<span class="proj-paid">✓ To'langan</span>` : `<span class="oi-summa">${sonKor(amount, 0)} so'm</span>`);
+    const tanlangan = (typeof selectedOrderId !== 'undefined' && Number(selectedOrderId) === Number(o.id)) ? ' active' : '';
     return `
-      <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)"
+      <div class="ord-item${tanlangan}" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)"
            data-num="${o.order_number}" data-client="${escapeHtml(o.client_name)}" data-project="${escapeHtml(o.project_name)}"
            data-status="${o.status}" data-total="${o.total_amount}" data-master="${escapeHtml(o.master_name)}"
-           data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true" data-urgency="${urg}">
+           data-date="${o.created_at}" data-project-id="${o.project_id}" data-order-id="${o.id}" data-pinned="true" data-urgency="${urg}"
+           data-pul="${pul}">
         <div class="oi-bosh">
           <button class="pin-toggle-btn btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); toggleOrderPin(${o.id}, this)" title="Pindan olish" aria-label="Pindan olish"
                   style="opacity:1">📌</button>
           <div class="ord-num">${o.order_number}</div>
           <span class="oi-holat">${badge}</span>
         </div>
-        <div class="ord-date"><span class="oi-sana">${escapeHtml(o.client_name)}</span><span class="oi-summa">${sonKor(amount, 0)} so'm</span></div>
-        <div class="oi-belgilar">${o.deadline ? '<span class="oi-belgi kulrang">Muddat: ' + escapeHtml(o.deadline) + '</span>' : ''}</div>
+        <div class="pin-past"><span class="pin-loyiha">${escapeHtml(o.project_name)} · ${escapeHtml(o.client_name)}</span>${belgi}</div>
       </div>`;
   }).join('');
 }
@@ -8946,6 +8978,9 @@ function royxatniQoll() {
 // faqat shu loyiha guruhining shu qismlari ko'chiriladi: ochiq / yopiq holat, tanlov, filtr, surilish — o'zgarmaydi. Xato bo'lsa — jim
 // (keyingi yuklashda baribir to'g'ri). Filtr sonlari qayta sanaladi; ko'rinadigan qatorlar qayta filtrlanmaydi (ochiq buyurtma yo'qolmasin).
 async function royxatPulSinxron(oid) {
+  // kech194 (zip 261): ustuvor kartada ham to'lov chizig'i / «Qarz» belgisi bor — shu buyurtma ustuvor bo'lsa ro'yxati serverdan qayta
+  // o'qiladi (`loadPinnedOrders` — oxirgi so'rov chiziladi, tanlangan buyurtma belgisi saqlanadi)
+  if (document.querySelector(`#pinnedOrdersList .ord-item[data-order-id="${Number(oid)}"]`) && typeof loadPinnedOrders === 'function') loadPinnedOrders();
   try {
     const qator = document.querySelector(`.ord-list .ord-item[data-order-id="${Number(oid)}"]`);
     const g = qator ? qator.closest('.proj-group') : null;
