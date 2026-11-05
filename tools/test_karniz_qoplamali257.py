@@ -288,6 +288,10 @@ CA.put(API + f"/detallar/{DK[30]}", json={"yoqilgan": True})
 r = CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 10, "bolak": 2}})
 check("Q8a formula o'zgarganda ham javobda qo'lda qoplamali qatorlar (1)", r.status_code == 200 and js(r).get("qolda_qoplamali") == 1
       and (js(r).get("qoplamali_qatorlar") or [{}])[0].get("detal_id") == DK[30], r.text[:300])
+_j8 = bazadan(lambda d: [a.new_value or "" for a in d.query(models.ActivityLog).filter(models.ActivityLog.company_id == 1,
+                                                                                       models.ActivityLog.entity_type == "dokon_model").all()])
+check("Q8c model jurnalida (formula o'zgarishi): «1 ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi»",
+      _j8 and any("1 ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi" in x for x in _j8), _j8 and _j8[-3:])
 check("Q8 formula o'zgardi (blok 10) → 30 sm 27 000, qoplamali 60 000 O'ZGARMADI",
       r.status_code == 200 and detal(DK[30]).get("narx") == 27000 and detal(DK[30]).get("narx_qoplamali") == 60000, detal(DK[30]))
 CA.put(API + f"/modellar/{MK}", json={"formula": {"asos_sm": 20, "blok_sm": 9.97, "bolak": 2}})
