@@ -226,6 +226,8 @@ xarid("K261 Mel", 350, 11)
 xarid("K261 Penoplast 25", 500000, 2, opening=True)
 # Mikrokalsit: BOSHQA ta'minotchidan (shu ta'minotchi ro'yxatida yo'q)
 xarid("K261 Mikrokalsit", 880, 11, sid=SID2)
+# Granula: boshqa ta'minotchidan KEYINROQ boshqa narx (999) — shu ta'minotchining oxirgi narxi baribir 265
+xarid("K261 Granula", 999, 25, sid=SID2)
 db.close()
 
 db = SessionLocal()
@@ -242,7 +244,8 @@ C = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=
 C.post("/login", data={"username": "k261_admin", "password": PAROL}, follow_redirects=False)
 _r = C.get(f"/api/suppliers/{SID}/purchased-items")
 _ar = {x["id"]: x for x in (_r.json() if _r.status_code == 200 else [])}
-check("A5 API `/api/suppliers/{id}/purchased-items` — xuddi shu (oxirgi_narx / oxirgi_sana)",
+check("A5 API `/api/suppliers/{id}/purchased-items` — xuddi shu (oxirgi_narx / oxirgi_sana); boshqa ta'minotchining keyingi xaridi (Granula 999) "
+      "hisobga olinmaydi",
       _r.status_code == 200 and _ar.get(ID["K261 Granula"], {}).get("oxirgi_narx") == 265
       and _ar.get(ID["K261 Mel"], {}).get("oxirgi_sana") == "12.10.2026", (_r.status_code, _r.text[:300]))
 CB = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
