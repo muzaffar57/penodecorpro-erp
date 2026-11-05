@@ -693,6 +693,20 @@ qatorlar KARTA (birlik — yorliqda «Miqdor (kg)»), ≤ 700 px da pastda yopis
 (`#receive-submit-dock`). MOSLANGAN eski testlar (versiya manbadan — `id="rcv-seg-boshl"`): `test_d121` N2, `test_joylashuv_matn`
 (J4 RUXSAT, T4), `test_audit_ombor_ui.js` M1, `test_f_ombor` («Eski qarzni to'lash» ochiladi), `test_sahifa_skroll_ui` (yopiq
 `<details>` ichi ko'rinmaydi) va boshqalar — `work/k261/mos261.txt`.
+**«Kirim qilish» — raqam / matn katagiga sig'adi (kech196, zip 262 — egasi so'rovi 06.11 03:57, skrinshot: kiritish qatorida
+«43 960 000 so'm» to'liq ko'rinmasdi; «shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar qolmasin»).** O'lchov —
+`work/k262/olchov262.py` (19 kenglik × egasining / katta qiymatlar, tungi). `templates/supplier_receive.html`: ustunlar «Omborda» 80,
+«Miqdor» 84 px, maydon ichki chegarasi 8 px, № katagi ustunga sig'adi; kiritish summasi 13 px (savat summasi bilan bir); `.rcv-sig` —
+raqamli maydon / katak (kiritish va savat miqdori, narxi, summasi, «Omborda», xulosa summalari, ta'minotchi statistikasi, xarajat /
+to'lov maydonlari): `rcvSigdir` — sig'masa shrift kichrayadi (≥ 11 px, `RCV_SIG_MIN`), shunda ham sig'masa — katak ichida bo'linadi
+(`rcv-sig-sinmaydi`) va to'liq qiymat izohda (ota izohi saqlanadi); chaqiruvlar — `apCalc` (kiritish qatori va «Omborda» darhol),
+`updateSummary` / tarix statistikasi / «—», «…» yozuvlari (`rcvSigKeyin` — rAF), `ResizeObserver(#rcvWrap)`, `input`, shriftlar.
+Raqam guruhlari bo'linmas bo'shliq bilan — raqam o'rtasidan bo'linmaydi. «Ombordan tanlash» — nom `.ot-nom` («…»), «✓ ro'yxatda»
+undan tashqarida (doim ko'rinadi; ≤ 480 px — faqat «✓»). To'lov kartasi — `@container rcvtolov` (< 760 — summa | muddat, hisob
+butun qator; «To'liq» da summa butun qator; < 440 — bitta ustun; zaxira `@media(max-width:700px)`), yorliq o'sadi — maydonlar bir
+chiziqda. Tarix — `@container rcvtarix (max-width:639px)` da kartalar, pul kataklari (`rcv-pul`) jadvalda bir qatorda. «1 blok =» —
+`#ap-volume-wrap` tashqi o'ram (JS `style.display` o'zgarmagan), ichida `.rcv-vol` flex. Telefon paneli — `flex-wrap`. `.rcv-wrap` —
+`scrollbar-gutter:stable`. Mustaqil tekshiruv — `work/k262/review262/HISOBOT.md` (1 YUQORI, 2 O'RTA, 3 PAST — hammasi tuzatildi).
 **«Ustuvor buyurtmalar» — loyiha kartalari bilan bir xil (kech194, zip 261 — egasi QARORI 06.11 01:24 «bir xil bo'lsa bo'ldi»).**
 `crud.get_pinned_orders` — `debt_amount`, `kelishilgan_summa`; `orders.html` `renderPinnedOrders` — oq karta, `data-pul` chap chizig'i,
 «Qarz» / «✓ To'langan», loyiha kartasi bilan bir balandlik; `royxatPulSinxron` ustuvor ro'yxatni ham yangilaydi.
@@ -5514,6 +5528,12 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
   (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 92/0, TF1 92/0, PG 81/0; asl (zip 256) —
   74 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
+- (kech196, zip 262) «Kirim qilish» — sig'ish: `tools/test_sigish262.py` (S — manba: ustunlar, `rcvSigdir` va chaqiruvlari,
+  `.rcv-sig`, «✓» alohida, to'lov / tarix konteyner qoidalari, «1 blok =» o'rami, panel; J — Chromium: egasining holati 1920 / 1440 / 1100
+  (summa to'liq, 13 px), katta qiymatlar 12 kenglikda (qirqilgan / toshgan matn, sig'magan maydon, izohsiz «…», surilish — yo'q, «Ombordan
+  tanlash» bilan), «✓ ro'yxatda», hisob nomlari va «To'liq» joylashuvi, tarix kartalari, «1 blok =», `rcvSigdir` chegaralari, 390 → 1440
+  qayta o'lchov, «Hisob-kitob» yorliqlari, kiritish «Omborda», 124 mlrd statistika va ta'minotchini bekor qilish, JS xato; `K262_MANBASIZ=1`
+  — faqat brauzer, mutatsiya uchun). SQ 71/0, TF1 71/0; asl (zip 261) — 37 ta yiqiladi, qulamaydi.
 - (kech195, zip 261) «Kirim qilish» oynasi: `tools/test_kirim261.py` (S — manba: segment ↔ yashirin belgi, «Omborda», `rcvTrend`,
   joyida tahrir, «Ombordan tanlash», chala qator to'xtatadi, To'liq / Qisman / Qarzga, qoralama, telefon paneli; A — `oxirgi_narx` /
   `oxirgi_sana`: oxirgi, boshlang'ich chiqariladi, teng vaqt — katta id, boshqa ta'minotchi / korxona; J — Chromium 1440 / 1100 / 390 /
@@ -9025,6 +9045,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_sayt_olcham245.py` · PG — kech179 (zip 245: sayt buyurtmasi — alohida detal guruh nomida o'lcham takrori va PDF qatorida o'lcham yo'qolishi).
 - `test_sayt_pdf244.py` · PG — kech178 (zip 244: do'kon — buyurtma va savat PDF i; egasi TALABI «Onlayn do'kon rejasi» 30.10, «Buyurtma ro'yxati — PDF»: savatda va buyurtma berilgandan keyingi sahifada «PDF y…
 - `test_shtorka225.py` · PG — kech160 (zip 225 «Tizim jurnallari — Sozlamalardan, shtorkalar»; egasi 29.10 18:24, tanlovlar 18:2x, prototip «zo'r boshla»).
+- `test_sigish262.py` — kech196 (zip 262): «Kirim qilish» sahifasida raqam / matn o'z katagiga SIG'ADI (hech narsa qirqilmaydi, qo'shni katakka toshmaydi) — kompyuter, planshet, telefon kengliklarida, ka…
 - `test_soat_utc.py` — kech96 (2026-09-27), 123-band.
 - `test_sovga_davr_tenant.py` · PG — kech108, K107-1 darvozasi: Telegram usta boti «🎁 Sovg'alar» ikki korxonada.
 - `test_sxema_n4.py` · PG — kech144 (zip 172): N4 — PRODUCTION BAZASI SXEMASI KODDAN FARQ QILADI (va jurnal xatosi yutilishi).
@@ -9128,5 +9149,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 348 (Python 310, JS 38).
+Jami test fayllari: 349 (Python 311, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
