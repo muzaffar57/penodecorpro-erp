@@ -130,7 +130,7 @@ check("S7 takror tekshiruvi chala qatorni va o'zini o'tkazib yuboradi",
 check("S8 «Ombordan tanlash» oynasi — yopish belgili (`data-yopish`), qidiruv `data-kiritish-emas`, chiplar, «Yangi material qo'shish»",
       re.search(r'id="ombordanOyna"[^>]*position:fixed;inset:0', SR) is not None and 'class="ot-x" data-yopish' in SR
       and 'id="ot-qidiruv" data-kiritish-emas' in SR and "ombordanFiltr('" in fn("ombordanChiz")
-      and "apToggleNewItem(true); ombordanYop()" in fn("ombordanChiz"))
+      and "apToggleNewItem(true); ombordanYop(true)" in fn("ombordanChiz"))
 check("S9 `ombordanQosh` — chala qator (miqdor yo'q, narx — oxirgi xariddan, penoplast hajmi materialdan)",
       "qty: null, price: ox ? ox.narx : null, total: 0" in fn("ombordanQosh") and "chala: true" in fn("ombordanQosh")
       and "item.is_penoplast && Number(item.volume_per_unit) > 0" in fn("ombordanQosh"))
@@ -151,7 +151,7 @@ check("S13 telefon paneli (`.rcv-dock`) — «Umumiy · Qarz · Kirimni tasdiqla
       'id="rcv-dock"' in SR and 'id="receive-submit-dock" onclick="submitReceive()"' in SR
       and re.search(r"@media\(max-width:700px\)\{[^@]*\.rcv-dock\{display:block;position:sticky;bottom:0", SR) is not None)
 check("S14 ruxsat qoidalari: «Yangi material» tugmalari `apToggleNewItem(` bilan boshlanadi (ruxsatsizga yashirin)",
-      SR.count('onclick="apToggleNewItem()"') == 1 and "onclick=\"apToggleNewItem(true); ombordanYop()\"" in SR
+      SR.count('onclick="apToggleNewItem()"') == 1 and "onclick=\"apToggleNewItem(true); ombordanYop(true)\"" in SR
       and '[onclick^="apToggleNewItem("] { display: none !important; }' in SR)
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -625,6 +625,84 @@ def _j_ssenariy():
           "AYNAN bir xil" in xabar(pg) and _inp.input_value() == "6" and pg.evaluate("() => apBasket[1].qty") == 6, (xabar(pg), _inp.input_value()))
     ctx.close()
 
+    # ─── review261 tuzatishlari ───
+    ctx, pg = kontekst(1440, 900)
+    sahifa(pg)
+    tanla(pg, "#ap-item", str(ID["K261 Penoplast 15"]))
+    pg.fill("#ap-qty", "3")
+    pg.fill("#ap-price", "1375000")
+    pg.click("#rcv-kiritish-body .rcv-qosh")
+    _r = qator(pg, "K261 Penoplast 15")
+    _kq = _r.locator(".rcv-q-price").evaluate("e => [e.value, e.scrollWidth <= e.clientWidth + 1, !!e.closest('tr').querySelector('.rcv-trend')]")
+    check("R1 (review261 №1) narx belgisi bor qatorda narx maydoni qirqilmaydi (1 375 000 to'liq ko'rinadi)", _kq == ["1 375 000", True, True], _kq)
+    # №4 — miqdor faqat son
+    _r.locator(".rcv-q-qty").fill("1/2")
+    _m4 = pg.evaluate("() => [apBasket[0].qty, apBasket[0].chala, document.querySelectorAll('#rcv-basket-body tr.chala').length]")
+    _r.locator(".rcv-q-qty").fill("2e3")
+    _m4b = pg.evaluate("() => apBasket[0].qty")
+    _r.locator(".rcv-q-qty").fill("1 500,5")
+    _m4c = pg.evaluate("() => apBasket[0].qty")
+    check("R2 (review261 №4) qator miqdori: «1/2», «2e3» — son emas (qator chala), «1 500,5» — 1500,5",
+          _m4 == [None, True, 1] and _m4b is None and _m4c == 1500.5, (_m4, _m4b, _m4c))
+    _r.locator(".rcv-q-qty").fill("3")
+    # №2 — ta'minotchi almashsa «Ombordan» qatori narxi yangi ta'minotchidan
+    pg.click("#rcv-ombordan-btn")
+    pg.locator(f"#ot-royxat .ot-it[data-id='{ID['K261 Mel']}'] input").check()
+    pg.click("#ot-qosh-btn")
+    _n0 = pg.evaluate("() => apBasket.map(b => b.price)")
+    tanla(pg, "#r-supplier", str(SID2))
+    pg.wait_for_function("() => (document.getElementById('rcvMsgBox') || {}).textContent && document.getElementById('rcvMsgBox').textContent.indexOf('narx shu ta') >= 0", timeout=8000)
+    _n1 = pg.evaluate("() => apBasket.map(b => [b.price, b.chala])")
+    check("R3 (review261 №2) ta'minotchi almashdi: «Ombordan» dan oxirgi narx bilan tushgan qator (Mel 350) — yangi ta'minotchida oxirgi narx "
+          "yo'q → narx bo'sh, chala; qo'lda yozilgan narx (1 375 000) — o'zgarmadi",
+          _n0 == [1375000, 350] and _n1 == [[1375000, False], [None, True]], (_n0, _n1))
+    tanla(pg, "#r-supplier", str(SID))
+    pg.wait_for_timeout(600)
+    _n2 = pg.evaluate("() => apBasket.map(b => b.price)")
+    check("R4 qaytib A ta'minotchi — Mel narxi yana 350 (foydalanuvchi o'zgartirmagan)", _n2 == [1375000, 350], _n2)
+    qator(pg, "K261 Mel").locator(".rcv-q-qty").fill("10")
+    # №3 — saqlash kutilayotganda qatorlar qulflangan
+    pg.click("#ap-prod-type-toggle .rcv-cat-opt >> nth=0")
+    # javobni 1,5 s kechiktirish — sahifaning o'z fetch i ustidan
+    pg.evaluate("() => { const f = window.fetch; window.fetch = (u, o) => String(u).indexOf('/api/inventory/receipt') >= 0"
+                " ? new Promise(r => setTimeout(() => r(f(u, o)), 1500)) : f(u, o); }")
+    _old = _oxid()
+    pg.click("#receive-submit-btn")
+    pg.wait_for_timeout(400)
+    _ql = pg.evaluate("() => [...document.querySelectorAll('#rcv-basket-body input, #rcv-kiritish-body input, #rcv-ombordan-btn')].every(x => x.disabled)")
+    _krq = kirim_kut(pg, _old)
+    _xb = xabar(pg).replace("\u00a0", " ")
+    check("R5 (review261 №3) saqlash kutilayotganda savat / kiritish qatori / «Ombordan tanlash» qulflangan; xabar — yuborilgan qatorlardan "
+          "(qarz 4 128 500)", _ql is True and _krq and "Qarz: 4 128 500" in _xb, (_ql, _xb))
+    # №7 — tarix soni; №6 — boshlang'ichda yashirin muddat to'xtatmaydi
+    pg.wait_for_timeout(500)
+    _ts = pg.evaluate("() => { const e = document.getElementById('rcv-tarix-soni'); return [getComputedStyle(e).display, e.textContent]; }")
+    check("R6 (review261 №7) «Kirimlar tarixi» sarlavhasida yozuvlar soni", _ts[0] != "none" and re.match(r"^\d+ ta$", _ts[1] or "") is not None, _ts)
+    pg.click("#ap-prod-type-toggle .rcv-cat-opt >> nth=0")
+    pg.evaluate("() => { document.getElementById('ap-due-date').value = '2020-01-01'; }")
+    pg.click("#rcv-seg-boshl")
+    tanla(pg, "#ap-item", str(ID["K261 Granula"]))
+    pg.fill("#ap-qty", "4")
+    pg.fill("#ap-price", "300")
+    pg.click("#rcv-kiritish-body .rcv-qosh")
+    _old = _oxid()
+    pg.click("#receive-submit-btn")
+    _kr6 = kirim_kut(pg, _old, "Boshlang'ich qoldiq omborga kiritildi")
+    check("R7 (review261 №6) boshlang'ich rejimda yashirin eski muddat saqlashni to'xtatmaydi", _kr6 and _kr6["qatorlar"][0][5] is True, _kr6)
+    # №9 — Tab oynada aylanadi; ← / → tanlov guruhida
+    pg.click("#rcv-ombordan-btn")
+    pg.focus("#ot-qosh-btn") if not pg.locator("#ot-qosh-btn").is_disabled() else pg.locator("#ombordanOyna .ot-yangi").focus()
+    for _ in range(3):
+        pg.keyboard.press("Tab")
+    _ich = pg.evaluate("() => !!document.activeElement.closest('#ombordanOyna')")
+    pg.keyboard.press("Escape")
+    pg.focus("#rcv-tolov-turi .rcv-ro.on")
+    pg.keyboard.press("ArrowLeft")
+    _ok = pg.evaluate("() => [rcvTolov, document.activeElement.dataset.tur]")
+    check("R8 (review261 №9) oyna ochiq — Tab fokusni oynadan chiqarmaydi; to'lov turida ← — «Qisman to'langan»",
+          _ich is True and _ok == ["qisman", "qisman"], (_ich, _ok))
+    ctx.close()
+
     # ─── telefon 390 / 320 va tungi ───
     for w in (390, 320):
         ctx, pg = kontekst(w, 844, tel=True)
@@ -638,12 +716,12 @@ def _j_ssenariy():
         _tr = pg.evaluate("() => { const tr = document.querySelector('#rcv-basket-body tr'); return [getComputedStyle(tr).display, getComputedStyle(document.querySelector('.rcv-mat thead')).display,"
                           " getComputedStyle(document.querySelector('#rcv-basket-body .c-unit')).display, document.querySelector('#rcv-basket-body .c-qty .rcv-yorliq-ichki').textContent]; }")
         _dk = pg.evaluate("() => { const d = document.getElementById('rcv-dock'); const r = d.getBoundingClientRect(); return [getComputedStyle(d).display, getComputedStyle(d).position, Math.round(r.bottom), innerHeight,"
-                          " document.getElementById('dock-umumiy').textContent.replace(/\\u00a0/g, ' ')]; }")
+                          " document.getElementById('dock-umumiy').textContent.replace(/\\u00a0/g, ' '), document.getElementById('sum-grand').textContent.replace(/\\u00a0/g, ' ')]; }")
         _sw = surilish(pg)
         check(f"J27 telefon {w}: «Ombordan tanlash» pastdan (to'liq eni), qatorlar — KARTA (birlik — yorliqda «Miqdor (blok)»), ustun nomlari yashirin",
               _pl[0] == 0 and _pl[1] == w and _pl[2] > 0 and _tr == ["grid", "none", "none", "Miqdor (blok)"], (_pl, _tr))
-        check(f"J28 telefon {w}: pastda yopishgan panel (ekran pastida, «Umumiy: 7 600 000 so'm»), gorizontal surilish yo'q",
-              _dk[0] == "block" and _dk[1] == "sticky" and _dk[3] - 6 <= _dk[2] <= _dk[3] + 1 and _dk[4] == "7 600 000 so'm"
+        check(f"J28 telefon {w}: pastda yopishgan panel (ekran pastida, «Umumiy: …» = xulosadagi umumiy summa), gorizontal surilish yo'q",
+              _dk[0] == "block" and _dk[1] == "sticky" and _dk[3] - 6 <= _dk[2] <= _dk[3] + 1 and _dk[4] == _dk[5] and _dk[4] != "0 so'm"
               and _sw[0] <= _sw[1] + 1 and _sw[2] <= _sw[3] + 1, (_dk, _sw))
         if RASM:
             pg.screenshot(path=os.path.join(RASM, f"j_{w}.png"))

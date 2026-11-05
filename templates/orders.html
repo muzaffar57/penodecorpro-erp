@@ -188,7 +188,9 @@
 #pinnedOrdersList .ord-item:hover{background:var(--f-f8fafc)}
 #pinnedOrdersList .ord-item.active{background:var(--gold-tint);border-color:var(--gold);box-shadow:inset 0 0 0 3px var(--gold);padding-top:24px}
 #pinnedOrdersList .ord-item.active::before{border-top-left-radius:11px}
-#pinnedOrdersList .oi-bosh .pin-toggle-btn{width:26px;height:26px;min-height:0;padding:0;font-size:13px}
+/* kech195 (zip 261, test_u13 D1): 📌 — yagona o'lcham (`btn-sm`, kvadrat 32 / telefonda 36 px); karta balandligi loyiha kartasi bilan bir
+   xil qolishi uchun qator ichida 26 px joy egallaydi (manfiy vertikal chekka) */
+#pinnedOrdersList .oi-bosh .pin-toggle-btn{margin-top:calc((26px - var(--h-sm)) / 2);margin-bottom:calc((26px - var(--h-sm)) / 2)}
 #pinnedOrdersList .oi-bosh .badge{line-height:18px;padding:0 8px}
 #pinnedOrdersList .pin-past{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:20px;padding-left:32px;margin-top:1px}
 #pinnedOrdersList .pin-loyiha{min-width:0;font-size:13px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

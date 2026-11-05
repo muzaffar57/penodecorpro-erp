@@ -28,6 +28,7 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 }
 @media(max-width:600px){
   .rcv-wrap{padding:12px}
+  .rcv-wrap .rcv-dock{margin:4px -12px 0}   /* review261 №10: sahifa chekkasi bilan teng (601 … 700 px da 16 px) */
   .rcv-wrap .rcv-card-body{padding:14px}   /* `.rcv-wrap` bilan — quyidagi asosiy `.rcv-card-body` dan ustun */
   .rcv-tarix-sarlavha{flex-wrap:wrap;row-gap:8px}
   .rcv-history-filter{flex-wrap:wrap}
@@ -39,13 +40,13 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 .rcv-card-body{padding:16px}
 .rcv-card-title{font-size:16px;font-weight:700;color:var(--r-text);margin-bottom:14px}
 .rcv-sec{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;row-gap:6px}
-.rcv-sec > .ti{font-size:22px;color:var(--r-primary)}
+.rcv-sec > .ti{font-size:24px;color:var(--r-primary)}
 .rcv-sec > b{font-size:16px;color:var(--r-text)}
-.rcv-sec .rcv-sec-izoh{font-size:12.5px;color:var(--r-text3)}
+.rcv-sec .rcv-sec-izoh{font-size:13px;color:var(--r-text3)}
 .rcv-sec .rcv-sec-ong{margin-left:auto;font-size:13px;color:var(--r-text3)}
-.rcv-sec .rcv-sec-ong b{color:var(--r-text);font-size:15px}
+.rcv-sec .rcv-sec-ong b{color:var(--r-text);font-size:16px}
 .rcv-badge{white-space:nowrap;background:var(--r-primary-tint);color:var(--r-primary-d);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700}
-.rcv-field label{display:block;font-size:12.5px;font-weight:700;color:var(--r-text2);margin-bottom:6px}
+.rcv-field label{display:block;font-size:13px;font-weight:700;color:var(--r-text2);margin-bottom:6px}
 .rcv-field label .rcv-req{color:var(--r-danger)}
 .rcv-field input,.rcv-field select{width:100%;min-height:var(--h-btn);padding:0 12px;line-height:20px;border:1px solid var(--r-border);border-radius:var(--r-btn);font-size:var(--fs-maydon);color:var(--r-text);outline:none;background:var(--white);transition:border-color .15s}
 .rcv-field input:focus,.rcv-field select:focus{border-color:var(--r-primary)}
@@ -82,27 +83,27 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-16181f)}
 .rcv-btn:active{transform:scale(.97)}
 /* «+» (yangi ta'minotchi) — kvadrat ikon tugma (egasining varianti) */
-.rcv-btn-ikon{width:var(--h-btn);min-width:var(--h-btn);padding:0;background:var(--white);color:var(--r-primary);border:1px solid var(--r-border);font-size:20px}
+.rcv-btn-ikon{width:var(--h-btn);min-width:var(--h-btn);height:var(--h-btn);padding:0;background:var(--white);color:var(--r-primary);border:1px solid var(--r-border);font-size:16px}
 .rcv-btn-ikon:hover{border-color:var(--r-primary);background:var(--r-primary-tint)}
 
 /* ── Sarlavha kartasi: «Kirim (xarid)» | «Boshlang'ich qoldiq» ── */
 .rcv-bosh{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .rcv-bosh-ikon{width:46px;height:46px;border-radius:12px;background:var(--gold-btn);color:#fff;display:grid;place-items:center;font-size:24px;flex-shrink:0}
 .rcv-bosh-matn{flex:1;min-width:180px}
-.rcv-bosh-matn h1{margin:0;font-size:20px;color:var(--r-text);line-height:26px}
+.rcv-bosh-matn h1{margin:0;font-size:18px;color:var(--r-text);line-height:26px}
 .rcv-bosh-matn p{margin:2px 0 0;color:var(--r-text3);font-size:13px}
-.rcv-seg{display:flex;background:var(--r-bg);border:1px solid var(--r-border);border-radius:12px;padding:4px;gap:4px}
-.rcv-seg button{border:0;background:transparent;cursor:pointer;min-height:38px;padding:0 16px;border-radius:9px;font-weight:700;font-size:13.5px;color:var(--r-text2);display:flex;gap:7px;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit}
+.rcv-seg{display:flex;background:var(--r-bg);border:1px solid var(--r-border);border-radius:calc(var(--r-btn) + 4px);padding:4px;gap:4px}
+.rcv-seg button{border:0;background:transparent;cursor:pointer;min-height:var(--h-md);padding:0 16px;border-radius:var(--r-btn);font-weight:700;font-size:14px;color:var(--r-text2);display:flex;gap:7px;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit}
 .rcv-seg button.on{background:var(--gold-btn);color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.35)}
 .rcv-boshl .rcv-seg button.on{background:var(--r-amber);box-shadow:none}
 @media(max-width:600px){.rcv-seg{width:100%}.rcv-seg button{flex:1;padding:0 6px;min-width:0}}
-@media(max-width:360px){.rcv-seg button{white-space:normal;font-size:12.5px;line-height:16px;text-align:center}}
+@media(max-width:360px){.rcv-seg button{white-space:normal;font-size:13px;line-height:16px;text-align:center}}
 
 /* ── Yo'nalish chiplari ── */
 .rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:8px}
 .rcv-cat-opt{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:var(--h-md);padding:0 14px;line-height:18px;
-  border:1px solid var(--r-border);border-radius:999px;
+  border:1px solid var(--r-border);border-radius:var(--r-btn);
   font-size:13px;font-weight:700;color:var(--r-text2);background:var(--white);
   cursor:pointer;transition:all .15s;white-space:nowrap;
 }
@@ -129,12 +130,12 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-1
 .rcv-mat input.rcv-q:disabled{background:var(--r-bg);color:var(--r-primary);font-weight:800}
 .rcv-mat tr.chala input.rcv-q.bosh{border-color:var(--r-danger);background:var(--r-danger-tint)}
 .rcv-unit{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-bg);display:grid;place-items:center;font-weight:700;color:var(--r-text2);border:1px dashed var(--r-border);font-size:13px;padding:0 4px;overflow-wrap:anywhere;text-align:center}
-.rcv-narxbox{display:flex;align-items:center;gap:4px;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);background:var(--white);padding:0 0 0 4px}
-.rcv-narxbox:focus-within{border-color:var(--r-primary)}
-.rcv-narxbox input.rcv-q{flex:1;min-width:0;border:0;min-height:calc(var(--h-btn) - 2px);padding-left:4px;background:transparent}
+/* review261 №1: belgi maydon ICHIDA bo'lsa tor katakda raqam qirqilardi («1 375 000» → «1 375 0», telefonda «1 375») — endi belgi maydonning
+   yuqori chegarasida (yorliq kabi), maydon to'liq enini saqlaydi; kartada (tor joy) — maydon ostida */
+.rcv-narxbox{position:relative}
+.rcv-narxbox .rcv-trend-joy,.rcv-narxbox #ap-trend{position:absolute;left:6px;top:-9px;z-index:1;display:flex}
 .rcv-narxbox .rcv-trend-joy:empty,#ap-trend:empty{display:none}
-.rcv-mat tr.chala .rcv-narxbox:has(input.rcv-q.bosh){border-color:var(--r-danger);background:var(--r-danger-tint)}
-.rcv-trend{display:inline-flex;align-items:center;gap:1px;border:0;cursor:pointer;font-size:12px;font-weight:800;color:var(--m-92400e);background:var(--f-fef3c7);border-radius:6px;padding:3px 4px;font-family:inherit;line-height:14px;white-space:nowrap}
+.rcv-trend{display:inline-flex;align-items:center;gap:1px;border:0;cursor:pointer;font-size:12px;font-weight:800;color:var(--m-92400e);background:var(--f-fef3c7);border-radius:6px;padding:0 5px;box-shadow:0 0 0 2px var(--r-card);font-family:inherit;line-height:14px;white-space:nowrap}
 .rcv-trend.dn{color:var(--r-success);background:var(--r-success-tint)}
 html[data-theme="dark"] .rcv-trend{color:#FBBF24;background:rgba(251,191,36,.14)}
 html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.12)}
@@ -143,11 +144,11 @@ html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.
 .rcv-omb{min-height:var(--h-btn);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-weight:700;color:var(--r-text2);font-size:13px;line-height:16px;white-space:nowrap}
 .rcv-omb.kam{color:var(--r-danger)}
 .rcv-omb small{font-size:12px;font-weight:700;display:flex;align-items:center;gap:2px}
-.rcv-del{width:42px;height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-danger-tint);color:var(--r-danger);border:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
+.rcv-del{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-danger-tint);color:var(--r-danger);border:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
 .rcv-del:hover{background:var(--r-danger);color:#fff}
-.rcv-mat .rcv-del.rcv-icon-btn{width:36px;height:var(--h-btn);margin:0;background:var(--r-danger-tint);color:var(--r-danger);border:0;font-size:18px}
+.rcv-mat .rcv-del.rcv-icon-btn{width:var(--h-btn);height:var(--h-btn);margin:0;background:var(--r-danger-tint);color:var(--r-danger);border:0;font-size:16px}
 .rcv-mat .rcv-del.rcv-icon-btn:hover{background:var(--r-danger);color:#fff}
-.rcv-qosh{width:36px;height:var(--h-btn);border-radius:var(--r-btn);background:var(--gold-btn);color:#fff;border:0;display:grid;place-items:center;font-size:20px;cursor:pointer}
+.rcv-qosh{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);background:var(--gold-btn);color:#fff;border:0;display:grid;place-items:center;font-size:16px;cursor:pointer}
 .rcv-vol{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;color:var(--r-warning);font-weight:700;flex-wrap:nowrap;white-space:nowrap}
 .rcv-vol input{width:64px;min-width:0;min-height:30px;height:30px;border:1px solid var(--r-warning-bd);background:var(--r-warning-tint);border-radius:8px;padding:0 8px;text-align:right;font-weight:700;color:var(--r-text);outline:none;font-family:inherit;font-size:13px}
 .rcv-mat tr.rcv-kiritish td{padding-top:6px;border-top:1px dashed var(--r-border)}
@@ -169,23 +170,26 @@ html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.
   .rcv-mat td.c-nr{grid-area:nr}.rcv-mat td.c-mat{grid-area:mat}.rcv-mat td.c-del{grid-area:del}
   .rcv-mat td.c-omb{grid-area:omb;text-align:left}.rcv-mat td.c-qty{grid-area:qty}.rcv-mat td.c-narx{grid-area:narx}
   .rcv-mat td.c-sum{grid-area:sum}.rcv-mat td.c-unit{display:none}
+  .rcv-narxbox{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:4px}
+  .rcv-narxbox .rcv-trend-joy,.rcv-narxbox #ap-trend{position:static}
   .rcv-mat .rcv-nr{width:30px}
   .rcv-yorliq-ichki{display:block;font-size:12px;font-weight:700;color:var(--r-text2);margin-bottom:5px;text-align:left}
-  .rcv-mat td.c-omb .rcv-omb{min-height:0;flex-direction:row;justify-content:flex-start;gap:6px;font-size:12.5px}
+  .rcv-mat td.c-omb .rcv-omb{min-height:0;flex-direction:row;justify-content:flex-start;gap:6px;font-size:13px}
   .rcv-mat td.c-omb .rcv-omb::before{content:"Omborda:";color:var(--r-text3);font-weight:600}
   .rcv-mat td.c-sum{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--r-border);padding-top:10px}
   .rcv-mat td.c-sum .rcv-yorliq-ichki{margin:0;font-weight:600;color:var(--r-text3);font-size:13px}
-  .rcv-mat td.c-sum .rcv-sum, .rcv-mat td.c-sum input.rcv-q{background:transparent;padding:0;min-height:0;border:0;font-size:15px;width:auto}
+  .rcv-mat td.c-sum .rcv-sum, .rcv-mat td.c-sum input.rcv-q{background:transparent;padding:0;min-height:0;border:0;font-size:16px;width:auto}
+  .rcv-mat td.c-sum input.rcv-q{min-height:var(--h-btn);height:var(--h-btn)}
   .rcv-mat td.c-sum input.rcv-q{width:60%;min-width:0;flex:0 1 auto}
   .rcv-addbar{flex-direction:column}
   .rcv-addbar .rcv-ab{flex:none;width:100%}
-  .rcv-addbar .rcv-ab-qator{display:flex;gap:8px;width:100%}
-  .rcv-addbar .rcv-ab-qator .rcv-ab{flex:1}
+  .rcv-addbar .rcv-ab-qator{display:flex;gap:8px;width:100%;flex-wrap:wrap;align-items:flex-start}
+  .rcv-addbar .rcv-ab-qator .rcv-ab{flex:1 1 auto}
 }
 .rcv-addbar{border:1.5px dashed var(--r-primary-bd);border-radius:12px;padding:10px;display:flex;gap:10px;margin-top:6px;background:var(--r-primary-tint)}
 html[data-theme="dark"] .rcv-addbar{background:transparent}
 .rcv-ab-qator{display:contents}
-.rcv-ab{flex:1;min-height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14px;cursor:pointer;border:1px solid var(--r-primary-bd);background:var(--white);color:var(--r-primary-d);font-family:inherit;padding:0 12px;white-space:nowrap}
+.rcv-ab{flex:1;min-height:var(--h-btn);border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14px;cursor:pointer;border:1px solid var(--r-primary-bd);background:var(--white);color:var(--r-primary-d);font-family:inherit;padding:0 12px;white-space:nowrap}
 .rcv-ab.pr{background:var(--gold-btn);color:#fff;border-color:var(--gold-btn);flex:1.4}
 .rcv-ab.pr small{font-weight:600;opacity:.9;font-size:12px}
 .rcv-ab.gh{background:transparent;color:var(--r-text2);border-color:var(--r-border)}
@@ -200,7 +204,7 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 .rcv-chk{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid var(--ch-dbeafe);border-radius:10px;font-size:13px;color:var(--r-primary-d);cursor:pointer;line-height:1.45}
 .rcv-chk input{width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-top:1px}
 .rcv-tolov-turi{display:flex;gap:8px;margin-bottom:14px}
-.rcv-ro{flex:1;min-height:44px;border:1px solid var(--r-border);border-radius:10px;display:flex;align-items:center;gap:8px;padding:0 12px;font-weight:700;font-size:13.5px;color:var(--r-text2);background:var(--white);cursor:pointer;font-family:inherit;white-space:nowrap}
+.rcv-ro{flex:1;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);display:flex;align-items:center;gap:8px;padding:0 12px;font-weight:700;font-size:14px;color:var(--r-text2);background:var(--white);cursor:pointer;font-family:inherit;white-space:nowrap}
 .rcv-ro .dot{width:18px;height:18px;border-radius:50%;border:2px solid #9AA4B8;flex-shrink:0}
 .rcv-ro.on{border-color:var(--r-primary);background:var(--r-primary-tint);color:var(--r-primary-d)}
 .rcv-ro.on .dot{border:5px solid var(--r-primary)}
@@ -212,9 +216,9 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 /* ── Yig'iladigan bo'limlar ── */
 .rcv-yigma > summary{list-style:none;display:flex;align-items:center;gap:12px;padding:16px 18px;cursor:pointer;min-height:56px}
 .rcv-yigma > summary::-webkit-details-marker{display:none}
-.rcv-yigma > summary > .ti:first-child{font-size:22px;color:var(--r-primary)}
-.rcv-yigma > summary b{font-size:15px;color:var(--r-text)}
-.rcv-yigma > summary .rcv-yigma-izoh{margin-left:auto;font-size:12.5px;color:var(--r-text3)}
+.rcv-yigma > summary > .ti:first-child{font-size:24px;color:var(--r-primary)}
+.rcv-yigma > summary b{font-size:16px;color:var(--r-text)}
+.rcv-yigma > summary .rcv-yigma-izoh{margin-left:auto;font-size:13px;color:var(--r-text3)}
 .rcv-yigma > summary .rcv-yigma-ochar{color:var(--r-text3);transition:transform .15s}
 .rcv-yigma[open] > summary .rcv-yigma-ochar{transform:rotate(180deg)}
 .rcv-yigma > .rcv-card-body{border-top:1px solid var(--r-border)}
@@ -223,21 +227,21 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 /* ── Hisob-kitob (o'ng ustun) ── */
 .rcv-kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;font-size:14px;color:var(--r-text2)}
 .rcv-kv b{color:var(--r-text);font-weight:700;text-align:right;overflow-wrap:anywhere}
-.rcv-kv.tot{background:var(--r-primary-tint);margin:6px -10px;padding:12px 10px;border-radius:10px;font-size:15px}
+.rcv-kv.tot{background:var(--r-primary-tint);margin:6px -10px;padding:12px 10px;border-radius:10px;font-size:16px}
 .rcv-kv.tot span{color:var(--r-text);font-weight:800}
 .rcv-kv.tot b{color:var(--r-primary-d);font-weight:800;font-size:16px}
 .rcv-kv.debt span{color:var(--r-text);font-weight:700}
 .rcv-kv.debt b{color:var(--r-danger);font-weight:800;font-size:16px}
 .rcv-kv.paid b{color:var(--r-success)}
 .rcv-hr{border:0;border-top:1px solid var(--r-border);margin:8px 0}
-.rcv-note{background:var(--r-primary-tint);border-radius:10px;padding:11px 12px;font-size:12.5px;color:var(--r-primary-d);display:flex;gap:8px;line-height:1.45;margin-top:10px}
+.rcv-note{background:var(--r-primary-tint);border-radius:10px;padding:11px 12px;font-size:13px;color:var(--r-primary-d);display:flex;gap:8px;line-height:1.45;margin-top:10px}
 .rcv-note[style*="block"] > .ti{margin-right:6px}
 .rcv-note.amb{background:var(--r-warning-tint);color:var(--m-92400e);border:1px solid var(--ch-fde68a)}
-.rcv-go{width:100%;min-height:50px;border-radius:12px;font-size:15px;font-weight:800;margin-top:14px}
+.rcv-go{width:100%;min-height:var(--h-btn);border-radius:var(--r-btn);font-size:16px;font-weight:800;margin-top:14px}
 .rcv-boshl .rcv-go,.rcv-boshl .rcv-dock .rcv-btn-primary{background:var(--r-amber)}
-.rcv-saqlandi{text-align:center;color:var(--r-success);font-size:12.5px;font-weight:600;margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center;min-height:18px}
+.rcv-saqlandi{text-align:center;color:var(--r-success);font-size:13px;font-weight:600;margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center;min-height:18px}
 .rcv-sup-nom{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.rcv-sup-nom > .ti{font-size:20px;color:var(--r-primary)}
+.rcv-sup-nom > .ti{font-size:18px;color:var(--r-primary)}
 .rcv-sup-nom b{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--r-text)}
 .rcv-sup-nom small{font-size:12px;color:var(--r-text3);white-space:nowrap}
 .rcv-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -254,7 +258,7 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
   .rcv-stat-value{margin-top:0;text-align:right}
 }
 .rcv-quickpay{margin-top:10px;display:flex;flex-direction:column;gap:8px}
-.rcv-pay2{min-height:40px;border:1px solid var(--r-border);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:700;color:var(--r-text2);font-size:13.5px;background:var(--white);cursor:pointer;font-family:inherit}
+.rcv-pay2{min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center;gap:7px;font-weight:700;color:var(--r-text2);font-size:14px;background:var(--white);cursor:pointer;font-family:inherit}
 .rcv-pay2:hover{border-color:var(--r-primary);color:var(--r-primary)}
 .rcv-quickpay-joy{display:flex;gap:6px}
 .rcv-quickpay-joy[hidden]{display:none}
@@ -282,11 +286,11 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 .rcv-dock{display:none}
 @media(max-width:700px){
   .rcv-wrap{padding-bottom:0}
-  .rcv-dock{display:block;position:sticky;bottom:0;z-index:5;margin:4px -12px 0;background:var(--r-card);border-top:1px solid var(--r-border);padding:10px 14px 14px;box-shadow:0 -6px 20px rgba(0,0,0,.08)}
+  .rcv-dock{display:block;position:sticky;bottom:0;z-index:5;margin:4px -16px 0;background:var(--r-card);border-top:1px solid var(--r-border);padding:10px 14px 14px;box-shadow:0 -6px 20px rgba(0,0,0,.08)}
   .rcv-dock-qator{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--r-text2);margin-bottom:8px}
   .rcv-dock-qator b{color:var(--r-text)}
   .rcv-dock-qator .qarz{color:var(--r-danger)}
-  .rcv-dock .rcv-btn{width:100%;min-height:48px;border-radius:12px;font-size:15px;font-weight:800}
+  .rcv-dock .rcv-btn{width:100%;min-height:var(--h-btn);font-size:16px;font-weight:800}
   #rcv-hisob-karta .rcv-go{display:none}
 }
 
@@ -297,16 +301,16 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 .ot-sarlavha{display:flex;align-items:center;gap:10px}
 .ot-sarlavha > .ti{font-size:24px;color:var(--r-primary)}
 .ot-sarlavha b{font-size:18px;flex:1;color:var(--r-text)}
-.ot-x{width:36px;height:36px;border-radius:10px;border:1px solid var(--r-border);display:grid;place-items:center;font-size:18px;color:var(--r-text2);background:var(--white);cursor:pointer}
+.ot-x{width:var(--h-md);height:var(--h-md);border-radius:var(--r-btn);border:1px solid var(--r-border);display:grid;place-items:center;font-size:18px;color:var(--r-text2);background:var(--white);cursor:pointer}
 .ot-bosh p{margin:4px 0 12px;color:var(--r-text3);font-size:13px;line-height:1.45}
 .ot-qidiruv{position:relative;margin-bottom:10px}
 .ot-qidiruv .ti{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--r-text3);font-size:18px}
 .ot-qidiruv input{width:100%;min-height:42px;border:1px solid var(--r-border);border-radius:10px;padding:0 12px 0 38px;font-size:var(--fs-maydon);outline:none;background:var(--white);color:var(--r-text)}
 .ot-qidiruv input:focus{border-color:var(--r-primary)}
 .ot-chiplar{display:flex;gap:8px;flex-wrap:wrap}
-.ot-chip{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--r-border);font-weight:700;font-size:13px;color:var(--r-text2);background:var(--white);display:flex;gap:6px;align-items:center;cursor:pointer;font-family:inherit}
+.ot-chip{min-height:var(--h-md);padding:0 14px;border-radius:999px;border:1px solid var(--r-border);font-weight:700;font-size:13px;color:var(--r-text2);background:var(--white);display:flex;gap:6px;align-items:center;cursor:pointer;font-family:inherit}
 .ot-chip.on{background:var(--r-primary-tint);border-color:var(--r-primary-bd);color:var(--r-primary-d)}
-.ot-chip.kam{color:var(--r-danger);border-color:var(--ch-f3c7c7);background:var(--r-danger-tint)}
+.ot-chip.kam{color:var(--m-b91c1c);border-color:var(--ch-f3c7c7);background:var(--r-danger-tint)}
 .ot-chip.kam.on{border-color:var(--r-danger);box-shadow:inset 0 0 0 1px var(--r-danger)}
 .ot-ichi{flex:1;overflow-y:auto;padding:4px 20px 14px;min-height:0}
 .ot-grp{font-size:12px;font-weight:800;color:var(--r-text3);letter-spacing:.06em;margin:14px 0 6px;text-transform:uppercase}
@@ -319,16 +323,16 @@ html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);colo
 .ot-nm small{color:var(--r-text3);font-size:12px;line-height:1.4;display:block}
 .ot-nm small b{color:var(--r-text2)}
 .ot-royxatda{white-space:nowrap;background:var(--r-success-tint);color:var(--r-success);border-radius:999px;padding:1px 7px;font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle}
-.ot-stk{text-align:right;font-size:12.5px;color:var(--r-text3);white-space:nowrap}
-.ot-stk b{display:block;font-size:13.5px;color:var(--r-text)}
+.ot-stk{text-align:right;font-size:13px;color:var(--r-text3);white-space:nowrap}
+.ot-stk b{display:block;font-size:14px;color:var(--r-text)}
 .ot-stk.kam b{color:var(--r-danger)}
 .ot-bosh-xabar{padding:24px 6px;text-align:center;color:var(--r-text3);font-size:13px}
-.ot-yangi{display:flex;gap:10px;align-items:center;width:100%;padding:11px 12px;border:1.5px dashed var(--r-warning-bd);background:var(--r-warning-tint);border-radius:12px;color:var(--m-92400e);font-weight:700;font-size:13.5px;margin-top:10px;cursor:pointer;font-family:inherit;text-align:left}
+.ot-yangi{display:flex;gap:10px;align-items:center;width:100%;min-height:var(--h-btn);padding:8px 12px;border:1.5px dashed var(--r-warning-bd);background:var(--r-warning-tint);border-radius:12px;color:var(--m-92400e);font-weight:700;font-size:14px;margin-top:10px;cursor:pointer;font-family:inherit;text-align:left}
 .ot-yangi u{text-underline-offset:2px}
 .ot-past{padding:14px 20px;border-top:1px solid var(--r-border);display:flex;gap:10px;align-items:center}
 .ot-past .ot-holat{flex:1;font-size:13px;color:var(--r-text2)}
 .ot-past .ot-holat b{color:var(--r-text)}
-.ot-past .rcv-btn{min-height:46px;border-radius:12px;font-weight:800;padding:0 20px}
+.ot-past .rcv-btn{min-height:var(--h-btn);font-weight:800;padding:0 20px}
 .ot-past .rcv-btn:disabled{opacity:.5;cursor:default}
 @media(max-width:700px){
   .ot-panel{top:70px;left:0;width:auto;border-radius:18px 18px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2)}
@@ -848,7 +852,7 @@ let prodTypeChosen = false; // Yo'nalish («Umumiy» yoki korxona yo'nalishi —
 // 'qisman' (qo'lda), 'qarz' (qarzga olindi: 0). Boshlang'ich — mavjud qoida (avvalgi forma bo'sh «Hozir to'langan» = qarz).
 let rcvTolov = 'qarz';
 // kech194 (zip 261 — egasi QARORI 06.11 00:57, 2-variant): shu ta'minotchidan har materialning OXIRGI xarid narxi va sanasi
-// (`/api/suppliers/{id}/purchased-items` → `oxirgi_narx`, `oxirgi_sana`; boshlang'ich qoldiqsiz) — narx o'zgarishi belgisi va
+// (ta'minotchi «purchased-items» API si → `oxirgi_narx`, `oxirgi_sana`; boshlang'ich qoldiqsiz) — narx o'zgarishi belgisi va
 // «Ombordan tanlash» dagi narx uchun. Ta'minotchi almashsa — bo'shatiladi.
 let oxirgiNarxlar = new Map();
 
@@ -904,7 +908,7 @@ function rcvSaqlandiYoz() {
   if (!el) return;
   if (!apBasket.length) { el.textContent = ''; return; }
   let vaqt = '';
-  try { vaqt = new Date().toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tashkent'}); } catch (e) { vaqt = ''; }
+  try { vaqt = typeof tkVaqt === 'function' ? tkVaqt(Date.now()) : ''; } catch (e) { vaqt = ''; }     // Toshkent soati (base.html)
   el.innerHTML = '<i class="ti ti-cloud-check"></i>' + escapeHtml('Qoralama avtomatik saqlandi' + (vaqt ? ' · ' + vaqt : ''));
 }
 
@@ -1057,7 +1061,7 @@ loadHistoryForSupplier.chiz = function (d) {
   // kech194 (zip 261): yig'iladigan «Kirimlar tarixi» sarlavhasida yozuvlar soni (sahifalash ma'lumotidan)
   {
     const soniEl = document.getElementById('rcv-tarix-soni');
-    const jami = pg && pg.total_items != null ? pg.total_items : (pg && pg.total != null ? pg.total : null);
+    const jami = pg && pg.total_count != null ? pg.total_count : null;     // review261 №7: API kaliti — `total_count`
     if (soniEl) {
       if (jami != null && isFinite(Number(jami))) { soniEl.textContent = sonKor(Number(jami), 0) + ' ta'; soniEl.style.display = ''; }
       else soniEl.style.display = 'none';
@@ -1261,8 +1265,30 @@ async function applySupplierMaterialFilter(supplierId){
     }
   } catch(e) { /* filtr ishlamasa — hammasi ko'rsatiladi, muammo emas */ }
   if (invItems.length) renderInvDropdown();
+  rcvOxirgiNarxQayta();
   rcvTrendlarYangila();
   if (ombordanOchiqmi()) ombordanChiz();
+}
+
+// review261 №2: «Ombordan tanlash» dan oxirgi narx bilan tushgan (foydalanuvchi narxini o'zgartirmagan) qatorlar — ta'minotchi almashsa
+// YANGI ta'minotchining oxirgi narxi (yo'q bo'lsa — bo'sh, qator chala: narxni yozish so'raladi). Ilgari A ning narxi qolib, B ga A narxida
+// kirim yozilishi mumkin edi (yashil «↓» belgisi bilan — «arzonroq» deb ko'rinardi).
+function rcvOxirgiNarxQayta() {
+  let n = 0;
+  apBasket.forEach(b => {
+    if (b.narxManba !== 'oxirgi') return;
+    const ox = oxirgiNarxlar.get(b.itemId);
+    const yangi = ox ? ox.narx : null;
+    if ((b.price || null) === yangi) return;
+    b.price = yangi;
+    b.chala = !(Number(b.qty) > 0 && Number(b.price) > 0);
+    b.total = b.chala ? 0 : buyurtmaJami(b.qty, b.price).jami;
+    n++;
+  });
+  if (n) {
+    renderBasket();
+    showMsg('ℹ️ ' + n + " ta qatorda narx shu ta'minotchining oxirgi xarid narxiga yangilandi (oxirgi narx yo'q bo'lsa — narxni yozing)", 'info');
+  }
 }
 
 // kech194 (zip 261 — 2-variant): «Omborda» katagi — joriy qoldiq; eng kam miqdordan (min_stock > 0) kam bo'lsa qizil va «↓ kam»
@@ -1293,8 +1319,10 @@ function rcvTrendHtml(t) {
   if (!t) return '';
   const izoh = "Oxirgi narx (shu ta'minotchidan): " + pulKor(t.oxirgi) + " so'm" + (t.sana ? ' · ' + t.sana : '')
     + (t.yon === 'up' ? ' — hozirgi narx qimmatroq' : ' — hozirgi narx arzonroq');
-  return `<button type="button" class="rcv-trend${t.yon === 'dn' ? ' dn' : ''}" title="${escapeHtml(izoh)}" data-izoh="${escapeHtml(izoh)}"`
-    + ` onclick="rcvTrendBos(this)" aria-label="${escapeHtml(izoh)}"><i class="ti ti-arrow-${t.yon === 'dn' ? 'down' : 'up'}"></i>${escapeHtml(t.matn)}</button>`;
+  // belgi — tugma emas (yagona tugma o'lchamlari qoidasi — test_u13), lekin klaviaturadan ham ochiladi (Tab → Enter)
+  return `<span class="rcv-trend${t.yon === 'dn' ? ' dn' : ''}" tabindex="0" title="${escapeHtml(izoh)}" data-izoh="${escapeHtml(izoh)}"`
+    + ` onclick="rcvTrendBos(this)" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); rcvTrendBos(this); }">`
+    + `<i class="ti ti-arrow-${t.yon === 'dn' ? 'down' : 'up'}" aria-hidden="true"></i>${escapeHtml(t.matn)}</span>`;
 }
 function rcvTrendBos(el) {
   if (el && el.dataset && el.dataset.izoh) showMsg('ℹ️ ' + el.dataset.izoh, 'info');
@@ -1559,8 +1587,8 @@ function renderBasket(){
 function apQatorTahrir(i, maydon, qiymat) {
   const b = apBasket[i];
   if (!b) return;
-  if (maydon === 'qty') { const q = parseNum(qiymat); b.qty = q > 0 ? q : null; }
-  else if (maydon === 'price') { const p = parseNum(qiymat); b.price = p > 0 ? p : null; }
+  if (maydon === 'qty') { const q = rcvMiqdorOqi(qiymat); b.qty = q > 0 ? q : null; }
+  else if (maydon === 'price') { const p = parseNum(qiymat); b.price = p > 0 ? p : null; delete b.narxManba; }
   else if (maydon === 'vol') { const v = parseNum(qiymat); b.volumePerUnit = v > 0 ? v : null; }
   else return;
   b.chala = !(Number(b.qty) > 0 && Number(b.price) > 0);
@@ -1576,6 +1604,14 @@ function apQatorTahrir(i, maydon, qiymat) {
   _rcvYoz('rcv-pos-total', pulKor(pulYigindi(apBasket.map(x => x.total))) + " so'm");
   updateSummary();
 }
+// review261 №4: qator miqdori — faqat son (ming ajratgich — bo'shliq, kasr — vergul yoki nuqta, bittasi): «1/2», «1.2.3», «2e3», harf —
+// son emas (qator chala qoladi, «miqdorni yozing»); ilgari `parseNum` ularni jimgina 12 / 123 / 2000 qilardi
+function rcvMiqdorOqi(v) {
+  const t = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (!/^\d+([.,]\d+)?$/.test(t)) return NaN;
+  return Number(t.replace(',', '.'));
+}
+
 // Tahrir tugagach (maydondan chiqilganda): to'liq qator boshqa to'liq qator bilan AYNAN bir xil bo'lib qolsa (server ham rad etadi) —
 // xabar va maydon avvalgi qiymatiga qaytadi
 function apQatorTekshir(i, input) {
@@ -1772,9 +1808,10 @@ function ombordanOch() {
   ombordanChiz();
   if (q && window.matchMedia && !window.matchMedia('(max-width: 700px)').matches) q.focus();
 }
-function ombordanYop() {
+function ombordanYop(fokussiz) {
   const o = document.getElementById('ombordanOyna');
   if (o) o.style.display = 'none';
+  if (fokussiz) return;                    // review261 №8: «Yangi material qo'shish» — fokus yangi material nomida qoladi
   const b = document.getElementById('rcv-ombordan-btn'); if (b && typeof b.focus === 'function') b.focus();
 }
 function ombordanFiltr(f) { otFiltr = f; ombordanChiz(); }
@@ -1825,7 +1862,7 @@ function ombordanChiz() {
       const on = bor || otTanlangan.has(i.id);
       const kam = rcvKammi(i);
       const ox = oxirgiNarxlar.get(i.id);
-      const narxMatn = ox ? ('oxirgi narx: <b>' + escapeHtml(pulKor(ox.narx)) + " so'm</b>" + (ox.sana ? ' · ' + escapeHtml(String(ox.sana).slice(0, 5)) : '') + " · shu ta'minotchidan")
+      const narxMatn = ox ? ('oxirgi narx: <b>' + escapeHtml(pulKor(ox.narx)) + " so'm</b>" + (ox.sana ? ' · ' + escapeHtml(String(ox.sana)) : '') + " · shu ta'minotchidan")
         : (Number(i.price_per_unit) > 0 ? "o'rtacha tannarx: <b>" + escapeHtml(pulKor(i.price_per_unit)) + " so'm</b>" : 'narx yozilmagan');
       const stk = `<div class="ot-stk${kam ? ' kam' : ''}"><b>${escapeHtml(sonKor(Number(i.stock_quantity) || 0, 2) + ' ' + (i.unit || ''))}</b>`
         + (kam ? 'kam · min ' + escapeHtml(sonKor(Number(i.min_stock) || 0, 2)) : 'omborda') + '</div>';
@@ -1834,7 +1871,7 @@ function ombordanChiz() {
         + `<div class="ot-nm"><b>${escapeHtml(i.item_name)}${bor ? '<span class="ot-royxatda">✓ ro\'yxatda</span>' : ''}</b><small>${narxMatn}</small></div>${stk}</label>`;
     }).join('')).join('');
   }
-  html += '<button type="button" class="ot-yangi" onclick="apToggleNewItem(true); ombordanYop()"><i class="ti ti-sparkles" style="font-size:20px"></i>'
+  html += '<button type="button" class="ot-yangi" onclick="apToggleNewItem(true); ombordanYop(true)"><i class="ti ti-sparkles" style="font-size:18px"></i>'
     + '<span style="flex:1">Kerakli material topilmadimi? <u>Yangi material qo\'shish</u></span><i class="ti ti-chevron-right"></i></button>';
   royxat.innerHTML = html;
   ombordanPast();
@@ -1849,7 +1886,7 @@ function ombordanQosh() {
     const ox = oxirgiNarxlar.get(item.id);
     const vol = item.is_penoplast && Number(item.volume_per_unit) > 0 ? Number(item.volume_per_unit) : null;
     apBasket.push({ itemId: item.id, itemName: item.item_name, unit: item.unit || '', qty: null, price: ox ? ox.narx : null, total: 0,
-                    isPenoplast: !!item.is_penoplast, volumePerUnit: vol, chala: true });
+                    isPenoplast: !!item.is_penoplast, volumePerUnit: vol, chala: true, narxManba: 'oxirgi' });
   });
   ombordanYop();
   renderBasket();
@@ -1859,6 +1896,34 @@ function ombordanQosh() {
     if (inp) { if (inp.scrollIntoView) inp.scrollIntoView({behavior: 'smooth', block: 'center'}); inp.focus(); }
   }
 }
+
+// review261 №9: «Ombordan tanlash» oynasi ochiq turganda Tab fokusni oyna ichida aylantiradi (orqadagi sahifaga o'tmaydi); tanlov
+// guruhlari (kirim turi, to'lov turi) — ← / → / ↑ / ↓ bilan
+document.getElementById('ombordanOyna')?.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab') return;
+  const f = [...this.querySelectorAll('button, input, [tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);
+  if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }
+  else if (!e.shiftKey && (i === f.length - 1 || i < 0)) { e.preventDefault(); f[0].focus(); }
+});
+function rcvRadioKlaviatura(guruh) {
+  const g = document.getElementById(guruh);
+  if (!g) return;
+  g.addEventListener('keydown', function (e) {
+    const yon = {ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1}[e.key];
+    if (!yon) return;
+    const t = [...g.querySelectorAll('[role="radio"]')].filter(x => x.offsetParent !== null);
+    const i = t.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const k = t[(i + yon + t.length) % t.length];
+    k.click();
+    k.focus();                             // (to'lov turi «Qisman» summa maydoniga o'tkazadi — klaviaturada fokus guruhda qoladi)
+  });
+}
+rcvRadioKlaviatura('rcv-seg');
+rcvRadioKlaviatura('rcv-tolov-turi');
 
 // ── YAKUNIY SAQLASH ──
 let isSubmittingReceive = false;
@@ -1898,7 +1963,8 @@ async function submitReceive(){
   if (!receiptDate) { showMsg('❌ Kirim sanasini kiriting', 'error'); return; }
   if (receiptDate > bugunISO) { showMsg('❌ Kirim sanasi kelajakda bo\'lishi mumkin emas: ' + sanaKorinishi(receiptDate), 'error'); return; }
   const dueDate = document.getElementById('ap-due-date').value || null;
-  if (dueDate && dueDate < receiptDate && rcvTolov !== 'toliq') {
+  const _boshl6 = document.getElementById('ap-opening-stock')?.checked || false;     // review261 №6: yashirin maydon to'xtatmaydi
+  if (dueDate && dueDate < receiptDate && rcvTolov !== 'toliq' && !_boshl6) {
     showMsg("❌ To'lov muddati (" + sanaKorinishi(dueDate) + ") kirim sanasidan (" + sanaKorinishi(receiptDate) + ") oldin bo'lishi mumkin emas", 'error');
     return;
   }
@@ -1964,6 +2030,11 @@ async function submitReceive(){
   if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; submitBtn.dataset.origText = submitBtn.textContent; submitBtn.textContent = 'Saqlanmoqda...'; }
   const dockBtn = document.getElementById('receive-submit-dock');
   if (dockBtn) { dockBtn.disabled = true; dockBtn.style.opacity = '0.6'; dockBtn.dataset.origText = dockBtn.textContent; dockBtn.textContent = 'Saqlanmoqda...'; }
+  // review261 №3: saqlash kutilayotganda savat qatorlari, kiritish qatori va «Ombordan tanlash» o'zgartirilmaydi (ilgari qator miqdori
+  // o'zgartirilsa bazaga eski, xabarga yangi qiymat yozilardi va o'zgarish jim yo'qolardi)
+  const _qulf = document.querySelectorAll ? [...document.querySelectorAll('#rcv-basket-body input, #rcv-basket-body button, #rcv-kiritish-body input, #rcv-kiritish-body button, #rcv-ombordan-btn')]
+    .filter(x => !x.disabled) : [];
+  _qulf.forEach(x => { x.disabled = true; });
 
   const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
   const isOpeningStock = document.getElementById('ap-opening-stock')?.checked || false;
@@ -2018,15 +2089,17 @@ async function submitReceive(){
     isSubmittingReceive = false;
     if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; if (submitBtn.dataset.origText) submitBtn.textContent = submitBtn.dataset.origText; }
     if (dockBtn) { dockBtn.disabled = false; dockBtn.style.opacity = ''; if (dockBtn.dataset.origText) dockBtn.textContent = dockBtn.dataset.origText; }
+    _qulf.forEach(x => { x.disabled = false; });
   }
 
   // 125-band (kech96): ta'minotchiga to'lov / qarz — mahsulotlar jami bo'yicha (server bilan bir xil; qo'shimcha
   // xarajatlar — korxona xarajati, qarzga kirmaydi).
-  const productsJami = pulYigindi(apBasket.map(l => l.total));
+  // (yuborilgan qatorlardan — `payload`; savat saqlash paytida qulflangan)
+  const productsJami = pulYigindi(payload.items.map(l => buyurtmaJami(l.quantity, l.price_per_unit).jami));
   const totalPaid = isOpeningStock ? 0 : Math.min(paidNowTotal, productsJami);
   const totalDebt = isOpeningStock ? 0 : Math.max(0, pulYigindi([productsJami, -paidNowTotal]));
 
-  showMsg((isOpeningStock ? `✓ Boshlang'ich qoldiq omborga kiritildi (${apBasket.length} ta material)`
+  showMsg((isOpeningStock ? `✓ Boshlang'ich qoldiq omborga kiritildi (${payload.items.length} ta material)`
     : `✓ Kirim saqlandi! To'landi: ${pulKor(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${pulKor(totalDebt)} so'm`:''}`) + amalTakrorIzoh(kirimTakror), 'success');
   apBasket = []; invItems = [];
   clearDraft();

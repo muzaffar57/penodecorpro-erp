@@ -469,14 +469,23 @@ function qator(elementlar, dataset) {
       clearDraft: () => {}, loadHistoryForSupplier: () => {},
       // kech115: bugun (sana tekshiruvi), tasdiq, saqlangach ro'yxatni qayta yuklash (K115-1)
       tkISO: () => '2026-09-30', customConfirm: async () => true, loadInvItemsForAp: () => {},
-      fetch: async (u, o) => { tanalar.push(JSON.parse(o.body)); return javob(200, { success: true }); } }, qo || {}));
+      fetch: async (u, o) => { tanalar.push(JSON.parse(o.body)); return javob(200, { success: true }); },
+      // kech195 (zip 261, MOSLANDI): yangi «Kirim qilish» saqlangach oxirgi narxlarni qayta oladi
+      applySupplierMaterialFilter: () => {} }, qo || {}));
     vm.runInContext('var apBasket = ' + jsn(qatorlar) + '; var invItems = []; var currentSupplierId = 7;'
       + ' var prodTypeChosen = true; var apCreatingNewItem = false; var isSubmittingReceive = false;'
       + ' async function apResolveItemId() { return null; }', ctx);
     // kech115 (G4-01 / G4-03): submitReceive yozib qo'yilgan qatorni `apQatorniSavatga` orqali qo'shadi (takror — rad),
     // xulosa sanani `sanaKorinishi` bilan ko'rsatadi — ular ham yuklanadi
+    // kech195 (zip 261, MOSLANDI — QOBILIYAT bo'yicha): yangi «Kirim qilish» — to'lov turi (`rcvTolov`), oxirgi narxlar, «Omborda» / narx
+    // belgisi yordamchilari, segment va to'lov turi ko'rinishi ham yuklanadi (eski kodda — yo'q)
+    const z261 = SRC.receive.indexOf("let rcvTolov = 'qarz';") >= 0;
+    if (z261) vm.runInContext("var rcvTolov = 'qarz'; var oxirgiNarxlar = new Map();"
+      + " var RCV_HISOB_DAN = {naqd: 'naqd puldan', bank: 'bankdan', karta: 'kartadan'};", ctx);
     const yoq = yukla(ctx, SRC.receive, NARX118.concat(YORDAM, ['fmt', 'apGetExtraCosts', 'updateSummary', 'apPayFull',
-      'renderBasket', 'submitReceive', 'apQatorniSavatga', 'apTakrorQator', 'sanaKorinishi']), 'supplier_receive');
+      'renderBasket', 'submitReceive', 'apQatorniSavatga', 'apTakrorQator', 'sanaKorinishi'],
+      z261 ? ['_rcvYoz', 'rcvOmbordaKatak', 'rcvTrend', 'rcvTrendHtml', 'rcvTrendJoyla', 'rcvKiritishBirlik', '_rcvQtyMatn',
+              'rcvSegmentKor', 'rcvTolovTuri', 'rcvTolovKor'] : []), 'supplier_receive');
     return { ctx, e, xabar, tanalar, yoq };
   }
   const Q100 = [{ itemId: 21, itemName: 'A', unit: 'kg', qty: 100, price: 1000, total: 100000, isPenoplast: false, volumePerUnit: null }];
