@@ -4747,7 +4747,7 @@ def _son_filtri(qiymat, kasr=2):
 
 
 templates.env.filters["son"] = _son_filtri
-templates.env.globals["static_version"] = "20261023-1"   # kech155 (zip 208 — umumiy rang «Toza ko'k»): style.css, ranglar.css; kech147 (zip 189): style.css (telefon-karta katagida tugunlar birga o'ngda); kech147 (zip 186 — sahifalar telefonda): style.css (`telefon-karta` yotiq telefonda, karta sarlavhasi sig'masa o'tadi); kech123 (zip 140 — U-13 2-qism): style.css (.btn-gold-outline / .btn-green-outline / .btn-soft / .btn-link / .btn-tanlov, --fs-maydon-sm, birlikli maydon qobig'i, klassi yo'q tugma / maydon standart yozuvi); kech123 (zip 139 — U-13 yagona ko'rinish): style.css (tugma / maydon / tab / chip tizimi, yozuv shkalasi); kech120 (zip 137): style.css (.input-field); kech120 (zip 135): style.css (.grafik-bosh); kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
+templates.env.globals["static_version"] = "20261105-1"   # kech191 (zip 259): style.css (logotipsiz korxona menyusida epserp logotipi); kech155 (zip 208 — umumiy rang «Toza ko'k»): style.css, ranglar.css; kech147 (zip 189): style.css (telefon-karta katagida tugunlar birga o'ngda); kech147 (zip 186 — sahifalar telefonda): style.css (`telefon-karta` yotiq telefonda, karta sarlavhasi sig'masa o'tadi); kech123 (zip 140 — U-13 2-qism): style.css (.btn-gold-outline / .btn-green-outline / .btn-soft / .btn-link / .btn-tanlov, --fs-maydon-sm, birlikli maydon qobig'i, klassi yo'q tugma / maydon standart yozuvi); kech123 (zip 139 — U-13 yagona ko'rinish): style.css (tugma / maydon / tab / chip tizimi, yozuv shkalasi); kech120 (zip 137): style.css (.input-field); kech120 (zip 135): style.css (.grafik-bosh); kech120 (zip 134): style.css (--border-strong, namuna rangi); kech120 (zip 130): style.css (qidiruvli tanlagich), static/tanlov.js; kech119 (zip 126 — C, telefon): style.css (telefon qoidalari); zip 123 — ranglar.css (eskirgan rang olib tashlandi); zip 122 — ranglar.css va style.css (tungi rejim) — kesh yangilansin
 
 
 def _toshkent_filtr(qiymat, fmt="%d.%m.%Y %H:%M"):
@@ -6952,9 +6952,13 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     _kalit = auth.qurilma_kaliti(request) or auth.yangi_qurilma_kaliti()
     _qh = auth.qurilma_hash_ol(_kalit)
     if emp.qurilma_hash != _qh:
-        _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
-        if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
-            _fonda(background_tasks, _hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id, sessiya=db)
+        # kech191 (zip 258 — egasi QARORI 05.11): o'sha (ruxsat berilgan) telefon — so'rovsiz, adminga faqat xabar
+        if crud.hodim_qurilma_ozi(db, emp, _qh, ua, qurilma_model):
+            _fonda(background_tasks, _hodim_qurilma_qayta_telegram, emp.name, emp.qurilma_nomi, emp.company_id, sessiya=db)
+        elif emp.qurilma_hash != _qh:       # review258 F5: poygada (ikki marta bosish) boshqa so'rov shu kalitni bog'lagan bo'lishi mumkin
+            _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
+            if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
+                _fonda(background_tasks, _hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id, sessiya=db)
     token = auth.create_employee_session(db, emp.id, qurilma_hash=_qh)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
@@ -6963,6 +6967,18 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     response.set_cookie(key=auth.QURILMA_COOKIE, value=_kalit, httponly=True, max_age=auth.QURILMA_COOKIE_SONIYA,
                         samesite="lax", secure=True)
     return response
+
+
+def _hodim_qurilma_qayta_telegram(ism: str, nomi: Optional[str], company_id: int) -> None:
+    """kech191 (zip 258): o'sha (ruxsat berilgan) telefondan qayta kirish — korxona Telegram chatiga MA'LUMOT (tugma / ruxsat yo'q)."""
+    try:
+        _matn = (f"📱 *Hodim o'sha telefondan qayta kirdi*\n\n👷 {ism}\n📱 {nomi or 'Telefon'}\n\n"
+                 "Ruxsat so'ralmadi — bu telefonga avval ruxsat bergansiz (brauzer saytni unutgan edi).\n"
+                 "Bu hodim bo'lmasa: «Ustalar KPI / Hodimlar» → «🔑 Kirish» → yangi PIN bering va «Telefonni uzish» "
+                 "(PIN ni bilgan odam qayta kira olmasin).")
+        _send_telegram(_matn, company_id=company_id)
+    except Exception as e:                  # noqa: BLE001
+        print(f"⚠ Telegram (o'sha telefon) yuborilmadi: {e}")
 
 
 def _hodim_qurilma_telegram(ism: str, hozirgi: Optional[str], yangi: str, company_id: int) -> None:
@@ -9724,6 +9740,16 @@ def api_delete_cash_transaction(tx_id: int, db: Session = Depends(get_db),
     return {"status": "ok"}
 
 
+@app.get("/api/finance/usta-keshbek")
+def api_finance_usta_keshbek(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("kassa", "yaratish"))):
+    """kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar {"ustalar": [{id, nom, qoldiq, faol}],
+    "bogsiz": {soni, jami}} (`bogsiz` — ustaga bog'lanmagan eski yozuvlar, review256 M1 — oynada ogohlantirish).
+    Ruxsat — to'lovni yozish bilan bir xil («Kassa: Yaratish»; `POST /api/masters/{id}/keshbek`; review256 L3 — to'lovchi qoldiqni bilishi
+    kerak, foyda / foiz / telefon berilmaydi)."""
+    cid = auth.company_id_of(current_user)
+    return {"ustalar": crud.usta_keshbek_tolov_royxati(db, cid), "bogsiz": crud.usta_kpi_bogsiz(db, cid)}
+
+
 @app.post("/api/finance/cash-transaction")
 def api_record_cash_transaction(category: str = Form(...), amount: float = Form(...),
                                  notes: str = Form(None), hisob: str = Form(None), db: Session = Depends(get_db),
@@ -9734,6 +9760,13 @@ def api_record_cash_transaction(category: str = Form(...), amount: float = Form(
     eski «boshlang'ich balans» — rad (u «Kassa + bank» ga endi ta'sir qilmaydi — «+ Boshlang'ich qoldiq» dan)."""
     if category not in ("boshlangich", "usta_kpi", "ehson"):
         raise HTTPException(status_code=400, detail="Noto'g'ri kategoriya")
+    # kech189 (zip 256, egasi QARORI 05.11 «Ustaga bog'lash» — O'LCHANGAN `work/k256/probe256.py`): ustaga BOG'LANMAGAN «Usta KPI to'landi»
+    # kassadan ayirardi, usta keshbek qoldig'i esa kamaymasdi («💸 Keshbek berildi» bilan birga bosilsa — kassadan 2 marta). Endi bu to'lov
+    # FAQAT ustaga bog'lab yoziladi — `POST /api/masters/{id}/keshbek` (usul «naqd»; Moliya oynasi ham shuni chaqiradi). Eski yozuvlar
+    # tarixda qoladi (o'chirish — avvalgidek).
+    if category == "usta_kpi":
+        raise HTTPException(status_code=400, detail="«Usta KPI to'landi» endi ustaga bog'lab yoziladi — oynada ustani tanlang "
+                                                    "(yoki «Ustalar KPI» → «💸 Keshbek berildi»)")
     # kech157 (zip 216 — O'LCHANGAN, HAQIQIY PG): «nan» summa 500 bersa ham `cash_transactions.amount = NaN` yozilardi (keyin kassa qoldig'i,
     # pul oqimi, kassa ro'yxati — 500); «inf» / «-inf» — 500. Son bo'lmagan / cheksiz — 400, hech narsa yozilmaydi.
     import math as _m216
@@ -12053,7 +12086,11 @@ def api_dokon_model_yangila(data: dict = Body(...), model_id: int = _Path213(...
                                                          _dokon_kim(current_user)))
     if m is None:
         raise HTTPException(status_code=404, detail="Model topilmadi")
-    return crud.dokon_model_dict(m)
+    javob = crud.dokon_model_dict(m)
+    _qq257 = getattr(m, "qoplamali_qatorlar257", None)     # kech190 (review257 L1): formula o'zgarganda — qo'lda yozilgan qoplamali qatorlar
+    if _qq257:
+        javob["qolda_qoplamali"], javob["qoplamali_qatorlar"] = len(_qq257), _qq257
+    return javob
 
 
 @app.delete("/api/sayt-katalogi/modellar/{model_id}")
@@ -12120,6 +12157,18 @@ def api_dokon_detal_tm(data: dict = Body(...), detal_id: int = _Path213(..., ge=
 def api_sayt_bandlar(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("tayyor", "korish"))):
     """«Tayyor mahsulotlar» sahifasi: saytdan kelgan buyurtmalarning faol (48 soatlik) bandlari — partiyalar, miqdor, sayt raqamlari."""
     return _dokon_bajar(db, lambda: crud.sayt_band_tmlar(db, auth.company_id_of(current_user)))
+
+
+@app.put("/api/sayt-katalogi/kub-narx")
+def api_dokon_kub_narx(data: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
+    """kech187 (zip 255): 1 m³ mahsulot narxi (karniz formulasi): {"kub_narx": 1 … 1 000 000 000 | null}. Saqlanganda formulali modellar
+    narxi qayta hisoblanadi. Javob: {"kub_narx", "qayta_hisoblandi", "qolda_qoplamali", "qoplamali_qatorlar"} (zip 257: qoplamasizi o'zgargan,
+    qoplamalisi qo'lda yozilgan qatorlar — formula ularga tegmaydi)."""
+    _dokon_bajar(db, lambda: crud.dokon_tekshir(db, auth.company_id_of(current_user)))    # o'chiq korxona — avval 404
+    if not isinstance(data, dict) or set(data) != {"kub_narx"}:
+        raise HTTPException(status_code=400, detail="Faqat 'kub_narx' yuboriladi")
+    return _dokon_bajar(db, lambda: crud.dokon_kub_narx_saqla(db, auth.company_id_of(current_user), data.get("kub_narx"),
+                                                             _dokon_kim(current_user)))
 
 
 @app.put("/api/sayt-katalogi/koeff")
@@ -12527,6 +12576,18 @@ def api_dokon_v1_katalog(request: Request, db: Session = Depends(get_db)):
     amaldagi chegirma, komplekt narxlari. Ulgurji narx va tannarx — YO'Q."""
     cid = _dokon_api_korxona(request, db)
     return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_katalog(db, cid)))
+
+
+@app.get("/api/dokon/v1/maxsus-narx")
+def api_dokon_v1_maxsus_narx(request: Request, model_id: str = None, balandlik: str = None, db: Session = Depends(get_db)):
+    """kech187 (zip 255): «Boshqa o'lcham» (karniz formulasi) — saytda ko'rinadigan formulali model, balandlik 25 … 60 sm (zip 257) (0,1 sm) → 1 m
+    narxi (qoplamasiz / qoplamali, butun so'm; savatdagi hisob bilan AYNAN). Model / formula yo'q — 404, noto'g'ri balandlik — 400."""
+    cid = _dokon_api_korxona(request, db)
+    try:
+        return _dokon_api_javob(request, _dokon_bajar(db, lambda: crud.dokon_api_maxsus_narx(db, cid, model_id, balandlik)))
+    except LookupError as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.get("/api/dokon/v1/sozlamalar")

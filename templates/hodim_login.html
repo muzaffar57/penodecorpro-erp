@@ -58,7 +58,7 @@
         <label class="field-label">PIN kod (4 xonali)</label>
         <input class="field-input pin-input" type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="••••" required {% if telefon %}autofocus{% endif %}>
 
-        {# kech133 (zip 159): telefon modeli — FAQAT admin ko'radigan telefon nomi uchun (xavfsizlikka ta'sir qilmaydi) #}
+        {# kech133 (zip 159): telefon modeli — admin ko'radigan telefon nomi uchun; kech191 (zip 258): nom «o'sha telefon» tanishida ham (crud.hodim_qurilma_ozi) #}
         <input type="hidden" name="qurilma_model" id="qurilmaModel" value="">
 
         <button type="submit" class="h-btn">Kirish</button>
@@ -68,7 +68,7 @@
   </div>
   <script>
     // kech133 (zip 159): Chrome / Samsung Internet telefon modelini brauzer satrida yashiradi — so'rab olinadi (bo'lmasa server
-    // brauzer satridan oladi). Faqat admin oynasidagi «qaysi telefon» nomi uchun.
+    // brauzer satridan oladi). Admin oynasidagi «qaysi telefon» nomi va (zip 258) «o'sha telefon» tanishi uchun.
     (function () {
       try {
         if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {

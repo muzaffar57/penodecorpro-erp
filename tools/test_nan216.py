@@ -75,7 +75,7 @@ def section(t):
 section("S — manba")
 MAIN_SRC = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
 SCH = open(os.path.join(ROOT, "schemas.py"), encoding="utf-8").read()
-_k = MAIN_SRC[MAIN_SRC.find("def api_record_cash_transaction("):][:2500]
+_k = MAIN_SRC[MAIN_SRC.find("def api_record_cash_transaction("):][:4000]     # kech189 (zip 256): funksiya boshida `usta_kpi` rad izohi
 _e = MAIN_SRC[MAIN_SRC.find("def api_set_ehson_percent("):][:1200]
 check("S1 kassa yozuvi va ehson foizi — `isfinite` tekshiruvi yozishdan OLDIN",
       ".isfinite(amount)" in _k and _k.find(".isfinite(amount)") < _k.find("crud.record_cash_transaction")
@@ -163,8 +163,11 @@ check("K2 kassaga yozuv YO'Q, bazada NaN / ∞ yo'q", kassa_soni() == k0 and nan
 _b = [A.get(u).status_code for u in ("/api/finance/cash-balance", "/api/finance/cash-transactions")]
 check("K3 kassa qoldig'i va kassa ro'yxati — 200 (ilgari «nan» dan keyin 500)", _b == [200, 200], _b)
 r = A.post("/api/finance/cash-transaction", data={"category": "boshlangich", "amount": "1000", "notes": "K216 oddiy"})
-r2 = A.post("/api/finance/cash-transaction", data={"category": "usta_kpi", "amount": "-500", "notes": "K216 oddiy kpi"})
-check("K4 oddiy summa — avvalgidek 200 (boshlang'ich 1000, usta KPI −500), 2 yozuv", r.status_code == 200 and r2.status_code == 200
+# kech189 (zip 256): `usta_kpi` kassa yo'lida endi 400 (ustaga bog'lab — `tools/test_usta_kpi256.py`); qobiliyat bayrog'i — yangi kodda
+# oddiy chiqim «Ehson» bilan (eski kodda — avvalgidek `usta_kpi`)
+_KAT256 = "ehson" if any(getattr(_x, "path", None) == "/api/finance/usta-keshbek" for _x in main.app.routes) else "usta_kpi"
+r2 = A.post("/api/finance/cash-transaction", data={"category": _KAT256, "amount": "-500", "notes": "K216 oddiy kpi"})
+check("K4 oddiy summa — avvalgidek 200 (boshlang'ich 1000, chiqim −500), 2 yozuv", r.status_code == 200 and r2.status_code == 200
       and kassa_soni() == k0 + 2, (r.status_code, r.text[:200], r2.status_code, r2.text[:200]))
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════

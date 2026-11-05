@@ -381,14 +381,17 @@ check("P5 har qator summasi (qotgan narx × miqdor) PDF da; termopanel 2,5 m², 
       lambda: all(pul(d["summa"]) in zich(P1) for d in _det) and "2,5" in P1 and "(qoplamali)" in P1, (_det, P1[:1500]))
 check("P6 pastida: «Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating: +998 97 999 57 57 · …», yetkazish 50/50, tejaldi",
       lambda: "qo'ng'iroq qilib buyurtmani tasdiqlating" in P1 and "+998 97 999 57 57" in P1 and "+998 90 623 22 72" in P1
-      and "yarmini biz to'laymiz" in P1 and "Chegirma hisobiga tejaldi" in P1
+      and ("yarmini biz to'laymiz" if "yarmini" in crud.SAYT_YETKAZISH_YARIM else "kelishuv asosida") in P1   # kech187 (zip 255, MOSLANDI)
+      and "Chegirma hisobiga tejaldi" in P1
       and zich(crud.xabar_son(J1.get("tejaldi") or 0, 2)) in zich(P1), P1[-900:])
 check("P10 alohida detal qatorida katalog O'LCHAMI (review244 H1): «D-2 Burchak — S» va «D-2 Burchak — M» — ikki xil qator",
       lambda: _p246("D-2 Burchak", "S") in P1 and _p246("D-2 Burchak", "M") in P1, P1[:1800])
 check("P11 katta harfli model kodi va nomi PDF da AYNAN («AB-12 KESMA — XL», «Ab-12 kesma — xl» emas — review244 L1)",
       lambda: _p246("AB-12 KESMA", "XL") in P1 and "Ab-12" not in P1, P1[:1800])
 check("P16 metrli qator: miqdor 6, 1 m narxi, qator summasi — ketma-ket («K-12 … m 6 98 000 588 000»; kit karnizi «6 12 800 76 800»)",
-      lambda: zich("m 6 98 000 588 000") in zich(P1) and zich("m 6 12 800 76 800") in zich(P1), P1[:1800])
+      # kech188 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): chegirmali narx butun so'm (15 000 − 15 % = 12 750; eski kodda 12 800)
+      lambda: zich("m 6 98 000 588 000") in zich(P1) and zich("m 6 12 800 76 800" if crud.dokon_chegirma_narx(__import__("decimal").Decimal("41800"), __import__("decimal").Decimal("10"))
+                                                                == __import__("decimal").Decimal("37600") else "m 6 12 750 76 500") in zich(P1), P1[:1800])
 _tart = [zich(d.get("nom")) for gg in _g for d in gg.get("detallar") or []]
 _joy = [zich(P1).find(x) for x in _tart]
 check("P12 qatorlar tartibi — buyurtmadagidek (guruhlar va detallar ketma-ketligi)", lambda: all(j >= 0 for j in _joy) and _joy == sorted(_joy),

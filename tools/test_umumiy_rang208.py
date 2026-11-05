@@ -141,7 +141,7 @@ check("S3 menyu — `--menu-*` belgilaridan (yorug' — oq #FFFFFF, faol bandi #
       and "#E5E5E0" not in _menyu and "rgba(185,120,63" not in _menyu, _menyu[:300])
 _kesh = re.search(r'templates\.env\.globals\["static_version"\] = "([^"]+)"', oqi("main.py"))
 check("S4 kesh belgisi yangilangan (brauzer eski style.css / ranglar.css ni ushlab qolmasin): «20261023-1»",
-      _kesh and _kesh.group(1) == "20261023-1", _kesh and _kesh.group(1))
+      _kesh and _kesh.group(1) >= "20261023-1", _kesh and _kesh.group(1))   # kech191 (zip 259, MOSLANDI): keyingi o'zgarishlarda oshadi
 _xom = []
 for _f in sorted(glob.glob(os.path.join(ROOT, "templates", "*.html"))) + [os.path.join(ROOT, "static", "style.css")]:
     _s = open(_f, encoding="utf-8").read()

@@ -7198,6 +7198,8 @@ AUDIT_AMALLARI = {
     "qurilma_ruxsat": ("✅", "— telefoniga ruxsat berildi", "Hodim telefoni"),
     "qurilma_rad": ("⛔", "— telefon so'rovi rad etildi", "Hodim telefoni"),
     "qurilma_uzildi": ("🔌", "— telefoni uzildi", "Hodim telefoni"),
+    # kech191 (zip 258): o'sha (ruxsat berilgan) telefon brauzeri saytni unutgan — avtomatik qayta bog'landi (`hodim_qurilma_ozi`)
+    "qurilma_qayta": ("📱", "— o'sha telefondan qayta kirdi (ruxsat so'ralmadi)", "Hodim telefoni"),
     "pin_ozgartirildi": ("🔒", "— o'z PIN ini qo'ydi", "Hodim PIN i"),
     # kech134 (zip 160): hodim avansi (yozuv nomi — «Ism: summa (sana)»): hodim javobi admin yozgan avansga, admin «Olmaganman» ni
     # ko'rib chiqdi, avans o'chirildi (`old_value` — izohi)
@@ -11844,13 +11846,26 @@ def import_full_backup(db: Session, data: dict, company_id: int,
 
         inserted, skipped_tables = {}, []
 
-        for model in order:
+        # kech187 (zip 255 — sinov254m da O'LCHANDI): AYLANA bog'lam — `finished_products.reserved_for_order_item_id` → `order_items`,
+        # `order_items.finished_product_id` → `finished_products`. Ota → bola tartibida biri doim ikkinchisidan OLDIN qo'shiladi: band
+        # qilingan tayyor mahsulot bor zaxira FK xatosi bilan TIKLANMASDI (butun tiklash rad). Endi tartibda KEYIN keladigan jadvalga
+        # ishora qiluvchi bo'sh qoldirilishi mumkin (nullable) ustun avval NULL bilan qo'shiladi va hamma qatorlardan keyin SHU
+        # tranzaksiyada asl qiymatiga qaytariladi (bog'lanish yuqorida tekshirilgan — qiymat shu fayldagi qatorga ishora qiladi).
+        _tartib255 = {m.__tablename__: i for i, m in enumerate(order)}
+        _kechiktir255 = []                   # (model, ustun kaliti, [(id, qiymat), ...])
+
+        for _i255, model in enumerate(order):
             tname = model.__tablename__
             rows = tables.get(tname)
             if not rows:
                 continue
             mapper = sa_inspect(model)
             cols = {c.key: c for c in mapper.columns}
+            _kech_ustun255 = [k for k, c in cols.items()
+                              if k != "id" and c.nullable and "id" in cols
+                              and any(fk.column.table.name != "companies" and _tartib255.get(fk.column.table.name, -1) > _i255
+                                      for fk in c.foreign_keys)]
+            _kech_qiymat255 = {k: [] for k in _kech_ustun255}
             payload = []
             for r in rows:
                 rec = {}
@@ -11860,11 +11875,25 @@ def import_full_backup(db: Session, data: dict, company_id: int,
                     rec[k] = coerce(cols[k], v)
                 if "company_id" in cols:
                     rec["company_id"] = company_id   # faylga ISHONMAYMIZ
+                for k in _kech_ustun255:
+                    if rec.get(k) is not None and rec.get("id") is not None:
+                        _kech_qiymat255[k].append((rec["id"], rec[k]))
+                        rec[k] = None
                 if rec:
                     payload.append(rec)
             if payload:
                 db.execute(model.__table__.insert(), payload)
                 inserted[tname] = len(payload)
+            for k, juftlar in _kech_qiymat255.items():
+                if juftlar:
+                    _kechiktir255.append((model, k, juftlar))
+
+        for model, k, juftlar in _kechiktir255:
+            _t255 = model.__table__
+            _ust255 = sa_inspect(model).columns[k]
+            from sqlalchemy import bindparam as _bp255
+            db.execute(_t255.update().where(_t255.c.id == _bp255("_id255")).values({_ust255.name: _bp255("_v255")}),
+                       [{"_id255": i, "_v255": v} for i, v in juftlar])
 
         for tname in tables:
             if tname not in {m.__tablename__ for m in order}:
@@ -17716,31 +17745,49 @@ def _qurilma_model_toza(m) -> str:
     return _re159.sub(r"[^0-9A-Za-z _.()\-]", "", str(m or "")).strip()[:40]
 
 
-def qurilma_nomi_yasash(user_agent: str, model: str = None) -> str:
-    """Admin ko'radigan telefon nomi: «Android · SM-A525F · Chrome». `model` — kirish sahifasi skripti brauzerdan olgan model
-    (`navigator.userAgentData` — Chrome / Samsung Internet; faqat KO'RSATISH uchun, xavfsizlikka ta'sir qilmaydi). Bo'lmasa —
-    brauzer satridan (yangi Chrome modelni yashiradi: «Android 10; K»)."""
-    ua = str(user_agent or "")
+def _qurilma_tizimi(ua: str) -> str:
     if "iPhone" in ua:
-        tizim = "iPhone"
-    elif "iPad" in ua:
-        tizim = "iPad"
-    elif "Android" in ua:
-        tizim = "Android"
-    elif "Windows" in ua:
-        tizim = "Windows"
-    elif "Macintosh" in ua or "Mac OS" in ua:
-        tizim = "Mac"
-    elif "Linux" in ua:
-        tizim = "Linux"
-    else:
-        tizim = "Noma'lum qurilma"
-    brauzer = next((nom for belgi, nom in _QURILMA_BRAUZER if belgi in ua), "")
+        return "iPhone"
+    if "iPad" in ua:
+        return "iPad"
+    if "Android" in ua:
+        return "Android"
+    if "Windows" in ua:
+        return "Windows"
+    if "Macintosh" in ua or "Mac OS" in ua:
+        return "Mac"
+    if "Linux" in ua:
+        return "Linux"
+    return "Noma'lum qurilma"
+
+
+def _qurilma_modeli(user_agent: str, model: str = None) -> str:
+    """Telefon modeli («SM-A155F») yoki "" — avval kirish sahifasi skripti bergani, bo'lmasa Android brauzer satridan.
+    kech191 (zip 258, probe258 P5 — O'LCHANGAN): ilova ichidagi brauzer satri «SM-A525F Build/…; wv)» — ilgari `; wv` sababli mos
+    kelmay, model yo'qolardi («Android · Chrome»)."""
+    ua = str(user_agent or "")
     m = _qurilma_model_toza(model)
-    if not m and tizim == "Android":
-        _x = _re159.search(r"Android [0-9.]+; ([^;)]+?)(?: Build/[^;)]*)?\)", ua)
+    if not m and _qurilma_tizimi(ua) == "Android":
+        _x = _re159.search(r"Android [0-9.]+; ([^;)]+?)(?: Build/[^;)]*)?(?:; wv)?\)", ua)
         if _x and _x.group(1).strip() not in ("K", "wv"):
             m = _qurilma_model_toza(_x.group(1))
+    return m
+
+
+def qurilma_nomi_yasash(user_agent: str, model: str = None) -> str:
+    """Admin ko'radigan telefon nomi: «Android · SM-A525F · Chrome». `model` — kirish sahifasi skripti brauzerdan olgan model
+    (`navigator.userAgentData` — Chrome / Samsung Internet). Bo'lmasa — brauzer satridan (yangi Chrome modelni yashiradi:
+    «Android 10; K»). kech191 (zip 258): nom «o'sha telefon» tanishida ham ishlatiladi (`hodim_qurilma_ozi`)."""
+    ua = str(user_agent or "")
+    tizim = _qurilma_tizimi(ua)
+    brauzer = next((nom for belgi, nom in _QURILMA_BRAUZER if belgi in ua), "")
+    # kech191 (zip 258, review258 F3): ilova ichidagi brauzer (Telegram / boshqa ilova WebView) — Chrome EMAS: nomi boshqa bo'lsin
+    # («o'sha telefon» tanishida bir telefondagi ikki brauzer bir-birini uzib yurmasin; admin ham farqni ko'rsin)
+    if "Telegram" in ua:
+        brauzer = "Telegram ichida"
+    elif "; wv)" in ua:
+        brauzer = "ilova ichida"
+    m = _qurilma_modeli(ua, model)
     return " · ".join([tizim] + ([m] if m else []) + ([brauzer] if brauzer else []))[:QURILMA_NOMI_MAX]
 
 
@@ -17766,6 +17813,59 @@ def hodim_qurilma_sorovi(db: Session, emp, qurilma_hash: str, nomi: str) -> bool
     log_activity(db, "qurilma_sorov", "employee", emp.id, f"{emp.name}: {emp.qurilma_sorov_nomi or ''}"[:200], emp.name,
                  company_id=emp.company_id, commit=False)
     db.commit()
+    return True
+
+
+def hodim_qurilma_ozi(db: Session, emp, qurilma_hash: str, user_agent: str, model: str = None) -> bool:
+    """kech191 (zip 258 — egasi QARORI 05.11 «O'sha telefon — so'ramasin», QAYTA SO'RALMAYDI): ruxsat berilgan telefonning brauzeri
+    saytni «unutgan» (cookie yo'qolgan — production zaxirasi 05.11: Ulug'bek, oddiy Chrome, 3 marta, bir marta ruxsatdan 1 daqiqa
+    keyin) — to'g'ri telefon + PIN dan keyin, telefon NOMI (tizim · MODEL · brauzer) bog'langan telefonnikiga AYNAN teng bo'lsa va
+    nomida MODEL bo'lsa — yangi kalit o'sha telefonga o'zi bog'lanadi (so'rov / admin ruxsati YO'Q; adminga faqat xabar). Model
+    noma'lum (iPhone, eski Chrome), boshqa model / brauzer, telefon uzilgan (`qurilma_hash` yo'q) — False (avvalgidek so'rov).
+    Kutayotgan BOSHQA telefon so'rovi (bo'lsa) va uning sessiyasi — o'zgarmaydi; ESKI kalitdagi sessiyalar yopiladi.
+    Chaqiruvchi — FAQAT `main.hodim_login_submit` (to'g'ri telefon + PIN + korxona tekshiruvidan keyin).
+    review258 (mustaqil tekshiruv) himoyalari:
+      F1 — shu brauzer (kalit) allaqachon BOSHQA nom bilan ruxsat kutayotgan bo'lsa — False (modelni taxmin qilib ko'rish jim
+           o'tmasin: birinchi taxmin so'rov + xabar beradi, keyingilari bog'lamaydi);
+      F6 — oxirgi bog'lashdan keyin admin biror so'rovni RAD etgan bo'lsa — keyingi admin ruxsatigacha avtomatik bog'lash YO'Q;
+      F5 — shartli UPDATE (kalit va nom o'qilgandek bo'lsa); poygada boshqasi o'zgartirgan bo'lsa — False (chaqiruvchi qayta tekshiradi);
+      F2 — sessiyalar faqat o'z korxonasi hodimi bo'yicha."""
+    if not emp.qurilma_hash or not emp.qurilma_nomi or not qurilma_hash or emp.qurilma_hash == qurilma_hash:
+        return False
+    if not _qurilma_modeli(user_agent, model):
+        return False
+    nomi = qurilma_nomi_yasash(user_agent, model)
+    if nomi != emp.qurilma_nomi:
+        return False
+    if emp.qurilma_sorov_hash == qurilma_hash and emp.qurilma_sorov_nomi != nomi:          # F1
+        return False
+    from models import ActivityLog as _AL258
+    _rad = db.query(_AL258.id).filter(_AL258.company_id == emp.company_id, _AL258.entity_type == "employee",
+                                      _AL258.entity_id == emp.id, _AL258.action == "qurilma_rad")
+    if emp.qurilma_vaqti is not None:
+        _rad = _rad.filter(_AL258.created_at >= emp.qurilma_vaqti)
+    if _rad.first() is not None:                                                            # F6
+        return False
+    from models import EmployeeSession as _ES258
+    eski_hash, eski_nomi = emp.qurilma_hash, emp.qurilma_nomi
+    _qiymat = {"qurilma_hash": qurilma_hash, "qurilma_vaqti": datetime.utcnow()}
+    if emp.qurilma_sorov_hash == qurilma_hash:      # shu brauzerning (o'sha nomli) eski so'rovi — endi keraksiz
+        _qiymat.update({"qurilma_sorov_hash": None, "qurilma_sorov_nomi": None, "qurilma_sorov_vaqti": None})
+    n = db.query(Employee).filter(Employee.id == emp.id, Employee.company_id == emp.company_id,            # F5: shartli
+                                  Employee.qurilma_hash == eski_hash, Employee.qurilma_nomi == eski_nomi
+                                  ).update(_qiymat, synchronize_session=False)
+    if n != 1:
+        db.rollback()                               # emp eskirdi — chaqiruvchi yangi holatni o'qiydi
+        return False
+    # faqat ESKI kalit sessiyalari (kutayotgan boshqa telefon sahifasi ochiq qoladi — admin ruxsat bersa o'zi panelga o'tadi)
+    db.query(_ES258).filter(                                                                                  # F2: korxona
+        _ES258.employee_id == emp.id, _ES258.qurilma_hash == eski_hash,
+        _ES258.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
+    ).delete(synchronize_session=False)
+    log_activity(db, "qurilma_qayta", "employee", emp.id, f"{emp.name}: {nomi}"[:200], emp.name,
+                 company_id=emp.company_id, commit=False)
+    db.commit()
+    db.refresh(emp)
     return True
 
 
@@ -22369,14 +22469,234 @@ def dokon_koeff(db: Session, company_id: int) -> Decimal:
 
 
 def dokon_avto_qoplamali(narx, koeff):
-    """Qoplamasiz narx × koeffitsient — 1 000 so'mga yaxlitlangan (egasi QARORI 30.10: formula narxlari 1 000 gacha)."""
+    """Qoplamasiz narx × koeffitsient — BUTUN so'mga (kech187, zip 255 — egasi QARORI 04.11 «yaxlitlash kerak emas, aniq chiqqan summa
+    qolsin»; 30.10 dagi «formula narxlari 1 000 gacha» qarori o'rnini bosadi). Tiyin ko'rsatilmaydi (butun so'm, ROUND_HALF_UP)."""
     if narx is None:
         return None
     asl = Decimal(str(narx)) * Decimal(str(koeff))
-    x = (asl / Decimal("1000")).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * Decimal("1000")
-    if x <= 0:                                          # review231 №5: 100 × 2 = 200 → 0 — «bepul» bo'lib qolmasin
+    x = asl.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    if x <= 0:                                          # review231 №5: 0,4 → 0 — «bepul» bo'lib qolmasin
         return asl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return x
+
+
+# ── Karniz formula narxi (kech187, zip 255) ──────────────────────────────────────────────────────────────────────────────
+# Egasi QARORLARI 04.11 (rasm bilan): 1 m qoplamasiz = balandlik × blok chuqurligi × 1 m³ narxi ÷ 2 (ikki karniz BITTA blokdan bir-birining
+# ichiga kirib kesiladi), qoplamali = qoplamasiz × koeffitsient (zip 257: qoplamali — QO'LDA, bo'sh — × koeffitsient); blok chuqurligi balandlikka mutanosib; tayyor o'lchamlar ham SHU formula
+# bilan; saytda «Boshqa o'lcham» — 15 … 40 sm (zip 257: 25 … 60); YAXLITLASH YO'Q (butun so'm). Texnik qarorlar (Claude): 1 m³ narxi — korxona sozlamasi
+# (bitta — o'zgarsa hamma formulali model qayta hisoblanadi); formula — MODEL darajasida (bo'lim nomi egasiniki, kodda «karniz» belgisi
+# yo'q), faqat metrli qolipda; formulali modelning katalog qatorlari narxi SERVER hisoblab YOZADI (qo'lda — rad) — shunda katalog API,
+# chegirma, komplekt, PDF, Excel o'zgarmaydi.
+DOKON_KUB_NARX_KALIT = "dokon_kub_narx"
+DOKON_KUB_NARX_MAX = Decimal("1000000000")
+DOKON_FORMULA_QOLIPLAR = ("juft_metr", "butun_metr")
+DOKON_MAXSUS_MIN_SM = Decimal("25")          # kech190 (zip 257 — egasi QARORI 05.11): eng kichigi 25 sm (zip 255 da 15)
+DOKON_MAXSUS_MAX_SM = Decimal("60")          # kech190 (zip 257): eng kattasi 60 sm, undan kattasi — korxona bilan bog'lanish (zip 255 da 40)
+DOKON_FORMULA_RAD = ("Bu modelning qoplamasiz narxi formula bilan hisoblanadi (1 m³ narxi × hajm) — qo'lda o'zgartirilmaydi. "
+                     "O'zgartirish uchun 1 m³ narxini yoki model formulasini tahrirlang (qoplamali narxni qo'lda yozish mumkin)")
+# kech190 (zip 257 — egasi QARORLARI 05.11): formulali qatorda QOPLAMALI narx — qo'lda (yozilsa — o'sha, bo'sh — × koeffitsient), formula FAQAT
+# qoplamasiz narxni hisoblaydi va qo'lda yozilgan qoplamali narxga TEGMAYDI (1 m³ narxi / formula / balandlik o'zgarsa ham). «Boshqa o'lcham»
+# qoplamalisi — eng yaqin qo'lda yozilgan o'lchamning qoplama ulushidan (`_dokon_maxsus_qoplamali`).
+
+
+def dokon_kub_narx(db: Session, company_id: int):
+    """1 m³ mahsulot narxi (so'm, Decimal) yoki None (kiritilmagan / noto'g'ri)."""
+    from models import CompanySetting
+    row = (db.query(CompanySetting.value)
+           .filter(CompanySetting.company_id == company_id, CompanySetting.key == DOKON_KUB_NARX_KALIT).first())
+    if not row or row[0] in (None, ""):
+        return None
+    try:
+        k = Decimal(str(row[0]))
+    except Exception:                                    # noqa: BLE001
+        return None
+    if not k.is_finite() or k <= 0 or k > DOKON_KUB_NARX_MAX:
+        return None
+    return k
+
+
+def dokon_formula_bormi(m) -> bool:
+    return (m is not None and m.formula_asos_sm is not None and m.formula_blok_sm is not None
+            and m.formula_bolak is not None)
+
+
+def dokon_formula_narx(m, balandlik, kub):
+    """1 m qoplamasiz narx (butun so'm): balandlik/100 × (balandlik × blok / asos)/100 × kub ÷ bo'lak. Misol (egasi): 20 sm, blok 9,97,
+    1 200 000, 2 → 0,2 × 0,0997 × 1 200 000 ÷ 2 = 11 964."""
+    # review255 L1: oraliq bo'lishlar (h × blok / asos — asos 2 / 5 dan boshqa ko'paytuvchili bo'lsa) 28 xonaga yaxlitlanib, aniq «…,5»
+    # «…,4999…» bo'lib 1 so'm KAM chiqardi. Endi: surat va maxraj ALOHIDA (Decimal ko'paytma — aniq), keyin bitta aniq kasr (Fraction) va
+    # HALF_UP — natija har doim matematik aniq qiymatning yaxlitlangani.
+    from fractions import Fraction as _Fr255
+    h = Decimal(str(balandlik))
+    asos, blok = Decimal(str(m.formula_asos_sm)), Decimal(str(m.formula_blok_sm))
+    surat = _Fr255(h) * _Fr255(h) * _Fr255(blok) * _Fr255(Decimal(str(kub)))
+    maxraj = _Fr255(asos) * 10000 * int(m.formula_bolak)
+    x = surat / maxraj
+    return Decimal((x + _Fr255(1, 2)).__floor__())
+
+
+DOKON_FORMULA_ENI_MIN = Decimal("5")         # review255 L2: formula qatori balandligi (sm) — metrda yozilgan «0,2» narxni 1–2 so'm qilardi
+
+
+def dokon_formula_qatormi(m, d) -> bool:
+    """review255 M2: formula FAQAT metrda sotiladigan asosiy qatorga (karniz o'zi); kapitel / baza (donada) — qo'lda narx qoladi."""
+    return dokon_formula_bormi(m) and getattr(d, "turi", None) == "asosiy"
+
+
+def dokon_formula_narx_tekshir(m, balandlik, kub, joy: str):
+    """review255 L2 / L3: formula narxi + chegaralar (0 dan katta, qo'lda kiritiladigan narx chegarasidan oshmasin) — ValueError (o'zbekcha)."""
+    if balandlik is None:
+        raise ValueError(f"{joy}: balandlik (eni, sm) yozilmagan — formula uchun kerak")
+    if Decimal(str(balandlik)) < DOKON_FORMULA_ENI_MIN:
+        raise ValueError(f"{joy}: balandlik {audit_son(DOKON_FORMULA_ENI_MIN, 0)} sm dan kam bo'lmasin — santimetrda yozing (masalan 20)")
+    x = dokon_formula_narx(m, balandlik, kub)
+    if x <= 0:
+        raise ValueError(f"{joy}: formula narxi 0 chiqdi — 1 m³ narxini va balandlikni tekshiring")
+    if x > DOKON_NARX_MAX:
+        raise ValueError(f"{joy}: formula narxi juda katta chiqdi — 1 m³ narxini va formulani tekshiring")
+    return x
+
+
+def dokon_maxsus_balandlik(qiymat, nom="Balandlik"):
+    """Mijoz yozgan balandlik (sm): son, 25 … 60 (zip 257; zip 255 da 15 … 40), 0,1 sm aniqlikda (ortig'i — rad, yaxlitlanmaydi). Decimal qaytaradi."""
+    if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float, str)):
+        raise ValueError(f"{nom} son bo'lishi kerak")
+    try:
+        h = Decimal(str(qiymat).strip().translate(str.maketrans({",": "."})))     # o'nli vergul (test_xabar_summalar192 S1 — `.replace` emas)
+    except Exception:                                    # noqa: BLE001
+        raise ValueError(f"{nom} son bo'lishi kerak")
+    if not h.is_finite():
+        raise ValueError(f"{nom} noto'g'ri")
+    if h != h.quantize(Decimal("0.1")):
+        raise ValueError(f"{nom} — 0,1 sm aniqlikda yozilsin (masalan 18 yoki 18,5)")
+    if h < DOKON_MAXSUS_MIN_SM:                         # zip 257: chegaradan tashqari — egasining matni (eng kichigi / korxona bilan bog'lanish)
+        raise ValueError(f"{nom}: eng kichik o'lcham — {audit_son(DOKON_MAXSUS_MIN_SM, 0)} sm")
+    if h > DOKON_MAXSUS_MAX_SM:
+        raise ValueError(f"{nom}: {audit_son(DOKON_MAXSUS_MAX_SM, 0)} sm dan katta o'lcham kerak bo'lsa — korxona bilan bog'laning")
+    return h.quantize(Decimal("0.1"))
+
+
+def dokon_maxsus_olcham(h) -> str:
+    """18.0 → «18 sm», 18.5 → «18,5 sm»."""
+    s = format(Decimal(str(h)).normalize(), "f")
+    return s.replace(".", ",") + " sm"
+
+
+def _dokon_formula_kirish(qiymat):
+    """Model formulasi: None (o'chirish) yoki {"asos_sm": 5 … 100, "blok_sm": 0,1 … 100, "bolak": 1 … 10} — ikki xonagacha."""
+    if qiymat is None:
+        return None
+    if not isinstance(qiymat, dict):
+        raise ValueError("Formula noto'g'ri")
+    _dokon_kalitlar(qiymat, ("asos_sm", "blok_sm", "bolak"))
+    natija = []
+    for k, nom, kichik, katta in (("asos_sm", "Asos balandlik", Decimal("5"), Decimal("100")),
+                                  ("blok_sm", "Blok chuqurligi", Decimal("0.1"), Decimal("100"))):
+        v = qiymat.get(k)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or (isinstance(v, float) and not math.isfinite(v)):
+            raise ValueError(f"{nom} son bo'lishi kerak")
+        x = Decimal(str(v))
+        if x != x.quantize(Decimal("0.01")):
+            raise ValueError(f"{nom} — ko'pi bilan 2 xona kasr (masalan 9,97)")
+        if x < kichik or x > katta:
+            raise ValueError(f"{nom} {audit_son(kichik, 2)} dan {audit_son(katta, 2)} sm gacha bo'lsin")
+        natija.append(float(x))
+    natija.append(_dokon_butun(qiymat.get("bolak"), "Bir blokdan nechta", 1, 10))
+    return tuple(natija)
+
+
+def dokon_formula_dict(m):
+    if not dokon_formula_bormi(m):
+        return None
+    return {"asos_sm": m.formula_asos_sm, "blok_sm": m.formula_blok_sm, "bolak": m.formula_bolak}
+
+
+def _dokon_formula_qayta(db: Session, company_id: int, m, kub, ozgargan=None) -> int:
+    """Formulali modelning ASOSIY (metrdagi) narx qatorlariga `narx` = formula(eni_sm) (review255 M2: kapitel / baza — qo'lda narx, tegilmaydi);
+    qoplamali — TEGILMAYDI (zip 257: qo'lda yozilgani — o'sha, bo'sh — koeffitsient bilan). Eni yo'q qator — rad
+    (balandliksiz narx hisoblanmaydi). O'zgargan qatorlar sonini qaytaradi (commit — chaqiruvchida); `ozgargan` (ro'yxat) berilsa — narxi
+    o'zgargan qatorlar (m, d) unga qo'shiladi (review257 M1: qo'lda yozilgan qoplamali narxlar ro'yxati egasiga)."""
+    from models import DokonDetal
+    n = 0
+    for d in (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id)
+              .order_by(DokonDetal.id).with_for_update().all()):
+        if not dokon_formula_qatormi(m, d):            # review255 M2: kapitel / baza (donada) — qo'lda narx, formulaga tegmaydi
+            continue
+        yangi = dokon_formula_narx_tekshir(m, d.eni_sm, kub, f"{m.kod}: «{d.olcham}»")
+        if _dokon_qiymatlar((d.narx,)) != _dokon_qiymatlar((yangi,)):      # zip 257: qoplamali (qo'lda) — o'zgarmaydi
+            d.narx = yangi
+            n += 1
+            if ozgargan is not None:
+                ozgargan.append((m, d))
+    return n
+
+
+DOKON_QOPLAMALI_ROYXAT_MAX = 100
+
+
+def _dokon_qolda_qoplamali_royxat(ozgargan) -> list:
+    """zip 257 (review257 M1 / L1): qoplamasiz narxi formula bilan HOZIR o'zgargan, qoplamalisi QO'LDA yozilgan qatorlar — egasiga ro'yxat
+    (formula ularga tegmaydi; qoplamali ≤ qoplamasiz bo'lib qolganlari — «kam», birinchi). Narx avtomatik o'zgartirilmaydi (egasi QARORI)."""
+    r = [{"model_id": m.id, "detal_id": d.id, "kod": m.kod, "olcham": d.olcham, "narx": _dokon_pul(d.narx),
+          "narx_qoplamali": _dokon_pul(d.narx_qoplamali), "kam": Decimal(str(d.narx_qoplamali)) <= Decimal(str(d.narx)),
+          "yashirin": not (d.yoqilgan and m.yoqilgan)}
+         for m, d in ozgargan if d.narx_qoplamali is not None and d.narx is not None]
+    r.sort(key=lambda x: (not x["kam"], x["kod"] or "", x["detal_id"]))
+    return r[:DOKON_QOPLAMALI_ROYXAT_MAX]
+
+
+def _dokon_qoplamali_jurnal(royxat) -> str:
+    if not royxat:
+        return ""
+    kam = sum(1 for x in royxat if x["kam"])
+    return (f"; {len(royxat)} ta qatorda qoplamali narx qo'lda yozilgan — o'zgarmadi"
+            + (f" ({kam} tasida qoplamasizdan kam yoki teng)" if kam else ""))
+
+
+def dokon_kub_narx_saqla(db: Session, company_id: int, qiymat, kim: str):
+    """1 m³ narxi (so'm, butun, 1 … 1 000 000 000) yoki None (o'chirish — formulali model bo'lmasa). Saqlanganda hamma formulali model
+    qatorlari qayta hisoblanadi (bitta tranzaksiya). Qaytaradi: {"kub_narx", "qayta_hisoblandi"}."""
+    from models import CompanySetting, DokonModel
+    dokon_tekshir(db, company_id)
+    if qiymat is None:
+        k = None
+    else:
+        if isinstance(qiymat, bool) or not isinstance(qiymat, (int, float)) or (isinstance(qiymat, float) and not math.isfinite(qiymat)):
+            raise ValueError("1 m³ narxi son bo'lishi kerak")
+        if abs(qiymat) > 10 ** 12:
+            raise ValueError("1 m³ narxi juda katta")
+        k = Decimal(str(qiymat))
+        if k != k.quantize(Decimal("1")):
+            raise ValueError("1 m³ narxi butun so'mda bo'lsin")
+        if k < 1 or k > DOKON_KUB_NARX_MAX:
+            raise ValueError("1 m³ narxi 1 dan 1 000 000 000 so'mgacha bo'lsin")
+        k = k.quantize(Decimal("1"))
+    # qulf: korxona sozlamasi qatori (bo'lmasa — yaratiladi) → formulali modellar (model → qator tartibi — `_dokon_formula_qayta`)
+    row = (db.query(CompanySetting).filter(CompanySetting.company_id == company_id, CompanySetting.key == DOKON_KUB_NARX_KALIT)
+           .with_for_update().first())
+    eski = dokon_kub_narx(db, company_id)
+    modellar = [m for m in (db.query(DokonModel).filter(DokonModel.company_id == company_id).order_by(DokonModel.id)
+                            .with_for_update().all()) if dokon_formula_bormi(m)]
+    if k is None and modellar:
+        raise ValueError("Formula bilan narxlanadigan modellar bor (" + ", ".join(m.kod for m in modellar[:5])
+                         + ("…" if len(modellar) > 5 else "") + ") — avval ularning formulasini o'chiring")
+    if (k is None and eski is None) or (k is not None and eski is not None and k == eski):
+        db.rollback()
+        return {"kub_narx": _dokon_pul(eski), "qayta_hisoblandi": 0}
+    if row:
+        row.value = None if k is None else str(k)
+    else:
+        db.add(CompanySetting(company_id=company_id, key=DOKON_KUB_NARX_KALIT, value=None if k is None else str(k)))
+    _oz257 = []
+    n = sum(_dokon_formula_qayta(db, company_id, m, k, _oz257) for m in modellar) if k is not None else 0
+    q257 = _dokon_qolda_qoplamali_royxat(_oz257)
+    log_activity(db, "updated", "company_setting", company_id, "Sayt katalogi — 1 m³ narxi", kim,
+                 old_value="—" if eski is None else audit_son(eski, 0),
+                 new_value=("—" if k is None else audit_son(k, 0)) + (f"; {n} ta narx qatori qayta hisoblandi" if n else "")
+                 + _dokon_qoplamali_jurnal(q257),
+                 company_id=company_id, commit=False)
+    db.commit()
+    return {"kub_narx": _dokon_pul(k), "qayta_hisoblandi": n, "qolda_qoplamali": len(q257), "qoplamali_qatorlar": q257}
 
 
 def _dokon_pul(x):
@@ -22391,7 +22711,8 @@ def dokon_bolim_dict(b):
 
 def dokon_model_dict(m):
     return {"id": m.id, "bolim_id": m.bolim_id, "kod": m.kod, "nom": m.nom, "tavsif": m.tavsif, "qolip": m.qolip,
-            "kapitel_baza_bor": bool(m.kapitel_baza_bor), "tartib": m.tartib or 0, "yoqilgan": bool(m.yoqilgan)}
+            "kapitel_baza_bor": bool(m.kapitel_baza_bor), "tartib": m.tartib or 0, "yoqilgan": bool(m.yoqilgan),
+            "formula": dokon_formula_dict(m)}          # kech187 (zip 255)
 
 
 def dokon_detal_dict(d, koeff, chegirma=None, bugun=None):
@@ -22497,6 +22818,9 @@ def dokon_katalog(db: Session, company_id: int) -> dict:
     # kech169 (zip 234): model chegirmalari (amaldagisi ham, muddati tugagani ham) va bugungi kun (Toshkent)
     _ch234, _bugun234 = dokon_chegirmalar(db, company_id), dokon_bugun()
     return {"koeff": float(koeff), "koeff_standart": float(DOKON_QOPLAMA_KOEFF_STANDART),
+            # kech187 (zip 255): 1 m³ narxi (karniz formulasi), «Boshqa o'lcham» oralig'i, formula ruxsat etilgan qoliplar
+            "kub_narx": _dokon_pul(dokon_kub_narx(db, company_id)), "maxsus_min": float(DOKON_MAXSUS_MIN_SM),
+            "maxsus_max": float(DOKON_MAXSUS_MAX_SM), "formula_qoliplar": list(DOKON_FORMULA_QOLIPLAR),
             "qoliplar": [{"kod": k, "nom": v} for k, v in DOKON_QOLIP_NOMI.items()],
             "turlar": [{"kod": k, "nom": v} for k, v in DOKON_TURI_NOMI.items()],
             "komplekt_turlari": list(DOKON_KOMPLEKT_TURLARI), "oddiy_turlari": list(DOKON_ODDIY_TURLARI),
@@ -22706,11 +23030,12 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
     yangilanadi (detal turi yangi qolipga mos bo'lmasa — rad). Topilmasa — None."""
     from models import DokonDetal
     dokon_tekshir(db, company_id)
-    _dokon_kalitlar(data, ("bolim_id", "kod", "nom", "tavsif", "qolip", "kapitel_baza_bor", "tartib", "yoqilgan"))
+    _dokon_kalitlar(data, ("bolim_id", "kod", "nom", "tavsif", "qolip", "kapitel_baza_bor", "tartib", "yoqilgan", "formula"))
     m = _dokon_model_of(db, model_id, company_id, lock=True)
     if m is None:
         return None
-    eski = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan))
+    eski = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan),
+            (m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak))
     if "bolim_id" in data and data["bolim_id"] != m.bolim_id:
         m.bolim_id = _dokon_oddiy_bolim(db, data["bolim_id"], company_id).id
     if "kod" in data:
@@ -22745,20 +23070,46 @@ def dokon_model_yangila(db: Session, model_id: int, company_id: int, data: dict,
         m.tartib = _dokon_butun(data["tartib"], "Tartib", 0, 10000)
     if "yoqilgan" in data:
         m.yoqilgan = _dokon_bool(data["yoqilgan"], "Yoqilgan")
-    yangi = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan))
+    # kech187 (zip 255): karniz formulasi — faqat metrli qolipda, 1 m³ narxi kiritilgan bo'lsa; yoqilsa / o'zgarsa — narx qatorlari qayta
+    # hisoblanadi (qator qulfi model qulfidan KEYIN — boshqa yo'llar bilan bir tartib); o'chirilsa — oxirgi narxlar qo'lda tahrirga qoladi
+    _fq255 = 0
+    _qq257 = []
+    if "formula" in data:
+        f = _dokon_formula_kirish(data["formula"])
+        if f is None:
+            m.formula_asos_sm = m.formula_blok_sm = m.formula_bolak = None
+        else:
+            m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak = f
+    if dokon_formula_bormi(m):
+        if m.qolip not in DOKON_FORMULA_QOLIPLAR:
+            raise ValueError("Formula narxi faqat metrda sotiladigan modelda (juft yoki butun metr) bo'ladi")
+        if (m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak) != eski[8] or m.qolip != eski[4]:
+            _kub255 = dokon_kub_narx(db, company_id)
+            if _kub255 is None:
+                raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
+            _oz257 = []
+            _fq255 = _dokon_formula_qayta(db, company_id, m, _kub255, _oz257)
+            _qq257 = _dokon_qolda_qoplamali_royxat(_oz257)
+    yangi = (m.bolim_id, m.kod, m.nom, m.tavsif, m.qolip, bool(m.kapitel_baza_bor), m.tartib, bool(m.yoqilgan),
+             (m.formula_asos_sm, m.formula_blok_sm, m.formula_bolak))
     if yangi == eski:
         db.rollback()
         return m
     m.updated_by = kim
     m.updated_at = datetime.utcnow()
-    farq = [n for n, a, y in zip(("bo'lim", "kod", "nom", "tavsif", "qolip", "kapitel/baza", "tartib", "yoqilgan"),
+    farq = [n for n, a, y in zip(("bo'lim", "kod", "nom", "tavsif", "qolip", "kapitel/baza", "tartib", "yoqilgan", "formula"),
                                  eski, yangi) if a != y]
+    if _fq255:
+        farq.append(f"{_fq255} ta narx formula bilan qayta hisoblandi")
+    if _qq257:
+        farq.append(_dokon_qoplamali_jurnal(_qq257)[2:])
     log_activity(db, "updated", "dokon_model", m.id, f"Sayt modeli {m.kod}", kim,
                  old_value=f"{eski[1]}; {DOKON_QOLIP_NOMI.get(eski[4])}",
                  new_value=f"{m.kod}; {DOKON_QOLIP_NOMI.get(m.qolip)}; o'zgardi: {', '.join(farq)}",
                  company_id=company_id, commit=False)
     db.commit()
     db.refresh(m)
+    m.qoplamali_qatorlar257 = _qq257            # review257 L1: javobga (main) — qo'lda yozilgan qoplamali qatorlar ro'yxati (bazaga yozilmaydi)
     return m
 
 
@@ -22854,6 +23205,13 @@ def dokon_detal_yarat(db: Session, company_id: int, data: dict, kim: str):
                    yoqilgan=_dokon_bool(data.get("yoqilgan", True), "Yoqilgan"), updated_by=kim)
     for k in _DOKON_NARX_NOMI:
         setattr(d, k, _dokon_narx(data.get(k), _DOKON_NARX_NOMI[k]))
+    if dokon_formula_qatormi(m, d):                     # kech187 (zip 255): formulali asosiy qator — narx serverdan (review255 M2)
+        if d.narx is not None:                          # zip 257: qoplamali — qo'lda yozish mumkin (bo'sh — × koeffitsient)
+            raise ValueError(DOKON_FORMULA_RAD)
+        _kub255 = dokon_kub_narx(db, company_id)
+        if _kub255 is None:
+            raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
+        d.narx = dokon_formula_narx_tekshir(m, d.eni_sm, _kub255, "Formulali qator")
     db.add(d)
     db.flush()
     log_activity(db, "created", "dokon_detal", d.id, f"Sayt narxi {m.kod}", kim, new_value=_dokon_detal_matni(d),
@@ -22897,9 +23255,17 @@ def dokon_detal_yangila(db: Session, detal_id: int, company_id: int, data: dict,
         d.eni_sm = _dokon_olcham_son(data["eni_sm"], "Eni")
     if "qalinligi_sm" in data:
         d.qalinligi_sm = _dokon_olcham_son(data["qalinligi_sm"], "Qalinligi")
+    _f255 = dokon_formula_qatormi(m, d)               # review255 M2: faqat asosiy (metrdagi) qator; kapitel / baza — qo'lda
+    if _f255 and "narx" in data:                       # kech187 (zip 255): formulali qator — qoplamasiz narx serverdan (zip 257: qoplamali — qo'lda)
+        raise ValueError(DOKON_FORMULA_RAD)
     for k in _DOKON_NARX_NOMI:
         if k in data:
             setattr(d, k, _dokon_narx(data[k], _DOKON_NARX_NOMI[k]))
+    if _f255:
+        _kub255 = dokon_kub_narx(db, company_id)
+        if _kub255 is None:
+            raise ValueError("Avval «Sayt katalogi»da «1 m³ mahsulot narxi»ni kiriting (qoplama koeffitsienti bilan bir kartochkada)")
+        d.narx = dokon_formula_narx_tekshir(m, d.eni_sm, _kub255, "Formulali qator")      # zip 257: qoplamali — o'zgarmaydi
     if "tartib" in data:
         d.tartib = _dokon_butun(data["tartib"], "Tartib", 0, 10000)
     if "yoqilgan" in data:
@@ -23877,6 +24243,10 @@ def dokon_sozlamalar(db: Session, company_id: int, hozir_utc=None) -> dict:
 #     → 9 000, ya'ni 10 %; yozilgan «yangi narx» 9 500 → 9 000; egasi qarori «ikkinchisi o'zi hisoblanadi» — yozilgani saqlansin); 100 gacha
 #     yaxlitlangach asl narxdan kam bo'lmasa — 10 so'mgacha, u ham bo'lmasa — so'mning o'zi (chegirma hech qachon «yo'qolmaydi» va
 #     foizdan oshmaydi);
+#   * kech188 (zip 255 — egasi QARORI 04.11 22:20, QAYTA SO'RALMAYDI: «Chegirmada ham yaxlitlash bo'lmasin (37 620)»): yuqoridagi 100 / 10
+#     so'mga yaxlitlash OLIB TASHLANDI — chegirmali narx aniq summa, BUTUN so'mga HALF_UP (asl narxdan kam va 0 dan katta bo'lmasa —
+#     tiyingacha). «Yangi narx» — sahifa foizni (2 xona) shunday tanlaydiki, server hisobi yozilgan narxni AYNAN beradi (iloji bo'lsa);
+#     bo'lmasa ko'rishda haqiqiy narx ko'rinadi;
 #   * o'lchamlar — narx qatorlaridagi o'lcham yozilishi (tutuq belgisi / katta-kichik harfsiz — `dokon_olcham_kalit`); NULL — hamma
 #     o'lcham (keyin qo'shilganlari ham); o'lcham qatori qayta nomlansa — yangi nom (modelda yangi bo'lsa) ro'yxatga qo'shiladi, eski nom
 #     uning oxirgi qatori ketgandagina olinadi (review234 Y1: komplekt o'lchami 5 qator — bittalab nomlanadi);
@@ -23893,7 +24263,7 @@ DOKON_CHEGIRMA_FOIZ_MIN = Decimal("1")
 DOKON_CHEGIRMA_FOIZ_MAX = Decimal("99")
 DOKON_CHEGIRMA_MAX_KUN = 366
 DOKON_CHEGIRMA_OLCHAM_MAX = 50
-DOKON_CHEGIRMA_QADAMLAR = (Decimal("100"), Decimal("10"))
+DOKON_CHEGIRMA_QADAMLAR = (Decimal("1"),)            # kech188 (zip 255 — egasi QARORI 04.11): yaxlitlashsiz — butun so'm (ilgari 100, 10)
 DOKON_TANNARX_IZOH = ("Tannarx — ERP hisobi bo'yicha penoplast: 1 m = eni × qalinlik ÷ 2 ÷ blok hajmi × asosiy penoplast bloki narxi. "
                       "Qoplama loyi buyurtmada tortiladi — tannarxga kirmagan. Kapitel, baza, dona va m² detallarda tannarx hisoblanmaydi.")
 
@@ -23919,9 +24289,9 @@ def _dokon_foiz(qiymat):
 
 
 def dokon_chegirma_narx(narx, foiz):
-    """Chegirmali narx = narx × (100 − foiz) / 100, 100 so'mgacha HALF_UP (review234 O1); natija asl narxdan kam va 0 dan katta bo'lmasa —
-    10 so'mgacha, u ham bo'lmasa — so'mning o'zi (2 xona, kamida 0,01). Shunda yozilgan «yangi narx» (100 ga karrali) AYNAN saqlanadi va
-    haqiqiy chegirma foizdan ko'pi bilan 50 so'm farq qiladi."""
+    """Chegirmali narx = narx × (100 − foiz) / 100 — BUTUN so'mga HALF_UP (kech188, zip 255 — egasi QARORI 04.11: chegirmada ham
+    yaxlitlash yo'q, «aniq summa»; ilgari 100 / 10 so'mgacha); natija asl narxdan kam va 0 dan katta bo'lmasa — tiyingacha (2 xona,
+    kamida 0,01). Haqiqiy chegirma foizdan ko'pi bilan 0,5 so'm farq qiladi."""
     if narx is None or foiz is None:
         return None
     n = Decimal(str(narx))
@@ -24910,6 +25280,10 @@ def dokon_excel_korish(db: Session, company_id: int, bayt) -> dict:
                            + ". Eski fayl yangi narxni bosib ketmasligi uchun saqlanmaydi — yangi fayl oling va qayta tahrirlang")
             xatoli.add(q["qator"])
             continue
+        if dokon_formula_qatormi(m, d) and any(x["maydon"] == "narx" for x in maydonlar):    # kech187 (zip 255); zip 257: qoplamali — qo'lda
+            xatolar.append(f"{boshi} ({dokon_excel_kimlik(d, m)}): {DOKON_FORMULA_RAD}")
+            xatoli.add(q["qator"])
+            continue
         if not maydonlar:
             ozgarmagan += 1
             continue
@@ -25060,6 +25434,9 @@ def dokon_excel_saqla(db: Session, company_id: int, data: dict, kim: str) -> dic
         e, y, kim_q = reja[d.id]
         joriy = {k: getattr(d, k) for k in y}
         m = modellar.get(d.model_id)
+        if dokon_formula_qatormi(m, d) and "narx" in y:     # kech187 (zip 255): model qulfi ostida; zip 257: qoplamali — qo'lda
+            db.rollback()
+            raise ValueError(f"{dokon_excel_kimlik(d, m)}: {DOKON_FORMULA_RAD}")
         if _dokon_excel_kalit(kim_q) != _dokon_excel_kalit(dokon_excel_kimlik(d, m)):
             ziddiyat.append(f"{kim_q[:80]} → endi «{dokon_excel_kimlik(d, m)}»")
         elif all(not _dokon_excel_farq(joriy[k], e[k]) for k in y):
@@ -25360,6 +25737,7 @@ def dokon_api_katalog(db: Session, company_id: int) -> dict:
                   .order_by(DokonRasm.model_id, DokonRasm.tartib, DokonRasm.id).all()):
             rasmlar.setdefault(r.model_id, []).append(r)
     chegirmalar = dokon_chegirmalar(db, company_id)
+    _kub255 = dokon_kub_narx(db, company_id)
     m_royxat = []
     for m in modellar:
         c = chegirmalar.get(m.id)
@@ -25381,6 +25759,9 @@ def dokon_api_katalog(db: Session, company_id: int) -> dict:
             "rasmlar": [{"url": r.fayl, "kichik": r.kichik, "eni": r.eni, "boyi": r.boyi} for r in rasmlar.get(m.id, [])],
             "detallar": d_royxat,
             "komplekt": k_royxat,
+            # kech187 (zip 255): «Boshqa o'lcham» — formulali (metrli) model, 1 m³ narxi bor; narx — `/api/dokon/v1/maxsus-narx` dan
+            "maxsus": ({"min": float(DOKON_MAXSUS_MIN_SM), "max": float(DOKON_MAXSUS_MAX_SM), "qadam": 0.1}
+                       if (dokon_formula_bormi(m) and _kub255 is not None and m.qolip in DOKON_FORMULA_QOLIPLAR) else None),
             "chegirma": (None if faol is None else
                          {"foiz": float(faol.foiz),
                           "olchamlar": None if ol is None else [o for o in ol if dokon_olcham_kalit(o) in korinadigan],
@@ -25442,7 +25823,8 @@ SAYT_KALIT_SARLAVHA = "X-Amal-Kaliti"
 SAYT_YOLI = "/api/dokon/v1/buyurtmalar"
 SAYT_BEPUL_VILOYAT = "andijon"
 SAYT_YETKAZISH_BEPUL = "Yetkazib berish bepul"
-SAYT_YETKAZISH_YARIM = "Yetkazib berish narxining yarmini biz to'laymiz"
+# kech187 (zip 255 — egasi QARORI 04.11 15:40): viloyatlarga yetkazib berish — «kelishuv asosida» (ilgari «narxining yarmini biz to'laymiz»)
+SAYT_YETKAZISH_YARIM = "Yetkazib berish — kelishuv asosida"
 SAYT_VILOYATLAR = (
     ("andijon", "Andijon viloyati"), ("fargona", "Farg'ona viloyati"), ("namangan", "Namangan viloyati"),
     ("toshkent_sh", "Toshkent shahri"), ("toshkent", "Toshkent viloyati"), ("sirdaryo", "Sirdaryo viloyati"),
@@ -25500,7 +25882,20 @@ def sayt_viloyatlar() -> list:
 
 
 def sayt_yetkazish_matni(viloyat) -> str:
+    """HOZIRGI shart (yangi buyurtma / savat). Saqlangan buyurtma uchun — `sayt_buyurtma_yetkazish(b)`."""
     return SAYT_YETKAZISH_BEPUL if viloyat == SAYT_BEPUL_VILOYAT else SAYT_YETKAZISH_YARIM
+
+
+SAYT_YETKAZISH_YARIM_ESKI = "Yetkazib berish narxining yarmini biz to'laymiz"      # zip 255 gacha (04.11) mijozga aytilgan shart
+
+
+def sayt_buyurtma_yetkazish(b) -> str:
+    """review255 M4: buyurtmaning O'Z sharti — buyurtma paytida mijozga ko'rsatilgani (`sb_yetkazish`). Bo'sh — zip 255 dan oldingi buyurtma:
+    o'sha paytdagi shart (shart o'zgargani eski buyurtmani o'zgartirmaydi — menejer mijozga nima va'da qilinganini ko'radi)."""
+    s = getattr(b, "sb_yetkazish", None)
+    if isinstance(s, str) and s.strip():
+        return s
+    return SAYT_YETKAZISH_BEPUL if b.sb_viloyat == SAYT_BEPUL_VILOYAT else SAYT_YETKAZISH_YARIM_ESKI
 
 
 def sayt_amal_kaliti(qiymat):
@@ -25699,6 +26094,74 @@ def _sayt_koradigan(db, company_id):
             if m.bolim_id in bolimlar}
 
 
+def _dokon_maxsus_detal(m, h, kub, koeff, detallar):
+    """kech187 (zip 255): katalogda YO'Q o'lcham uchun detal o'rnini bosuvchi (bazaga yozilmaydi): turi «asosiy», o'lcham «18 sm (maxsus
+    o'lcham)», eni = h, chuqurligi — asos balandlikdagi (yoki eng yaqin) katalog qatori chuqurligidan mutanosib, narx — formula."""
+    from types import SimpleNamespace
+    narx = dokon_formula_narx_tekshir(m, h, kub, dokon_maxsus_olcham(h))      # review255 L3: juda katta 1 m³ narxi — 400 (500 emas)
+    # review255 L6: chuqurlik — faqat SAYTDA KO'RINADIGAN (yoqilgan) asosiy qatordan (narx so'rovi ham, buyurtma ham bir xil qator)
+    asos = [d for d in detallar if d.eni_sm and d.qalinligi_sm and d.turi == "asosiy" and d.yoqilgan]
+    qal = None
+    if asos:
+        r = min(asos, key=lambda d: (abs(Decimal(str(d.eni_sm)) - Decimal(str(m.formula_asos_sm))), d.id))
+        qal = float((Decimal(str(r.qalinligi_sm)) * h / Decimal(str(r.eni_sm))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    return SimpleNamespace(id=None, model_id=m.id, turi="asosiy", olcham=f"{dokon_maxsus_olcham(h)} (maxsus o'lcham)",
+                           eni_sm=float(h), qalinligi_sm=qal, birlik=_dokon_birlik(m.qolip, "asosiy"), narx=narx,
+                           narx_qoplamali=_dokon_maxsus_qoplamali(m, h, narx, koeff, detallar), yoqilgan=True, tm_bogl_kaliti=None)
+
+
+def _dokon_maxsus_qoplamali(m, h, narx, koeff, detallar):
+    """zip 257 (egasi QARORI 05.11 «Yaqin o'lchamdan»): «Boshqa o'lcham» qoplamali narxi. Saytda ko'rinadigan asosiy qatorlardan QOPLAMALI
+    narxi qo'lda yozilganlari orasida balandligi eng yaqini (teng masofada — kichigi, keyin id) olinadi; uning qoplama ulushi (qoplamali −
+    qoplamasiz; manfiy bo'lsa — 0) balandlikka mutanosib: ulush × h ÷ eni (aniq kasr, HALF_UP — butun so'm); natija = formula narxi + shu.
+    Bunday qator yo'q — qoplamasiz × koeffitsient (avvalgidek). Misol (1 m³ 1 200 000, 20 / 9,97 / 2): 30 sm — 26 919 / 60 000 (ulush 33 081),
+    35 sm — 36 640 + 38 595 = 75 235.
+    Katalogdagi o'lchamning o'zi yozilsa — o'sha qatorning qoplamalisi AYNAN (qo'lda yozilgani yoki avto) chiqadi.
+    Faqat yoqilgan qatorlar (narx so'rovi `dokon_api_maxsus_narx` ham, buyurtma `sayt_buyurtma_hisobla` ham bir xil natija)."""
+    from fractions import Fraction as _Fr257
+    hd = Decimal(str(h))
+    # katalogda AYNAN shu balandlikdagi ko'rinadigan qator bo'lsa — uning qoplamalisi (qo'lda yoki avto) bilan bir xil bo'lsin
+    teng = [d for d in detallar if d.turi == "asosiy" and d.yoqilgan and d.eni_sm and d.narx is not None and Decimal(str(d.eni_sm)) == hd]
+    if teng:
+        t = min(teng, key=lambda d: (d.narx_qoplamali is None, d.id))      # bir xil balandlikda bir nechta — qo'lda yozilgani, keyin id
+        if t.narx_qoplamali is None:
+            return dokon_avto_qoplamali(narx, koeff)
+        if Decimal(str(t.narx)) == Decimal(str(narx)):
+            return Decimal(str(t.narx_qoplamali))
+    qatorlar = [d for d in detallar if d.turi == "asosiy" and d.yoqilgan and d.eni_sm and d.narx is not None
+                and d.narx_qoplamali is not None and Decimal(str(d.eni_sm)) > 0]
+    if not qatorlar:
+        return dokon_avto_qoplamali(narx, koeff)
+    r = min(qatorlar, key=lambda d: (abs(Decimal(str(d.eni_sm)) - hd), Decimal(str(d.eni_sm)), d.id))
+    ulush = _Fr257(Decimal(str(r.narx_qoplamali))) - _Fr257(Decimal(str(r.narx)))
+    if ulush <= 0:
+        return Decimal(str(narx)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    x = ulush * _Fr257(hd) / _Fr257(Decimal(str(r.eni_sm)))
+    return Decimal(str(narx)).quantize(Decimal("1"), rounding=ROUND_HALF_UP) + Decimal((x + _Fr257(1, 2)).__floor__())
+
+
+def dokon_api_maxsus_narx(db: Session, company_id: int, model_id, balandlik) -> dict:
+    """kech187 (zip 255): do'kon «Boshqa o'lcham» — saytda ko'rinadigan formulali model, 25 … 60 sm (zip 257; zip 255 da 15 … 40) → 1 m narxi (qoplamasiz / qoplamali,
+    butun so'm — savat bilan AYNAN `_dokon_maxsus_detal`). Model / formula yo'q — LookupError (404)."""
+    from models import DokonDetal
+    dokon_tekshir(db, company_id)
+    if isinstance(model_id, str):                       # so'rov qatoridan — faqat raqamlar
+        model_id = int(model_id) if model_id.isascii() and model_id.isdigit() and len(model_id) <= 10 else None
+    if model_id is None:
+        raise ValueError("Model raqami noto'g'ri")
+    mid = _dokon_butun(model_id, "Model", 1, 2_147_483_647)
+    m = _sayt_koradigan(db, company_id).get(mid)
+    kub = dokon_kub_narx(db, company_id)
+    if m is None or not dokon_formula_bormi(m) or kub is None or m.qolip not in DOKON_FORMULA_QOLIPLAR:
+        raise LookupError("Bu modelda boshqa o'lcham yo'q")
+    h = dokon_maxsus_balandlik(balandlik)
+    dl = (db.query(DokonDetal).filter(DokonDetal.company_id == company_id, DokonDetal.model_id == m.id, DokonDetal.yoqilgan == True)   # noqa: E712
+          .order_by(DokonDetal.tartib, DokonDetal.id).all())
+    d = _dokon_maxsus_detal(m, h, kub, dokon_koeff(db, company_id), dl)
+    return {"model_id": m.id, "balandlik_sm": float(h), "olcham": d.olcham, "eni_sm": d.eni_sm, "qalinligi_sm": d.qalinligi_sm,
+            "birlik": d.birlik, "narx": _dokon_pul(d.narx), "narx_qoplamali": _dokon_pul(d.narx_qoplamali)}
+
+
 def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
     """Do'kon savati → ERP hisobi (hech narsa yozilmaydi). `qatorlar` — [{"komplekt": "rom" | "eshik", "model_id", "olcham", "qoplamali",
     "kapitel_baza", "soni"} | {"detal_id", "qoplamali", "miqdor"}]. Narx — FAQAT ERP katalogidan (saytda ko'rinadigan model / qator,
@@ -25810,6 +26273,30 @@ def sayt_buyurtma_hisobla(db: Session, company_id: int, qatorlar) -> dict:
             gnomi = _sayt_gnomi239(m, f", {oz[0][0].olcham}, o'z o'lchami, " + ("qoplamali" if qop else "qoplamasiz"))
             for d, miqdor, narx, asl, foiz, hajm in oz:
                 natija.append(_sayt_qator(n, gnomi[:200], "oz_olcham", None, m, d, qop, miqdor, narx, asl, foiz, hajm))
+        elif "maxsus" in q:
+            # kech187 (zip 255 — egasi QARORI 04.11): formulali (karniz) modelning mijoz yozgan balandligi — narx FAQAT formula (1 m³ narxi ×
+            # hajm, butun so'm, yaxlitlashsiz); chegirma YO'Q (katalog o'lchami emas); miqdor — model qolipi qoidasi (juft metr); ERP ga
+            # «… <h> sm (maxsus o'lcham)» bo'lib tushadi.
+            _dokon_kalitlar(q, ("maxsus", "qoplamali", "miqdor"))
+            mx = q.get("maxsus")
+            if not isinstance(mx, dict):
+                raise ValueError(f"{joy}: «boshqa o'lcham» noto'g'ri")
+            _dokon_kalitlar(mx, ("model_id", "balandlik_sm"))
+            mid = _dokon_butun(mx.get("model_id"), f"{joy} — model", 1, 2_147_483_647)
+            m = modellar.get(mid)
+            kub = dokon_kub_narx(db, company_id)
+            if m is None or not dokon_formula_bormi(m) or kub is None or m.qolip not in DOKON_FORMULA_QOLIPLAR:
+                raise ValueError(f"{joy}: bu modelda boshqa o'lcham hozir buyurtma qilinmaydi — sahifani yangilang")
+            h = dokon_maxsus_balandlik(mx.get("balandlik_sm"), f"{joy} — balandlik")
+            qop = _dokon_bool(q.get("qoplamali"), f"{joy} — qoplamali")
+            d = _dokon_maxsus_detal(m, h, kub, koeff, detallar.get(m.id, []))
+            miqdor = _sayt_miqdor(q.get("miqdor"), d.birlik, m.qolip, d.turi, f"{m.kod} {d.olcham}")
+            narx = Decimal(str(d.narx_qoplamali if qop else d.narx))
+            nom = _sayt_nom(m, d)
+            # review255 L5: o'lcham («18,5 sm (maxsus o'lcham)») `_sayt_nom` da bor — ikkinchi marta yozilmaydi (detal qatori naqshi)
+            _ol255 = "" if d.olcham in nom else f"{d.olcham}, "
+            gnomi = f"{nom}, {_ol255}" + ("qoplamali" if qop else "qoplamasiz")
+            natija.append(_sayt_qator(n, gnomi[:200], "maxsus", None, m, d, qop, miqdor, narx, narx, None, Decimal(str(d.narx))))
         else:
             _dokon_kalitlar(q, ("detal_id", "qoplamali", "miqdor", "ombordan"))
             did = _dokon_butun(q.get("detal_id"), f"{joy} — mahsulot", 1, 2_147_483_647)
@@ -25929,7 +26416,7 @@ def sayt_dokon_javobi(db: Session, b, qatorlar=None, takror=False, hozir_utc=Non
     return {"versiya": DOKON_API_VERSIYA, "raqam": b.sb_raqam, "holat": b.sb_holat, "takror": bool(takror),
             "jami": _sayt_pul(b.sb_jami), "chegirmasiz": _sayt_pul(b.sb_chegirmasiz), "tejaldi": _sayt_pul(tejaldi),
             "viloyat": b.sb_viloyat, "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat),
-            "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_yetkazish_matni(b.sb_viloyat),
+            "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_buyurtma_yetkazish(b),
             "guruhlar": _ulgurji_guruhlar_dona(_sayt_guruhlar(qatorlar)) if getattr(b, "sb_ulgurji", None) else _sayt_guruhlar(qatorlar),
             "telefonlar": tel,
             "tasdiq_matni": ("Shu raqamlardan biriga qo'ng'iroq qilib buyurtmani tasdiqlating: "
@@ -26032,7 +26519,8 @@ def sayt_buyurtma_yarat(db: Session, company_id: int, kalit: str, data: dict, ho
     _eng = db.query(_f237.max(DokonBuyurtma.sb_seq)).filter(DokonBuyurtma.company_id == company_id).scalar()
     seq = int(_eng or 0) + 1
     b = DokonBuyurtma(company_id=company_id, sb_seq=seq, sb_raqam=sayt_raqami(seq), sb_kalit=kalit, sb_tana_xesh=xesh,
-                      sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
+                      sb_mijoz=mijoz, sb_telefon=telefon, sb_viloyat=viloyat, sb_yetkazish=sayt_yetkazish_matni(viloyat),     # review255 M4
+                      sb_manzil=manzil, sb_lokatsiya=lokatsiya, sb_izoh=izoh,
                       sb_jami=hisob["jami"], sb_chegirmasiz=hisob["chegirmasiz"], sb_holat="yangi", created_at=hozir,
                       sb_band_tugash=band_tugash, mijoz_id=(kirgan_hisob.id if kirgan_hisob is not None else None),     # kech182 (zip 249) — «mijoz», «hisob» band nomlar
                       sb_ulgurji=(True if ulgurji_hisob is not None else None),         # kech184 (zip 250)
@@ -26075,7 +26563,7 @@ def sayt_telegram_matni(b, qatorlar, mijoz_yorligi=None) -> str:
     gl = _sayt_guruhlar(qatorlar)
     qism = [f"🛒 *Saytdan yangi buyurtma — {b.sb_raqam}*" + (" · 🏪 *Magazin (ulgurji)*" if getattr(b, "sb_ulgurji", None) else ""),
             f"👤 {_tg237(b.sb_mijoz)} · {dokon_telefon_korinish(b.sb_telefon)}"] + ([mijoz_yorligi] if mijoz_yorligi else []) + [
-            f"📍 {SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
+            f"📍 {SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_buyurtma_yetkazish(b).lower()}"]
     if b.sb_manzil:
         qism.append(f"🏠 {_tg237(b.sb_manzil[:300])}")
     if b.sb_lokatsiya:
@@ -26101,7 +26589,7 @@ def sayt_korinish(b, buyurtma_bor: bool = None, qatorlar=None) -> dict:
     d = {"id": b.id, "raqam": b.sb_raqam, "holat": b.sb_holat, "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat),
          "mijoz": b.sb_mijoz, "telefon": b.sb_telefon, "telefon_korinish": dokon_telefon_korinish(b.sb_telefon),
          "viloyat": b.sb_viloyat, "viloyat_nomi": SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat),
-         "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_yetkazish_matni(b.sb_viloyat),
+         "yetkazish_bepul": b.sb_viloyat == SAYT_BEPUL_VILOYAT, "yetkazish_matni": sayt_buyurtma_yetkazish(b),
          "manzil": b.sb_manzil, "lokatsiya": b.sb_lokatsiya, "izoh": b.sb_izoh,
          "jami": _sayt_pul(b.sb_jami), "chegirmasiz": _sayt_pul(b.sb_chegirmasiz),
          "yaratilgan": b.created_at.isoformat() if b.created_at else None,
@@ -26290,7 +26778,7 @@ def sayt_buyurtma_tanasi(b, qatorlar, project_id: int, sana, recipe_id=None, tm=
     (chegirmali bo'lsa — chegirmali). `recipe_id` — qoplama retsepti (qoplamali qator bo'lsa — SHART, forma qoidasi; review237 L2). `yaratish_kaliti` — sayt buyurtmasidan (takror tasdiqlashda ikkinchi buyurtma
     ochilmaydi). Topshirish — Toshkent kuni oxiri emas, kun boshi (forma kabi)."""
     items = _sayt_erp_qatorlari(qatorlar, tm)        # kech178 (zip 244): halqa — alohida funksiyada (PDF ham shundan)
-    izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_yetkazish_matni(b.sb_viloyat).lower()}"]
+    izoh = [f"Saytdan: {b.sb_raqam}", f"{SAYT_VILOYAT_NOMI.get(b.sb_viloyat, b.sb_viloyat)} — {sayt_buyurtma_yetkazish(b).lower()}"]
     if getattr(b, "sb_ulgurji", None):             # kech184 (zip 250)
         izoh.append("Ulgurji narx (magazin) — 50 % oldindan")
     if b.sb_izoh:
@@ -27599,7 +28087,7 @@ def _sayt_pdf_qatorlari(qatorlar, ulgurji=False) -> list:
     return items
 
 
-def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_utc=None) -> list:
+def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_utc=None, yetkazish=None) -> list:
     """PDF pastidagi yozuvlar: holat (tasdiqlangan / bekor), tasdiqlash raqamlari (faqat «yangi» va savatda — «savol bo'lsa»), yetkazish,
     band, chegirma bilan tejalgan summa."""
     tel = [dokon_telefon_korinish(t.raqam) for t in dokon_korinadigan_telefonlar(db, company_id, hozir_utc)]
@@ -27616,7 +28104,8 @@ def _sayt_pdf_pastki(db, company_id, holat, viloyat, tejaldi, band_matni, hozir_
     elif holat == "bekor":
         qism.append("Buyurtma bekor qilingan.")
     if viloyat:
-        qism.append(f"Yetkazib berish: {SAYT_VILOYAT_NOMI.get(viloyat, viloyat)} — {sayt_yetkazish_matni(viloyat).lower()}.")
+        # review255 M4: saqlangan buyurtma — o'z sharti (`yetkazish`), aks holda hozirgisi
+        qism.append(f"Yetkazib berish: {SAYT_VILOYAT_NOMI.get(viloyat, viloyat)} — {(yetkazish or sayt_yetkazish_matni(viloyat)).lower()}.")
     if band_matni:
         qism.append(band_matni + ".")
     if tejaldi and Decimal(str(tejaldi)) > 0:
@@ -27655,7 +28144,7 @@ def sayt_pdf_buyurtma(db: Session, b, qatorlar, hozir_utc=None) -> dict:
             "holat_nomi": SAYT_HOLATLARI.get(b.sb_holat, b.sb_holat),
             "items": _sayt_pdf_qatorlari(qatorlar, ulgurji=bool(getattr(b, "sb_ulgurji", None))),
             "jami": float(b.sb_jami), "pastki": _sayt_pdf_pastki(db, b.company_id, b.sb_holat, b.sb_viloyat, tejaldi,
-                                                                  _sayt_band_matni(b), hozir_utc),
+                                                                  _sayt_band_matni(b), hozir_utc, yetkazish=sayt_buyurtma_yetkazish(b)),
             "ulgurji": bool(getattr(b, "sb_ulgurji", None))}               # kech184 (zip 250)
 
 
@@ -28854,6 +29343,8 @@ DOKON_KUTISH_BEKOR_YOLI = "/api/dokon/v1/kutish/bekor"
 DOKON_API_YOLLAR = DOKON_API_YOLLAR + (DOKON_KUTISH_YOLI, DOKON_KUTISH_BEKOR_YOLI)
 DOKON_KESHBEK_YOLI = "/api/dokon/v1/mijoz/keshbek"       # kech186 (zip 253): kabinet — usta keshbegi
 DOKON_API_YOLLAR = DOKON_API_YOLLAR + (DOKON_KESHBEK_YOLI,)
+DOKON_MAXSUS_NARX_YOLI = "/api/dokon/v1/maxsus-narx"      # kech187 (zip 255): karniz «Boshqa o'lcham»
+DOKON_API_YOLLAR = DOKON_API_YOLLAR + (DOKON_MAXSUS_NARX_YOLI,)
 DOKON_KUTISH_MAX = 30                     # bitta hisobning faol kutishlari
 DOKON_KUTISH_URINISH_MAX = 5              # Telegram xabari shuncha marta yetmasa — «xato» (keyin urinilmaydi)
 DOKON_KUTISH_DAQIQA_MAX = 20              # yozuvchi so'rovlar (qo'shish / bekor) — hisobga daqiqasiga
@@ -29363,6 +29854,32 @@ def usta_keshbek_qoldiqlari(db: Session, company_id: int) -> dict:
     berilgan = dict(db.query(UstaKeshbek.master_id, _f253.coalesce(_f253.sum(UstaKeshbek.summa), 0))
                     .filter(UstaKeshbek.company_id == company_id).group_by(UstaKeshbek.master_id).all())
     return {k: round(v - float(berilgan.get(k) or 0), 2) for k, v in yozilgan.items()}
+
+
+def usta_keshbek_tolov_royxati(db: Session, company_id: int) -> list:
+    """kech189 (zip 256, egasi QARORI 05.11 «Ustaga bog'lash»): Moliya «− Usta KPI to'landi» oynasi uchun — keshbek QOLDIG'I BOR ustalar
+    ([{id, nom, qoldiq, faol}], faollari oldin, keyin ism bo'yicha). Qoldiq — `usta_keshbek_qoldiqlari` (KPI sahifasi «Qoldiq» ustuni bilan
+    AYNAN); to'lov — `usta_keshbek_ber` (usul «naqd»), u qoldiqni qulf ostida QAYTA tekshiradi. Foyda / foiz / telefon — YO'Q."""
+    qq = usta_keshbek_qoldiqlari(db, company_id)
+    if not qq:
+        return []
+    ustalar = db.query(Master).filter(Master.company_id == company_id, Master.id.in_(list(qq))).all()
+    natija = [{"id": u.id, "nom": u.name or f"#{u.id}", "qoldiq": round(float(qq.get(u.id) or 0), 2), "faol": bool(u.is_active)}
+              for u in ustalar if round(float(qq.get(u.id) or 0), 2) > 0]
+    natija.sort(key=lambda x: (not x["faol"], (x["nom"] or "").lower(), x["id"]))
+    return natija
+
+
+def usta_kpi_bogsiz(db: Session, company_id: int) -> dict:
+    """kech189 (review256 M1): ustaga BOG'LANMAGAN eski «Usta KPI to'landi» kassa yozuvlari (zip 256 dan oldin Moliya tugmasidan; hech bir
+    `usta_keshbeklar.cash_tx_id` ga ulanmagan) — {"soni", "jami"} (jami — musbat so'm). Ular usta qoldig'idan ayirilmagan: egasi QARORI
+    04.11 (zip 253) — kimga berilgani «Oldin berilgan» usuli bilan kiritiladi (kassaga qayta ta'sir yo'q)."""
+    from sqlalchemy import func as _f256
+    from models import UstaKeshbek, CashTransaction
+    _bog = db.query(UstaKeshbek.cash_tx_id).filter(UstaKeshbek.company_id == company_id, UstaKeshbek.cash_tx_id.isnot(None))
+    soni, jami = db.query(_f256.count(CashTransaction.id), _f256.coalesce(_f256.sum(CashTransaction.amount), 0)).filter(
+        CashTransaction.company_id == company_id, CashTransaction.category == "usta_kpi", ~CashTransaction.id.in_(_bog)).one()
+    return {"soni": int(soni or 0), "jami": round(-float(jami or 0), 2)}
 
 
 def _uk_summa(x) -> float:

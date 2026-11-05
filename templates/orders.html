@@ -50,7 +50,8 @@
 .dropzone:hover{border-color:var(--gold)}
 .majburiy{color:var(--m-dc2626);font-weight:700}
 .dropzone input[type=file]{display:none}
-.ord-list{max-height:calc(100vh - 260px);overflow-y:auto}
+.ord-list{max-height:calc(100vh - 260px);overflow-y:auto;background:var(--bg);padding:10px 0 2px}   /* kech191 (zip 260): kartalar tagi — kulrang;
+   kech192: tepada 10 px — birinchi karta yopishmasin (`:first-of-type` ishlamasdi — ro'yxatning birinchi `div` i `#ordFiltrBosh`) */
 /* Tayyor mahsulot taklifi */
 .fp-suggest{position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--gold);border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
 .fp-sg-item{padding:8px 11px;cursor:pointer;border-bottom:1px solid var(--ch-f5f5f5);transition:background .12s}
@@ -59,49 +60,47 @@
 .fp-tag{display:inline-flex;align-items:center;gap:5px;background:var(--f-eff6ff);border:1.5px solid var(--gold);border-radius:9px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--gold-dark);margin-left:8px}
 .fp-tag button{background:none;border:none;color:var(--m-dc2626);cursor:pointer;font-size:12px;padding:0;line-height:1}
 
-/* Loyiha guruhlari — kech154 (zip 203 «Buyurtmalar ko'rinishi», egasi tanlovi 22.10): «papka» sarlavhasi (kulrang chiziq), ichida
-   buyurtma qatorlari; muddat — chap ichki chiziq (`data-urgency`; ilgari inline `border-left`), qarz / to'langan / muddat — belgi */
-.proj-group{border-bottom:none}
-.proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .15s;user-select:none;
-  background:var(--bg);border-top:1px solid var(--border)}
-.proj-head:hover, .proj-group.open .proj-head{background:var(--bg)}
-.proj-group[data-urgency="overdue"] > .proj-head{box-shadow:inset 3px 0 0 var(--m-dc2626)}
-.proj-group[data-urgency="today"] > .proj-head, .proj-group[data-urgency="tomorrow"] > .proj-head{box-shadow:inset 3px 0 0 var(--f-f59e0b)}
+/* Loyiha guruhlari — kech191 (zip 260 — egasi so'rovi 05.11: «hodimlar — buyurtmalar jadvali juda zich, ko'z toliqyapti»; QARORI —
+   2-namuna «Aksentli chap chiziq», ochilgandagi ko'rinishi ham namunadagidek; «Muddati o'tgan» yozuvi ro'yxatda bo'lmasin): har loyiha —
+   alohida oq KARTA (oraliq 8 px, yumaloq 12 px), chap chetida TO'LOV holati chizig'i (`data-pul`: yashil — to'langan, qizil — qarzi bor,
+   kulrang — qiymati yo'q). Ilgari (zip 203) — bir-biriga yopishgan kulrang qatorlar, chap chiziq — MUDDAT (`data-urgency`: qizil / sariq)
+   va «Muddati o'tgan» / «Bugun muddati» / «Ertaga muddati» belgilari. `data-urgency` qoladi — «Muddati o'tgan» / «Bugun» FILTRI shundan. */
+.ord-list .proj-group{margin:0 10px 8px;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px 12px 18px;min-height:58px;box-sizing:border-box;
+  cursor:pointer;transition:background .15s;user-select:none;background:var(--white);box-shadow:inset 4px 0 0 var(--border)}
+.proj-head:hover{background:var(--f-f8fafc)}
+.proj-group[data-pul="tolangan"] > .proj-head{box-shadow:inset 4px 0 0 var(--m-15803d)}
+.proj-group[data-pul="qarz"] > .proj-head{box-shadow:inset 4px 0 0 var(--m-dc2626)}
 .proj-arrow{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0;width:10px}
 .proj-group.open .proj-arrow{transform:rotate(90deg);color:var(--gold-dark)}
 .proj-name{font-size:14px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-client{font-size:13px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proj-count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
-.proj-debt, .proj-paid, .pg-belgi{display:inline-block;margin-top:4px;padding:0 8px;border-radius:999px;line-height:20px;font-size:12px;font-weight:700;white-space:nowrap}
-.proj-debt, .pg-belgi.qizil{background:var(--f-fee2e2);color:var(--m-b91c1c)}
+.proj-client{font-size:13px;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap;margin-bottom:2px}
+.proj-debt, .proj-paid{display:inline-block;margin-top:4px;padding:0 8px;border-radius:999px;line-height:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.proj-debt{background:var(--f-fee2e2);color:var(--m-b91c1c)}
 .proj-paid{background:var(--f-dcfce7);color:var(--m-15803d)}
-.pg-belgi.sariq{background:var(--f-fef3c7);color:var(--m-92400e)}
-.proj-head .pg-belgi{max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
 .proj-faol{color:var(--m-b45309)}
 .proj-body{background:var(--f-fcfcfb);border-top:1px solid var(--border2)}
 .proj-body .ord-item{padding-left:16px}
 .proj-body .ord-item:last-child{border-bottom:none}
-/* kech155 (zip 207 «Loyiha papkasi» — EGASI so'rovi 23.10 03:57 va o'z maketi «Oltin papka», rangi yumshatilgan): OCHIQ loyiha — och qum
-   «papka» (chap tepada quloq, yumaloq, atrofida bo'shliq), ichidagi buyurtmalar — OQ kartochka, tanlangani — zip 203 uslubi (och oltin fon,
-   3 px oltin ramka, «▶ OCHIQ») + oltin chegara. O'LCHANGAN (zip 206): ochiq sarlavha foni yopiq bilan AYNAN, tana oqdan farqsiz edi. Yopiq
-   guruh — o'zgarmaydi. Ranglar — umumiy belgilar (tungi rejimda o'zi almashadi). */
-.proj-group.open{position:relative;margin:20px 8px 12px;background:var(--f-e6f1fb);border:1px solid var(--ch-bfdbfe);
-  border-radius:4px 12px 12px 12px;box-shadow:var(--shadow-card)}
-.proj-group.open::before{content:"";position:absolute;left:-1px;top:-11px;width:104px;height:11px;background:var(--f-dbeafe);
-  border:1px solid var(--ch-bfdbfe);border-bottom:0;border-radius:9px 9px 0 0}
-.proj-group.open > .proj-head, .proj-group.open > .proj-head:hover{background:var(--f-dbeafe);border-top:0;border-radius:0 11px 0 0}
+/* OCHIQ loyiha — kech191 (zip 260, egasi QARORI 05.11 «ochilganda ham namunadagidek»): o'sha KARTA (zip 207 dagi papka quloq'i va
+   tepadagi 20 px bo'shliq yo'q): chegara ko'k (1,5 px), sarlavha och ko'k, chap chiziq — to'lov holati (yopiqdagidek); ichida buyurtmalar —
+   oq kichik kartalar (oraliq 6 px) och kulrang tagda; tanlangani — zip 203 uslubi (3 px ko'k ramka, «▶ OCHIQ»). Ranglar — umumiy belgilar
+   (tungi rejimda o'zi almashadi). */
+.ord-list .proj-group.open{border:1.5px solid var(--gold);box-shadow:var(--shadow-card)}
+.proj-group.open > .proj-head, .proj-group.open > .proj-head:hover{background:var(--f-eff6ff)}
 .proj-group.open .proj-name{color:var(--gold-dark)}
-.proj-group.open > .proj-body{background:transparent;border-top:1px solid var(--ch-bfdbfe);padding:2px 8px 8px}
+.proj-group.open > .proj-body{background:var(--f-f8fafc);border-top:1px solid var(--ch-dbeafe);padding:2px 8px 8px}
 .proj-group.open > .proj-body .ord-item, .proj-group.open > .proj-body .ord-item:last-child{background:var(--white);
-  border:1px solid var(--ch-dbeafe);border-radius:10px;margin-top:6px;padding-left:12px}
+  border:1px solid var(--border);border-radius:10px;margin-top:6px;padding-left:12px}
 .proj-group.open > .proj-body .ord-item:hover{background:var(--f-f8fafc)}
 .proj-group.open > .proj-body .ord-item.active{background:var(--gold-tint);border-color:var(--gold)}
 .proj-group.open > .proj-body .ord-item.active::before{border-top-left-radius:7px}
-.proj-group.open + .proj-group > .proj-head{border-top-color:transparent}
 .proj-group.open .proj-count{color:var(--text2)}
 .proj-group.open .proj-faol{color:var(--m-92400e)}
 @media (min-width:901px) and (max-width:1150px){
-  .proj-group.open{margin-left:3px;margin-right:3px}
+  .ord-list .proj-group{margin-left:4px;margin-right:4px}
   .proj-group.open > .proj-body{padding-left:4px;padding-right:4px}
   .proj-group.open > .proj-body .ord-item, .proj-group.open > .proj-body .ord-item:last-child{padding-left:8px;padding-right:10px}
   .proj-group.open .oi-bosh{flex-wrap:wrap}
@@ -129,8 +128,6 @@
    (ilgari INLINE fon / chap chegara tanlangan qatorning uslubini bosib ketardi — O'LCHANGAN `work/k203/olchov203.py`) */
 .ord-item{position:relative;padding:11px 14px 11px 12px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background .15s, box-shadow .15s}
 .ord-item:hover{background:var(--bg)}
-.ord-item[data-urgency="overdue"]{box-shadow:inset 3px 0 0 var(--m-dc2626)}
-.ord-item[data-urgency="today"], .ord-item[data-urgency="tomorrow"]{box-shadow:inset 3px 0 0 var(--f-f59e0b)}
 /* holat filtri (kech120 G2-13; U-13 — umumiy `.chip`: yumaloq, 13 px, 36 px) — kech154 (zip 203, egasi tanlovi «F1 · Teng kataklar»):
    2 ustun, hamma tugma bir xil; nom chapda, son o'ngda rangli belgida (qizil — muddati o'tgan va qarz, sariq — bugun; tanlangan — oltin) */
 /* ustunlar `auto auto`: joy yetsa — har tugma yozuvi bir qatorda (kompyuter 1440: 120 / 148 px); tor ustunda (901–1150 px — ro'yxat 260 px,
@@ -146,13 +143,11 @@
 .ord-filtr .ord-f.active{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
 .ord-filtr .ord-f.active .f-son{background:var(--gold-btn);color:#fff}
 /* TANLANGAN (ochiq) buyurtma — egasi tanlovi «1 · Qalin ramka + OCHIQ»: 3 px oltin ramka, och oltin fon, tepada «▶ OCHIQ» yorlig'i
-   (rangni farqlamaydigan odam ham yozuvdan biladi), o'ng chetda ko'rsatkich (buyurtma o'ngda ochilgan); muddat chizig'i — ramka bilan */
+   (rangni farqlamaydigan odam ham yozuvdan biladi), o'ng chetda ko'rsatkich (buyurtma o'ngda ochilgan); kech191 (zip 260): muddat chizig'i
+   yo'q (egasi QARORI — ro'yxatda muddat belgisi bo'lmasin) */
 .ord-item.active{background:var(--gold-tint);box-shadow:inset 0 0 0 3px var(--gold);padding-top:24px}
-.ord-item.active[data-urgency="overdue"]{box-shadow:inset 7px 0 0 var(--m-dc2626), inset 0 0 0 3px var(--gold)}
-.ord-item.active[data-urgency="today"], .ord-item.active[data-urgency="tomorrow"]{box-shadow:inset 7px 0 0 var(--f-f59e0b), inset 0 0 0 3px var(--gold)}
 .ord-item.active::before{content:"▶ OCHIQ";position:absolute;left:3px;top:3px;padding:0 9px 0 8px;border-bottom-right-radius:8px;font-size:12px;
   font-weight:800;letter-spacing:.4px;line-height:17px;color:#fff;background:var(--gold-btn)}
-.ord-item.active[data-urgency="overdue"]::before, .ord-item.active[data-urgency="today"]::before, .ord-item.active[data-urgency="tomorrow"]::before{left:7px}
 .ord-item.active::after{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);border-top:9px solid transparent;
   border-bottom:9px solid transparent;border-right:9px solid var(--gold)}
 .ord-item.active .ord-num{color:var(--gold-dark)}
@@ -165,7 +160,7 @@
 .oi-belgilar{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:5px;padding-left:38px}
 .oi-belgilar:empty{display:none}
 /* kech155 (zip 207 — EGASI: «qizil fonli „Muddati o'tgan“ va katta qarz yozuvi qo'pol, chalg'itadi — fonsiz, ixcham»): qator belgilari —
-   rangli MATN (fon / chekka yo'q); loyiha sarlavhasidagi belgilar (`.pg-belgi`, `.proj-debt`, `.proj-paid`) — o'sha */
+   rangli MATN (fon / chekka yo'q); loyiha sarlavhasidagi belgilar (`.proj-debt`, `.proj-paid`) — o'sha; kech192 (zip 260): muddat belgisi `.pg-belgi` olib tashlandi */
 .oi-belgi, .oi-belgilar .ort-qaytarish{display:inline-flex;align-items:center;gap:6px;padding:0;font-size:12px;font-weight:700;line-height:18px;white-space:nowrap}
 .oi-belgi.qizil{color:var(--m-b91c1c)}
 .oi-belgi.qarz{color:var(--m-b91c1c);font-weight:600}
@@ -564,8 +559,11 @@ input[type=number]{-moz-appearance:textfield}
         {% set today_n = g.orders|selectattr('deadline_urgency', 'equalto', 'today')|list|length %}
         {% set tomorrow_n = g.orders|selectattr('deadline_urgency', 'equalto', 'tomorrow')|list|length %}
         {% set g_urgency = 'overdue' if overdue_n > 0 else ('today' if today_n > 0 else ('tomorrow' if tomorrow_n > 0 else 'normal')) %}
-        {% set g_urgent_count = overdue_n if overdue_n > 0 else (today_n if today_n > 0 else tomorrow_n) %}
-        <div class="proj-group" data-project-id="{{ g.project_id }}" data-urgency="{{ g_urgency }}">
+        {# kech191 (zip 260): `data-pul` — chap chiziq rangi (to'lov holati, sarlavhadagi «Qarz» / «✓ To'langan» bilan bir shart);
+           guruhning `data-urgency` si — endi ko'rinmaydi va filtr uni o'qimaydi (filtr — QATORLARNING `data-urgency` si; kech192, review260
+           P6); eski testlar va tashqi o'qish uchun qoldirildi #}
+        <div class="proj-group" data-project-id="{{ g.project_id }}" data-urgency="{{ g_urgency }}"
+             data-pul="{{ 'qarz' if g.debt > 0 else ('tolangan' if g.total > 0 else 'yoq') }}">
           <!-- Loyiha sarlavhasi -->
           <div class="proj-head" onclick="toggleProject({{ g.project_id }})">
             <div style="display:flex;align-items:center;gap:7px;min-width:0">
@@ -574,13 +572,8 @@ input[type=number]{-moz-appearance:textfield}
                 {# kech120 (G2-13): uzun nom «…» bilan qisqarsa — to'liq nomi sichqoncha ustida #}
                 <div class="proj-name" title="{{ g.project_name }}">{{ g.project_name }}</div>
                 <div class="proj-client" title="{{ g.client_name }}">{{ g.client_name }}</div>
-                {% if g_urgency == 'overdue' %}
-                <div class="pg-belgi qizil">Muddati o'tgan{% if g_urgent_count > 1 %} · {{ g_urgent_count }} ta buyurtma{% endif %}</div>
-                {% elif g_urgency == 'today' %}
-                <div class="pg-belgi sariq">Bugun muddati{% if g_urgent_count > 1 %} · {{ g_urgent_count }} ta buyurtma{% endif %}</div>
-                {% elif g_urgency == 'tomorrow' %}
-                <div class="pg-belgi sariq">Ertaga muddati{% if g_urgent_count > 1 %} · {{ g_urgent_count }} ta buyurtma{% endif %}</div>
-                {% endif %}
+                {# kech191 (zip 260 — egasi QARORI 05.11): «Muddati o'tgan» / «Bugun muddati» / «Ertaga muddati» belgisi ro'yxatda YO'Q
+                   (tepadagi «Muddati o'tgan» / «Bugun» filtri qoladi) #}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
@@ -605,7 +598,8 @@ input[type=number]{-moz-appearance:textfield}
             {% set urgency = o.deadline_urgency %}
             {% set ort131 = o.ortiqcha_tolov %}
             {% set dpct = o.delivery_percent %}
-            {# kech154 (zip 203 «Buyurtmalar ko'rinishi»): holat — klass / `data-urgency` (CSS chizadi). Ilgari fon va chap chegara INLINE edi —
+            {# kech154 (zip 203 «Buyurtmalar ko'rinishi»): holat — klass / `data-urgency` (kech192, zip 260: muddat endi CHIZILMAYDI —
+               `data-urgency` faqat «Muddati o'tgan» / «Bugun» filtri uchun). Ilgari fon va chap chegara INLINE edi —
                tanlangan qatorning `.active` uslubini bosib ketardi (O'LCHANGAN `work/k203/olchov203.py`). `oi-tolangan` / `oi-qarzli` — tugagan
                buyurtmaning to'lov holati belgisi (ilgari yashil / pushti fon; endi «✓ To'langan» / «Qarz» belgisi ko'rsatadi) #}
             <div class="ord-item{{ ' oi-tolangan' if (is_finished and debt <= 0) else '' }}{{ ' oi-qarzli' if (is_finished and debt > 0) else '' }}"
@@ -637,11 +631,9 @@ input[type=number]{-moz-appearance:textfield}
                 </span>
               </div>
               <div class="ord-date"><span class="oi-sana">{{ o.created_at|toshkent('%d.%m.%Y') }}</span><span class="oi-summa">{{ (o.kelishilgan_summa)|son(0) }} so'm</span></div>
-              {# belgilar: muddat, qarz / to'langan, topshirish, mijozga qaytarish (kech100, 131-band — DOIMIY belgi) #}
+              {# belgilar: qarz / to'langan, topshirish, mijozga qaytarish (kech100, 131-band — DOIMIY belgi); kech191 (zip 260): muddat
+                 belgisi yo'q (egasi QARORI) #}
               <div class="oi-belgilar">
-                {%- if urgency == 'overdue' %}<span class="oi-belgi qizil">Muddati o'tgan</span>
-                {%- elif urgency == 'today' %}<span class="oi-belgi sariq">Bugun muddati</span>
-                {%- elif urgency == 'tomorrow' %}<span class="oi-belgi sariq">Ertaga muddati</span>{% endif -%}
                 {%- if debt > 0 %}<span class="oi-belgi qarz">Qarz: {{ (debt)|son(0) }} so'm</span>
                 {%- elif o.payment_status and o.payment_status.value == 'paid' %}<span class="oi-belgi yashil">✓ To'langan</span>{% endif -%}
                 {%- if dpct > 0 and dpct < 100 %}<span class="oi-belgi kok" title="Topshirildi"><span class="oi-mini"><i style="width:{{ dpct }}%"></i></span>{{ dpct|son(1) }}%</span>
@@ -3798,6 +3790,7 @@ async function editAgreedAmount() {
       let d = null;
       try { d = await res.json(); } catch (e) { d = null; }
       if (String(oid) === String(selectedOrderId)) loadPayments(oid);
+      royxatPulSinxron(oid);                   // kech192 (zip 260, review260 O1): kelishilgan summa — qarz / chiziq / qator summasi
       if (!d) { showMsg('✓ Yangilandi!', 'success'); return; }
       // kech141 (zip 169, A-P05): «Tayyor» buyurtmada — qaysi oy hisobotiga yozilgani; to'lovdan kam bo'lsa — mijozga qaytarish
       let qosh = '';
@@ -3937,6 +3930,7 @@ async function savePayment() {
         setTimeout(()=>location.reload(), 1500);
       } else {
         showMsg('✓ To\'lov qo\'shildi! Qarz: ' + formatNum(r.debt_amount) + ' so\'m', 'success');
+        royxatPulSinxron(selectedOrderId);     // kech192 (zip 260, review260 O1): ro'yxatdagi to'lov chizig'i / belgilari
       }
     } else {
       // 17f: server yuborgan aniq SABAB. kech144 (zip 173): `amalSababi` (401 — kirish oynasi, 5xx — «server javob bermadi»);
@@ -3983,6 +3977,7 @@ async function deletePayment(paymentId) {
     if (res.ok) {
       loadPayments(selectedOrderId);
       showMsg('✓ To\'lov o\'chirildi', 'success');
+      royxatPulSinxron(selectedOrderId);       // kech192 (zip 260, review260 O1)
     } else if (res.status >= 500 || res.status === 401) {
       // kech144 (zip 173): 5xx — natija noma'lum (ro'yxat yangilanadi), 401 — kirish oynasi
       showMsg((res.status === 401 ? "❌ To'lov o'chirilmadi: " : "❌ Natija noma'lum — ") + await amalSababi(res), 'error');
@@ -8825,11 +8820,9 @@ function renderPinnedOrders(rows) {
       : o.status === 'delivered' ? '<span class="badge badge-delivered" style="font-size:12px" title="«Tayyor» deb belgilanmagan — oylik hisobotga kirmaydi">📦 Yetkazildi</span>'
       : '<span class="badge badge-progress" style="font-size:12px">Jarayonda</span>';
     const amount = (o.agreed_amount ?? o.total_amount) || 0;  // kech42 K42-1
-    // kech154 (zip 203): ro'yxat qatori bilan bir xil tuzilma; muddat — `data-urgency` (CSS chizadi, tanlov uslubini bosib ketmaydi)
+    // kech154 (zip 203): ro'yxat qatori bilan bir xil tuzilma; muddat — `data-urgency` (kech192, zip 260: endi chizilmaydi — faqat filtr)
+    // kech191 (zip 260 — egasi QARORI 05.11): «Muddati o'tgan» / «Bugun» / «Ertaga» belgisi yo'q (muddat sanasi — kulrang, avvalgidek)
     const urg = ['overdue', 'today', 'tomorrow'].includes(o.deadline_urgency) ? o.deadline_urgency : 'normal';
-    const urgencyText = urg === 'overdue' ? '<span class="oi-belgi qizil">Muddati o\'tgan</span>'
-      : urg === 'today' ? '<span class="oi-belgi sariq">Bugun muddati</span>'
-      : urg === 'tomorrow' ? '<span class="oi-belgi sariq">Ertaga muddati</span>' : '';
     return `
       <div class="ord-item" id="oi-${o.id}" onclick="selectOrder(${o.id}, this)"
            data-num="${o.order_number}" data-client="${escapeHtml(o.client_name)}" data-project="${escapeHtml(o.project_name)}"
@@ -8842,7 +8835,7 @@ function renderPinnedOrders(rows) {
           <span class="oi-holat">${badge}</span>
         </div>
         <div class="ord-date"><span class="oi-sana">${escapeHtml(o.client_name)}</span><span class="oi-summa">${sonKor(amount, 0)} so'm</span></div>
-        <div class="oi-belgilar">${urgencyText}${o.deadline ? '<span class="oi-belgi kulrang">Muddat: ' + escapeHtml(o.deadline) + '</span>' : ''}</div>
+        <div class="oi-belgilar">${o.deadline ? '<span class="oi-belgi kulrang">Muddat: ' + escapeHtml(o.deadline) + '</span>' : ''}</div>
       </div>`;
   }).join('');
 }
@@ -8945,6 +8938,42 @@ function royxatniQoll() {
   });
   const bosh = document.getElementById('ordFiltrBosh');
   if (bosh) bosh.style.display = (faol && jami === 0) ? 'block' : 'none';
+}
+
+// kech192 (zip 260 — mustaqil tekshiruv review260 O1): to'lov qo'shilsa (qarz qolsa), o'chirilsa yoki kelishilgan summa o'zgarsa sahifa
+// qayta yuklanmaydi — ro'yxatdagi to'lov chizig'i (`data-pul`), sarlavhadagi «Qarz» / «✓ To'langan», qator belgilari / summasi va
+// «Qarzi bor» filtri (`data-qarz`) eskirib qolardi (chiziq — butun karta bo'yi, ko'zga tashlanadi). Shu sahifaning YANGI HTML idan
+// faqat shu loyiha guruhining shu qismlari ko'chiriladi: ochiq / yopiq holat, tanlov, filtr, surilish — o'zgarmaydi. Xato bo'lsa — jim
+// (keyingi yuklashda baribir to'g'ri). Filtr sonlari qayta sanaladi; ko'rinadigan qatorlar qayta filtrlanmaydi (ochiq buyurtma yo'qolmasin).
+async function royxatPulSinxron(oid) {
+  try {
+    const qator = document.querySelector(`.ord-list .ord-item[data-order-id="${Number(oid)}"]`);
+    const g = qator ? qator.closest('.proj-group') : null;
+    if (!g) return;
+    const pid = g.dataset.projectId;
+    const res = await fetch(window.location.pathname + window.location.search, {credentials: 'same-origin', cache: 'no-store'});
+    if (!res.ok) return;
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const yg = doc.querySelector(`.ord-list .proj-group[data-project-id="${CSS.escape(String(pid))}"]`);
+    if (!yg) return;
+    g.dataset.pul = yg.dataset.pul || 'yoq';
+    const eskiO = g.querySelector(':scope > .proj-head > div:last-child');
+    const yangiO = yg.querySelector(':scope > .proj-head > div:last-child');
+    if (eskiO && yangiO) eskiO.innerHTML = yangiO.innerHTML;
+    yg.querySelectorAll('.proj-body .ord-item[data-order-id]').forEach(y => {
+      g.querySelectorAll(`.proj-body .ord-item[data-order-id="${CSS.escape(y.dataset.orderId)}"]`).forEach(e => {
+        ['.oi-belgilar', '.oi-summa'].forEach(sel => {
+          const a = e.querySelector(sel), b = y.querySelector(sel);
+          if (a && b) a.innerHTML = b.innerHTML;
+        });
+        ['oi-tolangan', 'oi-qarzli'].forEach(k => e.classList.toggle(k, y.classList.contains(k)));
+        ['qarz', 'total'].forEach(k => { if (y.dataset[k] !== undefined) e.dataset[k] = y.dataset[k]; });
+      });
+    });
+    royxatSanoqlari();
+  } catch (e) {
+    console.warn('royxatPulSinxron:', e);
+  }
 }
 
 // filtr tugmalaridagi sonlar — sahifadagi hamma qatordan (qidiruvdan qat'i nazar)

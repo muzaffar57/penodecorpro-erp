@@ -2926,6 +2926,14 @@ class DokonModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     updated_by = Column(String(100), nullable=True)
+    # kech187 (zip 255 — egasi QARORI 04.11 «1 m³ narxidan formula»): karniz formula narxi — 1 m qoplamasiz =
+    # balandlik × (balandlik × blok / asos) × 1 m³ narxi ÷ bo'lak (butun so'm, yaxlitlashsiz). Uchalasi to'ldirilgan model —
+    # formulali: katalog qatorlari narxi shundan yoziladi, saytda «Boshqa o'lcham» (15 … 40 sm). NULL — oddiy (qo'lda narx).
+    # kech190 (zip 257 — egasi QARORI 05.11): formula faqat QOPLAMASIZ narxni yozadi, qoplamali — qo'lda (bo'sh — × koeffitsient);
+    # «Boshqa o'lcham» — 25 … 60 sm.
+    formula_asos_sm = Column(Float, nullable=True)       # asos balandlik (masalan 20 sm)
+    formula_blok_sm = Column(Float, nullable=True)       # shu balandlikdagi blok chuqurligi (masalan 9,97 sm)
+    formula_bolak = Column(Integer, nullable=True)       # bir blokdan nechta detal chiqadi (masalan 2)
 
     def __repr__(self):
         return f"<DokonModel {self.id} {self.kod}>"
@@ -3224,6 +3232,9 @@ class DokonBuyurtma(Base):
     sb_mijoz = Column(String(100), nullable=False)
     sb_telefon = Column(String(13), nullable=False, index=True)     # kech186 (review254 L6): telefon bo'yicha havola / soatlik chegara
     sb_viloyat = Column(String(20), nullable=False)
+    # kech187 (review255 M4): mijozga BUYURTMA PAYTIDA ko'rsatilgan yetkazib berish sharti (keyin shart o'zgarsa ham shu buyurtmada — o'zi).
+    # NULL — zip 255 dan oldingi buyurtma (o'sha paytdagi shart: Andijon — bepul, boshqa viloyat — «narxining yarmini biz to'laymiz»)
+    sb_yetkazish = Column(String(200), nullable=True)
     sb_manzil = Column(Text, nullable=True)
     sb_lokatsiya = Column(String(40), nullable=True)
     sb_izoh = Column(Text, nullable=True)

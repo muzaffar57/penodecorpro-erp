@@ -575,9 +575,9 @@ html[data-theme="dark"]{
             <div style="font-size:12px;margin-top:4px;color:var(--m-b91c1c)" id="dg-supplier-n">—</div>
           </div>
           <div class="dg-box" style="background:var(--f-fffbeb);border-radius:12px;padding:14px">
-            <div style="font-size:12px;font-weight:600;color:var(--m-92400e);margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
-            <div style="font-size:18px;font-weight:800;color:var(--m-92400e)" id="dg-employee">—</div>
-            <div style="font-size:12px;margin-top:4px;color:var(--m-92400e)" id="dg-employee-n">oxirgi 3 oy</div>
+            <div style="font-size:12px;font-weight:600;color:var(--m-78350f);margin-bottom:6px">👷 Hodimlarga qarzimiz</div>
+            <div style="font-size:18px;font-weight:800;color:var(--m-78350f)" id="dg-employee">—</div>
+            <div style="font-size:12px;margin-top:4px;color:var(--m-78350f)" id="dg-employee-n">oxirgi 3 oy</div>
           </div>
           <div class="dg-box" style="background:var(--f-fef2f2);border-radius:12px;padding:14px">
             <div style="font-size:12px;font-weight:600;color:var(--m-b91c1c);margin-bottom:6px">🏛️ Arenda/<wbr>Soliq/<wbr>Kommunal</div>
@@ -796,6 +796,13 @@ html[data-theme="dark"]{
   <div style="background:var(--white);border-radius:14px;padding:24px;width:400px;max-width:100%;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box">
     <div id="cashTxTitle" style="font-size:16px;font-weight:700;margin-bottom:4px">—</div>
     <div id="cashTxHint" style="font-size:13px;color:var(--text3);margin-bottom:16px"></div>
+    {# kech189 (zip 256, egasi QARORI 05.11 «Ustaga bog'lash»): «Usta KPI to'landi» — ustaga bog'lanadi («Keshbek berildi», usul «naqd»):
+       usta keshbek qoldig'i kamayadi, kassadan BIR marta ayiriladi #}
+    <div class="form-group" id="cashtx-usta-joy" style="display:none"><label for="cashtx-usta">Qaysi ustaga?</label>
+      <select id="cashtx-usta" onchange="ustaKeshbekIzoh()"></select>
+      <div id="cashtx-usta-izoh" style="font-size:12px;color:var(--text3);margin-top:4px"></div>
+      <div id="cashtx-usta-bogsiz" style="display:none;margin-top:8px;padding:8px 10px;background:var(--f-fef3c7);border-radius:7px;font-size:12px;color:var(--m-78350f)"></div>
+    </div>
     <div id="ehsonFetchBtnWrap" style="display:none;margin-bottom:14px">
       <button type="button" class="btn btn-green-outline btn-block" onclick="fillEhsonAmount()" style="background:var(--f-f0fdf4)">
         🤲 Jami hisoblangan Ehson summasini olish
@@ -1037,7 +1044,7 @@ async function loadCashTxHistory(){
 
 const CASH_TX_LABELS = {
   boshlangich: { title: "+ Boshlang'ich balans kiritish", hint: "Tizimni ishlata boshlaganingizda, hozir kassada/qo'lda qancha pul borligini bir marta kiriting.", sign: 1, notesPh: "masalan: Kassadagi naqd pul" },
-  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga yillik KPI sovg'asini QO'LDA to'lab bo'lgach, shu yerga summani kiriting — tanlangan hisobdan ayiriladi (sof foyda o'zgarmaydi — u KPI ni har oy o'zi hisobga oladi).", sign: -1, notesPh: "masalan: Tojiddin akaga yillik KPI sovg'asi" },
+  usta_kpi: { title: "− Usta KPI to'landi", hint: "Ustaga keshbek (KPI sovg'asi) berilganda — ustani tanlang va summani kiriting: tanlangan hisobdan ayiriladi, ustaning keshbek qoldig'i kamayadi («Ustalar KPI» → «💸 Keshbek berildi» bilan bir xil yozuv — ikkalasida qayta kiritmang). Sof foyda o'zgarmaydi — KPI ni har oy o'zi hisobga oladi.", sign: -1, notesPh: "masalan: yillik KPI sovg'asi" },
   ehson: { title: "− Ehson to'landi", hint: "Ehson summasini haqiqatda berib bo'lgach, shu yerga kiriting — tanlangan hisobdan ayiriladi (sof foyda o'zgarmaydi — u Ehsonni har oy o'zi hisobga oladi).", sign: -1, notesPh: "masalan: Mahalla masjidiga ehson" },
 };
 let currentCashTxCategory = null;
@@ -1052,11 +1059,103 @@ function openCashTxModal(category){
   document.getElementById('cashtx-notes').placeholder = cfg.notesPh || '';
   document.getElementById('cashtx-error').style.display = 'none';
   document.getElementById('ehsonFetchBtnWrap').style.display = (category === 'ehson') ? 'block' : 'none';
+  // kech189 (zip 256): «Usta KPI to'landi» — usta tanlovi (keshbek qoldig'i bilan); izoh — keshbek izohi chegarasi (200)
+  document.getElementById('cashtx-usta-joy').style.display = (category === 'usta_kpi') ? 'block' : 'none';
+  if (category === 'usta_kpi') { document.getElementById('cashtx-notes').maxLength = 200; ustaKeshbekYukla(); }
+  else document.getElementById('cashtx-notes').removeAttribute('maxlength');
   // kech155 (zip 210): qaysi hisobdan (Usta KPI / Ehson) — hisoblar qoldig'i bilan
   const hJoy = document.getElementById('cashtx-hisob-joy');
   if (hJoy) hJoy.style.display = (category === 'boshlangich') ? 'none' : 'block';
   hisobTanlovChiz('cashtx-hisob', {qiymat: 'naqd', balans: (HISOB_HOLAT && HISOB_HOLAT.hisoblar_boshlangan) ? hisobBalanslari() : null});
   document.getElementById('cashTxModal').style.display = 'flex';
+}
+
+// kech189 (zip 256): keshbek qoldig'i bor ustalar — `GET /api/finance/usta-keshbek` (ruxsat — kassa yozish bilan bir xil). Oyna qayta
+// ochilsa eski javob yozilmaydi (`_ustaKbNavbat`). Ro'yxat matni — faqat `textContent` / `Option` (ism — foydalanuvchi matni).
+let USTA_KESHBEK = [];
+let _ustaKbNavbat = 0;
+async function ustaKeshbekYukla(){
+  const n = ++_ustaKbNavbat;
+  const sel = document.getElementById('cashtx-usta');
+  const izoh = document.getElementById('cashtx-usta-izoh');
+  const bogsiz = document.getElementById('cashtx-usta-bogsiz');
+  const oldingi = sel.value;                       // review256 L1: qayta yuklanganda (409) tanlov saqlanadi
+  USTA_KESHBEK = [];
+  bogsiz.style.display = 'none';
+  sel.replaceChildren(new Option('Yuklanmoqda…', ''));
+  sel.disabled = true;
+  izoh.textContent = '';
+  let d;
+  try {
+    d = await yukOl('/api/finance/usta-keshbek');
+    if (!d || !Array.isArray(d.ustalar)) throw yukXato('server');
+  } catch (x) {
+    if (n !== _ustaKbNavbat) return;
+    sel.replaceChildren(new Option('—', ''));
+    izoh.textContent = '⚠️ Ustalar yuklanmadi — ' + yukSabab((x && x.yukXato) ? x : yukXato('server'));
+    return;
+  }
+  if (n !== _ustaKbNavbat) return;
+  // review256 M1: ustaga bog'lanmagan eski «Usta KPI to'landi» yozuvlari — ustalar qoldig'idan ayirilmagan
+  const bs = (d.bogsiz && typeof d.bogsiz === 'object') ? d.bogsiz : null;
+  if (bs && Number.isInteger(bs.soni) && bs.soni > 0) {
+    bogsiz.textContent = `⚠️ Moliyada ustaga bog'lanmagan eski «Usta KPI to'landi» yozuvlari bor (${bs.soni} ta, jami ${pulKor(bs.jami)} so'm) — `
+      + "ular ustalarning keshbek qoldig'idan ayirilmagan. Kimga berilganini «Ustalar KPI» → «💸 Keshbek berildi» → «Oldin berilgan» bilan "
+      + "kiriting (kassaga qayta ta'sir qilmaydi) — shunda qoldiq to'g'ri bo'ladi va ikkinchi marta berib yuborilmaydi.";
+    bogsiz.style.display = 'block';
+  }
+  USTA_KESHBEK = d.ustalar.filter(u => u && Number.isInteger(u.id) && typeof u.nom === 'string' && Number(u.qoldiq) > 0);
+  if (!USTA_KESHBEK.length) {
+    sel.replaceChildren(new Option("Keshbek qoldig'i bor usta yo'q", ''));
+    izoh.textContent = "Hamma ustalarning keshbegi berilgan (qoldiq 0) — to'lov yozib bo'lmaydi.";
+    return;
+  }
+  sel.replaceChildren(new Option('— ustani tanlang —', ''),
+                      ...USTA_KESHBEK.map(u => new Option(`${ustaKbNomi(u)} — qoldiq ${pulKor(u.qoldiq)} so'm${u.faol ? '' : ' (nofaol)'}`, String(u.id))));
+  sel.disabled = false;
+  if (oldingi && USTA_KESHBEK.some(u => String(u.id) === oldingi)) sel.value = oldingi;
+  ustaKeshbekIzoh();
+}
+// review256 L1: bir xil ismli ustalar — raqami bilan farqlanadi
+function ustaKbNomi(u){
+  return USTA_KESHBEK.filter(x => x.nom === u.nom).length > 1 ? `${u.nom} (#${u.id})` : u.nom;
+}
+function ustaKeshbekTanlangan(){
+  const v = document.getElementById('cashtx-usta').value;
+  return USTA_KESHBEK.find(u => String(u.id) === v) || null;
+}
+function ustaKeshbekIzoh(){
+  const u = ustaKeshbekTanlangan();
+  document.getElementById('cashtx-usta-izoh').textContent = u ? `Keshbek qoldig'i: ${pulKor(u.qoldiq)} so'm — undan ko'p yozib bo'lmaydi` : '';
+}
+async function saveUstaKeshbek(raw, notes, hisob, err){
+  const xato = m => { err.textContent = m; err.style.display = 'block'; };
+  const u = ustaKeshbekTanlangan();
+  if (!u) return xato('Ustani tanlang');
+  if (raw > Number(u.qoldiq) + 1e-6) return xato(`Qoldiqdan ko'p — ${ustaKbNomi(u)} keshbek qoldig'i ${pulKor(u.qoldiq)} so'm`);
+  const savol = `Kassadan −${pulKor(raw)} so'm yozilsinmi?\n(Usta KPI to'landi · ${ustaKbNomi(u)}${hisob ? ' · ' + hisobNomi(hisob) : ''})\n\n`
+              + `Ustaning keshbek qoldig'i: ${pulKor(u.qoldiq)} → ${pulKor(Number(u.qoldiq) - raw)} so'm`;
+  if (!(await customConfirm(savol, {okText: 'Ha, yozilsin'}))) return;
+  const tana = {summa: raw, usul: 'naqd'};
+  if (hisob) tana.hisob = hisob;
+  if (notes) tana.izoh = notes;
+  try {
+    const res = await fetch(`/api/masters/${encodeURIComponent(u.id)}/keshbek`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                              body: JSON.stringify(tana)});
+    if (res.ok) {
+      let j = {};
+      try { j = await res.json(); } catch (e) { j = {}; }
+      document.getElementById('cashTxModal').style.display = 'none';
+      await loadCashBalance();
+      if (document.getElementById('cashTxHistoryList').style.display !== 'none') await loadCashTxHistory();
+      if (j && j.duplicate) await xabarOyna(amalTakrorIzoh(true).trim());     // review256 L2: takror yuborish — yangi yozuv yo'q
+    } else {
+      xato('❌ ' + await serverXatoSababi(res, 'Xato'));
+      if (res.status === 409) ustaKeshbekYukla();     // qoldiq boshqa joyda o'zgargan — ro'yxat yangilanadi
+    }
+  } catch (e) {
+    xato("❌ Server bilan aloqa yo'q");
+  }
 }
 
 async function fillEhsonAmount(){
@@ -1135,6 +1234,7 @@ async function saveCashTx(){
   const amount = raw * cfg.sign;  // usta_kpi/ehson -> manfiy, boshlangich -> musbat
   const notes = document.getElementById('cashtx-notes').value || null;
   const hisob = currentCashTxCategory === 'boshlangich' ? null : hisobQiymat('cashtx-hisob');     // kech155 (zip 210)
+  if (currentCashTxCategory === 'usta_kpi') return saveUstaKeshbek(raw, notes, hisob, err);         // kech189 (zip 256): ustaga bog'lab
   // kech120 (G3-15): saqlashdan oldin tasdiq; boshlang'ich balans avval kiritilgan bo'lsa — ogohlantirish
   let savol = `Kassaga ${cfg.sign > 0 ? '+' : '−'}${pulKor(raw)} so'm yozilsinmi?\n(${cfg.title.replace(/^[+−]\s*/, '')}${hisob ? ' · ' + hisobNomi(hisob) : ''})`;
   if (currentCashTxCategory === 'boshlangich' && boshlangichKiritilgan === true) {

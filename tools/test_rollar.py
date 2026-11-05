@@ -392,6 +392,9 @@ ESKI = {
 }
 # Rollar sahifasi va API (kech118) — FAQAT Admin (topshirilmaydi)
 YANGI_MARSHRUTLAR = {
+    # kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar; ruxsat — to'lovni yozish bilan bir xil
+    # («Kassa: Yaratish» — `POST /api/masters/{master_id}/keshbek`)
+    "GET /api/finance/usta-keshbek": "A",
     # kech186 (zip 253): usta keshbegi — ko'rish «Ustalar KPI: Ko'rish» (kpi-report bilan bir xil), berish / o'chirish — «Kassa» (Moliya
     # «Usta KPI to'landi» bilan bir xil); do'kon kabineti — kalit + sessiya
     "GET /api/masters/kpi-keshbek": "AF", "GET /api/masters/{master_id}/keshbek": "AF", "POST /api/masters/{master_id}/keshbek": "A",
@@ -403,6 +406,8 @@ YANGI_MARSHRUTLAR = {
     "DELETE /api/sayt-katalogi/modellar/{model_id}": "A", "POST /api/sayt-katalogi/detallar": "A",
     "PUT /api/sayt-katalogi/detallar/{detal_id}": "A", "DELETE /api/sayt-katalogi/detallar/{detal_id}": "A",
     "PUT /api/sayt-katalogi/koeff": "A", "POST /api/platform/companies/{company_id}/dokon": "PLAT",
+    # kech187 (zip 255): karniz formulasi — 1 m³ narxi (FAQAT Admin); do'kon «Boshqa o'lcham» narxi — do'kon kaliti bilan
+    "PUT /api/sayt-katalogi/kub-narx": "A", "GET /api/dokon/v1/maxsus-narx": "-",
     # kech167 (zip 232): sayt modeli rasmlari — FAQAT Admin
     "POST /api/sayt-katalogi/modellar/{model_id}/rasmlar": "A", "PUT /api/sayt-katalogi/modellar/{model_id}/rasmlar": "A",
     "DELETE /api/sayt-katalogi/rasmlar/{rasm_id}": "A",

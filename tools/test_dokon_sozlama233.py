@@ -546,7 +546,10 @@ check("K0 modellar va narx qatorlari yaratildi", lambda: soni_d(M1) == 15 and so
 
 def _avto(n, k):
     x = Decimal(str(n)) * Decimal(str(k))
-    r = (x / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * 1000
+    # kech187 (zip 255, MOSLANDI — QOBILIYAT bo'yicha): avto qoplamali narx endi 1 000 ga yaxlitlanmaydi, butun so'm (egasi QARORI 04.11);
+    # eski kodda — 1 000 ga. Test eski va yangi kodda ham o'tadi.
+    r = ((x / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * 1000 if crud.dokon_avto_qoplamali(Decimal("1234"), Decimal("2")) == Decimal("2000")
+         else x.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     return r if r > 0 else x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 

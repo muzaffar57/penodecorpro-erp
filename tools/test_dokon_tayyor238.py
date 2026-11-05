@@ -295,7 +295,7 @@ _yollar = {(m, r.path): r for r in main.app.routes for m in (getattr(r, "methods
 _dy = sorted((m, p) for (m, p) in _yollar if p.startswith("/api/dokon/"))
 check("S1 do'kon yo'llari: 3 GET (katalog, sozlamalar, tayyor) + BITTA POST (buyurtmalar); o'chiruvchi / tahrirlovchi yo'l YO'Q",
       _dy == sorted(([("GET", "/api/dokon/v1/galereya")] if hasattr(crud, "dokon_api_galereya") else []) + [("GET", "/api/dokon/v1/katalog"), ("GET", "/api/dokon/v1/sozlamalar"), ("GET", TY), ("POST", BY)] + ([("POST", "/api/dokon/v1/buyurtmalar/pdf"), ("POST", "/api/dokon/v1/savat/pdf")] if hasattr(crud, "sayt_pdf_savat") else [])
-             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + ([("GET", "/api/dokon/v1/ulgurji"), ("POST", "/api/dokon/v1/ulgurji/buyurtmalar")] if hasattr(crud, "dokon_api_ulgurji") else []) + ([("GET", "/api/dokon/v1/ulgurji/narxlar/pdf"), ("POST", "/api/dokon/v1/ulgurji/savat/pdf")] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + ([("GET", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish/bekor")] if hasattr(crud, "dokon_kutish_qosh") else []) + ([("GET", "/api/dokon/v1/mijoz/keshbek")] if hasattr(crud, "dokon_mijoz_keshbek") else [])), _dy)   # kech178 (zip 244): PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
+             + ([("POST", "/api/dokon/v1/kirish"), ("POST", "/api/dokon/v1/kirish/holat"), ("GET", "/api/dokon/v1/mijoz"), ("POST", "/api/dokon/v1/mijoz/royxat"), ("POST", "/api/dokon/v1/mijoz/chiqish")] if hasattr(crud, "dokon_kirish_boshla") else []) + ([("GET", "/api/dokon/v1/mijoz/buyurtmalar"), ("POST", "/api/dokon/v1/mijoz/buyurtmalar/pdf")] if hasattr(crud, "dokon_mijoz_buyurtmalari") else []) + ([("GET", "/api/dokon/v1/ulgurji"), ("POST", "/api/dokon/v1/ulgurji/buyurtmalar")] if hasattr(crud, "dokon_api_ulgurji") else []) + ([("GET", "/api/dokon/v1/ulgurji/narxlar/pdf"), ("POST", "/api/dokon/v1/ulgurji/savat/pdf")] if hasattr(crud, "ulgurji_narxlar_pdf_malumoti") else []) + ([("GET", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish"), ("POST", "/api/dokon/v1/kutish/bekor")] if hasattr(crud, "dokon_kutish_qosh") else []) + ([("GET", "/api/dokon/v1/mijoz/keshbek")] if hasattr(crud, "dokon_mijoz_keshbek") else []) + ([("GET", "/api/dokon/v1/maxsus-narx")] if hasattr(crud, "dokon_api_maxsus_narx") else [])), _dy)   # kech178 (zip 244): PDF; kech181 (zip 248, MOSLANDI): kirish / mijoz
 
 
 def _bogliq(m, p):
@@ -823,7 +823,17 @@ else:
             _tm.sleep(0.1)
     BASE = f"http://127.0.0.1:{PORT}"
     from datetime import timezone as _tz238
-    _SoxtaVaqt.t = datetime.now(_tz238.utc).replace(tzinfo=None)   # brauzer — haqiqiy soat (band «gacha» vaqti sahifada ko'rinadi)
+    # kech191 (zip 258): VAQT BOMBASI tuzatildi — oldingi bo'limlar soxta soatda (2026-11-03 08:00) band yaratgan (48 soat → 2026-11-05
+    # 08:00 UTC gacha); haqiqiy soat undan o'tgach (05.11 13:00 Toshkent dan) U7 dagi «Kapitel R-18» bandi tugagan bo'lib yiqilardi. Endi
+    # haqiqiy soatga o'tishda hamma band muddatlari xuddi shu farqqa suriladi — bandlar holati soxta soatdagidek qoladi, sana qanday bo'lmasin.
+    _hozir238 = datetime.now(_tz238.utc).replace(tzinfo=None)
+    _siljish238 = _hozir238 - _SoxtaVaqt.t
+
+    def _bandlarni_surish238(d):
+        for _x in d.query(DokonBuyurtma).filter(DokonBuyurtma.company_id == 1, DokonBuyurtma.sb_band_tugash.isnot(None)).all():
+            _x.sb_band_tugash = _x.sb_band_tugash + _siljish238
+    db_ishi(_bandlarni_surish238)
+    _SoxtaVaqt.t = _hozir238   # brauzer — haqiqiy soat (band «gacha» vaqti sahifada ko'rinadi)
     _f16 = fp("Karniz K-12 16 sm <i>x</i>", 8, w=16, t=8)     # nomida HTML — sahifada MATN bo'lib chiqishi kerak
     _d16 = detal(M2, "asosiy", "16 sm", narx=60000, eni_sm=16, qalinligi_sm=8)
     fp("Burchak D-2", 5, cat="dona", unit="dona", w=None, t=None)       # D-2 — endi 2 partiyali guruh («Tayyor mahsulotlar» guruh qatori)
