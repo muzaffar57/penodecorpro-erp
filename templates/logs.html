@@ -324,7 +324,12 @@
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border2)">
         <div style="font-size:13px;color:var(--text3);margin-bottom:8px">
-          Logotip — yuk xati va hisobotlarda chiqadi (PNG/JPG/WEBP, 2 MB gacha)
+          Logotip — dastur menyusida, yuk xati va hisobotlarda chiqadi (PNG/JPG/WEBP, 2 MB gacha)
+        </div>
+        {# kech191 (zip 259): o'z logotipi yo'q — nima ko'rinayotgani aytiladi (`loadCompany` ko'rsatadi / yashiradi) #}
+        <div id="co-logo-yoq" style="display:none;font-size:13px;color:var(--text2);margin-bottom:8px">
+          Logotip hali yuklanmagan: dastur menyusida hozir epserp logotipi turibdi, hujjatlarda (yuk xati, hisob-kitob va boshqalar) —
+          faqat korxona nomingiz. O'z logotipingizni yuklasangiz, hamma joyda o'zingizniki chiqadi.
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <img id="co-logo-preview" src="" alt="" style="display:none;height:40px;border-radius:6px;border:1px solid var(--border2)">
@@ -520,11 +525,15 @@ async function loadCompany(faqatLogo) {
     const img = document.getElementById('co-logo-preview');
     // kech155 (zip 211f): ko'rinadigan logotip (`logo_korinish` — menyudagi bilan bir xil; fayli yo'q — ko'rsatilmaydi); eski server — `logo_path`
     const _lk211 = d.logo_korinish !== undefined ? d.logo_korinish : d.logo_path;
+    // kech191 (zip 259): o'z logotipi yo'q — izoh (menyuda epserp, hujjatlarda nom)
+    const _yoq259 = document.getElementById('co-logo-yoq');
     if (_lk211) {
       img.src = '/' + _lk211 + '?v=' + Date.now();
       img.style.display = 'inline-block';
+      if (_yoq259) _yoq259.style.display = 'none';
     } else {
       img.style.display = 'none';
+      if (_yoq259) _yoq259.style.display = 'block';
     }
   } catch (e) { console.error(e); }
 }

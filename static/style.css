@@ -200,6 +200,22 @@ body {
   max-height: 140px;
   object-fit: contain;
 }
+/* kech191 (zip 259): o'z logotipi yo'q korxona — taglikda epserp logotipi (475 × 120 SVG → 150 × 38), tagida korxona nomi (uzun nom —
+   qatorga bo'linadi, menyudan chiqmaydi) */
+.s-logo-epserp {
+  display: block;
+  width: 150px;
+  max-width: 100%;
+  height: auto;
+}
+.s-logo-epserp-blok .s-logo-plita { padding: 12px 8px; }
+.s-logo-epserp-blok .logo-name {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
 
 .s-user {
   padding: 14px 20px;

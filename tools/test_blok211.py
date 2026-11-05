@@ -1300,9 +1300,13 @@ else:
           _up2 = C.post("/api/settings/company/logo", files={"file": ("keng.png", _png211(400, 150), "image/png")})
           pgl.goto(BASE + "/", wait_until="networkidle")
           _lw2 = pgl.evaluate(LOGO_JS)
-          check("U26 logotipsiz korxona — avvalgidek harf + nom («K211 Blok korxona»); KVADRAT logotip (faqat belgi, 200 × 200) — ham "
-                "taglikni egallaydi: 140 × 140 (211d da 56 px va yonida nom edi), nom matni yo'q",
-                not _lc["plita"] and _lc["nom"] == "K211 Blok korxona" and _up.status_code == 200 and _lk["plita"] and _lk["kesim"]
+          # kech191 (zip 259, MOSLANDI — egasi QARORI 05.11): logotipsiz korxona menyusida — oq taglikda epserp logotipi + nom (harf emas)
+          _e259 = "s-logo-epserp" in open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
+          _lc_ok = ((_lc["plita"] and (_lc["src"] or "").startswith("/static/epserp_logo.svg?v=") and not _lc["kesim"]) if _e259
+                    else not _lc["plita"]) and _lc["nom"] == "K211 Blok korxona"
+          check("U26 logotipsiz korxona — epserp logotipi + nom («K211 Blok korxona»; zip 259 gacha — harf + nom); KVADRAT logotip (faqat "
+                "belgi, 200 × 200) — ham taglikni egallaydi: 140 × 140 (211d da 56 px va yonida nom edi), nom matni yo'q",
+                _lc_ok and _up.status_code == 200 and _lk["plita"] and _lk["kesim"]
                 and abs(_lk["kw"] - 140) <= 1 and abs(_lk["kh"] - 140) <= 1 and _lk["nom"] is None, (_lc, _up.status_code, _up.text[:200], _lk))
           check("U27 boshqa korxona yuklagan KENG logotip (400 × 150) — o'zi menyu tepasini egallaydi (180 × 67,5), nom matni yo'q",
                 _up2.status_code == 200 and _lw2["plita"] and (_lw2["src"] or "").startswith("/static/uploads/logos/company_3")

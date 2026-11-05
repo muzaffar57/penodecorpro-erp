@@ -1158,7 +1158,8 @@ function kichikRasm(url) {
          kech155 (zip 211d / 211e — egasi so'rovi 24.10): logotip tepadagi to'rtburchak OQ taglikni TO'LIQ egallaydi (yumaloq 42 px emas),
          «nom / ERP» matni yo'q (nomi — `alt` / `title`). Atrofidagi bo'sh (shaffof / oq) joy kesiladi — `company_logo_menyu`: mazmun
          o'lchamidagi oyna (`.s-logo-kesim`, bo'yi — `padding-top` foizi), rasm unga foizlarda joylanadi (hamma brauzerda). Pillow yo'q —
-         rasm butunicha (`.s-logo-oddiy`). Platforma logotipi — `static/logo_menyu.webp`. Logotipsiz / o'qilmaydi — harf + nom. #}
+         rasm butunicha (`.s-logo-oddiy`). Platforma logotipi — `static/logo_menyu.webp`.
+         kech191 (zip 259): logotipsiz / fayli o'qilmaydi — epserp logotipi + korxona nomi (ilgari harf + nom; pastdagi izoh). #}
       {% set _logo = company_logo_of(current_user.company_id) if current_user else None %}
       {% set _kn = company_name_of(current_user.company_id) if current_user else None %}
       {% set _lm = company_logo_menyu(_logo) if _logo else None %}
@@ -1175,19 +1176,16 @@ function kichikRasm(url) {
         {% endif %}
       </div>
       {% else %}
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--bg);
-                    display:flex;align-items:center;justify-content:center;font-weight:700;
-                    color:var(--text3);font-size:18px">
-          {{ (_kn or 'P')[0]|upper if current_user else 'P' }}
+      {# kech191 (zip 259 — egasi QARORI 05.11: «demo korxonada bizning epserp logotipi tursin, korxona keyin o'zinikiga almashtiradi»;
+         tugmali javob — «faqat dastur ichida», «yuk xatlarida bizning nom va logo ketib qolmasin»): o'z logotipi yo'q (yoki fayli diskda
+         yo'q) korxona menyusida — oq taglikda epserp logotipi, tagida korxona NOMI (qaysi korxonaga kirgani ko'rinsin; ilgari — harf +
+         nom + «ERP»). Hujjatlar (9 PDF) O'ZGARMAGAN: logotipsiz korxonada faqat o'z nomi (`company_brand.get_brand` — rasm yo'q).
+         Sozlamalarda o'z logotipini yuklasa — keyingi sahifadan o'ziniki (yuqoridagi tarmoq). Faza 5: korxona nomi bazadan olinadi. #}
+      <div class="s-logo-epserp-blok">
+        <div class="s-logo-plita" title="{{ _kn or 'epserp' }}">
+          <img class="s-logo-epserp" src="/static/epserp_logo.svg?v={{ static_version }}" alt="epserp" width="150" height="38">
         </div>
-        <div>
-          {# Faza 5: korxona nomi bazadan olinadi. Ilgari "PenoDecorPro ·
-             Andijon" qattiq yozilgan edi — ikkinchi mijoz o'z ERP sida
-             boshqa korxonaning nomini ko'rib turardi. #}
-          <div class="logo-name">{{ _kn or 'epserp' }}</div>
-          <div class="logo-ver">ERP</div>
-        </div>
+        {% if _kn %}<div class="logo-name">{{ _kn }}</div>{% endif %}
       </div>
       {% endif %}
     </div>
