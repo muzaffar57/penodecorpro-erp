@@ -7198,6 +7198,8 @@ AUDIT_AMALLARI = {
     "qurilma_ruxsat": ("✅", "— telefoniga ruxsat berildi", "Hodim telefoni"),
     "qurilma_rad": ("⛔", "— telefon so'rovi rad etildi", "Hodim telefoni"),
     "qurilma_uzildi": ("🔌", "— telefoni uzildi", "Hodim telefoni"),
+    # kech191 (zip 258): o'sha (ruxsat berilgan) telefon brauzeri saytni unutgan — avtomatik qayta bog'landi (`hodim_qurilma_ozi`)
+    "qurilma_qayta": ("📱", "— o'sha telefondan qayta kirdi (ruxsat so'ralmadi)", "Hodim telefoni"),
     "pin_ozgartirildi": ("🔒", "— o'z PIN ini qo'ydi", "Hodim PIN i"),
     # kech134 (zip 160): hodim avansi (yozuv nomi — «Ism: summa (sana)»): hodim javobi admin yozgan avansga, admin «Olmaganman» ni
     # ko'rib chiqdi, avans o'chirildi (`old_value` — izohi)
@@ -17743,31 +17745,43 @@ def _qurilma_model_toza(m) -> str:
     return _re159.sub(r"[^0-9A-Za-z _.()\-]", "", str(m or "")).strip()[:40]
 
 
-def qurilma_nomi_yasash(user_agent: str, model: str = None) -> str:
-    """Admin ko'radigan telefon nomi: «Android · SM-A525F · Chrome». `model` — kirish sahifasi skripti brauzerdan olgan model
-    (`navigator.userAgentData` — Chrome / Samsung Internet; faqat KO'RSATISH uchun, xavfsizlikka ta'sir qilmaydi). Bo'lmasa —
-    brauzer satridan (yangi Chrome modelni yashiradi: «Android 10; K»)."""
-    ua = str(user_agent or "")
+def _qurilma_tizimi(ua: str) -> str:
     if "iPhone" in ua:
-        tizim = "iPhone"
-    elif "iPad" in ua:
-        tizim = "iPad"
-    elif "Android" in ua:
-        tizim = "Android"
-    elif "Windows" in ua:
-        tizim = "Windows"
-    elif "Macintosh" in ua or "Mac OS" in ua:
-        tizim = "Mac"
-    elif "Linux" in ua:
-        tizim = "Linux"
-    else:
-        tizim = "Noma'lum qurilma"
-    brauzer = next((nom for belgi, nom in _QURILMA_BRAUZER if belgi in ua), "")
+        return "iPhone"
+    if "iPad" in ua:
+        return "iPad"
+    if "Android" in ua:
+        return "Android"
+    if "Windows" in ua:
+        return "Windows"
+    if "Macintosh" in ua or "Mac OS" in ua:
+        return "Mac"
+    if "Linux" in ua:
+        return "Linux"
+    return "Noma'lum qurilma"
+
+
+def _qurilma_modeli(user_agent: str, model: str = None) -> str:
+    """Telefon modeli («SM-A155F») yoki "" — avval kirish sahifasi skripti bergani, bo'lmasa Android brauzer satridan.
+    kech191 (zip 258, probe258 P5 — O'LCHANGAN): ilova ichidagi brauzer satri «SM-A525F Build/…; wv)» — ilgari `; wv` sababli mos
+    kelmay, model yo'qolardi («Android · Chrome»)."""
+    ua = str(user_agent or "")
     m = _qurilma_model_toza(model)
-    if not m and tizim == "Android":
-        _x = _re159.search(r"Android [0-9.]+; ([^;)]+?)(?: Build/[^;)]*)?\)", ua)
+    if not m and _qurilma_tizimi(ua) == "Android":
+        _x = _re159.search(r"Android [0-9.]+; ([^;)]+?)(?: Build/[^;)]*)?(?:; wv)?\)", ua)
         if _x and _x.group(1).strip() not in ("K", "wv"):
             m = _qurilma_model_toza(_x.group(1))
+    return m
+
+
+def qurilma_nomi_yasash(user_agent: str, model: str = None) -> str:
+    """Admin ko'radigan telefon nomi: «Android · SM-A525F · Chrome». `model` — kirish sahifasi skripti brauzerdan olgan model
+    (`navigator.userAgentData` — Chrome / Samsung Internet). Bo'lmasa — brauzer satridan (yangi Chrome modelni yashiradi:
+    «Android 10; K»). kech191 (zip 258): nom «o'sha telefon» tanishida ham ishlatiladi (`hodim_qurilma_ozi`)."""
+    ua = str(user_agent or "")
+    tizim = _qurilma_tizimi(ua)
+    brauzer = next((nom for belgi, nom in _QURILMA_BRAUZER if belgi in ua), "")
+    m = _qurilma_modeli(ua, model)
     return " · ".join([tizim] + ([m] if m else []) + ([brauzer] if brauzer else []))[:QURILMA_NOMI_MAX]
 
 
@@ -17791,6 +17805,35 @@ def hodim_qurilma_sorovi(db: Session, emp, qurilma_hash: str, nomi: str) -> bool
     emp.qurilma_sorov_nomi = (nomi or "")[:QURILMA_NOMI_MAX] or None
     emp.qurilma_sorov_vaqti = datetime.utcnow()
     log_activity(db, "qurilma_sorov", "employee", emp.id, f"{emp.name}: {emp.qurilma_sorov_nomi or ''}"[:200], emp.name,
+                 company_id=emp.company_id, commit=False)
+    db.commit()
+    return True
+
+
+def hodim_qurilma_ozi(db: Session, emp, qurilma_hash: str, user_agent: str, model: str = None) -> bool:
+    """kech191 (zip 258 — egasi QARORI 05.11 «O'sha telefon — so'ramasin», QAYTA SO'RALMAYDI): ruxsat berilgan telefonning brauzeri
+    saytni «unutgan» (cookie yo'qolgan — production zaxirasi 05.11: Ulug'bek, oddiy Chrome, 3 marta, bir marta ruxsatdan 1 daqiqa
+    keyin) — to'g'ri telefon + PIN dan keyin, telefon NOMI (tizim · MODEL · brauzer) bog'langan telefonnikiga AYNAN teng bo'lsa va
+    nomida MODEL bo'lsa — yangi kalit o'sha telefonga o'zi bog'lanadi (so'rov / admin ruxsati YO'Q; adminga faqat xabar). Model
+    noma'lum (iPhone, eski Chrome), boshqa model / brauzer, telefon uzilgan (`qurilma_hash` yo'q) — False (avvalgidek so'rov).
+    Kutayotgan BOSHQA telefon so'rovi (bo'lsa) va uning sessiyasi — o'zgarmaydi; ESKI kalitdagi sessiyalar yopiladi.
+    Chaqiruvchi — FAQAT `main.hodim_login_submit` (to'g'ri telefon + PIN + korxona tekshiruvidan keyin)."""
+    if not emp.qurilma_hash or not emp.qurilma_nomi or not qurilma_hash or emp.qurilma_hash == qurilma_hash:
+        return False
+    if not _qurilma_modeli(user_agent, model):
+        return False
+    nomi = qurilma_nomi_yasash(user_agent, model)
+    if nomi != emp.qurilma_nomi:
+        return False
+    from models import EmployeeSession as _ES258
+    eski_hash = emp.qurilma_hash
+    emp.qurilma_hash = qurilma_hash
+    emp.qurilma_vaqti = datetime.utcnow()
+    if emp.qurilma_sorov_hash == qurilma_hash:
+        emp.qurilma_sorov_hash = emp.qurilma_sorov_nomi = emp.qurilma_sorov_vaqti = None
+    # faqat ESKI kalit sessiyalari (kutayotgan boshqa telefon sahifasi ochiq qoladi — admin ruxsat bersa o'zi panelga o'tadi)
+    db.query(_ES258).filter(_ES258.employee_id == emp.id, _ES258.qurilma_hash == eski_hash).delete(synchronize_session=False)
+    log_activity(db, "qurilma_qayta", "employee", emp.id, f"{emp.name}: {nomi}"[:200], emp.name,
                  company_id=emp.company_id, commit=False)
     db.commit()
     return True

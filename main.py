@@ -6952,9 +6952,13 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     _kalit = auth.qurilma_kaliti(request) or auth.yangi_qurilma_kaliti()
     _qh = auth.qurilma_hash_ol(_kalit)
     if emp.qurilma_hash != _qh:
-        _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
-        if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
-            _fonda(background_tasks, _hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id, sessiya=db)
+        # kech191 (zip 258 — egasi QARORI 05.11): o'sha (ruxsat berilgan) telefon — so'rovsiz, adminga faqat xabar
+        if crud.hodim_qurilma_ozi(db, emp, _qh, ua, qurilma_model):
+            _fonda(background_tasks, _hodim_qurilma_qayta_telegram, emp.name, emp.qurilma_nomi, emp.company_id, sessiya=db)
+        else:
+            _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
+            if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
+                _fonda(background_tasks, _hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id, sessiya=db)
     token = auth.create_employee_session(db, emp.id, qurilma_hash=_qh)
     response = RedirectResponse("/hodim", status_code=302)
     response.set_cookie(key="emp_session_token", value=token, httponly=True,
@@ -6963,6 +6967,17 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     response.set_cookie(key=auth.QURILMA_COOKIE, value=_kalit, httponly=True, max_age=auth.QURILMA_COOKIE_SONIYA,
                         samesite="lax", secure=True)
     return response
+
+
+def _hodim_qurilma_qayta_telegram(ism: str, nomi: Optional[str], company_id: int) -> None:
+    """kech191 (zip 258): o'sha (ruxsat berilgan) telefondan qayta kirish — korxona Telegram chatiga MA'LUMOT (tugma / ruxsat yo'q)."""
+    try:
+        _matn = (f"📱 *Hodim o'sha telefondan qayta kirdi*\n\n👷 {ism}\n📱 {nomi or 'Telefon'}\n\n"
+                 "Ruxsat so'ralmadi — bu telefonga avval ruxsat bergansiz (brauzer saytni unutgan edi).\n"
+                 "Bu hodim bo'lmasa: «Ustalar KPI / Hodimlar» → «🔑 Kirish» → «Telefonni uzish».")
+        _send_telegram(_matn, company_id=company_id)
+    except Exception as e:                  # noqa: BLE001
+        print(f"⚠ Telegram (o'sha telefon) yuborilmadi: {e}")
 
 
 def _hodim_qurilma_telegram(ism: str, hozirgi: Optional[str], yangi: str, company_id: int) -> None:

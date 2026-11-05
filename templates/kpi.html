@@ -1398,7 +1398,10 @@ function paQurilmaChiz(empId) {
 
 async function paQurilmaAmal(btn, amal) {
   const id = btn.dataset.id;
-  if (amal === 'uzish' && !(await customConfirm("Telefon uzilsinmi?\n\nHodim panelidan chiqadi; keyingi kirishida yangi ruxsat so'rovi chiqadi.",
+  // kech191 (zip 258): egasi «hodim kira olmayapti» deb uzgan (production 26.10, 03.11, 27.10) — kira olmaslik odatda PIN, uzish yordam bermaydi
+  if (amal === 'uzish' && !(await customConfirm("Telefon uzilsinmi?\n\nUzish — faqat telefon yo'qolgan, almashgan yoki begona odam kirgan bo'lsa.\n" +
+                                               "Hodim kira olmayotgan bo'lsa — odatda PIN noto'g'ri: uzmang, shu oynada yangi PIN bering (telefon bog'liq qoladi).\n\n" +
+                                               "Uzilsa — hodim panelidan chiqadi; keyingi kirishida yangi ruxsat so'rovi chiqadi.",
                                                {okText: 'Uzish', danger: true}))) return;
   const opts = {method: 'POST'};
   if (amal !== 'uzish') {
