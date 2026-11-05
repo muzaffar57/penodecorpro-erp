@@ -3345,6 +3345,20 @@ kabi — rad; boshqa sessiyalar yopiladi). Telefon raqami — `crud.telefon_kali
 band tekshiruvi (`set-login`), urinishlar hisobi (jurnalda raqam kaliti). O'chirishda hodim sessiyalari yopiladi. Zaxiraga telefon
 xeshlari KIRMAYDI (`crud._SECRET_COLUMNS`). Cheklov (egasiga aytilgan): hodim telefonini qo'li bilan boshqaga bersa — to'xtatib
 bo'lmaydi; admin vaqtinchalik PIN ni biladi va o'z telefoniga ruxsat bera oladi (hodimning telefoni uziladi — sezadi, jurnalda bor).
+  * kech191 (zip 258) — O'SHA TELEFON QAYTA RUXSAT SO'RAMAYDI (egasi 05.11: «har 3–4 kunda kirmoqchi keladi — bitta ruxsatdan keyin
+    so'ramasin»; QARORI tugmali «O'sha telefon — so'ramasin», QAYTA SO'RALMAYDI). O'LCHANGAN (production zaxirasi 05.11, `work/k258/
+    prod_olchov258.py`): Ulug'bek — oddiy Chrome (ilova ichidagi brauzer EMAS), 26.10 dan 5 so'rov: 3 tasi — cookie yo'qolgan (bir marta
+    ruxsatdan 1 daqiqa keyin), 2 tasi — admin «Telefonni uzish» dan keyin («kira olmayapti» deb — sababi PIN edi). `crud.hodim_qurilma_ozi`
+    (kirish yo'lida `hodim_qurilma_sorovi` dan OLDIN): bog'langan telefon NOMI (`qurilma_nomi_yasash`: tizim · MODEL · brauzer) yangi
+    brauzernikiga AYNAN teng va nomda MODEL bo'lsa (`_qurilma_modeli`; iPhone / modelsiz Chrome — yo'q) — yangi kalit o'sha telefonga
+    bog'lanadi (shartli UPDATE: kalit va nom o'qilgandek bo'lsa; poygada — False va kirish yo'li qayta tekshiradi), faqat ESKI kalit
+    sessiyalari yopiladi (kutayotgan boshqa telefon qoladi), jurnal «qurilma_qayta», adminga MA'LUMOT xabari (`main.
+    _hodim_qurilma_qayta_telegram`: «o'sha telefondan qayta kirdi», «yangi PIN bering va Telefonni uzish»). Bog'lanmaydi: telefon uzilgan;
+    shu brauzer boshqa nom bilan ruxsat kutmoqda (modelni taxmin qilish — review258 F1); oxirgi bog'lashdan keyin admin biror so'rovni
+    RAD etgan (keyingi ruxsatgacha — F6). Ilova ichidagi brauzer nomi — «… · ilova ichida» / «… · Telegram ichida» (Chrome emas; model
+    «Build/…; wv)» satridan ham). «Telefonni uzish» oynasi: uzish — faqat telefon yo'qolgan / almashgan / begona kirgan bo'lsa; kira
+    olmasa — yangi PIN (telefon bog'liq qoladi). Xavf (egasiga aytilgan): PIN ni bilgan va shu modelni yuborgan (aynan shu modeldagi
+    telefon yoki brauzer maydonini o'zgartira oladigan) odam kiradi — har safar adminga xabar boradi, haqiqiy hodim sessiyasi yopiladi.
 **Hodim avanslari — manba, hodim javobi, «Olmaganman» (kech134, zip 160 — egasi QARORLARI 09.10 14:5x, tugmali: «Mening
 so'rovlarim» — joriy oy ochiq, o'tgan oylar yopiq; avans manbasi — «C — hodim tasdig'i bilan»; 09.10 18:5x: zip 160 dan oldingi admin
 avanslari — «Faqat joriy oy» tasdiqqa chiqadi).** O'LCHANGAN (zip 159): `EmployeeAdvance` da manba yo'q — panelda admin yozgan va
@@ -5447,6 +5461,11 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
   (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 92/0, TF1 92/0, PG 81/0; asl (zip 256) —
   74 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
+- (kech191, zip 258) Hodim paneli — o'sha telefon qayta ruxsat so'ramaydi: `tools/test_qurilma_ozi258.py` (A — cookie siz o'sha telefon:
+  «tayyor», so'rov yo'q, kalit / vaqt, «qayta kirdi» xabari, jurnal, eski sessiya, takror, Chrome versiyasi; B — so'raladiganlar: boshqa
+  model / brauzer, modelsiz, iPhone, uzilgan, ruxsatsiz, noto'g'ri PIN, harf farqi; C — kutayotgan boshqa so'rov qoladi, vaqtinchalik
+  PIN, 2-korxona; D — telefon nomi (ilova ichidagi brauzer); F — review258: taxmin, rad, eski so'rov, poyga, Windows, ilova ichi; E —
+  statik). SQ 41/0, TF1 41/0, PG 41/0; asl (zip 257) — 27 ta yiqiladi, qulamaydi.
 - (kech189, zip 256) Moliya «Usta KPI to'landi» — ustaga: `tools/test_usta_kpi256.py` (S; R — ro'yxat: maydonlar, qoldiq AYNAN, tartib,
   ruxsat, ikkinchi korxona; K — `usta_kpi` 400, Ehson, eski yozuv, `bogsiz`; T — to'lov bir marta, 409, ro'yxatdan chiqish; U — oyna: tanlov,
   XSS yo'q, tekshiruvlar, saqlash yo'li, «Bekor», 409 da qayta yuklash, server izoh xatosi, takror, kechikkan javob, boshlang'ich / Ehson,
@@ -7873,7 +7892,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `POST /hodim/login` → `main.py:hodim_login_submit` → `templates/hodim_login.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
-- Server chaqiruvlari: auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
+- Server chaqiruvlari: auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_qurilma_ozi, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
 
 ### `GET /hodim/pin` → `main.py:hodim_pin_sahifa` → `templates/hodim_pin.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
@@ -8507,7 +8526,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/hodim` (5)
 - `GET /hodim` → `main.py:hodim_panel` · 🔓 · auth.delete_employee_session, auth.hodim_holati
 - `GET /hodim/login` → `main.py:hodim_login_page` · 🔓 · auth.hodim_holati
-- `POST /hodim/login` → `main.py:hodim_login_submit` · 🔓 · auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
+- `POST /hodim/login` → `main.py:hodim_login_submit` · 🔓 · auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_qurilma_ozi, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
 - `GET /hodim/logout` → `main.py:hodim_logout` · 🔓 · auth.delete_employee_session
 - `GET /hodim/pin` → `main.py:hodim_pin_sahifa` · 🔓 · auth.hodim_holati
 
@@ -8911,6 +8930,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_qoplama.py` — Bosqich 3, 11.0-band: MRP mahsulotida QOPLAMA.
 - `test_qoplama_retsept.py` · PG — K58-1 / K58-2 / K58-3 (5-bo'lim 43-band) darvozasi (kech58, 2026-09-24).
 - `test_qoplama_vaqti.py` — 22-band: qoplamachi bonusi (va ishlab chiqarish miqdoriga bog'liq hodim to'lovi) FAQAT mahsulot "Sotuvga tayyor" (READY) bo'lganda, va u TAYYOR BO'LGAN oyda hisoblanadi.
+- `test_qurilma_ozi258.py` · PG — kech191 (zip 258): hodim paneli — ruxsat berilgan («o'sha») telefon brauzeri saytni unutsa, qayta ruxsat SO'RALMAYDI (egasi QARORI 05.11 «O'sha telefon — so'ramasin»).
 - `test_rasm228.py` · PG — kech163 (zip 228 «rasm yo'qolmasin»; review224 PAST «Rasm yuklash — qayd»).
 - `test_rasm_detal224.py` · PG — kech160 (zip 224 «Tahrirda rasm o'z detaliga» + ichki detal qatori ko'rinishi; egasi 29.10 «ha»; review220 №7, review214).
 - `test_rasm_imzo.py` · PG — kech128 (zip 152): zip 151 ning staging JONLI sinovida (08.10) topilgan ikki kichik nuqson.
@@ -9036,5 +9056,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 343 (Python 305, JS 38).
+Jami test fayllari: 344 (Python 306, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
