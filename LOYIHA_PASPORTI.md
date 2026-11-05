@@ -655,6 +655,16 @@ sig'magan nom / osti shrifti tor / keng nisbatida — qatorlar logotipsizdagidek
 kichraytiriladi (`_sarlavha_logo_kichik`, `SARLAVHA_LOGO_DPI`; platforma logotipi bilan yuk xati / moliya PDF i ~900 KB edi → ~40 KB).
 «Buyurtma hisobi» / «Taklif» — logotip joyi o'zgarmagan (baytlar `_logo_baytlari` dan); kech177 (zip 241c): ularning logotipi ham chizilgan enining 300 dpi siga (`generate_nakladnoy` → `_sarlavha_logo_kichik`; quti `LOGO_QUTI_MM` 32 × 18 mm va joyi AYNAN) — O'LCHANGAN (`work/k241c/probe241c.py`): platforma logotipi (1000 × 798) bilan 913 KB edi (boshqa 7 hujjat ~80 KB), endi 267 × 213 px; 2 : 1 logotip 600 × 300 → 378 × 189 px. Mustaqil tekshiruv (review241c): JPEG manba — JPEG bo'lib (sifat 92) kichraytiriladi, CMYK — CMYK da qoladi (ilgari PIL ning oddiy CMYK → RGB o'girishi rangni buzardi: brend ko'ki (32, 86, 174) → (0, 77, 255); 241b dan beri 7 hujjatda ham); kichraytirilmagan asl baytlar keshga yozilmaydi (xotira). Kirish oynasi past ekranda (telefon yotiq) —
 `.form-wrap{margin:auto}` (tepasi kesilmaydi).
+**Logotipsiz korxona menyusida — epserp logotipi (kech191, zip 259 — egasi so'rovi 05.11 16:27: «demo olgan korxonada bizning epserp
+logolari tursin, korxona keyin o'zinikiga almashtiradi»; QARORI tugmali savolga: «faqat dastur ichida — yuk xatlarida bizning nom va logo
+ketib qolmasligi kerak»).** O'LCHANGAN (asl — zip 258): logotipsiz korxona menyusida doira ichida nomning birinchi harfi + nom + «ERP».
+Endi `base.html` menyusida o'z logotipi YO'Q (yoki fayli diskda yo'q — `company_logo_of` None) korxonada — oq taglikda (`.s-logo-plita`)
+`static/epserp_logo.svg` (`.s-logo-epserp`, 150 × 38), tagida korxona NOMI (`.logo-name`, markazda, uzun nom qatorga bo'linadi; tungi
+rejimda ham oq taglik). O'z logotipi bor korxona va platforma egasi (eng eski korxona) — o'zgarmagan. HUJJATLAR (9 PDF) O'ZGARMAGAN —
+logotipsiz korxonada rasm yo'q, faqat o'z nomi (`company_brand.get_brand`; hujjat kodi epserp logotipiga havola qilmaydi). Sozlamalar →
+«Korxona nomi»: «Logotip — dastur menyusida, yuk xati va hisobotlarda chiqadi»; o'z logotipi yo'q bo'lsa izoh `#co-logo-yoq` («dastur
+menyusida hozir epserp logotipi turibdi, hujjatlarda — faqat korxona nomingiz»), yuklangach yashiriladi. `static_version` → 20261105-1
+(style.css).
 **Telegram: bot manzili, holati va har korxonaga o'z boti (kech130, zip 154 — kech129 da O'LCHANGAN; egasi QARORLARI 08.10 17:3x–17:42).**
 (1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish» (`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
 `TELEGRAM_BOT_TOKEN`) o'sha saytga ulanadi (`request.base_url`) — kech129 da bot sinov saytiga ulanib qolgan edi (ustalar sinov bazasini
@@ -5461,6 +5471,10 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
   (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 92/0, TF1 92/0, PG 81/0; asl (zip 256) —
   74 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
+- (kech191, zip 259) Logotipsiz korxona menyusida epserp logotipi: `tools/test_epserp_logo259.py` (S — statik: base / style / Sozlamalar
+  izohi, hujjat kodi epserp ga havola qilmaydi; M — menyu: logotipsiz, o'z logotipli, platforma egasi, fayli yo'q, nomda HTML, 4 sahifa;
+  B — `get_brand` va 9 PDF da rasm / «epserp» yo'q, nom bor; Z — Sozlamalar API, logotip fayli o'chsa; J — Chromium: 1440 / 390, tungi
+  rejim, uzun nom, Sozlamalar izohi va yuklashdan keyin). SQ 26/0, TF1 26/0, PG 21/0; asl (zip 258) — 15 ta yiqiladi, qulamaydi.
 - (kech191, zip 258) Hodim paneli — o'sha telefon qayta ruxsat so'ramaydi: `tools/test_qurilma_ozi258.py` (A — cookie siz o'sha telefon:
   «tayyor», so'rov yo'q, kalit / vaqt, «qayta kirdi» xabari, jurnal, eski sessiya, takror, Chrome versiyasi; B — so'raladiganlar: boshqa
   model / brauzer, modelsiz, iPhone, uzilgan, ruxsatsiz, noto'g'ri PIN, harf farqi; C — kutayotgan boshqa so'rov qoladi, vaqtinchalik
@@ -8784,6 +8798,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_e_tanlov.py` · PG — kech120, E BOSQICH 4-qism (TANLAGICHLAR): qidiruvli tanlagich (`static/tanlov.js`) — Kirim formasi (ta'minotchi, material), «Yangi qaytarish» (buyurtma), «Brak yozish» (loyiha, tay…
 - `test_e_tarix.py` · PG — kech120, E BOSQICH 3-qism (TARIX VA JURNALLAR): «Tizim jurnallari» (Kirish tarixi, Audit jurnali) — filtr, sahifalash, hamma amal o'zbekcha, tahrir yozuvida nima o'zgargani; Ombor —…
 - `test_e_tezlik.py` · PG — kech120, E BOSQICH 1-qism (TEZLIK): hisobotlar so'rovlar ORASIDA eslab qolinadi (yozuv bo'lsa darhol eskiradi), sahifa bir ochilishida bir xil so'rov bir marta, Bosh sahifa faqat 5…
+- `test_epserp_logo259.py` · PG — kech191 (zip 259): o'z logotipi yo'q korxona menyusida — epserp logotipi; hujjatlarda — FAQAT o'z nomi.
 - `test_eski_brak_muzlash.py` · PG — 37-band darvozasi (kech51, 2026-09-24).
 - `test_eski_narx_muzlash.py` · PG — 33-band darvozasi (kech49, 2026-09-24).
 - `test_f_bosh.py` · PG — kech120, F BOSQICH 5-qism (BOSH SAHIFA, DASHBOARD, HISOBOTLAR — audit G1 qolgan bandlari).
@@ -9056,5 +9071,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 344 (Python 306, JS 38).
+Jami test fayllari: 345 (Python 307, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
