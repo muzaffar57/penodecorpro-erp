@@ -154,6 +154,9 @@ check("S14 ruxsat qoidalari: «Yangi material» tugmalari `apToggleNewItem(` bil
       SR.count('onclick="apToggleNewItem()"') == 1 and "onclick=\"apToggleNewItem(true); ombordanYop(true)\"" in SR
       and '[onclick^="apToggleNewItem("] { display: none !important; }' in SR)
 
+check("S15 (egasi so'rovi 06.11 03:13) qo'shimcha xarajat yorlig'i — «Tushirish» («(Grushchik)» siz — 4 yorliq bir qatorda)",
+      '<i class="ti ti-forklift"></i> Tushirish</label>' in SR and "Grushchik" not in SR)
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("A. API — oxirgi narx")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -725,7 +728,9 @@ def _j_ssenariy():
               _pl[0] == 0 and _pl[1] == w and _pl[2] > 0 and _tr == ["grid", "none", "none", "Miqdor (blok)"], (_pl, _tr))
         check(f"J28 telefon {w}: pastda yopishgan panel (ekran pastida, «Umumiy: …» = xulosadagi umumiy summa), gorizontal surilish yo'q",
               _dk[0] == "block" and _dk[1] == "sticky" and _dk[3] - 6 <= _dk[2] <= _dk[3] + 1 and _dk[4] == _dk[5] and _dk[4] != "0 so'm"
-              and _sw[0] <= _sw[1] + 1 and _sw[2] <= _sw[3] + 1, (_dk, _sw))
+              and _sw[0] <= _sw[1] + 1 and _sw[2] <= _sw[3] + 1
+              # kech195: hujjatning o'zi surilmaydi (yashirin asl `<select>` o'ramdan tashqariga chiqmaydi — `.rcv-wrap{position:relative}`)
+              and pg.evaluate("() => document.documentElement.scrollHeight <= innerHeight + 1"), (_dk, _sw))
         if RASM:
             pg.screenshot(path=os.path.join(RASM, f"j_{w}.png"))
         ctx.close()
@@ -759,6 +764,12 @@ def _j_ssenariy():
         check(f"J32 {w} px: materiallar — jadval bo'lsa material ustuni ≥ 170 px, aks holda kartalar (material — butun qator)",
               (_mw[0] == "table-row" and _mw[1] >= 170) or (_mw[0] == "grid" and _mw[1] >= 150), _mw)
         ctx.close()
+    ctx, pg = kontekst(1440, 900)
+    sahifa(pg)
+    _xy = pg.evaluate("() => [...document.querySelectorAll('#rcv-xarajat-karta .rcv-field label')].map(l => [l.textContent.trim(), Math.round(l.getBoundingClientRect().height)])")
+    check("J33 1440 px: xarajat yorliqlari — Transport, Tushirish, Yuklash, Boshqa xarajat; har biri BIR qatorda (balandligi bir xil)",
+          [x[0] for x in _xy] == ["Transport", "Tushirish", "Yuklash", "Boshqa xarajat"] and len({x[1] for x in _xy}) == 1, _xy)
+    ctx.close()
     check("J31 JS xatosi yo'q", not JS_XATO, JS_XATO[:5])
 
 
