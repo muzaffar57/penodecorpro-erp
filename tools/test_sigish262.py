@@ -166,9 +166,13 @@ for nm, cat, u, st, mn, peno, vol, narx in MAT:
     db.commit()
     ID[nm] = i.id
 SUP = Supplier(company_id=1, name="MChJ «GRANIT KIMYO SAVDO INVEST» — Andijon viloyati, Asaka tumani bo'limi")
-db.add(SUP)
+SUP2 = Supplier(company_id=1, name="K262 Yirik ta'minotchi")
+db.add_all([SUP, SUP2])
 db.commit()
-SID = SUP.id
+SID, SID2 = SUP.id, SUP2.id
+# review262 №3: juda katta statistika (124 mlrd) — kompyuterdagi 3 ustunli katakka 11 px da ham sig'maydi
+db.add(InventoryPurchase(inventory_id=ID["K262 Granula"], item_name="K262 Granula", quantity=1, unit="kg", price_per_unit=124444443800,
+                         total_amount=124444443800, purchased_at=datetime.datetime(2026, 10, 2, 6, 0, 0), supplier_id=SID2))
 _n = datetime.datetime(2026, 10, 1, 6, 0, 0)
 for k, (nm, narx) in enumerate((("Penoplast 14P", 700000), ("K262 Penoplast 15", 375000), ("K262 Granula", 265), (UZUN, 1000000),
                                ("K262 Mel", 350), ("K262 Penoplast 15", 999999), ("K262 Granula", 23000), ("Penoplast 14P", 500000))):
@@ -233,11 +237,11 @@ def kontekst(w=1440, h=900, tel=False):
     return ctx, pg
 
 
-def sahifa(pg, tema=None):
+def sahifa(pg, tema=None, sid=None):
     pg.evaluate("() => { try { Object.keys(localStorage).filter(k => k.indexOf('pdp_receive_draft') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) {} }")
-    pg.goto(B + f"/suppliers/receive?supplier_id={SID}")
+    pg.goto(B + f"/suppliers/receive?supplier_id={sid or SID}")
     pg.wait_for_load_state("networkidle")
-    pg.wait_for_function("() => typeof invItems !== 'undefined' && invItems.length > 0 && oxirgiNarxlar.size > 0", timeout=10000)
+    pg.wait_for_function("() => typeof invItems !== 'undefined' && invItems.length > 0" + ("" if sid else " && oxirgiNarxlar.size > 0"), timeout=10000)
     if tema:
         pg.evaluate("t => document.documentElement.setAttribute('data-theme', t)", tema)
 
@@ -381,6 +385,11 @@ def _j_ssenariy():
         ctx, pg = kontekst(w, 900, tel=(w <= 600))
         sahifa(pg)
         pg.evaluate("() => rcvTolovTuri('qisman')")
+        _hT = pg.evaluate("""() => { rcvTolovTuri('toliq'); const f = document.querySelector('#rcv-tolov-karta .rcv-row-tolov > .rcv-field');
+            const r = f.getBoundingClientRect(), q = f.parentElement.getBoundingClientRect(); const yon = getComputedStyle(f.parentElement).gridTemplateColumns.split(' ').length;
+            const x = [Math.round(r.width), Math.round(q.width), yon, getComputedStyle(document.getElementById('ap-due-wrap')).display]; rcvTolovTuri('qisman'); return x; }""")
+        check(f"J4b {w} px: «To'liq to'langan» (muddat yashirin) — summa maydoni bo'sh ustun qoldirmaydi (2 ustunda butun qator)",
+              _hT[3] == "none" and (_hT[2] != 2 or abs(_hT[0] - _hT[1]) <= 1), _hT)
         _h = pg.evaluate("""() => { const sp = [...document.querySelectorAll('#ap-hisob .hisob-seg button span')];
             const f = [...document.querySelectorAll('#rcv-tolov-karta .rcv-row-tolov > .rcv-field')].map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width)]; });
             const inp = ['ap-paid-now', 'ap-due-date'].map(i => Math.round(document.getElementById(i).getBoundingClientRect().top));
@@ -421,12 +430,14 @@ def _j_ssenariy():
         e.value = "56 so'm"; rcvSigdir(e); r.push([e.style.fontSize, e.title]);
         const q = document.getElementById('ap-qty'); q.value = '123456'; q.dispatchEvent(new Event('input', {bubbles: true}));
         r.push([parseFloat(q.style.fontSize) || 0, q.scrollWidth <= q.clientWidth + 1]);
+        q.value = '12345678901234'; q.dispatchEvent(new Event('input', {bubbles: true}));
+        r.push([parseFloat(q.style.fontSize) || 0, q.title]);
         return r; }""")
     check("J7 `rcvSigdir`: juda uzun — 11 px va to'liq qiymat izohda; 10 xonali — kichraygan va sig'adi (izohsiz); qisqa — asl shrift; "
           "miqdor yozilganda (`input`) — darhol",
           _s[0][0] == 11 and _s[0][1] and _s[0][2] == "9 999 999 999 999 999 so'm"
           and (_s[1][0] == "" or float(_s[1][0][:-2]) >= 11) and _s[1][1] and _s[1][2] == "" and _s[1][3] == ""
-          and _s[2] == ["", ""] and _s[3][1], _s)
+          and _s[2] == ["", ""] and _s[3][1] and _s[4] == [11, "12345678901234"], _s)
     ctx.close()
     # ─── J9: kenglik o'zgarsa (telefon kartasi → kompyuter jadvali) — qayta o'lchanadi (ResizeObserver) ───
     ctx, pg = kontekst(390, 844)
@@ -452,6 +463,34 @@ def _j_ssenariy():
         check(f"J10 {w} px: «Hisob-kitob» yorliqlari («Umumiy summa», «Qarzga qoladi» …) — bittadan qator, katta summalarda ham",
               len(_k) >= 6 and all(n == 1 for _, n in _k), _k)
         ctx.close()
+    # ─── J11 (review262 №1): kiritish qatorida material tanlanganda «Omborda» katta qoldig'i darhol o'lchanadi (savatga qo'shmasdan) ───
+    for w in (1440, 1100):
+        ctx, pg = kontekst(w, 900)
+        sahifa(pg)
+        pg.evaluate("() => showAllMaterials()")
+        tanla(pg, "#ap-item", str(ID[UZUN]))
+        _o = pg.evaluate("""() => { const sp = document.querySelector('#ap-omborda .rcv-sig'), td = document.getElementById('ap-omborda');
+            const r = document.createRange(); r.selectNodeContents(sp); const a = r.getBoundingClientRect(), b = td.getBoundingClientRect();
+            return [sp.textContent, Math.round(a.left - b.left), Math.round(b.right - a.right), sp.scrollWidth <= sp.clientWidth + 1]; }""")
+        check(f"J11 {w} px: kiritish qatori «Omborda» — «1 234 567,25 kg» katakdan chiqmaydi (tanlangan zahoti)",
+              _o[1] >= 0 and _o[2] >= 0 and _o[3], _o)
+        ctx.close()
+    # ─── J12 (review262 №2, №3): juda katta statistika — katakdan chiqmaydi; ta'minotchi bekor qilinsa «—» asl shriftda, eski izohsiz ───
+    ctx, pg = kontekst(1440, 900)
+    sahifa(pg, sid=SID2)
+    pg.wait_for_function("() => /124/.test(document.getElementById('sup-credit').textContent)", timeout=10000)
+    pg.wait_for_timeout(200)
+    _st = pg.evaluate("""() => ['sup-credit', 'sup-paid', 'sup-debt'].map(id => { const e = document.getElementById(id), box = e.closest('.rcv-stat-box');
+        const r = document.createRange(); r.selectNodeContents(e); const a = r.getBoundingClientRect(), b = box.getBoundingClientRect();
+        return [e.textContent, a.left >= b.left - 0.5 && a.right <= b.right + 0.5, e.style.fontSize, e.title]; })""")
+    check("J12 1440 px: «Jami xarid» / «Eski qarz» 124 444 443 800 so'm — 3 ustunli katakdan chiqmaydi (11 px, sig'masa katak ichida bo'linadi), izohda to'liq",
+          all(x[1] for x in _st) and _st[0][2] == "11px" and "124" in _st[0][3], _st)
+    tanla(pg, "#r-supplier", "")
+    pg.wait_for_timeout(300)
+    _st2 = pg.evaluate("() => ['sup-credit', 'sup-paid', 'sup-debt'].map(id => { const e = document.getElementById(id); return [e.textContent, e.style.fontSize, e.title, e.className]; })")
+    check("J12b ta'minotchi bekor qilinsa: «—», shrift asliga qaytgan, oldingi summaning izohi va bo'linish belgisi yo'q",
+          all(x[0] == "—" and x[1] == "" and x[2] == "" and "rcv-sig-sinmaydi" not in x[3] for x in _st2), _st2)
+    ctx.close()
     check("J8 JS xatosi yo'q", not JS_XATO, JS_XATO[:5])
 
 

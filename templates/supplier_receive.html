@@ -8,7 +8,7 @@
 /* kech194 (zip 261 — egasi so'rovi va QARORLARI 06.11 00:38 … 00:57: «Kirim qilish» oynasi egasining varianti + «Ombordan tanlash» +
    2-variant (alohida «Omborda» ustuni, narx o'zgarishi belgisi «↑ x%»); namuna — work/k261/namuna261.py, rasmlar work/k261/rasm, rasm2).
    Palitra — avvalgi «B · Toza ko'k» (`--r-*`), tungi rejimda umumiy o'zgaruvchilarga o'tadi. */
-.rcv-wrap{--r-bg:#F4F6FA;--r-card:#FFFFFF;--r-border:#E2E7EF;--r-primary:#2563EB;--r-primary-d:#1D4ED8;--r-primary-tint:#EEF4FF;--r-primary-bd:#BFD3FB;--r-success:#15803D;--r-success-tint:#F0FDF4;--r-danger:#DC2626;--r-danger-tint:#FEF2F2;--r-warning:#B45309;--r-warning-tint:#FFFBEB;--r-warning-bd:#FCD34D;--r-amber:#D97706;--r-text:#1A1F2B;--r-text2:#4A5366;--r-text3:#5B6476;--r-text4:#8A93A6;background:var(--r-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto;position:relative}
+.rcv-wrap{--r-bg:#F4F6FA;--r-card:#FFFFFF;--r-border:#E2E7EF;--r-primary:#2563EB;--r-primary-d:#1D4ED8;--r-primary-tint:#EEF4FF;--r-primary-bd:#BFD3FB;--r-success:#15803D;--r-success-tint:#F0FDF4;--r-danger:#DC2626;--r-danger-tint:#FEF2F2;--r-warning:#B45309;--r-warning-tint:#FFFBEB;--r-warning-bd:#FCD34D;--r-amber:#D97706;--r-text:#1A1F2B;--r-text2:#4A5366;--r-text3:#5B6476;--r-text4:#8A93A6;background:var(--r-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto;position:relative;scrollbar-gutter:stable}
 /* kech195 (O'LCHANGAN 390 px: qidiruvli tanlagichning yashirin asl `<select>` i (`position:absolute`) aylanuvchi o'ramdan tashqariga
    — hujjatga joylanib, sahifa (o'ram emas) ~50 px surilardi va pastdagi panel ekran pastidan ko'tarilib qolardi): o'ram — joylashuv asosi */
 /* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
@@ -151,11 +151,12 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-1
 .rcv-trend.dn{color:var(--r-success);background:var(--r-success-tint)}
 html[data-theme="dark"] .rcv-trend{color:#FBBF24;background:rgba(251,191,36,.14)}
 html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.12)}
-.rcv-sum{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-primary-tint);display:flex;align-items:center;justify-content:flex-end;text-align:right;padding:2px 6px;font-weight:800;color:var(--r-text);font-size:13px;line-height:16px}
+.rcv-sum{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-primary-tint);display:flex;align-items:center;justify-content:flex-end;justify-content:safe flex-end;text-align:right;padding:2px 6px;font-weight:800;color:var(--r-text);font-size:13px;line-height:16px}
 .rcv-mat tr.chala .rcv-sum{color:var(--r-text3);font-weight:600;background:var(--r-bg)}
 .rcv-omb{min-height:var(--h-btn);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-weight:700;color:var(--r-text2);font-size:13px;line-height:16px;white-space:nowrap}
 .rcv-omb.kam{color:var(--r-danger)}
 .rcv-omb > span{max-width:100%;white-space:normal;text-align:right;overflow-wrap:normal}
+.rcv-wrap .rcv-sig-sinmaydi{overflow-wrap:anywhere;white-space:normal}
 .rcv-omb small{font-size:12px;font-weight:700;display:flex;align-items:center;gap:2px}
 .rcv-del{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-danger-tint);color:var(--r-danger);border:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
 .rcv-del:hover{background:var(--r-danger);color:#fff}
@@ -233,6 +234,7 @@ html[data-theme="dark"] .rcv-addbar{background:transparent}
 /* kech196 (O'LCHANGAN 1024 … 1366 px: «Qaysi hisobdan» ustuni 230 … 255 px — «Naqd pul», «Bank», «Karta» «N…», «B…», «K…» bo'lib qolardi;
    uchala bo'lak ~ 275 px so'raydi): kartaning o'z kengligi bo'yicha — keng: uch ustun; o'rtacha: summa | muddat, ostida hisob butun
    qator; tor: bitta ustun. Yorliq ikki qator bo'lsa ham maydonlar bir chiziqda (yorliq o'sadi) */
+@media(max-width:700px){.rcv-row-tolov{grid-template-columns:1fr}}   /* review262 №6: konteyner so'rovini bilmaydigan brauzer uchun zaxira */
 #rcv-tolov-karta > .rcv-card-body{container:rcvtolov / inline-size}
 .rcv-row-tolov > .rcv-field{display:flex;flex-direction:column}
 .rcv-row-tolov > .rcv-field > label{flex:1 0 auto}
@@ -1050,6 +1052,7 @@ async function onSupplierChange(){
     document.getElementById('sup-credit').textContent = '—';
     document.getElementById('sup-paid').textContent = '—';
     document.getElementById('sup-debt').textContent = '—';
+    if (typeof rcvSigKeyin === 'function') rcvSigKeyin();          // review262 №2: oldingi ta'minotchi summasining shrifti / izohi qolmasin
     const _soni = document.getElementById('rcv-tarix-soni'); if (_soni) _soni.style.display = 'none';
     applySupplierMaterialFilter(null);
     return;
@@ -1065,6 +1068,7 @@ async function loadHistoryForSupplier(page){
   const tbody0 = document.getElementById('rcv-history-body');
   if (typeof TAMINOTCHI_KORISH !== 'undefined' && !TAMINOTCHI_KORISH) {
     ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
     if (tbody0) tbody0.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">${escapeHtml(
       "Ta'minotchi tarixi va qarzi — «Ta'minotchilar: Ko'rish» ruxsati bilan ko'rinadi")}</td></tr>`;
     return;
@@ -1075,8 +1079,10 @@ async function loadHistoryForSupplier(page){
   if (from) url += `&start_date=${encodeURIComponent(from)}`;
   if (to) url += `&end_date=${encodeURIComponent(to)}`;
   ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '…'; });
+  if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
   await yukBlok('kirim_tarix', url, d => loadHistoryForSupplier.chiz(d), e => {
     ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
     if (tbody0) tbody0.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-danger)">${escapeHtml(
       yukXatoMatn("Ta'minotchi tarixi", e))}</td></tr>`;
     const pag0 = document.getElementById('rcv-history-pagination'); if (pag0) pag0.innerHTML = '';
@@ -1434,7 +1440,10 @@ function apCalc(){
   const price = parseNum(document.getElementById('ap-price').value)||0;
   // kech144 (zip 180, audit C6): server qoidasi (`buyurtmaJami` — savatdagi bilan bir xil; ilgari `qty × narx` butun so'mga)
   document.getElementById('ap-total').value = (qty*price>0) ? narxKorinishi(buyurtmaJami(qty, price).jami)+" so'm" : '—';
-  if (typeof rcvSigdir === 'function') ['ap-qty', 'ap-price', 'ap-total'].forEach(id => rcvSigdir(document.getElementById(id)));
+  if (typeof rcvSigdir === 'function') {
+    ['ap-qty', 'ap-price', 'ap-total'].forEach(id => rcvSigdir(document.getElementById(id)));
+    rcvSigdir(document.querySelector('#ap-omborda .rcv-sig'));   // review262 №1: material tanlanganda «Omborda» ham darhol
+  }
   // kech194 (zip 261): kiritish qatorida ham narx o'zgarishi belgisi
   if (typeof rcvTrendJoyla === 'function' && document.getElementById('ap-trend')) {
     const itemId = parseInt(document.getElementById('ap-item').value);
@@ -1612,6 +1621,7 @@ const RCV_SIG_MIN = 11;
 function rcvSigdir(el) {
   if (!el || !el.style || !el.dataset) return;
   if (el.style.fontSize) el.style.fontSize = '';
+  if (el.classList) el.classList.remove('rcv-sig-sinmaydi');
   const cw = el.clientWidth;
   if (!cw) return;
   const izohOchir = () => { if (el.dataset.sigIzoh) { el.removeAttribute('title'); delete el.dataset.sigIzoh; } };
@@ -1621,8 +1631,15 @@ function rcvSigdir(el) {
   let f = Math.max(RCV_SIG_MIN, Math.floor(asl * cw / sw * 2) / 2);
   el.style.fontSize = f + 'px';
   while (el.scrollWidth > el.clientWidth + 1 && f > RCV_SIG_MIN) { f = Math.max(RCV_SIG_MIN, f - 0.5); el.style.fontSize = f + 'px'; }
-  if (el.scrollWidth > el.clientWidth + 1) { el.title = el.tagName === 'INPUT' ? el.value : el.textContent; el.dataset.sigIzoh = '1'; }
-  else izohOchir();
+  if (el.scrollWidth > el.clientWidth + 1) {
+    // review262 №3, №5: eng kichik shriftda ham sig'masa — katak ichida bo'linadi (`rcv-sig-sinmaydi`, katakdan chiqmaydi); izohga to'liq
+    // qiymat, ota elementning o'z izohi bo'lsa (masalan «Omborda kam — …») — u ham saqlanadi
+    const matn = el.tagName === 'INPUT' ? el.value : el.textContent;
+    const ota = el.parentElement && el.parentElement.getAttribute ? el.parentElement.getAttribute('title') : '';
+    el.title = ota ? matn + ' — ' + ota : matn;
+    el.dataset.sigIzoh = '1';
+    if (el.tagName !== 'INPUT' && el.classList) el.classList.add('rcv-sig-sinmaydi');
+  } else izohOchir();
 }
 function rcvSigHammasi() {
   try { document.querySelectorAll('#rcvWrap .rcv-sig').forEach(rcvSigdir); } catch (e) { /* o'lchov — faqat ko'rinish */ }
