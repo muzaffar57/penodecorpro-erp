@@ -12559,7 +12559,7 @@ def api_dokon_v1_katalog(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/dokon/v1/maxsus-narx")
 def api_dokon_v1_maxsus_narx(request: Request, model_id: str = None, balandlik: str = None, db: Session = Depends(get_db)):
-    """kech187 (zip 255): «Boshqa o'lcham» (karniz formulasi) — saytda ko'rinadigan formulali model, balandlik 15 … 40 sm (0,1 sm) → 1 m
+    """kech187 (zip 255): «Boshqa o'lcham» (karniz formulasi) — saytda ko'rinadigan formulali model, balandlik 25 … 60 sm (zip 257) (0,1 sm) → 1 m
     narxi (qoplamasiz / qoplamali, butun so'm; savatdagi hisob bilan AYNAN). Model / formula yo'q — 404, noto'g'ri balandlik — 400."""
     cid = _dokon_api_korxona(request, db)
     try:

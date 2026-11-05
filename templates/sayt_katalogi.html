@@ -26,7 +26,9 @@
    sayt katalogdan oladi. Ma'lumot — /api/sayt-katalogi/galereya.
    kech187 (zip 255 — egasi QARORLARI 04.11): yuqori kartochkada «1 m³ mahsulot narxi» (karniz formulasi); metrli modelda «📐 Formula
    narxi» — asos balandlik, shu balandlikdagi blok chuqurligi, bir blokdan nechta; formulali modelning qoplamasiz / qoplamali narx
-   kataklari — faqat o'qish (server hisoblaydi: balandlik × blok × 1 m³ narxi ÷ bo'lak, butun so'm), saytda «Boshqa o'lcham» 15 … 40 sm. #}
+   kataklari — faqat o'qish (server hisoblaydi: balandlik × blok × 1 m³ narxi ÷ bo'lak, butun so'm), saytda «Boshqa o'lcham» 15 … 40 sm (zip 257: 25 … 60).
+   kech190 (zip 257 — egasi QARORI 05.11): formulali qatorda QOPLAMALI narx katagi — ochiq (qo'lda; bo'sh — × koeffitsient); formula faqat
+   qoplamasiz narxni hisoblaydi. «Boshqa o'lcham» qoplamalisi — eng yaqin qo'lda yozilgan o'lchamning qoplama ulushidan (server). #}
 <style>
 .sk-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
 .sk-grid > div{min-width:0}
@@ -326,7 +328,8 @@
       </label>
       <button type="button" class="btn btn-outline" id="skKubSaqla" onclick="skKubSaqla()" disabled>Saqlash</button>
       <div class="sk-matn" style="flex:1 1 280px">Karniz formulasi uchun: 1 m narx = balandlik × blok chuqurligi × shu narx ÷ bir blokdan
-        chiqadigan soni. O'zgartirilsa, «📐 Formula narxi» yoqilgan hamma modellar narxi darhol qayta hisoblanadi.</div>
+        chiqadigan soni. O'zgartirilsa, «📐 Formula narxi» yoqilgan hamma modellarning qoplamasiz narxi darhol qayta hisoblanadi
+        (qo'lda yozilgan qoplamali narx o'zgarmaydi).</div>
     </div>
     <div class="yuk-xato-qator" id="skXato" hidden></div>
   </div>
@@ -605,7 +608,7 @@ function skModelHtml(m) {
     '<td data-label="Eni, sm"><input type="text" inputmode="decimal" data-yf="eni_sm"></td>' +
     '<td data-label="Qalinligi, sm"><input type="text" inputmode="decimal" data-yf="qalinligi_sm"></td>' +
     '<td data-label="Narx (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="narx"' + (m.formula && turlar[0] === 'asosiy' ? ' disabled placeholder="formula"' : '') + '></td>' +
-    '<td data-label="Narx (qoplamali)"><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="' + (m.formula && turlar[0] === 'asosiy' ? 'formula" disabled' : 'avto"') + '></td>' +
+    '<td data-label="Narx (qoplamali)"><input type="text" inputmode="decimal" data-yf="narx_qoplamali" placeholder="avto"></td>' +   // zip 257: formulali qatorda ham qo'lda
     '<td data-label="Ulgurji (qoplamasiz)"><input type="text" inputmode="decimal" data-yf="ulgurji_narx"></td>' +
     '<td data-label="Ulgurji (qoplamali)"><input type="text" inputmode="decimal" data-yf="ulgurji_qoplamali" placeholder="avto"></td>' +
     '<td class="sk-bosh-td"></td><td><button type="button" class="btn btn-dark" data-dyarat="' + m.id + '">+</button></td></tr>' +
@@ -615,7 +618,7 @@ function skModelHtml(m) {
     '<p class="sk-matn" style="margin-top:8px">Narx — ' + (m.qolip === 'komplekt' ? 'karniz, podokonnik, nalichnik uchun 1 m, kapitel va baza uchun 1 dona' :
       (m.qolip === 'm2' ? '1 m²' : (m.qolip === 'dona' ? '1 dona' : '1 m (kapitel va baza — 1 dona)'))) +
     '. Ulgurji: metrli detal — 1 dona = 2 m, m² — 1 m², dona — 1 dona. Qoplamali narx bo\'sh — qoplamasiz × koeffitsient.' +
-    (m.formula ? ' Bu modelda asosiy qatorlarning qoplamasiz va qoplamali narxi formula bilan hisoblanadi (Eni — balandlik, sm); kapitel va baza narxi — qo\'lda.' : '') + '</p>' +
+    (m.formula ? ' Bu modelda asosiy qatorlarning qoplamasiz narxi formula bilan hisoblanadi (Eni — balandlik, sm); qoplamali narx — qo\'lda (bo\'sh — × koeffitsient); kapitel va baza narxi — qo\'lda.' : '') + '</p>' +
     '</div></div>';
   return h;
 }
@@ -626,7 +629,7 @@ function skDetalQator(d) {
   var _m255 = SK.k.modellar.filter(function (x) { return x.id === d.model_id; })[0];
   var _f255 = !!(_m255 && _m255.formula) && d.turi === 'asosiy';   // zip 255: formulali model ASOSIY qatori — narx serverdan (review255 M2: kapitel / baza — qo'lda)
   function narx(k, avto) {
-    var qulf = _f255 && (k === 'narx' || k === 'narx_qoplamali');
+    var qulf = _f255 && k === 'narx';                               // zip 257: qoplamali — qo'lda (bo'sh — × koeffitsient)
     return '<input type="text" inputmode="decimal" data-df="' + k + '" value="' + escapeHtml(skPul(d[k])) + '"' +
       (qulf ? ' disabled title="Formula bilan hisoblanadi"' : '') +
       (avto !== undefined ? ' placeholder="avto"' : '') + '>' +
@@ -800,12 +803,10 @@ function skModelTinglovchilar(el) {
       var tr = sel.closest('tr[data-yangi]');
       var mm = SK.k.modellar.filter(function (x) { return x.id === parseInt(tr.dataset.yangi, 10); })[0];
       var qulf = !!(mm && mm.formula) && sel.value === 'asosiy';
-      ['narx', 'narx_qoplamali'].forEach(function (k) {
-        var inp = tr.querySelector('[data-yf="' + k + '"]');
-        inp.disabled = qulf;
-        if (qulf) inp.value = '';
-        inp.placeholder = qulf ? 'formula' : (k === 'narx' ? '' : 'avto');
-      });
+      var inp = tr.querySelector('[data-yf="narx"]');                 // zip 257: faqat qoplamasiz narx — formula (qoplamali — qo'lda)
+      inp.disabled = qulf;
+      if (qulf) inp.value = '';
+      inp.placeholder = qulf ? 'formula' : '';
     });
   });
   el.querySelectorAll('[data-dochir]').forEach(function (t) {
@@ -867,7 +868,9 @@ async function skKubSaqla() {
   skBo('kub');
   if (!n.ok) { showMsg('❌ 1 m³ narxi saqlanmadi: ' + n.sabab, 'error'); return; }
   var q = (n.d && n.d.qayta_hisoblandi) || 0;
-  showMsg('✓ 1 m³ narxi saqlandi' + (q ? ' — ' + q + ' ta narx qayta hisoblandi' : ''), 'success');
+  var qq = (n.d && n.d.qolda_qoplamali) || 0;                       // zip 257: qo'lda yozilgan qoplamali narxlar o'zgarmaydi — eslatma
+  showMsg('✓ 1 m³ narxi saqlandi' + (q ? ' — ' + q + ' ta narx qayta hisoblandi' : '') +
+    (qq ? '. Diqqat: ' + qq + ' ta qatorda qoplamali narx qo\'lda yozilgan — u o\'zgarmadi, tekshirib chiqing' : ''), 'success');
   skYukla();
 }
 
@@ -894,7 +897,8 @@ function skFormulaHtml(m) {
     '<button type="button" class="btn btn-outline" data-fsaqla="' + m.id + '">Formulani saqlash</button>' +
     (m.formula ? '<button type="button" class="btn btn-outline" data-fochir="' + m.id + '">Formulani o\'chirish</button>' : '') + '</div>' +
     '<p class="sk-matn" style="margin-top:6px">1 m qoplamasiz = balandlik × (balandlik × blok ÷ asos) × 1 m³ narxi ÷ bir blokdan nechta; ' +
-    'qoplamali = × koeffitsient. Aniq summa (butun so\'m), yaxlitlanmaydi. Har qatorda «Eni, sm» — balandlik. ' + escapeHtml(namuna) + '</p></details>';
+    'qoplamali — jadvalda qo\'lda yoziladi (bo\'sh bo\'lsa × koeffitsient); «Boshqa o\'lcham»da — eng yaqin o\'lchamning qoplama ulushidan. ' +
+    'Aniq summa (butun so\'m), yaxlitlanmaydi. Har qatorda «Eni, sm» — balandlik. ' + escapeHtml(namuna) + '</p></details>';
 }
 
 async function skFormulaSaqla(mid, tugma, ochir) {
@@ -1099,6 +1103,10 @@ async function skDetalMaydon(inp) {
     if (k === 'yoqilgan') inp.checked = !!d.yoqilgan;
     else if (k === 'olcham') inp.value = d.olcham;
     else inp.value = skPul(d[k]);
+  }
+  if (k !== 'narx') {                     // zip 257: formulali qatorda balandlik o'zgarsa — server qayta hisoblagan qoplamasiz narx (yopiq katak)
+    var nq = tr.querySelector('[data-df="narx"]');
+    if (nq && nq.disabled) nq.value = skPul(d.narx);
   }
   [['narx_qoplamali', d.narx_qoplamali_avto], ['ulgurji_qoplamali', d.ulgurji_qoplamali_avto]].forEach(function (j) {
     var x = tr.querySelector('[data-avto="' + j[0] + '"]');

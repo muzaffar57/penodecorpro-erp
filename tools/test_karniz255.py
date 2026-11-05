@@ -107,6 +107,10 @@ def bazadan(fn):
 
 
 main._send_telegram = lambda *a, **k: True
+# kech190 (zip 257 — egasi QARORI 05.11): «Boshqa o'lcham» oralig'i endi 25 … 60 sm (`crud.DOKON_MAXSUS_MIN_SM` / `_MAX_SM`). Bu test zip 255
+# mantig'ini (formula, chuqurlik, savat, review255) 15 … 40 oralig'ida tekshiradi — oraliq shu jarayonda 15 … 40 ga qaytariladi (funksiyalar
+# modul o'zgaruvchisini chaqiruv paytida o'qiydi; eski kodda ham AYNAN shu qiymat). Yangi oraliq — tools/test_karniz_qoplamali257.py M11–M15.
+crud.DOKON_MAXSUS_MIN_SM, crud.DOKON_MAXSUS_MAX_SM = Decimal("15"), Decimal("40")
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("S. Tayyorgarlik")
@@ -231,8 +235,16 @@ r = CA.put(API + f"/detallar/{DK[20]}", json={"narx": 10000})
 check("R1 formulali modelda qo'lda narx — 400, narx o'zgarmadi", r.status_code == 400 and detal(DK[20]).get("narx") == 11964,
       (r.status_code, r.text[:200]))
 r = CA.put(API + f"/detallar/{DK[20]}", json={"narx_qoplamali": 30000})
-check("R2 formulali modelda qo'lda qoplamali narx — 400", r.status_code == 400 and detal(DK[20]).get("narx_qoplamali") is None,
-      (r.status_code, r.text[:200]))
+if hasattr(crud, "_dokon_maxsus_qoplamali"):
+    # kech190 (zip 257 — egasi QARORI 05.11): formulali qatorda QOPLAMALI narx — qo'lda (to'liq — tools/test_karniz_qoplamali257.py);
+    # qobiliyat bayrog'i — eski kodda (zip 255 / 256) avvalgi kutilgan natija tekshiriladi. Keyingi bo'limlar uchun qoplamali bo'shatiladi.
+    check("R2 formulali modelda qo'lda qoplamali narx — qabul (zip 257), qoplamasiz o'zgarmadi",
+          r.status_code == 200 and detal(DK[20]).get("narx_qoplamali") == 30000 and detal(DK[20]).get("narx") == 11964,
+          (r.status_code, r.text[:200]))
+    CA.put(API + f"/detallar/{DK[20]}", json={"narx_qoplamali": None})
+else:
+    check("R2 formulali modelda qo'lda qoplamali narx — 400", r.status_code == 400 and detal(DK[20]).get("narx_qoplamali") is None,
+          (r.status_code, r.text[:200]))
 r = CA.put(API + f"/detallar/{DK[20]}", json={"ulgurji_narx": 20000})
 check("R3 ulgurji narx — qo'lda (formulaga kirmaydi)", r.status_code == 200 and detal(DK[20]).get("ulgurji_narx") == 20000,
       (r.status_code, r.text[:200]))
