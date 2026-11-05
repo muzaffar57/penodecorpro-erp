@@ -17781,6 +17781,12 @@ def qurilma_nomi_yasash(user_agent: str, model: str = None) -> str:
     ua = str(user_agent or "")
     tizim = _qurilma_tizimi(ua)
     brauzer = next((nom for belgi, nom in _QURILMA_BRAUZER if belgi in ua), "")
+    # kech191 (zip 258, review258 F3): ilova ichidagi brauzer (Telegram / boshqa ilova WebView) — Chrome EMAS: nomi boshqa bo'lsin
+    # («o'sha telefon» tanishida bir telefondagi ikki brauzer bir-birini uzib yurmasin; admin ham farqni ko'rsin)
+    if "Telegram" in ua:
+        brauzer = "Telegram ichida"
+    elif "; wv)" in ua:
+        brauzer = "ilova ichida"
     m = _qurilma_modeli(ua, model)
     return " · ".join([tizim] + ([m] if m else []) + ([brauzer] if brauzer else []))[:QURILMA_NOMI_MAX]
 
@@ -17817,7 +17823,13 @@ def hodim_qurilma_ozi(db: Session, emp, qurilma_hash: str, user_agent: str, mode
     nomida MODEL bo'lsa — yangi kalit o'sha telefonga o'zi bog'lanadi (so'rov / admin ruxsati YO'Q; adminga faqat xabar). Model
     noma'lum (iPhone, eski Chrome), boshqa model / brauzer, telefon uzilgan (`qurilma_hash` yo'q) — False (avvalgidek so'rov).
     Kutayotgan BOSHQA telefon so'rovi (bo'lsa) va uning sessiyasi — o'zgarmaydi; ESKI kalitdagi sessiyalar yopiladi.
-    Chaqiruvchi — FAQAT `main.hodim_login_submit` (to'g'ri telefon + PIN + korxona tekshiruvidan keyin)."""
+    Chaqiruvchi — FAQAT `main.hodim_login_submit` (to'g'ri telefon + PIN + korxona tekshiruvidan keyin).
+    review258 (mustaqil tekshiruv) himoyalari:
+      F1 — shu brauzer (kalit) allaqachon BOSHQA nom bilan ruxsat kutayotgan bo'lsa — False (modelni taxmin qilib ko'rish jim
+           o'tmasin: birinchi taxmin so'rov + xabar beradi, keyingilari bog'lamaydi);
+      F6 — oxirgi bog'lashdan keyin admin biror so'rovni RAD etgan bo'lsa — keyingi admin ruxsatigacha avtomatik bog'lash YO'Q;
+      F5 — shartli UPDATE (kalit va nom o'qilgandek bo'lsa); poygada boshqasi o'zgartirgan bo'lsa — False (chaqiruvchi qayta tekshiradi);
+      F2 — sessiyalar faqat o'z korxonasi hodimi bo'yicha."""
     if not emp.qurilma_hash or not emp.qurilma_nomi or not qurilma_hash or emp.qurilma_hash == qurilma_hash:
         return False
     if not _qurilma_modeli(user_agent, model):
@@ -17825,17 +17837,35 @@ def hodim_qurilma_ozi(db: Session, emp, qurilma_hash: str, user_agent: str, mode
     nomi = qurilma_nomi_yasash(user_agent, model)
     if nomi != emp.qurilma_nomi:
         return False
+    if emp.qurilma_sorov_hash == qurilma_hash and emp.qurilma_sorov_nomi != nomi:          # F1
+        return False
+    from models import ActivityLog as _AL258
+    _rad = db.query(_AL258.id).filter(_AL258.company_id == emp.company_id, _AL258.entity_type == "employee",
+                                      _AL258.entity_id == emp.id, _AL258.action == "qurilma_rad")
+    if emp.qurilma_vaqti is not None:
+        _rad = _rad.filter(_AL258.created_at >= emp.qurilma_vaqti)
+    if _rad.first() is not None:                                                            # F6
+        return False
     from models import EmployeeSession as _ES258
-    eski_hash = emp.qurilma_hash
-    emp.qurilma_hash = qurilma_hash
-    emp.qurilma_vaqti = datetime.utcnow()
-    if emp.qurilma_sorov_hash == qurilma_hash:
-        emp.qurilma_sorov_hash = emp.qurilma_sorov_nomi = emp.qurilma_sorov_vaqti = None
+    eski_hash, eski_nomi = emp.qurilma_hash, emp.qurilma_nomi
+    _qiymat = {"qurilma_hash": qurilma_hash, "qurilma_vaqti": datetime.utcnow()}
+    if emp.qurilma_sorov_hash == qurilma_hash:      # shu brauzerning (o'sha nomli) eski so'rovi — endi keraksiz
+        _qiymat.update({"qurilma_sorov_hash": None, "qurilma_sorov_nomi": None, "qurilma_sorov_vaqti": None})
+    n = db.query(Employee).filter(Employee.id == emp.id, Employee.company_id == emp.company_id,            # F5: shartli
+                                  Employee.qurilma_hash == eski_hash, Employee.qurilma_nomi == eski_nomi
+                                  ).update(_qiymat, synchronize_session=False)
+    if n != 1:
+        db.rollback()                               # emp eskirdi — chaqiruvchi yangi holatni o'qiydi
+        return False
     # faqat ESKI kalit sessiyalari (kutayotgan boshqa telefon sahifasi ochiq qoladi — admin ruxsat bersa o'zi panelga o'tadi)
-    db.query(_ES258).filter(_ES258.employee_id == emp.id, _ES258.qurilma_hash == eski_hash).delete(synchronize_session=False)
+    db.query(_ES258).filter(                                                                                  # F2: korxona
+        _ES258.employee_id == emp.id, _ES258.qurilma_hash == eski_hash,
+        _ES258.employee_id.in_(db.query(Employee.id).filter(Employee.company_id == emp.company_id)),
+    ).delete(synchronize_session=False)
     log_activity(db, "qurilma_qayta", "employee", emp.id, f"{emp.name}: {nomi}"[:200], emp.name,
                  company_id=emp.company_id, commit=False)
     db.commit()
+    db.refresh(emp)
     return True
 
 

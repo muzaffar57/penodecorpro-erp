@@ -6955,7 +6955,7 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
         # kech191 (zip 258 — egasi QARORI 05.11): o'sha (ruxsat berilgan) telefon — so'rovsiz, adminga faqat xabar
         if crud.hodim_qurilma_ozi(db, emp, _qh, ua, qurilma_model):
             _fonda(background_tasks, _hodim_qurilma_qayta_telegram, emp.name, emp.qurilma_nomi, emp.company_id, sessiya=db)
-        else:
+        elif emp.qurilma_hash != _qh:       # review258 F5: poygada (ikki marta bosish) boshqa so'rov shu kalitni bog'lagan bo'lishi mumkin
             _nomi = crud.qurilma_nomi_yasash(ua, qurilma_model)
             if crud.hodim_qurilma_sorovi(db, emp, _qh, _nomi):
                 _fonda(background_tasks, _hodim_qurilma_telegram, emp.name, emp.qurilma_nomi, _nomi, emp.company_id, sessiya=db)
@@ -6974,7 +6974,8 @@ def _hodim_qurilma_qayta_telegram(ism: str, nomi: Optional[str], company_id: int
     try:
         _matn = (f"📱 *Hodim o'sha telefondan qayta kirdi*\n\n👷 {ism}\n📱 {nomi or 'Telefon'}\n\n"
                  "Ruxsat so'ralmadi — bu telefonga avval ruxsat bergansiz (brauzer saytni unutgan edi).\n"
-                 "Bu hodim bo'lmasa: «Ustalar KPI / Hodimlar» → «🔑 Kirish» → «Telefonni uzish».")
+                 "Bu hodim bo'lmasa: «Ustalar KPI / Hodimlar» → «🔑 Kirish» → yangi PIN bering va «Telefonni uzish» "
+                 "(PIN ni bilgan odam qayta kira olmasin).")
         _send_telegram(_matn, company_id=company_id)
     except Exception as e:                  # noqa: BLE001
         print(f"⚠ Telegram (o'sha telefon) yuborilmadi: {e}")

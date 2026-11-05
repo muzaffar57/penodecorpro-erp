@@ -20,14 +20,17 @@ BO'LIMLAR
   B — so'raladiganlar: boshqa model, o'sha model boshqa brauzer, model noma'lum (yangi Chrome «K» + sahifa modeli yo'q), iPhone,
       telefon uzilgan, ruxsat hech qachon berilmagan, noto'g'ri PIN, model kichik-katta harf farqi;
   C — boshqa telefon so'rovi kutayotganda o'sha telefon qaytsa — so'rov saqlanadi; vaqtinchalik PIN — «pin» holati; boshqa korxona;
-  D — telefon nomi: ilova ichidagi brauzer satri («Build/…; wv)») — model endi o'qiladi; eski nomlar o'zgarmagan;
+  D — telefon nomi: ilova ichidagi brauzer satri («Build/…; wv)») — model endi o'qiladi va brauzer «ilova ichida» / «Telegram ichida»
+      (Chrome emas — review258 F3); eski nomlar o'zgarmagan;
+  F — mustaqil tekshiruv (review258) himoyalari: F1 shu brauzer boshqa nom bilan kutayotgan bo'lsa — bog'lanmaydi (modelni taxmin
+      qilish jim o'tmaydi); F6 rad etilgandan keyin — keyingi ruxsatgacha avtomatik yo'q; F5 poyga (eskirgan obyekt, ikki marta bosish);
+      shu brauzerning o'sha nomli eski so'rovi tozalanadi; tizim (Windows) farqi; vaqt QAT'IY yangilanadi.
   E — statik: «Telefonni uzish» oynasida PIN eslatmasi, jurnal yorlig'i.
 REJIMLAR: SQLite (odatiy); `PG_URL` — har ishga YANGI PostgreSQL bazasi; `TENANT_FILTER=1` bilan ham.
 Asl kodga (zip 257) qarshi YIQILADI (QULAMAYDI).
 ISHLATISH: python3 tools/test_qurilma_ozi258.py
 """
 import os
-import re
 import sys
 import tempfile
 
@@ -226,6 +229,12 @@ _e0 = emp(E1)
 check("A0 birinchi telefon — admin ruxsati bilan (so'rov 1, nom «Android · SM-A155F · Chrome»), panel «tayyor»",
       holat(H1) == "tayyor" and _e0["qurilma_nomi"] == "Android · SM-A155F · Chrome" and jurnal(E1, "qurilma_sorov") == 1
       and jurnal(E1, "qurilma_ruxsat") == 1, (holat(H1), _e0))
+_s = SessionLocal()
+_s.query(Employee).filter(Employee.id == E1).update({"qurilma_vaqti": _e0["qurilma_vaqti"].replace(year=2025)},
+                                                     synchronize_session=False)
+_s.commit()
+_s.close()
+_e0 = emp(E1)
 TG.clear()
 H1b = mijoz(CHROME)                       # o'sha telefon, o'sha brauzer — cookie lar yo'qolgan
 _r = kir(H1b, "+998901580001", "4826")
@@ -235,14 +244,14 @@ check("A1 o'sha telefon (o'sha model va brauzer) cookie siz to'g'ri PIN bilan �
 check("A2 so'rov YO'Q: kutayotgan so'rov bo'sh, jurnalda yangi «qurilma_sorov» yo'q, admin ro'yxatida yo'q",
       _e1["qurilma_sorov_hash"] is None and jurnal(E1, "qurilma_sorov") == 1
       and not any(x.get("employee_id") == E1 for x in js(A.get("/api/admin/qurilma-sorovlari")) or []), _e1)
-check("A3 bazada telefon kaliti — YANGI brauzer kalitining xeshi; nom o'zgarmadi; vaqt yangilandi",
+check("A3 bazada telefon kaliti — YANGI brauzer kalitining xeshi; nom o'zgarmadi; vaqt yangilandi (2025 → bugun)",
       _e1["qurilma_hash"] == kalit_hash(H1b) and _e1["qurilma_hash"] != _e0["qurilma_hash"]
       and _e1["qurilma_nomi"] == _e0["qurilma_nomi"] and _e1["qurilma_vaqti"] is not None
-      and str(_e1["qurilma_vaqti"]) >= str(_e0["qurilma_vaqti"]), (_e0, _e1))
+      and _e0["qurilma_vaqti"].year == 2025 and _e1["qurilma_vaqti"].year >= 2026, (_e0, _e1))
 check("A4 Telegram: BITTA xabar — «o'sha telefondan qayta kirdi», korxonaga, ism va telefon nomi, «Telefonni uzish» yo'li; "
       "«yangi telefondan kirmoqchi» YO'Q",
       len(TG) == 1 and TG[0][1] == 1 and "o'sha telefondan qayta kirdi" in TG[0][0] and "Ulug'bek" in TG[0][0]
-      and "Android · SM-A155F · Chrome" in TG[0][0] and "Telefonni uzish" in TG[0][0]
+      and "Android · SM-A155F · Chrome" in TG[0][0] and "Telefonni uzish" in TG[0][0] and "yangi PIN bering" in TG[0][0]
       and "yangi telefondan kirmoqchi" not in TG[0][0], TG)
 check("A5 jurnalda «qurilma_qayta» (1 ta) — hodim nomidan, yozuv nomi «Ism: telefon»",
       jurnal(E1, "qurilma_qayta") == 1, jurnal(E1, "qurilma_qayta"))
@@ -385,8 +394,9 @@ check("C4 funksiya chegaralari: o'sha kalit (allaqachon bog'langan) — False; b
 section("D. Telefon nomi")
 # ══════════════════════════════════════════════════════════════
 _nom = crud.qurilma_nomi_yasash
-check("D1 ilova ichidagi brauzer satri («SM-A525F Build/…; wv)») — model o'qiladi (ilgari «Android · Chrome»); Telegram belgili "
-      "satr ham", _nom(WV, "") == "Android · SM-A525F · Chrome" and _nom(WV_TG, "") == "Android · SM-A525F · Chrome",
+check("D1 ilova ichidagi brauzer satri («SM-A525F Build/…; wv)») — model o'qiladi (ilgari «Android · Chrome»), brauzer — «ilova "
+      "ichida» (Chrome EMAS); Telegram belgili satr — «Telegram ichida»",
+      _nom(WV, "") == "Android · SM-A525F · ilova ichida" and _nom(WV_TG, "") == "Android · SM-A525F · Telegram ichida",
       (_nom(WV, ""), _nom(WV_TG, "")))
 check("D2 eski nomlar o'zgarmagan: «Android 10; K» — model yo'q; sahifa modeli ustun; Samsung Internet; iPhone; «Build/» siz satr",
       _nom(CHROME, "") == "Android · Chrome" and _nom(CHROME, "Redmi Note 12") == "Android · Redmi Note 12 · Chrome"
@@ -396,9 +406,97 @@ check("D2 eski nomlar o'zgarmagan: «Android 10; K» — model yo'q; sahifa mode
       and _nom("Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 "
                "Chrome/121.0.0.0 Mobile Safari/537.36", "") == "Android · SM-S918B · Samsung Internet",
       [_nom(CHROME, ""), _nom(IPHONE, "")])
-check("D3 «wv» o'zi model emas («Android 10; wv)» — model yo'q)",
+check("D3 «wv» o'zi model emas («Android 10; wv)» — model yo'q, brauzer «ilova ichida»)",
       _nom("Mozilla/5.0 (Linux; Android 10; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36",
-           "") == "Android · Chrome", None)
+           "") == "Android · ilova ichida", None)
+
+# ══════════════════════════════════════════════════════════════
+section("F. Mustaqil tekshiruv (review258) himoyalari")
+# ══════════════════════════════════════════════════════════════
+E20, H20 = tayyor_hodim("Yigirma", "+998901580020")
+TG.clear()
+G = mijoz(CHROME)
+kir(G, "+998901580020", "4826", model="SM-A346E")          # birinchi taxmin — so'rov + xabar
+_g = [holat(G)]
+for _m in ("SM-A156B", MODEL):                             # keyingi taxminlar (o'sha brauzer) — to'g'ri modelda ham bog'lanmaydi
+    kir(G, "+998901580020", "4826", model=_m)
+    _g.append(holat(G))
+check("F1 shu brauzer BOSHQA nom bilan ruxsat kutayotgan bo'lsa — to'g'ri modelni yuborsa ham bog'lanmaydi («kutilmoqda»); bog'langan "
+      "telefon o'zgarmadi; xabar 1 (birinchi so'rov)",
+      _g == ["kutilmoqda"] * 3 and emp(E20)["qurilma_hash"] == kalit_hash(H20) and jurnal(E20, "qurilma_qayta") == 0
+      and len(TG) == 1 and "kirmoqchi" in TG[0][0], (_g, len(TG)))
+E21, H21 = tayyor_hodim("Yigirma bir", "+998901580021")
+G = mijoz(CHROME)
+kir(G, "+998901580021", "4826", model="")                  # model kelmagan so'rov — admin RAD etadi
+_kal = next((x.get("kalit") for x in js(A.get("/api/admin/qurilma-sorovlari")) if x.get("employee_id") == E21), "")
+_rr = A.post(f"/api/employees/{E21}/qurilma/rad", json={"kalit": _kal})
+TG.clear()
+kir(G, "+998901580021", "4826")                            # o'sha (rad etilgan) brauzer endi modelni yuboradi
+H = mijoz(CHROME)
+kir(H, "+998901580021", "4826")                            # yana bir cookie siz brauzer, o'sha model
+check("F6 admin rad etgandan keyin — o'sha model bilan ham avtomatik bog'lanmaydi (so'rov), keyingi admin ruxsatigacha",
+      _rr.status_code == 200 and holat(G) in ("kutilmoqda", "rad") and holat(H) == "kutilmoqda" and jurnal(E21, "qurilma_qayta") == 0
+      and emp(E21)["qurilma_hash"] == kalit_hash(H21), (_rr.status_code, holat(G), holat(H), jurnal(E21, "qurilma_qayta")))
+ruxsat(E21)
+H = mijoz(CHROME)
+kir(H, "+998901580021", "4826")
+check("F6b admin yana ruxsat bergach — keyingi «unutish» yana avtomatik («tayyor», qurilma_qayta 1)",
+      holat(H) == "tayyor" and jurnal(E21, "qurilma_qayta") == 1, (holat(H), jurnal(E21, "qurilma_qayta")))
+E22, H22 = tayyor_hodim("Yigirma ikki", "+998901580022")
+_kalit = auth.yangi_qurilma_kaliti()
+_s = SessionLocal()
+_ee = _s.query(Employee).filter(Employee.id == E22).first()
+_ee.qurilma_sorov_hash, _ee.qurilma_sorov_nomi = auth.qurilma_hash_ol(_kalit), _ee.qurilma_nomi   # yangilanishdan oldingi so'rov
+_s.commit()
+_s.close()
+G = mijoz(CHROME)
+G.cookies.set("emp_qurilma", _kalit, domain=next((ck.domain for ck in A.cookies.jar), "testserver.local"), path="/")
+TG.clear()
+kir(G, "+998901580022", "4826")
+_e = emp(E22)
+check("F7 shu brauzerning O'SHA nomli eski so'rovi (yangilanishdan oldin qolgan) — bog'lanadi va so'rov tozalanadi (admin ro'yxatida yo'q)",
+      holat(G) == "tayyor" and _e["qurilma_hash"] == auth.qurilma_hash_ol(_kalit) and _e["qurilma_sorov_hash"] is None
+      and _e["qurilma_sorov_nomi"] is None and not any(x.get("employee_id") == E22 for x in js(A.get("/api/admin/qurilma-sorovlari")))
+      and len(TG) == 1 and "qayta kirdi" in TG[0][0], (holat(G), _e, TG))
+E23, H23 = tayyor_hodim("Yigirma uch", "+998901580023")
+_f = getattr(crud, "hodim_qurilma_ozi", None) or (lambda *a, **k: None)      # asl kodda yo'q — yiqiladi, qulamaydi
+_s1, _s2 = SessionLocal(), SessionLocal()
+_e1o = _s1.query(Employee).filter(Employee.id == E23).first()
+_e2o = _s2.query(Employee).filter(Employee.id == E23).first()
+_ = (_e1o.qurilma_nomi, _e2o.qurilma_nomi)
+_hn = auth.qurilma_hash_ol(auth.yangi_qurilma_kaliti())
+_t1 = _f(_s1, _e1o, _hn, CHROME, MODEL)
+_t2 = _f(_s2, _e2o, _hn, CHROME, MODEL)                    # ikki marta bosish: ikkinchisi eskirgan obyekt bilan
+_h2 = _e2o.qurilma_hash
+_s1.close()
+_s2.close()
+check("F5 ikki marta bosish: birinchisi True, ikkinchisi (eskirgan obyekt) False va obyekt yangi kalitni ko'radi (kirish yo'li so'rov "
+      "yaratmaydi); jurnalda «qurilma_qayta» 1",
+      (_t1, _t2) == (True, False) and _h2 == _hn and jurnal(E23, "qurilma_qayta") == 1, (_t1, _t2, _h2 == _hn))
+_s1, _s2 = SessionLocal(), SessionLocal()
+_e1o = _s1.query(Employee).filter(Employee.id == E23).first()
+_ = _e1o.qurilma_nomi
+_e2o = _s2.query(Employee).filter(Employee.id == E23).first()
+_e2o.qurilma_hash, _e2o.qurilma_nomi = "b" * 64, "Android · SM-S918B · Chrome"   # shu orada admin boshqa telefonga ruxsat berdi
+_s2.commit()
+_t3 = _f(_s1, _e1o, auth.qurilma_hash_ol(auth.yangi_qurilma_kaliti()), CHROME, MODEL)
+_s1.close()
+_s2.close()
+_e = emp(E23)
+check("F5b admin ruxsati bilan poyga (eskirgan obyekt) — False; bazada admin bergan telefon (kalit va nom) o'zgarmadi",
+      _t3 is False and _e["qurilma_hash"] == "b" * 64 and _e["qurilma_nomi"] == "Android · SM-S918B · Chrome", (_t3, _e))
+E24, H24 = tayyor_hodim("Yigirma to'rt", "+998901580024")
+TG.clear()
+H = mijoz("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36")
+kir(H, "+998901580024", "4826")                            # kompyuter, o'sha model yozilgan
+check("F8 tizim boshqa (Windows, o'sha model va brauzer) — so'rov", holat(H) == "kutilmoqda" and len(TG) == 1, (holat(H), TG))
+WV1, HW = tayyor_hodim("Yigirma besh", "+998901580025", ua=WV, model="")
+TG.clear()
+H = mijoz(CHROME)
+kir(H, "+998901580025", "4826", model="SM-A525F")          # o'sha telefon, lekin Chrome (ilova ichidagi brauzer bog'langan)
+check("F3 ilova ichidagi brauzer bog'langan, o'sha telefonning Chrome'i — so'rov (bir-birini jim uzmaydi)",
+      emp(WV1)["qurilma_nomi"] == "Android · SM-A525F · ilova ichida" and holat(H) == "kutilmoqda" and holat(HW) == "tayyor",
+      (emp(WV1), holat(H), holat(HW)))
 
 # ══════════════════════════════════════════════════════════════
 section("E. Statik")
