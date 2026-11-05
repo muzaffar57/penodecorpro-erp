@@ -3742,6 +3742,15 @@ DO'KON: USTA / MAGAZIN — TELEGRAM ORQALI KIRISH (kech181, zip 248; egasi QAROR
     (`finished_products.reserved_for_order_item_id`) kechiktirilgan UPDATE bilan; `add_missing_indexes` + `return_items.kqt_kalit`.
     Do'kon: model sahifasida «Boshqa oʻlcham kerakmi?», `POST /api/maxsus-narx` (narx — ERP dan, kesh 60 s, katalog eskirsa — tozalanadi),
     savat «x» qatori (≤ 10 xil; ERP ga boradigan so'rov — IP 20 / umumiy 40 daqiqada).
+  * kech189 (zip 256) — MOLIYA «− USTA KPI TO'LANDI» USTAGA BOG'LANADI (egasi QARORI 05.11 «Ustaga bog'lash», QAYTA SO'RALMAYDI; O'LCHANGAN
+    `work/k256/probe256.py`: ilgari bog'lanmagan `usta_kpi` chiqimi — «💸 Keshbek berildi» bilan birga bosilsa kassadan 2 marta, usta qoldig'i
+    1 marta; faqat Moliya tugmasi — qoldiq kamaymasdi). Moliya oynasida «Qaysi ustaga?» (keshbek qoldig'i bor ustalar —
+    `GET /api/finance/usta-keshbek` → `crud.usta_keshbek_tolov_royxati`, qoldiq KPI sahifasi bilan AYNAN; ruxsat «Kassa: Yaratish»),
+    saqlash — `POST /api/masters/{id}/keshbek` (usul «naqd», izoh ≤ 200; qoldiqdan ko'p — sahifada va 409). `POST /api/finance/cash-transaction`
+    `usta_kpi` — 400 (hech narsa yozilmaydi); «Ehson» / boshlang'ich — avvalgidek; eski bog'lanmagan yozuvlar tarixda qoladi, o'chiriladi.
+    review256: javobda `bogsiz` (`crud.usta_kpi_bogsiz` — hech bir keshbekka ulanmagan eski `usta_kpi` yozuvlari soni / jami) — oynada
+    ogohlantirish («Oldin berilgan» bilan kiritish — egasi QARORI 04.11, zip 253); 409 dan keyin ro'yxat qayta yuklanadi (tanlov saqlanadi),
+    bir xil ismli ustalar — «(#id)», takror yuborish — `amalTakrorIzoh` xabari.
   `GET /api/dokon/v1/katalog` — `crud.dokon_api_katalog`: versiya, bugun (Toshkent); bo'limlar (FAQAT yoqilgan; id, nom, qolip,
   tizim_kaliti, tartib, qolip_nomi); modellar (yoqilgan, yoqilgan bo'limda; tartib — bo'lim → model tartibi → id, sahifadagidek): kod, nom,
   tavsif, qolip, kapitel_baza_bor, rasmlar (url, kichik, eni, boyi — `/static/uploads/dokon/…`, login siz), detallar (yoqilgan qatorlar:
@@ -5419,6 +5428,10 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   TO'G'RI chiqqanlar: tahrir, nusxa, taklif, qoralama — yig'ilgan qatorlar avvalgidek; ochish / yopish / boshqa buyurtma / o'lcham
   o'zgarishi — ustunlar to'g'ri almashadi; eski UI testlari (blok211 99, ui173 40, c_telefon 53, korinish203 28, sahifalar190 206) o'tadi.
 
+- (kech189, zip 256) Moliya «Usta KPI to'landi» — ustaga: `tools/test_usta_kpi256.py` (S; R — ro'yxat: maydonlar, qoldiq AYNAN, tartib,
+  ruxsat, ikkinchi korxona; K — `usta_kpi` 400, Ehson, eski yozuv, `bogsiz`; T — to'lov bir marta, 409, ro'yxatdan chiqish; U — oyna: tanlov,
+  XSS yo'q, tekshiruvlar, saqlash yo'li, «Bekor», 409 da qayta yuklash, server izoh xatosi, takror, kechikkan javob, boshlang'ich / Ehson,
+  ogohlantirish, bo'sh ro'yxat, 375 px). SQ 33, TF1 33, PG 18; asl (zip 255) — 13 ta yiqiladi, qulamaydi.
 - (kech187 / kech188, zip 255) Karniz formulasi: `tools/test_karniz255.py` (S — tayyorgarlik; F — formula, 1 m³ narxi; R — rad;
   M — «Boshqa o'lcham» do'kon API; B — savatda maxsus qator; Y — yaxlitlashsiz, yetkazish; T — zaxira tiklash, indeks; V — review255
   (aniq kasr, kapitel / baza qo'lda, chegirma butun so'm, balandlik ≥ 5 sm, chegara, chuqurlik, guruh nomi, saqlangan yetkazish sharti); Z — ikkinchi korxona,
@@ -6314,7 +6327,8 @@ qarorlari 02.10»)**
   qaysi hisobdan (kirim — to'lov usulidan, chiqim — formada tanlanadi, standart «Naqd pul»); boshlanishi — egasi bir marta uchala
   hisobning HOZIRGI qoldig'ini kiritadi (kassadagi naqdni sanab, bank va karta qoldig'ini ilovadan ko'rib); hisoblar orasida
   o'tkazish (bankdan naqd yechish va h.k.); har hisob tarixi. «Usta KPI to'landi» / «Ehson to'landi» — tanlangan hisobdan ayiriladi
-  (sof foyda o'zgarmaydi — egasiga tushuntirildi 23.10 15:54).
+  (sof foyda o'zgarmaydi — egasiga tushuntirildi 23.10 15:54). kech189 (zip 256): «Usta KPI to'landi» — endi ustani tanlab, usta
+  keshbegiga bog'lab yoziladi (egasi QARORI 05.11).
 
 - (2026-11-03, kech181) Do'kon 2-bosqich — usta / magazin Telegram orqali kirishi: bot — @penodecorprobot (egasi o'zi ochgan, tokeni
   BotFather da); sinov saytida — alohida sinov boti (egasi ochib, tokenini Railway «web-sinov» ga `DOKON_BOT_TOKEN` qilib qo'yadi);
@@ -7820,7 +7834,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /finance` → `main.py:finance_page` → `templates/finance.html`
 - Qorovul: auth.ruxsat('moliya', 'korish')
 - Server chaqiruvlari: auth.ruxsat
-- `finance.html` API: `/api/finance/cash-balance`, `/api/finance/cash-transaction`, `/api/finance/cash-transactions`, `/api/finance/cash-transactions/{}`, `/api/finance/daily`, `/api/finance/debt-summary`, `/api/finance/hisoblar/otkazma`, `/api/finance/hisoblar/otkazma/{}`, `/api/finance/hisoblar/qolda`, `/api/finance/hisoblar/qoldiq`, `/api/finance/hisoblar/qoldiq/{}`, `/api/finance/hisoblar/{}/tarix`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finance/report-pdf`, `/api/finance/split-profit-pdf`, `/api/finance/transactions`, `/api/finance/transactions/{}`, `/api/finance/yonalishlar`, `/api/inventory/kpi`
+- `finance.html` API: `/api/finance/cash-balance`, `/api/finance/cash-transaction`, `/api/finance/cash-transactions`, `/api/finance/cash-transactions/{}`, `/api/finance/daily`, `/api/finance/debt-summary`, `/api/finance/hisoblar/otkazma`, `/api/finance/hisoblar/otkazma/{}`, `/api/finance/hisoblar/qolda`, `/api/finance/hisoblar/qoldiq`, `/api/finance/hisoblar/qoldiq/{}`, `/api/finance/hisoblar/{}/tarix`, `/api/finance/pul-oqimi`, `/api/finance/report`, `/api/finance/report-pdf`, `/api/finance/split-profit-pdf`, `/api/finance/transactions`, `/api/finance/transactions/{}`, `/api/finance/usta-keshbek`, `/api/finance/yonalishlar`, `/api/inventory/kpi`, `/api/masters/{}/keshbek`
 
 ### `GET /finished` → `main.py:finished_page` → `templates/finished.html`
 - Qorovul: auth.ruxsat_biri(('tayyor', 'korish'), ('sotuv', 'korish'))
@@ -8043,7 +8057,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_get_employee_adjustment` · 🔒 auth.ruxsat('hodim', 'korish') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud.get_employee_monthly_adjustment
 - `POST /api/employees/{employee_id}/monthly-adjustment` → `main.py:api_set_employee_adjustment` · 🔒 auth.ruxsat('hodim', 'tahrirlash') · auth.company_id_of, auth.employee_of_company, auth.ruxsat, crud._clean_oylik_tuzatish, crud.set_employee_monthly_adjustment
 
-#### `/api/finance` (26)
+#### `/api/finance` (27)
 - `GET /api/finance/cash-balance` → `main.py:api_get_cash_balance` · 🔒 auth.ruxsat('kassa', 'korish') · auth.company_id_of, auth.ruxsat, services.get_cash_balance
 - `POST /api/finance/cash-transaction` → `main.py:api_record_cash_transaction` · 🔒 auth.ruxsat('kassa', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.record_cash_transaction, services.get_cash_balance, services.pul_hisob_balanslari
 - `GET /api/finance/cash-transactions` → `main.py:api_get_cash_transactions` · 🔒 auth.ruxsat('kassa', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_cash_transactions
@@ -8069,6 +8083,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `PUT /api/finance/transactions/{tx_id}` → `main.py:api_update_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'tahrirlash') · auth.company_id_of, auth.expense_of_company, auth.ruxsat, crud._clean_val, crud.update_expense_transaction
 - `DELETE /api/finance/transactions/{tx_id}` → `main.py:api_delete_expense_transaction` · 🔒 auth.ruxsat('kunlik', 'ochirish') · auth.company_id_of, auth.ruxsat, crud.delete_expense_transaction
 - `DELETE /api/finance/transactions/{tx_id}/ozim` → `main.py:api_ozim_xarajatni_ochirish` · 🔒 auth.ruxsat('kunlik', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.log_activity
+- `GET /api/finance/usta-keshbek` → `main.py:api_finance_usta_keshbek` · 🔒 auth.ruxsat('kassa', 'yaratish') · auth.company_id_of, auth.ruxsat, crud.usta_keshbek_tolov_royxati, crud.usta_kpi_bogsiz
 - `GET /api/finance/yonalishlar` → `main.py:api_finance_yonalishlar` · 🔒 auth.ruxsat('moliya', 'korish') · auth.company_id_of, auth.ruxsat, services.calculate_split_profit_report
 
 #### `/api/finished` (23)
@@ -8558,7 +8573,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 436 (main.py: 415, production_routes.py: 21).
+Jami marshrutlar: 437 (main.py: 416, production_routes.py: 21).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -8948,6 +8963,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_u13.py` · PG — kech123, U-13 YAGONA KO'RINISH (egasi QARORI 02.10 «Avval yagona ko'rinish», `main` keyin) — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
 - `test_umumiy_rang208.py` · PG — kech155 (zip 208 «Umumiy rang — Toza ko'k»; EGASI 23.10: «2 oy ishlatib bildimki, rang tanlashda o'zim xato qilgan ekanman — dasturning umumiy rangi juda bo'g'iq, charchatadi…
 - `test_unicode231c.py` · PG — kech166 (zip 231c «Buzilgan Unicode — ulanish buzilmasin»; sinov saytida JONLI tasdiqlandi 31.10, review231 №6).
+- `test_usta_kpi256.py` · PG — kech189 (zip 256: Moliya «− Usta KPI to'landi» — ustaga bog'lanadi).
 - `test_usta_oxirgi_sana.py` · PG — kech91 darvozasi (2026-09-26, 115-band): Usta KPI hisobotidagi "Oxirgi buyurtma" sanasi (`crud.get_masters_kpi_report` → `last_order_date`, `/api/masters/kpi-report`, `/mas…
 - `test_xabar_miqdorlar193.py` · PG — kech152 (zip 193): server yozadigan MATNLARDAGI miqdorlar (kg, blok, metr, dona, MB, kasrli foiz) BITTA son qoidasida.
 - `test_xabar_summalar192.py` · PG — kech151 (zip 192): server yozadigan MATNLARDAGI pul summalari BITTA son qoidasida.
@@ -9000,5 +9016,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 341 (Python 303, JS 38).
+Jami test fayllari: 342 (Python 304, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->

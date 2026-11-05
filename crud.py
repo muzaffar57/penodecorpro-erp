@@ -29714,6 +29714,32 @@ def usta_keshbek_qoldiqlari(db: Session, company_id: int) -> dict:
     return {k: round(v - float(berilgan.get(k) or 0), 2) for k, v in yozilgan.items()}
 
 
+def usta_keshbek_tolov_royxati(db: Session, company_id: int) -> list:
+    """kech189 (zip 256, egasi QARORI 05.11 «Ustaga bog'lash»): Moliya «− Usta KPI to'landi» oynasi uchun — keshbek QOLDIG'I BOR ustalar
+    ([{id, nom, qoldiq, faol}], faollari oldin, keyin ism bo'yicha). Qoldiq — `usta_keshbek_qoldiqlari` (KPI sahifasi «Qoldiq» ustuni bilan
+    AYNAN); to'lov — `usta_keshbek_ber` (usul «naqd»), u qoldiqni qulf ostida QAYTA tekshiradi. Foyda / foiz / telefon — YO'Q."""
+    qq = usta_keshbek_qoldiqlari(db, company_id)
+    if not qq:
+        return []
+    ustalar = db.query(Master).filter(Master.company_id == company_id, Master.id.in_(list(qq))).all()
+    natija = [{"id": u.id, "nom": u.name or f"#{u.id}", "qoldiq": round(float(qq.get(u.id) or 0), 2), "faol": bool(u.is_active)}
+              for u in ustalar if round(float(qq.get(u.id) or 0), 2) > 0]
+    natija.sort(key=lambda x: (not x["faol"], (x["nom"] or "").lower(), x["id"]))
+    return natija
+
+
+def usta_kpi_bogsiz(db: Session, company_id: int) -> dict:
+    """kech189 (review256 M1): ustaga BOG'LANMAGAN eski «Usta KPI to'landi» kassa yozuvlari (zip 256 dan oldin Moliya tugmasidan; hech bir
+    `usta_keshbeklar.cash_tx_id` ga ulanmagan) — {"soni", "jami"} (jami — musbat so'm). Ular usta qoldig'idan ayirilmagan: egasi QARORI
+    04.11 (zip 253) — kimga berilgani «Oldin berilgan» usuli bilan kiritiladi (kassaga qayta ta'sir yo'q)."""
+    from sqlalchemy import func as _f256
+    from models import UstaKeshbek, CashTransaction
+    _bog = db.query(UstaKeshbek.cash_tx_id).filter(UstaKeshbek.company_id == company_id, UstaKeshbek.cash_tx_id.isnot(None))
+    soni, jami = db.query(_f256.count(CashTransaction.id), _f256.coalesce(_f256.sum(CashTransaction.amount), 0)).filter(
+        CashTransaction.company_id == company_id, CashTransaction.category == "usta_kpi", ~CashTransaction.id.in_(_bog)).one()
+    return {"soni": int(soni or 0), "jami": round(-float(jami or 0), 2)}
+
+
 def _uk_summa(x) -> float:
     if isinstance(x, bool) or not isinstance(x, (int, float)):
         raise ValueError("Summa son bo'lishi kerak")
