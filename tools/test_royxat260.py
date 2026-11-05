@@ -226,7 +226,9 @@ OLCH = """() => {
   const matn = L.innerText + ' | ' + ((document.getElementById('pinnedOrdersList') || {}).innerText || '');
   const filtr = [...document.querySelectorAll('.ord-f')].map(x => x.innerText).join(' | ');
   const muddatSoni = (matn.match(/Muddati o'tgan/g) || []).length;
-  return {oraliq, guruh, ichOraliq, ichRadius: ichki.map(x => parseFloat(getComputedStyle(x).borderTopLeftRadius)),
+  const ko = gs.filter(g => g.offsetParent !== null);
+  const tepa = ko.length ? Math.round((r(ko[0]).top - r(L).top - parseFloat(getComputedStyle(L).borderTopWidth || 0)) * 10) / 10 : null;
+  return {tepa, nomShrift: gs.map(g => getComputedStyle(g.querySelector('.proj-name')).fontSize), oraliq, guruh, ichOraliq, ichRadius: ichki.map(x => parseFloat(getComputedStyle(x).borderTopLeftRadius)),
           tanl: tanl ? {ochiq: getComputedStyle(tanl, '::before').content, soya: getComputedStyle(tanl).boxShadow} : null,
           muddatSoni, bugunSoni: (matn.match(/Bugun muddati|Ertaga muddati/g) || []).length, filtr,
           surilish: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1}; }"""
@@ -307,6 +309,11 @@ check("J7 tungi rejim: karta foni to'q (sahifa bilan bir xil emas — ajralib tu
       _q and _guruh(_q, ID["PQ"])["ochiq"] and _guruh(_q, ID["PT"])["fon"] not in ("rgb(255, 255, 255)",)
       and rang(_guruh(_q, ID["PT"])["chiziq"], "rgb(") and _guruh(_q, ID["PQ"])["chegaraEn"] >= 1
       and _guruh(_q, ID["PQ"])["chegara"] != _guruh(_q, ID["PT"])["chegara"], _q)
+_tp = {k: (J.get(k) or {}).get("tepa") for k in (("kompyuter", "yopiq"), ("telefon", "yopiq"), ("tungi", "yopiq"))}
+check("J9 (kech192) ro'yxat tepasida birinchi karta yopishmaydi — bo'shliq ≥ 8 px (namunadagidek; kompyuter, telefon, tungi)",
+      all(v is not None and v >= 8 for v in _tp.values()), _tp)
+_ns = sorted({x for k in (("kompyuter", "yopiq"), ("telefon", "yopiq")) for x in (J.get(k) or {}).get("nomShrift") or []})
+check("J10 (kech192) loyiha nomi shrifti — umumiy shkalada (14 px; 14,5 px test_u13 shkalasini buzardi)", _ns == ["14px"], _ns)
 check("J8 sahifalarda JS xatosi yo'q", not XATO and "xato" not in J, (XATO[:3], J.get("xato")))
 
 print(f"\nNATIJA:  o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")

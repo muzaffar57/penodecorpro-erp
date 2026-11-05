@@ -50,7 +50,8 @@
 .dropzone:hover{border-color:var(--gold)}
 .majburiy{color:var(--m-dc2626);font-weight:700}
 .dropzone input[type=file]{display:none}
-.ord-list{max-height:calc(100vh - 260px);overflow-y:auto;background:var(--bg);padding-bottom:2px}   /* kech191 (zip 260): kartalar tagi — kulrang */
+.ord-list{max-height:calc(100vh - 260px);overflow-y:auto;background:var(--bg);padding:10px 0 2px}   /* kech191 (zip 260): kartalar tagi — kulrang;
+   kech192: tepada 10 px — birinchi karta yopishmasin (`:first-of-type` ishlamasdi — ro'yxatning birinchi `div` i `#ordFiltrBosh`) */
 /* Tayyor mahsulot taklifi */
 .fp-suggest{position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--gold);border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:60;max-height:210px;overflow-y:auto;margin-top:3px}
 .fp-sg-item{padding:8px 11px;cursor:pointer;border-bottom:1px solid var(--ch-f5f5f5);transition:background .12s}
@@ -66,7 +67,6 @@
    va «Muddati o'tgan» / «Bugun muddati» / «Ertaga muddati» belgilari. `data-urgency` qoladi — «Muddati o'tgan» / «Bugun» FILTRI shundan. */
 .ord-list .proj-group{margin:0 10px 8px;background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;
   box-shadow:0 1px 2px rgba(15,23,42,.05)}
-.ord-list .proj-group:first-of-type{margin-top:10px}
 .proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px 12px 18px;min-height:58px;box-sizing:border-box;
   cursor:pointer;transition:background .15s;user-select:none;background:var(--white);box-shadow:inset 4px 0 0 var(--border)}
 .proj-head:hover{background:var(--f-f8fafc)}
@@ -74,7 +74,7 @@
 .proj-group[data-pul="qarz"] > .proj-head{box-shadow:inset 4px 0 0 var(--m-dc2626)}
 .proj-arrow{font-size:12px;color:var(--text3);transition:transform .2s;flex-shrink:0;width:10px}
 .proj-group.open .proj-arrow{transform:rotate(90deg);color:var(--gold-dark)}
-.proj-name{font-size:14.5px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-name{font-size:14px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-client{font-size:13px;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .proj-count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap;margin-bottom:2px}
 .proj-debt, .proj-paid{display:inline-block;margin-top:4px;padding:0 8px;border-radius:999px;line-height:20px;font-size:12px;font-weight:700;white-space:nowrap}
