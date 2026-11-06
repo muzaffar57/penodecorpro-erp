@@ -3777,6 +3777,15 @@ _GUARD_READ_OPTS = {"skip_tenant_filter": True}
 # havola (yangi yozuvda — har havola, o'zgartirilgan yozuvda — faqat O'ZGARGAN ustun) umuman topilmasa ham XUDDI SHU xatoni beradi
 # (`TenantMismatchError`, ichki matni boshqa — foydalanuvchiga ko'rinmaydi), `main.tenant_mismatch_handler` ikkalasiga bir xil 404 qaytaradi.
 # O'zgarmagan eski (osilgan) havolalar TEKSHIRILMAYDI — eski yozuvni boshqa maydoni bo'yicha tahrirlash avvalgidek ishlaydi.
+def _shu_flushda_yangi(session, cls, fk_value) -> bool:
+    """kech202 (zip 265): havola qilingan yozuv shu sessiyada YANGI (hali bazaga yozilmagan, id si qo'lda berilgan) — topilmadi
+    hisoblanmaydi (shu flush da ota oldin yoziladi; eski xulq — o'tkazib yuborish)."""
+    for _o in session.new:
+        if isinstance(_o, cls) and getattr(_o, "id", None) == fk_value:
+            return True
+    return False
+
+
 def _havola_yoq_xatosi(obj, fk_attr, fk_value, nom):
     return TenantMismatchError(
         f"{type(obj).__name__}.{fk_attr}={fk_value}: bog'lanayotgan {nom} yozuvi topilmadi "
@@ -3802,7 +3811,8 @@ def _resolve_parent_company(session, obj, rules, yoqni_tekshir=None):
         parent = session.get(parent_cls, fk_value,
                              execution_options=_GUARD_READ_OPTS)
         if parent is None:
-            if yoqni_tekshir is True or (yoqni_tekshir and fk_attr in yoqni_tekshir):
+            if ((yoqni_tekshir is True or (yoqni_tekshir and fk_attr in yoqni_tekshir))
+                    and not _shu_flushda_yangi(session, parent_cls, fk_value)):
                 raise _havola_yoq_xatosi(obj, fk_attr, fk_value, parent_name)
             continue
         cid = getattr(parent, "company_id", None)
@@ -3845,7 +3855,8 @@ def _check_refs(session, obj, own_cid, yoqni_tekshir=None):
         ref = session.get(ref_cls, fk_value,
                           execution_options=_GUARD_READ_OPTS)
         if ref is None:
-            if yoqni_tekshir is True or (yoqni_tekshir and fk_attr in yoqni_tekshir):
+            if ((yoqni_tekshir is True or (yoqni_tekshir and fk_attr in yoqni_tekshir))
+                    and not _shu_flushda_yangi(session, ref_cls, fk_value)):
                 raise _havola_yoq_xatosi(obj, fk_attr, fk_value, ref_name)
             continue
         ref_cid = getattr(ref, "company_id", None)

@@ -742,10 +742,11 @@ korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxo
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
 farqi «shu id boshqa korxonada BOR» deb ko'rsatardi. Endi `models._tenant_guard`: YANGI yozuvning har havolasi va ota-yozuvi
 (`_TENANT_REFS`, `_TENANT_RULES` — `yoqni_tekshir=True`), O'ZGARTIRILGAN yozuvning faqat o'zgargan ustunlari (`yoqni_tekshir=ozgargan`)
-topilmasa — `TenantMismatchError` (`_havola_yoq_xatosi`); o'zgarmagan eski osilgan havola TEKSHIRILMAYDI (eski yozuvni boshqa maydoni
+topilmasa — `TenantMismatchError` (`_havola_yoq_xatosi`; shu flush da yangi, id si qo'lda berilgan ota-yozuv — topilgan hisoblanadi,
+`_shu_flushda_yangi`); o'zgarmagan eski osilgan havola TEKSHIRILMAYDI (eski yozuvni boshqa maydoni
 bo'yicha tahrirlash ishlaydi). `main.tenant_mismatch_handler` — ikkala holatga BIR XIL 404 + `TENANT_BOG_XATO_MATNI` (ichki sabab,
 id, korxona raqami ko'rinmaydi); `_dokon_bajar` — avvalgidek ikkalasiga 400 «Qiymat noto'g'ri». Bazadagi FK lar O'ZGARMAGAN (barcha
-128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Test `tools/test_oracle265.py` (31; PG 29; asl 26fc68d da
+128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Test `tools/test_oracle265.py` (32; PG 30; asl 26fc68d da
 SQLite 17, PG 16 yiqiladi).
 **«O'z bugungi xarajatim» — foydalanuvchi ID si bo'yicha (kech201, zip 264 — xavfsizlik REJA 16-band, Fable F11).** Ustun
 `expense_transactions.created_by_user_id` (Integer, NULL; mavjud jadvalga `sync_missing_columns`). `crud.create_expense_transaction(…,

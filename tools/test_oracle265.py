@@ -282,6 +282,18 @@ _rp = orm(lambda d: d.add(Order(project_id=YOQ_ID, order_type=models.OrderType.P
 check("C8 yangi yozuv, YO'Q ota-yozuv (project_id) — rad (topilmadi)", _rp.startswith("RAD:") and "topilmadi" in _rp, _rp)
 check("C9 qo'riqchi funksiyalarida yangi parametr bor (manba)",
       "yoqni_tekshir" in open(os.path.join(ROOT, "models.py"), encoding="utf-8").read())
+_QOLDA_ID = 876543
+
+
+def _bir_flushda(d):
+    # ota-yozuv (usta) id si qo'lda berilgan va hali bazada YO'Q — bola (buyurtma) bilan BIR flush da yoziladi
+    d.add(Master(id=_QOLDA_ID, name="OR265 bir flush usta", phone="+998903000265", company_id=2))
+    d.add(Order(project_id=PB, company_id=2, master_id=_QOLDA_ID, order_type=models.OrderType.PRODUCT, notes="OR265 bir flush"))
+
+
+_r = orm(_bir_flushda)
+check("C10 havola qilingan yozuv SHU flush da yangi (id qo'lda) — topilmadi deb rad etilmaydi, ikkalasi yoziladi",
+      _r == "OK" and sanoq(Master, id=_QOLDA_ID) == 1 and sanoq(Order, master_id=_QOLDA_ID) == 1, _r)
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════
 section("D — javob ishlovchisi")
