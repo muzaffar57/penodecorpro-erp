@@ -11715,16 +11715,39 @@ def api_telegram_webhook_info(request: Request, current_user=Depends(auth.platfo
     return natija
 
 
+# kech200 (zip 263, xavfsizlik REJA 21-band): «🔐 Telegram xavfsizligini yoqish» endi YANGI imzo YARATMAYDI — Telegram'ga Railway dagi
+# MAVJUD `TELEGRAM_WEBHOOK_SECRET` beriladi. O'LCHANGAN (kech198, 06.11 17:50): tugma production'da bosilganda Telegram'ga yangi sir
+# berilgan, server esa eski `TELEGRAM_WEBHOOK_SECRET` bilan tekshirgan — egasi Railway da o'zgaruvchini yangilaguncha (~4 daqiqa)
+# @Penoustabot xabarlari 403 bo'lgan. Endi tartib teskari: AVVAL Railway da imzo (yo'q / yaroqsiz bo'lsa — tugma 409 va tasodifiy
+# TAKLIF qaytaradi, Telegram'ga so'rov KETMAYDI, bot hozirgi ulanishida qoladi), keyin tugma o'sha imzoni botga beradi — server va
+# Telegram bir xil imzoda, oraliq uzilish yo'q. Telegram `secret_token` qoidasi: 1 … 256 belgi, faqat A–Z a–z 0–9 _ - (boshqa belgi —
+# setWebhook 400 «secret token contains unallowed characters»). Qisqa imzo — taxmin qilinishi oson: kamida TG_UMUMIY_SIR_MIN belgi.
+TG_UMUMIY_SIR_MIN = 20
+_TG_SIR_BELGILAR = _re_tg.compile(r"[A-Za-z0-9_-]+")          # `fullmatch` bilan («$» oxiridagi «\n» ni o'tkazib yuborardi)
+
+
+def _tg_umumiy_sir_xatosi(sir):
+    """Railway dagi `TELEGRAM_WEBHOOK_SECRET` Telegram'ga beriladigan imzo bo'la oladimi: yaroqli — «»; aks holda sabab matni
+    (sirning o'zi matnga KIRMAYDI)."""
+    if not sir:
+        return "Railway da TELEGRAM_WEBHOOK_SECRET sozlanmagan"
+    if len(sir) > 256 or not _TG_SIR_BELGILAR.fullmatch(sir):
+        return ("Railway dagi TELEGRAM_WEBHOOK_SECRET da Telegram qabul qilmaydigan belgi bor (faqat lotin harflari, raqamlar, «_» va «-»; "
+                "bo'shliq ham bo'lmasin; ko'pi bilan 256 belgi)")
+    if len(sir) < TG_UMUMIY_SIR_MIN:
+        return (f"Railway dagi TELEGRAM_WEBHOOK_SECRET juda qisqa ({len(sir)} belgi) — kamida {TG_UMUMIY_SIR_MIN} belgi kerak, "
+                "aks holda uni taxmin qilish oson")
+    return ""
+
+
 @app.post("/api/system/telegram-setup-webhook-security")
 def api_telegram_setup_webhook_security(request: Request, current_user=Depends(auth.platform_admin_only)):
-    """BIR MARTALIK sozlash: Telegram webhookni, XAVFSIZ IMZO bilan qayta
-    ro'yxatdan o'tkazadi. Shundan keyin — soxta (Telegram'dan bo'lmagan)
-    so'rovlar avtomatik rad etiladi.
+    """Umumiy botni (@Penoustabot) SHU saytga XAVFSIZ IMZO bilan ulaydi — soxta (Telegram'dan bo'lmagan) so'rovlar rad etiladi.
 
-    Yangi, tasodifiy imzo o'zi yaratiladi va qaytariladi — buni albatta
-    Railway'dagi TELEGRAM_WEBHOOK_SECRET muhit o'zgaruvchisiga qo'shib,
-    saqlab qo'yish kerak (aks holda, server qayta ishga tushganda,
-    tizim eski imzoni "unutadi" va tekshiruv o'chib qoladi).
+    kech200 (zip 263, REJA 21-band): imzo — Railway dagi MAVJUD `TELEGRAM_WEBHOOK_SECRET` (yangi sir YARATILMAYDI, javobga sir
+    CHIQMAYDI). Imzo yo'q / yaroqsiz (`_tg_umumiy_sir_xatosi`) — 409: sabab + tasodifiy `taklif` (egasi Railway ga qo'yadi, Deploy
+    tugagach tugmani qayta bosadi); Telegram'ga so'rov KETMAYDI — bot hozirgi ulanishida qoladi. Ilgari tugma har bosilishda yangi
+    sir yaratib Telegram'ga berardi — egasi Railway ni yangilaguncha bot xabarlari 403 bo'lardi (kech198, 06.11 17:50).
 
     kech130 (zip 154): FAQAT asosiy saytda (production) — boshqa muhitda 409, Telegram'ga so'rov ketmaydi (kech129: staging dagi
     shu tugma @Penoustabot ni sinov saytiga ulab qo'ygan edi). Javobda bot oldin qayerga ulangani ham (`oldingi_url`)."""
@@ -11737,6 +11760,18 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     if not token:
         raise HTTPException(status_code=400, detail="TELEGRAM_BOT_TOKEN sozlanmagan")
 
+    sir = TELEGRAM_WEBHOOK_SECRET
+    sir_xatosi = _tg_umumiy_sir_xatosi(sir)
+    if sir_xatosi:
+        return JSONResponse(status_code=409, content={
+            "detail": (f"{sir_xatosi}. Bot ulanmadi — Telegram'da hech narsa o'zgarmadi, bot hozirgi ulanishida qoldi. Avval Railway → "
+                       "Variables → TELEGRAM_WEBHOOK_SECRET ga yangi qiymat qo'ying (taklif — javobdagi «taklif»), Deploy tugagach "
+                       "«🔐 Telegram xavfsizligini yoqish» ni qayta bosing."),
+            "sabab": sir_xatosi,
+            "imzo": "yoq" if not sir else "yaroqsiz",
+            "taklif": _secrets.token_urlsafe(32),
+        })
+
     # MUHIM: Railway, "proksi" orqali ishlaydi — shuning uchun, dastur
     # ichidan qaralganda, so'rov manzili ba'zan "http://" (s"siz) bo'lib
     # ko'rinishi mumkin, garchi tashqaridan HAMMA VAQT "https://" orqali
@@ -11744,7 +11779,6 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
     # uchun, "http"ni, doim, majburiy ravishda "https"ga almashtiramiz.
     webhook_url = str(request.base_url).rstrip("/") + "/telegram/webhook"
     webhook_url = webhook_url.replace("http://", "https://", 1)
-    new_secret = _secrets.token_urlsafe(32)
     try:
         oldingi_url = _tg_webhook_holati(token)["url"]
     except Exception:
@@ -11752,7 +11786,7 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
 
     try:
         set_url = f"https://api.telegram.org/bot{token}/setWebhook"
-        payload = _json_mod.dumps({"url": webhook_url, "secret_token": new_secret}).encode()
+        payload = _json_mod.dumps({"url": webhook_url, "secret_token": sir}).encode()
         req = _ur.Request(set_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
         with _ur.urlopen(req, timeout=10) as r:
             tg_response = _json_mod.loads(r.read())
@@ -11781,11 +11815,10 @@ def api_telegram_setup_webhook_security(request: Request, current_user=Depends(a
         "status": "ok",
         "webhook_url": webhook_url,
         "oldingi_url": oldingi_url,
-        "new_secret": new_secret,
+        "imzo": "railway",
         "message": (
-            "✅ Webhook xavfsiz imzo bilan qayta ro'yxatdan o'tkazildi. "
-            "MUHIM: yuqoridagi 'new_secret' qiymatini nusxalab, Railway'dagi "
-            "TELEGRAM_WEBHOOK_SECRET muhit o'zgaruvchisiga joylashtiring va saqlang."
+            "✅ Bot shu saytga xavfsiz imzo bilan ulandi. Imzo — Railway dagi TELEGRAM_WEBHOOK_SECRET (o'sha qiymat botga berildi) — "
+            "Railway da hech narsa o'zgartirish shart emas."
         )
     }
 

@@ -505,6 +505,13 @@ async function tgHolatYukla(){
                  ': ' + (tgIzoh ? escapeHtml(tgIzoh) + ' (Telegram: ' + escapeHtml(d.webhook.last_error_message) + ')'
                                 : escapeHtml(d.webhook.last_error_message)) + '</div>');
     }
+    // kech200 (zip 263, REJA 21-band): bot shu saytda, xabarlar kutyapti va oxirgi xato 403 — imzo Railway dagisi bilan mos emas
+    // (masalan Railway da TELEGRAM_WEBHOOK_SECRET almashtirilgan). Tugma endi Railway dagi imzoni botga beradi — shu bilan tuzaladi.
+    if (d.asosiy_muhit && d.holat === 'mos' && d.imzo_sozlangan && d.webhook && d.webhook.pending_update_count > 0 &&
+        /\b403\b/.test(String(d.webhook.last_error_message || ''))) {
+      qator.push('<div style="color:var(--m-92400e)">💡 Bot xabarlari sayt imzosiga mos kelmayapti (403). «🔐 Telegram xavfsizligini yoqish» ni ' +
+                 'bossangiz, Railway dagi TELEGRAM_WEBHOOK_SECRET botga qayta beriladi va kutayotgan xabarlar yetib keladi.</div>');
+    }
     if (d.holat === 'mos' && !d.imzo_sozlangan) {
       qator.push('<div style="color:var(--m-dc2626)">⚠️ TELEGRAM_WEBHOOK_SECRET sozlanmagan — sayt bot xabarlarini rad etadi.</div>');
     }
@@ -536,6 +543,25 @@ async function setupTelegramSecurity(){
     // kech144 (zip 175, audit U11): JSON `res.ok` dan keyin; 5xx — natija noma'lum (Telegram yangi kalitni olgan bo'lishi mumkin)
     const res = await fetch('/api/system/telegram-setup-webhook-security', { method: 'POST' });
     if (!res.ok) {
+      // kech200 (zip 263, REJA 21-band): 409 + `taklif` — Railway da TELEGRAM_WEBHOOK_SECRET yo'q / yaroqsiz; Telegram'ga so'rov ketmagan,
+      // bot hozirgi ulanishida. Egasi taklifni Railway ga qo'yadi, Deploy tugagach tugmani qayta bosadi (oraliq uzilish yo'q).
+      let tj = null;
+      if (res.status === 409) { try { tj = await res.clone().json(); } catch (e) { tj = null; } }
+      if (tj && typeof tj.taklif === 'string' && tj.taklif) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = 'var(--f-fef3c7)'; resultBox.style.color = 'var(--m-92400e)';
+        resultBox.innerHTML =
+          '<div style="font-weight:700;margin-bottom:6px">⚠️ Bot ulanmadi: ' + escapeHtml(tj.sabab || '') + '</div>' +
+          '<div style="margin-bottom:10px">Telegram\'da hech narsa o\'zgarmadi — bot hozirgi ulanishida ishlashda davom etadi.</div>' +
+          '<div style="margin-bottom:6px">1) <b>Railway → Variables</b> → <code style="background:var(--white);padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code>' +
+          ' (yo\'q bo\'lsa — shu nom bilan yangi o\'zgaruvchi) qiymati sifatida shu taklifni qo\'ying:</div>' +
+          '<div id="tg-sir-taklif" style="background:var(--white);padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid var(--ch-fde68a)">' +
+          escapeHtml(tj.taklif) + '</div>' +
+          '<div style="margin-top:8px">2) Deploy tugashini kuting (2–4 daqiqa).</div>' +
+          '<div style="margin-top:4px">3) Shu sahifani yangilab, «🔐 Telegram xavfsizligini yoqish» ni qayta bosing — bot Railway dagi imzo bilan ulanadi. ' +
+          'Deploy va shu bosish orasida bot xabarlari kechikishi mumkin (yo\'qolmaydi — Telegram qayta yuboradi).</div>';
+        throw {qayta: false};
+      }
       resultBox.style.display = 'block';
       resultBox.style.background = 'var(--f-fee2e2)'; resultBox.style.color = 'var(--m-dc2626)';
       resultBox.textContent = (res.status >= 500 ? "⚠️ Natija noma'lum: " : '❌ ') + await amalSababi(res) +
@@ -546,12 +572,12 @@ async function setupTelegramSecurity(){
     {
       resultBox.style.display = 'block';
       resultBox.style.background = 'var(--f-dcfce7)'; resultBox.style.color = 'var(--m-166534)';
+      // kech200 (zip 263, REJA 21-band): yangi sir YARATILMAYDI va ko'rsatilmaydi — botga Railway dagi TELEGRAM_WEBHOOK_SECRET berildi
+      // (ilgari — yangi sir + «Railway ga qo'shing»: egasi qo'shguncha bot xabarlari 403 bo'lardi).
       resultBox.innerHTML = `
-        <div style="font-weight:700;margin-bottom:8px">✅ Muvaffaqiyatli sozlandi!</div>
-        <div style="margin-bottom:10px">Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b> bo'limiga
-        <code style="background:var(--white);padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code> nomi bilan qo'shing:</div>
-        <div style="background:var(--white);padding:10px 12px;border-radius:8px;font-family:monospace;word-break:break-all;user-select:all;border:1px solid var(--ch-86efac)">${escapeHtml(data.new_secret)}</div>
-        <div style="margin-top:10px;color:var(--m-166534)">Saqlagach, Railway serverni avtomatik qayta ishga tushiradi — shundan keyin xavfsizlik to'liq yoqiladi.</div>` +
+        <div style="font-weight:700;margin-bottom:8px">✅ Bot shu saytga xavfsiz imzo bilan ulandi!</div>
+        <div>Imzo — Railway dagi <code style="background:var(--white);padding:2px 6px;border-radius:4px">TELEGRAM_WEBHOOK_SECRET</code>
+        (o'sha qiymat botga berildi). Railway da hech narsa o'zgartirish shart emas.</div>` +
         // kech130 (zip 154): bot oldin boshqa manzilda bo'lgan bo'lsa — qayerdan ko'chgani ko'rinsin
         (data.oldingi_url && data.oldingi_url !== data.webhook_url
           ? '<div style="margin-top:10px;color:var(--text2)">Bot oldin shu manzilga ulangan edi: <span style="word-break:break-all">' +

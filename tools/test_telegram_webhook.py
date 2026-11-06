@@ -288,10 +288,16 @@ chaq_tozala()
 r = CP.post(SETUP)
 d = js(r)
 _sw = [t for _, m, t, _ in CHAQ if m == "setWebhook"]
-check("A5 production → 200; Telegram: getWebhookInfo, keyin setWebhook (shu sayt manzili + javobdagi yangi sir)",
+# kech200 (zip 263, REJA 21-band, MOSLANDI — versiya manbadan): yangi kodda tugma yangi sir YARATMAYDI — Telegram'ga Railway dagi
+# TELEGRAM_WEBHOOK_SECRET (shu testda UMUMIY_SIR) beriladi, javobda sir YO'Q; eski kodda — tasodifiy yangi sir (javobdagi new_secret)
+_Z263_21 = hasattr(main, "TG_UMUMIY_SIR_MIN")
+check("A5 production → 200; Telegram: getWebhookInfo, keyin setWebhook (shu sayt manzili + "
+      + ("Railway dagi imzo; javobda sir YO'Q)" if _Z263_21 else "javobdagi yangi sir)"),
       r.status_code == 200 and metodlar() == ["getWebhookInfo", "setWebhook"] and _sw
-      and _sw[0].get("url") == "https://testserver/telegram/webhook" and _sw[0].get("secret_token") == d.get("new_secret")
-      and len(d.get("new_secret") or "") >= 40 and d.get("webhook_url") == "https://testserver/telegram/webhook",
+      and _sw[0].get("url") == "https://testserver/telegram/webhook"
+      and ((_sw[0].get("secret_token") == UMUMIY_SIR and "new_secret" not in d and UMUMIY_SIR not in r.text) if _Z263_21 else
+           (_sw[0].get("secret_token") == d.get("new_secret") and len(d.get("new_secret") or "") >= 40))
+      and d.get("webhook_url") == "https://testserver/telegram/webhook",
       (r.status_code, metodlar(), _sw, d))
 check("A5b javobda bot OLDIN qayerga ulangani (oldingi_url — sinov sayti)",
       d.get("oldingi_url") == "https://web-sinov.up.railway.app/telegram/webhook", d)
