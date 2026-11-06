@@ -98,6 +98,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _hmac143.compare_digest(_eski, hashed_password)
 
 
+_SOXTA_XESH263 = []
+
+
+def soxta_parol_tekshiruvi(plain_password: str) -> bool:
+    """kech198 (zip 263, xavfsizlik auditi 6-band — O'LCHANGAN `work/k263/opus/probe263.py` P2: mavjud login 271 ms, yo'q login 8 ms):
+    login topilmasa ham bcrypt tekshiruvi BIR XIL vaqt oladi — javob vaqtidan login borligini bilib bo'lmaydi. Natija har doim False.
+    Soxta xesh birinchi chaqiruvda yasaladi (`hash_password` bilan bir xil narx)."""
+    if not _SOXTA_XESH263:
+        _SOXTA_XESH263.append(hash_password("soxta-parol-" + secrets.token_hex(8)))
+    verify_password(str(plain_password or ""), _SOXTA_XESH263[0])
+    return False
+
+
 def verify_and_upgrade_password(db: Session, user, plain_password: str) -> bool:
     """verify_password bilan bir xil natija qaytaradi, lekin QO'SHIMCHA:
     agar parol TO'G'RI bo'lsa-yu, hali ESKI (SHA-256) formatda saqlangan
@@ -1118,10 +1131,17 @@ def require_employee_login(request: Request, db: Session = Depends(get_db)) -> E
 def create_default_admin(db: Session):
     """Agar hech qanday foydalanuvchi bo'lmasa — standart admin yaratadi."""
     import os
-    password = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+    # kech198 (zip 263, xavfsizlik auditi 5-band — O'LCHANGAN P7): `ADMIN_PASSWORD` berilmasa ilgari HAMMAGA MA'LUM «Admin123!» qo'yilardi
+    # (yangi o'rnatma — login «admin» + shu parol). Endi — TASODIFIY parol, faqat bo'sh bazada va BIR MARTA server jurnaliga chiqadi.
+    # `RESET_ADMIN_PASSWORD=true` faqat `ADMIN_PASSWORD` berilganda ishlaydi (tasodifiy parolga jim almashtirib, egasini tizimdan
+    # chiqarib qo'ymasin).
+    _berilgan = (os.environ.get("ADMIN_PASSWORD") or "").strip()
+    password = _berilgan or secrets.token_urlsafe(12)
 
     count = db.query(User).count()
     if count == 0:
+        if not _berilgan:
+            print(f"⚠ ADMIN_PASSWORD berilmagan — standart admin uchun TASODIFIY parol: {password} (kirgach almashtiring)")
         create_user(
             db=db,
             username="admin",
@@ -1134,7 +1154,9 @@ def create_default_admin(db: Session):
     else:
         # Agar RESET_ADMIN_PASSWORD=true bo'lsa — admin parolini yangilaydi
         reset = os.environ.get("RESET_ADMIN_PASSWORD", "false").lower()
-        if reset == "true":
+        if reset == "true" and not _berilgan:
+            print("⚠ RESET_ADMIN_PASSWORD=true, lekin ADMIN_PASSWORD berilmagan — parol O'ZGARTIRILMADI")
+        elif reset == "true":
             admin = db.query(User).filter(User.username == "admin").first()
             if admin:
                 admin.password_hash = hash_password(password)

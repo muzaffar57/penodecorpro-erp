@@ -3976,6 +3976,13 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # kech198 (zip 263, xavfsizlik auditi 7-band — O'LCHANGAN P5): qo'shimcha himoya sarlavhalari. CSP — faqat inline skriptlarni
+    # BUZMAYDIGAN qismi (sahifani boshqa saytga ramkada qo'yish, plagin, <base> almashtirish, formani begona manzilga yuborish — taqiq).
+    # Permissions-Policy: kamera / mikrofon / joylashuv / to'lov / USB — ilova ishlatmaydi (fayl tanlashdagi kamera — `capture` — bunga
+    # bog'liq emas). Referrer: boshqa saytga faqat domen (yo'l va so'rov qatori — yo'q).
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     # kech180 (zip 247): do'kon API si (`/api/dokon/v1/…`) — kalitli, mijozga xos javob: o'zi Cache-Control bermagan har javob (400 / 409 /
     # 413 / 404 / 405 xatolari) — `no-store` (200 / 304 ning `private, no-cache` i, 401 / PDF ning `no-store` i — o'zgarmaydi)
     if request.url.path.startswith("/api/dokon/") and "cache-control" not in response.headers:
@@ -4209,6 +4216,15 @@ async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
 @app.exception_handler(UnicodeError)
 async def buzilgan_unicode_handler(request: Request, exc: UnicodeError):
     return JSONResponse(status_code=400, content={"detail": "So'rovda buzilgan belgi bor — matnni qayta yozing"})
+
+
+# kech198 (zip 263, xavfsizlik auditi 8-band): davr chegaradan tashqarida (`year=1`) — 400 (avval OverflowError → 500 + ErrorLog)
+from database import DavrXatosi as _DavrXatosi263
+
+
+@app.exception_handler(_DavrXatosi263)
+async def davr_xatosi_handler(request: Request, exc: _DavrXatosi263):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 from starlette.exceptions import HTTPException as _StarletteHTTPException
@@ -5040,7 +5056,12 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
         })
 
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
-    if not user or not auth.verify_and_upgrade_password(db, user, password):
+    # kech198 (zip 263, audit 6-band): login yo'q — baribir bcrypt (javob vaqti login borligini oshkor qilmasin)
+    if user is None:
+        parol_togri = auth.soxta_parol_tekshiruvi(password)
+    else:
+        parol_togri = auth.verify_and_upgrade_password(db, user, password)
+    if not parol_togri:
         crud.log_login_attempt(db, username, success=False, ip_address=ip, user_agent=ua)
         return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri!", "username": username})
 
