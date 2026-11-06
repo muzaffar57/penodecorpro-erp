@@ -2854,6 +2854,12 @@ class ExpenseTransaction(Base):
     notes = Column(Text, nullable=True)
 
     created_by = Column(String(100), nullable=True)
+    # kech201 (zip 264, xavfsizlik REJA 16-band — Fable F11): yozgan foydalanuvchining id si. «Xarajat qo'shish» dagi «o'z bugungi
+    # xarajatim» (ko'rish / o'chirish) ilgari faqat `created_by` (ism yoki login) bo'yicha edi — bir korxonada ismi bir xil ikki
+    # foydalanuvchi bir-birining bugungi xarajatini ko'rib o'chira olardi, ismi almashgan foydalanuvchi esa o'zinikini yo'qotardi.
+    # Endi id bo'yicha (`main._ozim_bugungi_sharti`). NULL — zip 264 dan oldingi yozuv / foydalanuvchisiz manba (kirim, oylik forma):
+    # «o'ziniki» faqat ism bo'yicha (o'tish kuni). Mavjud jadvalga `sync_missing_columns` qo'shadi (NULL).
+    created_by_user_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # 'monthly_form' — Moliya sahifasidagi oylik forma orqali avtomatik yaratilgan
