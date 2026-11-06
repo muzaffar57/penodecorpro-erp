@@ -226,6 +226,37 @@ if YANGI:
     check("P13 hodim o'z PIN ini almashtirdi — sanoq 0", lambda: xx is None and holat(E1) == (0, False), (xx, holat(E1)))
     check("P14 doimiylar: 5 / 10", lambda: crud.PIN_OGOH_XATO == 5 and crud.PIN_QULF_XATO == 10)
 
+section("Q — bir korxonada bir xil raqam (eski yozuvlar): biri qulflangan, biri yo'q")
+# kech200 (mut263 N01 / N06 TIRIK edi): `telefon_kaliti` bo'yicha bir xil, yozilishi boshqa ikki eski yozuv (masalan «+998 90 …» va
+# «99890…») — `hodim_pin_qulfdami` «hammasi qulflangan» emas deb o'tkazadi; qulflangan hodim o'z PIN i bilan KIRMASLIGI va uning
+# sanog'i oshmasligi `authenticate_employee` / `hodim_pin_xato` ning o'zida tekshiriladi.
+if YANGI:
+    TEL3 = "998902631122"
+    db = SessionLocal()
+    _bir_xil = crud.telefon_kaliti(TEL3) == crud.telefon_kaliti(TEL)
+    e3 = Employee(company_id=1, name="Hodim P263 eski yozuv", position="usta", is_active=True, phone=TEL3, pin_hash=auth.hash_pin("8264"))
+    db.add(e3)
+    db.commit()
+    E3 = e3.id
+    e1 = db.query(Employee).filter(Employee.id == E1).first()
+    e1.pin_hash = auth.hash_pin("5937")
+    e1.pin_xato_soni, e1.pin_qulflangan = 10, True
+    db.commit()
+    db.close()
+    check("Q0 ikki yozuv bir xil telefon kaliti bilan (biri qulflangan)", lambda: _bir_xil and holat(E1) == (10, True) and holat(E3) == (0, False))
+    tarix_tozala()
+    r, c = hodim(pin="5937")
+    check("Q1 qulflangan hodimning TO'G'RI PIN i — KIRMAYDI (boshqa yozuv qulfsiz bo'lsa ham)",
+          lambda: not kirdimi(r) and not c.cookies.get("emp_session_token") and holat(E1) == (10, True), (r.status_code, holat(E1)))
+    tarix_tozala()
+    hodim(pin="0000")
+    check("Q2 noto'g'ri PIN — qulflanganning sanog'i OSHMAYDI (10); qulfsizniki Q1 va Q2 dagi ikki xato PIN bilan 2",
+          lambda: holat(E1) == (10, True) and holat(E3) == (2, False),
+          (holat(E1), holat(E3)))
+    tarix_tozala()
+    r, c = hodim(pin="8264")
+    check("Q3 qulfsiz yozuv o'z PIN i bilan kiradi", lambda: kirdimi(r), (r.status_code,))
+
 section("S — shablon")
 kpi = open(os.path.join(ROOT, "templates", "kpi.html"), encoding="utf-8").read()
 check("S1 hodimlar qatori: qulf belgisi (`emp-pin-qulf`, «Kirish qulflangan»)", lambda: "emp-pin-qulf" in kpi and "Kirish qulflangan" in kpi)

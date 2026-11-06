@@ -310,10 +310,19 @@ c9b.cookies.set("kirish_kod", javob_cookie(r, "kirish_kod") or "x", path="/login
 r = c9b.post("/login/kod", data={"kod": K9})
 check("B22 urinishlar tugagach to'g'ri kod ham ishlamaydi (sessiya yo'q)", lambda: not c9b.cookies.get("session_token"))
 # muddati
+if YANGI:                                  # 15 daqiqada 5 kod chegarasi oldingi bandlarda to'lgan — yangi kod so'ralishi uchun tozalanadi
+    db = SessionLocal()
+    db.query(IkkiBosqichKod).delete(synchronize_session=False)
+    db.commit()
+    db.close()
 TG.clear()
 c10 = mijoz()
 r = kir(c10)
 K10 = oxirgi_kod()
+# kech200 (mut263 K03 TIRIK edi): oldingi holat ham tekshiriladi — kod haqiqatan yuborilgan va cookie bor (aks holda B23 bo'sh o'tardi)
+check("B23a (muddat sinovi oldidan) kod yuborildi, /login/kod, kirish_kod cookie si bor",
+      lambda: r.status_code == 302 and r.headers.get("location") == "/login/kod" and len(TG) == 1 and c10.cookies.get("kirish_kod"),
+      (r.status_code, r.headers.get("location"), len(TG), re.findall(r"(Juda ko'p[^<]*|Login yoki[^<]*|Tasdiqlash[^<]*)", _html.unescape(r.text))))
 if YANGI:
     db = SessionLocal()
     db.query(IkkiBosqichKod).filter(IkkiBosqichKod.user_id == PE_ID, IkkiBosqichKod.ishlatilgan == False).update(   # noqa: E712
@@ -382,6 +391,35 @@ if YANGI:
     db.close()
     natija = ikki_bosqich.kod_tekshir(SessionLocal(), xom14, oxirgi_kod())
     check("B31 urinishi tugagan yozuv — to'g'ri kod ham yaroqsiz (atomar shart)", lambda: not natija["ok"] and natija["yaroqsiz"], natija)
+    # kech200 (mut263 K01 TIRIK edi): poyga — ikki parallel so'rov yozuvni urinish 4 da O'QIGAN (kod_topish o'tkazdi), birinchisi 5 ga
+    # yetkazdi; ikkinchisi bazadagi ATOMAR shart (`urinish < KOD_URINISH`) bilan to'xtashi kerak — o'qilgan eski qiymat bilan emas
+    db = SessionLocal()
+    _pe31 = db.query(User).filter(User.id == PE_ID).first()
+    xom31, kod31 = ikki_bosqich.kod_yarat(db, _pe31, "198.51.100.31")
+    q31 = db.query(IkkiBosqichKod).filter(IkkiBosqichKod.token_xesh == ikki_bosqich._xesh(xom31)).first()
+    q31.urinish = ikki_bosqich.KOD_URINISH - 1
+    db.commit()
+    _eski_topish = ikki_bosqich.kod_topish
+    _korilgan = {}
+
+    def _poyga_topish(dbx, xom):
+        r0 = _eski_topish(dbx, xom)                    # o'qildi (urinish 4)
+        if r0 is not None and not _korilgan:
+            _korilgan["ha"] = True
+            t = IkkiBosqichKod.__table__                 # … shu orada parallel so'rov 5 ga yetkazdi
+            dbx.execute(t.update().where(t.c.id == r0.id).values(urinish=ikki_bosqich.KOD_URINISH))
+            dbx.commit()
+        return r0
+    ikki_bosqich.kod_topish = _poyga_topish
+    try:
+        natija31 = ikki_bosqich.kod_tekshir(SessionLocal(), xom31, kod31)
+    finally:
+        ikki_bosqich.kod_topish = _eski_topish
+    db.expire_all()
+    _u31 = db.query(IkkiBosqichKod.urinish).filter(IkkiBosqichKod.token_xesh == ikki_bosqich._xesh(xom31)).scalar()
+    db.close()
+    check("B31b poyga: o'qilgandan keyin urinishlar tugagan — TO'G'RI kod ham rad, urinish chegaradan oshmadi (atomar UPDATE sharti)",
+          lambda: _korilgan and not natija31["ok"] and natija31["yaroqsiz"] and _u31 == ikki_bosqich.KOD_URINISH, (natija31, _u31))
     TG.clear()
     c15 = mijoz()
     kir(c15)
