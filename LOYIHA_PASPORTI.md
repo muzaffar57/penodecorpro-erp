@@ -732,9 +732,17 @@ Telegram qoidasi — faqat A–Z a–z 0–9 _ -, `TG_UMUMIY_SIR_MIN` = 20 … 2
 409 + tasodifiy `taklif`, Telegram'ga so'rov KETMAYDI (bot hozirgi ulanishida qoladi), sahifada 3 qadamli yo'riqnoma (`#tg-sir-taklif`);
 javobda sir YO'Q. Sabab (kech198, 06.11 17:50): eski tugma yangi sirni Telegram'ga berardi, server eski imzo bilan tekshirardi — egasi
 Railway ni yangilaguncha @Penoustabot xabarlari 403. «Bot hozir qayerga ulangan» da 403 maslahati (asosiy sayt, mos, kutayotgan > 0,
-oxirgi xato 403). QOLDI (PAST, keyingi zip): 14 (begona id → 409 o'rniga 404), 16 (`created_by_user_id`); 18 — egasi cron-job.org ni
+oxirgi xato 403). QOLDI (PAST, keyingi zip): 14 (begona id → 409 o'rniga 404), 16 (`created_by_user_id` — zip 264 da QILINDI, pastda); 18 — egasi cron-job.org ni
 `X-Cron-Secret` sarlavhasiga o'tkazishi; 19 — biznes savol (bloklangan korxona do'koni); 20 — info. Mutatsiya — `work/k263/mut263.py`:
 61 mutant — 59 O'LDI, 2 EKVIVALENT (P07 — teskari ketma-ketlikni (b) qoida qamraydi; Z07 — `len(data) > eng_kopi` ikkinchi qavat); review263 (`work/k263/review263/HISOBOT.md`: 1 O'RTA, 6 PAST — HAMMASI tuzatildi: R1 tarqoq blokdan egasi FAQAT ishonchli qurilma bilan o'tadi (blokda parol oshkor emas), R2 `/api/me/login` soatiga 10 band urinish, R3 login yagonaligi katta-kichik harf farqisiz (`auth._login_egasi`), R4 `auth.ZAXIRALANGAN_LOGINLAR` («admin», «root» …) faqat platforma egasiga + `RESET_ADMIN_PASSWORD` nishoni — platforma egasi, R5 yil / oy chegarasi (`database.tashkent_yil_oraligi`, forecast) — 400, R6 «qulflangan» faqat to'g'ri PIN bilan (`crud.hodim_qulfda_pin_togrimi`), R7 parol qoidasi kuchaytirildi (`crud.parol_ketma_ketlik_qoldigi`, kam xil belgi, «leet»), R8 tana chegarasida Starlette `cookie_parser`) — test `tools/test_review263.py`.
+**«O'z bugungi xarajatim» — foydalanuvchi ID si bo'yicha (kech201, zip 264 — xavfsizlik REJA 16-band, Fable F11).** Ustun
+`expense_transactions.created_by_user_id` (Integer, NULL; mavjud jadvalga `sync_missing_columns`). `crud.create_expense_transaction(…,
+performed_by_user_id=)` — faqat chaqiruvchi beradi (`POST /api/finance/transactions` — `current_user.id`); tanadagi `created_by_user_id` —
+400 «Noma'lum maydon» (`_clean_val`). `main._ozim_bugungi_sharti`: «o'ziniki» = `created_by_user_id == current_user.id`, id si NULL (zip 264
+dan oldingi — faqat o'tish kuni) yozuv — avvalgidek `created_by` ismi bo'yicha. Sabab: bir korxonada to'liq ismi bir xil ikki foydalanuvchi
+bir-birining bugungi xarajatini ko'rib O'CHIRA OLARDI; ismini almashtirgan o'zinikini yo'qotardi. Javob maydonlari o'zgarmadi (id
+chiqmaydi). Zaxirada ustun bor; eski zaxira (ustunsiz) tiklanadi — NULL. Test `tools/test_ozim264.py` (16; asl 7956576 da 10 yiqiladi);
+mutatsiya `work/k264/mut264.py` — 9: 8 O'LDI + M06 EKVIVALENT (`crud` ichida tanadan o'qish — `_clean_val` uni o'tkazmaydi).
 **«Kirim qilish» — raqam / matn katagiga sig'adi (kech196, zip 262 — egasi so'rovi 06.11 03:57, skrinshot: kiritish qatorida
 «43 960 000 so'm» to'liq ko'rinmasdi; «shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar qolmasin»).** O'lchov —
 `work/k262/olchov262.py` (19 kenglik × egasining / katta qiymatlar, tungi). `templates/supplier_receive.html`: ustunlar «Omborda» 80,
@@ -2583,7 +2591,8 @@ marta sanalmaydi; bekor qilingani, boshqa oy, boshqa korxona — kirmaydi); javo
 X + omborga Y». O'Z XARAJATINI O'CHIRISH (G3-24): «Xarajat qo'shish» sahifasida «Bugun siz kiritganlar» (`GET
 /api/finance/transactions/bugungi-ozim`) — har qatorda «O'chirish» (tasdiq — summa va toifa bilan; `DELETE
 /api/finance/transactions/{id}/ozim`); ruxsat — xarajat qo'shish bilan bir («Kunlik xarajat: Yaratish»); «o'ziniki» (`main._ozim_bugungi_sharti`)
-— shu korxona, `source = manual`, `created_by` = yozgan nom (to'liq ism yoki login), yaratilgan vaqti BUGUN (Toshkent); aks holda 404
+— shu korxona, `source = manual`, `created_by_user_id` = joriy foydalanuvchi (kech201, zip 264; id si NULL eski yozuv — `created_by` =
+yozgan nom (to'liq ism yoki login)), yaratilgan vaqti BUGUN (Toshkent); aks holda 404
 (begona korxona, boshqa kishi, kecha — bir xil javob: «faqat o'zingiz BUGUN kiritgan …»); audit — «xarajat» «deleted». Moliya ro'yxati va
 umumiy o'chirish — avvalgidek faqat ruxsati borlarga. «KIRIM (TUZATISH)» (G4-13): Omborxonada har material qatorida «+» — narxsiz kirim
 (sanoqda ortiqcha chiqqan material): miqdor va SABAB majburiy (oynada xato, so'rov yuborilmaydi), `POST /api/inventory/{id}/stock` musbat
@@ -8814,7 +8823,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `employee_sessions` — `EmployeeSession` (`models.py`, 5) — ota orqali (employee_id→Employee)
 - `employees` — `Employee` (`models.py`, 29) — o'z `company_id`
 - `error_logs` — `ErrorLog` (`models.py`, 8) — o'z `company_id`
-- `expense_transactions` — `ExpenseTransaction` (`models.py`, 13) — o'z `company_id`
+- `expense_transactions` — `ExpenseTransaction` (`models.py`, 14) — o'z `company_id`
 - `finished_product_losses` — `FinishedProductLoss` (`models.py`, 14) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct)
 - `finished_product_sales` — `FinishedProductSale` (`models.py`, 20) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct, master_id→Master)
 - `finished_products` — `FinishedProduct` (`models.py`, 44) — o'z `company_id` + ota tekshiruvi (from_order_id→Order, recipe_id→Recipe, penoplast_id→Inventory)
@@ -9071,6 +9080,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_oylik_tafsilot188.py` — kech147 (zip 188): hodim oyligi TAFSILOTI matni (KPI → «Oylik hisob-kitob», Qarzdorlar → «Hodimlarga qarzimiz»).
 - `test_oynalar184.py` · PG — kech146 (zip 184): OYNALAR (modal) TELEFON KENGLIGIDA — 320 × 640, 375 × 667, 390 × 844, HAQIQIY Chromium (Playwright, `is_mobile`, `has_touch`, `device_scale_factor=2`), HAQIQIY…
 - `test_oynalar185.py` · PG — kech147 (zip 185): OYNALAR 2-qism — TELEFON BRAUZER PANELI BILAN (ekranning ko'rinadigan qismi kichik: 375 × 548 — iPhone SE Safari, 360 × 560 — Android Chrome, 320 × 460 — kichi…
+- `test_ozim264.py` · PG — kech201 (zip 264): xavfsizlik REJA 16-band (Fable F11) — «Xarajat qo'shish» dagi «o'z bugungi xarajatim» foydalanuvchi ID si bo'yicha (`expense_transactions.created_by_user_id`).
 - `test_parol263.py` · PG — kech199 (zip 263, xavfsizlik REJA 4-band — Fable F9 / Opus): YANGI parol qoidasi — kamida 10 belgi, login yo'q, bir xil belgilar / faqat raqam / oddiy ketma-ketlik / «oddiy so'z +…
 - `test_pasport.py` · PG — `LOYIHA_PASPORTI.md` (16-band) izchilligi va shablon → marshrut havolalari darvozasi (kech104, 2026-09-28).
 - `test_pdf_matn.py` · PG — kech106, K106-3 va K106-4 darvozasi: PDF hujjatlardagi foydalanuvchi matni va korxona nomi.
@@ -9231,5 +9241,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 357 (Python 319, JS 38).
+Jami test fayllari: 358 (Python 320, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
