@@ -1610,6 +1610,11 @@ class Employee(Base):
     # kirgach avval o'z PIN ini qo'yadi (`crud.hodim_pin_almashtir`). Mavjud qatorlarga `sync_missing_columns` DEFAULT TRUE bilan
     # qo'shadi — hozirgi PIN lar ham admin bergan. NULL — vaqtinchalik deb olinadi (xavfsiz tomon).
     pin_vaqtinchalik = Column(Boolean, nullable=True, default=True)
+    # kech199 (zip 263, xavfsizlik REJA 3-band — Fable F3, O'LCHANGAN: turli IP lardan 15 daqiqada 30 ta PIN → 4 xonali PIN ~3,5 kunda
+    # topilardi): KETMA-KET noto'g'ri PIN soni (to'g'ri kirishda 0) va qulf — 10 ta xato: to'g'ri PIN bilan ham kirmaydi, admin «🔑 Kirish»
+    # dan yangi PIN bersa ochiladi (`crud.set_employee_login`). 5-xatoda korxona chatiga ogohlantirish. NULL — 0 / qulfsiz.
+    pin_xato_soni = Column(Integer, nullable=True, default=0)
+    pin_qulflangan = Column(Boolean, nullable=True, default=False)
     # kech141 (zip 169, audit A-P02 — egasi QARORI 12.10 «Kirgan kundan»): TRUE — ishga kirgan oy oyligi KIRGAN KUNDAN (kunlarga
     # mutanosib; `hire_date` — admin tanlagan «Ishga kirgan sana»). FALSE / NULL — zip 169 dan oldingi hodim: kirgan oyi TO'LIQ
     # (o'tgan oylar o'zgarmasin). Mavjud qatorlarga `sync_missing_columns` DEFAULT FALSE bilan qo'shadi; `crud.create_employee` — TRUE.

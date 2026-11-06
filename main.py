@@ -7292,10 +7292,21 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
             "telefon": (phone or "").strip()[:20]
         })
 
+    # kech199 (zip 263, xavfsizlik REJA 3-band): 10 ta ketma-ket noto'g'ri PIN — kirish QULFLANGAN (PIN tekshirilmaydi ham)
+    if crud.hodim_pin_qulfdami(db, phone, _korxona.id):
+        crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua,
+                               company_id=(_korxona.id if _tel_yaroqli183 else None), aniqla=False)
+        return templates.TemplateResponse(request, "hodim_login.html", {
+            "error": ("Kirish qulflangan: PIN ko'p marta noto'g'ri terildi. Korxona administratori «🔑 Kirish» orqali yangi PIN "
+                      "berishi kerak."),
+            "kod": (korxona or "").strip()[:30], "telefon": (phone or "").strip()[:20]})
+
     emp = crud.authenticate_employee(db, phone, pin, company_id=_korxona.id)
     if not emp:
         crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua,
                                company_id=(_korxona.id if _tel_yaroqli183 else None), aniqla=False)
+        for _px in crud.hodim_pin_xato(db, phone, _korxona.id):          # kech199 (zip 263, 3-band): 5 — ogohlantirish, 10 — qulf
+            _fonda(background_tasks, _hodim_pin_xato_telegram, _px["name"], _px["son"], _px["qulflandi"], _korxona.id, sessiya=db)
         # kech120 (zip 137 — F bosqichi 5-qism, audit G6-20): telefon saqlanadi (faqat PIN qayta yoziladi), keyin nima qilish
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": "Telefon yoki PIN noto'g'ri! PIN ni unutgan bo'lsangiz — korxona administratoridan so'rang.",
@@ -7310,6 +7321,7 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
         return templates.TemplateResponse(request, "hodim_login.html", {"error": None, "bloklangan": _rad[0]})
 
     crud.log_login_attempt(db, _tel_kalit, success=True, ip_address=ip, user_agent=ua, company_id=_korxona.id)
+    crud.hodim_pin_xatolarini_nolla(db, emp)            # kech199 (zip 263, 3-band): to'g'ri PIN — ketma-ket xatolar 0
     _kalit = auth.qurilma_kaliti(request) or auth.yangi_qurilma_kaliti()
     _qh = auth.qurilma_hash_ol(_kalit)
     if emp.qurilma_hash != _qh:
@@ -7328,6 +7340,21 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     response.set_cookie(key=auth.QURILMA_COOKIE, value=_kalit, httponly=True, max_age=auth.QURILMA_COOKIE_SONIYA,
                         samesite="lax", secure=True)
     return response
+
+
+def _hodim_pin_xato_telegram(ism: str, son: int, qulflandi: bool, company_id: int) -> None:
+    """kech199 (zip 263, xavfsizlik REJA 3-band): ketma-ket noto'g'ri PIN — korxona Telegram chatiga (5 — ogohlantirish, 10 — qulf)."""
+    try:
+        if qulflandi:
+            _matn = (f"🔒 *Hodim paneli qulflandi*\n\n👷 {ism}\n{son} marta ketma-ket noto'g'ri PIN terildi — endi to'g'ri PIN bilan "
+                     "ham kira olmaydi.\n\nOchish: «Ustalar KPI / Hodimlar» → «🔑 Kirish» → yangi PIN bering.")
+        else:
+            _matn = (f"⚠️ *Hodim paneli: noto'g'ri PIN*\n\n👷 {ism}\n{son} marta ketma-ket noto'g'ri PIN terildi. "
+                     f"{crud.PIN_QULF_XATO} ga yetsa kirish qulflanadi.\n\nBu hodimning o'zi bo'lmasa — kimdir PIN ni topishga "
+                     "urinayotgan bo'lishi mumkin.")
+        _send_telegram(_matn, company_id=company_id)
+    except Exception as e:                  # noqa: BLE001
+        print(f"⚠ Telegram (PIN xatolari) yuborilmadi: {e}")
 
 
 def _hodim_qurilma_qayta_telegram(ism: str, nomi: Optional[str], company_id: int) -> None:

@@ -17682,6 +17682,7 @@ def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Option
     emp.phone = phone.strip()
     emp.pin_hash = auth.hash_pin(pin.strip())
     emp.pin_vaqtinchalik = True
+    hodim_pin_xatolarini_nolla(db, emp, commit=False)      # kech199 (zip 263, 3-band): yangi PIN — qulf ochiladi
     # kech116 (G6-06, O'LCHANGAN — audit: PIN almashtirilgach eski kirish 14 kungacha ishlardi): hodimning HAMMA panel
     # sessiyalari PIN bilan BITTA tranzaksiyada o'chiriladi — yangi PIN bilan qayta kiradi.
     from models import EmployeeSession as _ES116
@@ -17728,6 +17729,67 @@ def resolve_company_by_code(db: Session, code: str):
     return korxonalar[0] if len(korxonalar) == 1 else None
 
 
+PIN_OGOH_XATO = 5                  # kech199 (zip 263, 3-band): ketma-ket shuncha xatoda korxona chatiga ogohlantirish
+PIN_QULF_XATO = 10                 # … shuncha xatoda kirish qulflanadi (admin yangi PIN bersa ochiladi)
+
+
+def hodim_pin_nomzodlari(db: Session, phone: str, company_id: int = None) -> list:
+    """Shu korxonada shu telefon (`telefon_kaliti`) li, kira oladigan (faol, o'chirilmagan, PIN i bor) hodimlar."""
+    if not company_id:
+        return []
+    kalit = telefon_kaliti(phone)
+    if len(kalit) < 7:
+        return []
+    return [e for e in db.query(Employee).filter(
+        Employee.company_id == company_id,
+        Employee.is_active == True,
+        Employee.is_deleted.isnot(True),
+        Employee.phone.isnot(None),
+        Employee.pin_hash.isnot(None),
+    ).all() if telefon_kaliti(e.phone) == kalit]
+
+
+def hodim_pin_qulfdami(db: Session, phone: str, company_id: int = None) -> bool:
+    """kech199 (zip 263, 3-band): shu telefonli hodim(lar) kirishi qulflanganmi (hammasi qulflangan bo'lsa — True)."""
+    n = hodim_pin_nomzodlari(db, phone, company_id)
+    return bool(n) and all(bool(e.pin_qulflangan) for e in n)
+
+
+def hodim_pin_xato(db: Session, phone: str, company_id: int = None) -> list:
+    """kech199 (zip 263, 3-band): noto'g'ri PIN — shu telefonli hodim(lar)ning KETMA-KET xato sanog'i +1 (ATOMAR, bazada); 10 ga yetsa —
+    qulf. Qaytaradi — xabar kerak bo'lganlar: [{"id", "name", "son", "qulflandi"}] (son = 5 — ogohlantirish, 10 — qulflandi)."""
+    from sqlalchemy import update as _upd263, func as _f263
+    nomzod = hodim_pin_nomzodlari(db, phone, company_id)
+    if not nomzod:
+        return []
+    ids = [e.id for e in nomzod if not e.pin_qulflangan]
+    if not ids:
+        return []
+    t = Employee.__table__
+    db.execute(_upd263(t).where(t.c.id.in_(ids), t.c.company_id == company_id)
+               .values(pin_xato_soni=_f263.coalesce(t.c.pin_xato_soni, 0) + 1))
+    db.execute(_upd263(t).where(t.c.id.in_(ids), t.c.company_id == company_id, t.c.pin_xato_soni >= PIN_QULF_XATO)
+               .values(pin_qulflangan=True))
+    db.commit()
+    xabarlar = []
+    for r in db.execute(t.select().with_only_columns(t.c.id, t.c.name, t.c.pin_xato_soni).where(t.c.id.in_(ids))).all():
+        son = int(r.pin_xato_soni or 0)
+        if son in (PIN_OGOH_XATO, PIN_QULF_XATO):
+            xabarlar.append({"id": r.id, "name": r.name, "son": son, "qulflandi": son >= PIN_QULF_XATO})
+    return xabarlar
+
+
+def hodim_pin_xatolarini_nolla(db: Session, emp, commit: bool = True) -> None:
+    """To'g'ri kirish / yangi PIN — ketma-ket xatolar 0, qulf ochiladi."""
+    if emp is None:
+        return
+    if (emp.pin_xato_soni or 0) or emp.pin_qulflangan:
+        emp.pin_xato_soni = 0
+        emp.pin_qulflangan = False
+        if commit:
+            db.commit()
+
+
 def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = None):
     """Telefon+PIN to'g'riligini tekshiradi — KORXONA ICHIDA.
 
@@ -17744,19 +17806,9 @@ def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = N
     («O'chirilganlar» dagi) hodim KIRMAYDI (ilgari faqat `is_active` tekshirilardi — o'chirilgan hodim kirib avans yozardi).
     Bir xil raqamli ikki eski yozuvdan PIN i mos kelgani olinadi; ikkalasi mos kelsa — hech biri (noaniq)."""
     import auth
-    if not company_id:
-        return None
-    kalit = telefon_kaliti(phone)
-    if len(kalit) < 7:
-        return None
-    nomzodlar = [e for e in db.query(Employee).filter(
-        Employee.company_id == company_id,
-        Employee.is_active == True,
-        Employee.is_deleted.isnot(True),
-        Employee.phone.isnot(None),
-        Employee.pin_hash.isnot(None),
-    ).all() if telefon_kaliti(e.phone) == kalit]
-    mos = [e for e in nomzodlar if auth.verify_pin(pin.strip(), e.pin_hash)]
+    nomzodlar = hodim_pin_nomzodlari(db, phone, company_id)
+    # kech199 (zip 263, 3-band): qulflangan hodim — to'g'ri PIN bilan ham kirmaydi
+    mos = [e for e in nomzodlar if not e.pin_qulflangan and auth.verify_pin(pin.strip(), e.pin_hash)]
     if len(mos) != 1:
         return None
     emp = mos[0]
@@ -17926,6 +17978,7 @@ def hodim_qurilma_xulosa(emp) -> dict:
         "qurilma_sorov": ({"nomi": emp.qurilma_sorov_nomi, "vaqti": _utc_iso(emp.qurilma_sorov_vaqti),
                            "kalit": _qurilma_sorov_kaliti(emp)} if emp.qurilma_sorov_hash else None),
         "pin_vaqtinchalik": bool(emp.pin_hash) and emp.pin_vaqtinchalik is not False,
+        "pin_qulflangan": bool(emp.pin_hash) and bool(emp.pin_qulflangan),      # kech199 (zip 263, 3-band)
     }
 
 
@@ -18024,6 +18077,7 @@ def hodim_pin_almashtir(db: Session, emp, yangi: str, takror: str, eski: str = N
         raise ValueError("Yangi PIN hozirgisidan farq qilishi kerak")
     emp.pin_hash = auth.hash_pin(yangi)
     emp.pin_vaqtinchalik = False
+    hodim_pin_xatolarini_nolla(db, emp, commit=False)      # kech199 (zip 263, 3-band)
     _hodim_sessiyalarini_yop(db, emp, qoldir_token=joriy_token)
     log_activity(db, "pin_ozgartirildi", "employee", emp.id, emp.name, emp.name, company_id=emp.company_id, commit=False)
     db.commit()
