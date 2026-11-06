@@ -224,8 +224,13 @@ holat("qarz_korxona_summalar", "Q4", "/debts", "switchTab('company'); await uxla
       qosh=[("summalar bo'linmas bo'shliq bilan (hodim / ta'minotchi / majburiyat qarzi)",
              "() => (" + _SUMMA + ")('#tab-company .oblig-summa, #tab-company .oblig-item div[style*=\"font-weight:800\"]')",
              _summa_shart())])
+# kech196 (d273 da topildi, MOSLANDI — zip 261, egasi QARORI 06.11 «ustuvor buyurtmalar loyiha kartalari bilan bir xil»): telefonda loyiha
+# guruhlari yopiq — ko'rinadigan summa faqat ustuvor kartada edi (`.ord-date` «… so'm»); endi ustuvor karta loyiha kartasi kabi «Qarz: 264 ming»
+# (`.proj-debt`, qisqa shakl — ajratgichsiz) / «✓ To'langan». Versiya manbadan; eski kodda (zip 260 va oldin) — avvalgi tekshiruv AYNAN.
+_Z261 = 'class="pin-past"' in open(os.path.join(ROOT, "templates", "orders.html"), encoding="utf-8").read()
 holat("buyurtma_summalar", "Q4", "/orders", "await uxla(900);", None, izoh="Buyurtmalar ro'yxati — kelishilgan summa",
-      tekshir="X", qosh=[("summalar bo'linmas bo'shliq bilan", "() => (" + _SUMMA + ")('.ord-date')", _summa_shart())])
+      tekshir="X", qosh=[("summalar bo'linmas bo'shliq bilan", "() => (" + _SUMMA + ")('" + (".ord-date, .proj-debt" if _Z261 else ".ord-date") + "')",
+                          _summa_shart(0 if _Z261 else 1))])
 holat("retsept_summalar", "Q4", "/recipes", "await uxla(800);", ".rec-grid", izoh="Retseptlar — 1 kg tannarxi", tekshir="X",
       qosh=[("summalar bo'linmas bo'shliq bilan", "() => (" + _SUMMA + ")('.rec-stat-val')", _summa_shart())])
 holat("ombor_narx", "Q4", "/inventory", "await uxla(900);", None, izoh="Ombor — 1 birlik narxi", tekshir="X",
