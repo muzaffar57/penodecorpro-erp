@@ -5741,6 +5741,28 @@ def api_permanent_delete_project(project_id: int, db: Session = Depends(get_db),
     return {"status": "ok"}
 
 
+# kech199 (zip 263, xavfsizlik REJA 13-band): «login band» javobi bilan tugagan yaratish urinishlari — admin bo'yicha soatiga
+# `BAND_LOGIN_SOAT_MAX` tagacha; undan keyin bir soat yaratish 429 (loginlarni terib aniqlash to'xtaydi; oddiy ko'p foydalanuvchi
+# yaratish — cheklanmaydi). Jarayon xotirasida (bitta jarayon; qayta ishga tushsa — nol).
+BAND_LOGIN_SOAT_MAX = 10
+_BAND_URINISHLAR = {}                 # admin id → [vaqtlar (monotonic)]
+
+
+def _band_urinishlari(admin_id) -> list:
+    import time as _t263c
+    hozir = _t263c.monotonic()
+    qator = [t for t in _BAND_URINISHLAR.get(admin_id, []) if hozir - t < 3600]
+    _BAND_URINISHLAR[admin_id] = qator
+    return qator
+
+
+def _band_urinish_yoz(admin_id) -> None:
+    import time as _t263c
+    _band_urinishlari(admin_id).append(_t263c.monotonic())
+    if len(_BAND_URINISHLAR) > 10000:
+        _BAND_URINISHLAR.clear()
+
+
 @app.post("/api/users")
 def api_create_user(request: Request, response: Response, data: dict, db: Session = Depends(get_db),
                     current_user=Depends(auth.admin_only)):
@@ -5751,6 +5773,9 @@ def api_create_user(request: Request, response: Response, data: dict, db: Sessio
     # 1 belgi → qabul; 72 baytdan uzun parolning oxiri JIM tashlanardi (bcrypt).
     # `users.html` yuboradigan tana (username, password, role, full_name) AYNAN
     # shu qoidalarga mos. Xato → 400, `detail` MATN (forma "Xato: ..." ko'rsatadi).
+    # kech199 (zip 263, xavfsizlik REJA 13-band): «login band» urinishlari ko'p — bir soat yaratish to'xtaydi (pastdagi izoh)
+    if len(_band_urinishlari(current_user.id)) >= BAND_LOGIN_SOAT_MAX:
+        raise HTTPException(status_code=429, detail="Juda ko'p band login sinab ko'rildi — bir soatdan so'ng qayta urining")
     try:
         toza = crud._clean_val("UserCreate", data)
     except ValueError as e:
@@ -5771,7 +5796,12 @@ def api_create_user(request: Request, response: Response, data: dict, db: Sessio
         return {"id": user.id, "username": user.username, "role": user.role.value, "rol_id": user.rol_id,
                 "rol_nomi": user.rol_nomi}
     # kech144 (zip 175, audit U4): amal kaliti — javob yo'qolib (502) qayta bosilsa «Bu username band» emas, birinchi javob
-    javob, _ = _amal_bajar(db, current_user, response, "foydalanuvchi_yaratish", _amal_kaliti(request), _bajar)
+    try:
+        javob, _ = _amal_bajar(db, current_user, response, "foydalanuvchi_yaratish", _amal_kaliti(request), _bajar)
+    except HTTPException as e:
+        if e.status_code == 400 and e.detail == auth.LOGIN_BAND_XABARI:
+            _band_urinish_yoz(current_user.id)                  # kech199 (zip 263, 13-band)
+        raise
     return javob
 
 
@@ -5936,7 +5966,7 @@ def _ruxsat_farqi(eski: dict, yangi: dict) -> str:
 # kirishlar yopiladi (joriysi qoladi), «Faoliyat jurnali» ga yoziladi (parol YOZILMAYDI). Platforma egasi bayrog'i — o'zgarmaydi.
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 _LOGIN_QOIDA_RE = _re_tg.compile(r"[A-Za-z0-9_.\-]{3,50}")
-LOGIN_BAND_XABARI = "Bu login ishlatib bo'lmaydi — boshqasini tanlang"
+LOGIN_BAND_XABARI = auth.LOGIN_BAND_XABARI
 
 
 def _ozim_joriy_parol(request, db, user, data):

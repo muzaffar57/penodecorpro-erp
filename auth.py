@@ -565,6 +565,12 @@ def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
 # Foydalanuvchi CRUD (faqat admin uchun)
 # ============================================================
 
+# kech199 (zip 263, xavfsizlik REJA 13-band — Fable F5, O'LCHANGAN): login BUTUN TIZIMDA yagona — «Bu username band» javobi boshqa korxona
+# admini uchun platformadagi loginlar (platforma egasining «admin» i ham) borligini tasdiqlardi. Endi umumiy matn (sabab aytilmaydi);
+# yaratish urinishlari ham cheklangan (`main.api_create_user` — admin bo'yicha soatiga 30).
+LOGIN_BAND_XABARI = "Bu login ishlatib bo'lmaydi — boshqasini tanlang"
+
+
 def _login_egasi(db: Session, username: str):
     """kech108 (K107-2): login (`User.username`) BUTUN TIZIM bo'yicha yagona (`ix_users_username`) — egasi har qanday
     korxonadan. Tizim so'rovi (`skip_tenant_filter`): TENANT_FILTER=1 da global filtr so'rovni joriy korxona bilan
@@ -604,7 +610,7 @@ def create_user(db: Session, username: str, password: str,
     # cheklardi: boshqa korxonadagi login ko'rinmas, INSERT unique xatosi bilan 500 berardi (400 o'rniga).
     existing = _login_egasi(db, username)
     if existing:
-        raise HTTPException(status_code=400, detail="Bu username band")
+        raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
 
     # kech118 (ROLLAR): har yangi foydalanuvchi korxonaning ROLIGA biriktiriladi. `rol_id` berilsa — shu rol (korxonaniki
     # bo'lishi SHART), `role` rolga moslanadi (Admin roli — ADMIN); berilmasa — `role` turining tayyor roli.
@@ -633,7 +639,7 @@ def create_user(db: Session, username: str, password: str,
         # kech108 (K107-2): parallel yaratish — tekshiruvdan keyin boshqa so'rov shu loginni yozib ulgurgan
         db.rollback()
         if _login_egasi(db, username) is not None:
-            raise HTTPException(status_code=400, detail="Bu username band")
+            raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
         raise
     db.refresh(user)
     return user

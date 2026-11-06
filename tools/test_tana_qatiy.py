@@ -362,7 +362,9 @@ check("A4 rol 'warehouse', full_name null → 200 (null avvalgidek saqlanadi)", 
       and user_bor("tq_a4i") == ("tq_a4i", None, "warehouse"), f"{r.status_code} {user_bor('tq_a4i')}")
 h0 = userlar()
 r = req(C, "post", "/api/users", json={"username": "tq_u1", "password": PAROL_API})
-check("A5 takror login → 400 'Bu username band' (o'zgarmadi)", r.status_code == 400 and detail(r) == "Bu username band"
+# kech199 (zip 263, 13-band — MOSLANDI; versiya manbadan): band login matni umumiy (boshqa korxonadagi loginlar oshkor bo'lmasin)
+_BAND263 = getattr(auth, "LOGIN_BAND_XABARI", "Bu username band")
+check(f"A5 takror login → 400 '{_BAND263}'", r.status_code == 400 and detail(r) == _BAND263
       and userlar() == h0, f"{r.status_code} {detail(r)}")
 h0 = userlar()
 r = req(C, "post", "/api/users", json=[1, 2])

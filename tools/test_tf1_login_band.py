@@ -149,7 +149,9 @@ USERS_INSERT.clear()
 # kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): API orqali YARATILADIGAN hisob paroli — yangi qoidaga mos (10+ belgi, oddiy emas); eski kodda ham yaroqli
 r = req(CA, "post", "/api/users", json={"username": "B_BAND", "password": "Parol-263-Kuchli", "role": "manager", "full_name": "x"})
 check("1.1 B korxonadagi band login → 400 'Bu username band' (asl: 500)",
-      r.status_code == 400 and "band" in str((js(r) or {}).get("detail", "")), (r.status_code, getattr(r, "text", "")[:200]))
+      # kech199 (zip 263, 13-band — MOSLANDI; versiya manbadan): band login matni umumiy («ishlatib bo'lmaydi»), eski kodda — «band»
+      r.status_code == 400 and getattr(auth, "LOGIN_BAND_XABARI", "band") in str((js(r) or {}).get("detail", "")),
+      (r.status_code, getattr(r, "text", "")[:200]))
 check("1.1b band login — INSERT urinishi YO'Q (oldindan tekshiruv butun tizim bo'yicha to'xtatdi; IntegrityError zaxira yo'li emas)",
       len(USERS_INSERT) == 0, len(USERS_INSERT))
 r = req(CA, "post", "/api/users", json={"username": "A_YANGI", "password": "Parol-263-Kuchli", "role": "manager", "full_name": "y"})

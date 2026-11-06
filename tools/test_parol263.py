@@ -127,6 +127,39 @@ check("A7 o'z paroli — 9 belgi — 400", lambda: r.status_code == 400 and "10 
 r = c.post(f"/api/users/{me}/password", json={"new_password": "Mening-Yangi-Parolim9", "current_password": "Eski6b"})
 check("A8 o'z paroli — kuchli — 200", lambda: r.status_code == 200, (r.status_code, r.text[:200]))
 
+section("B — 13-band: band login matni umumiy, yaratish urinishlari cheklangan")
+from production_models import Company as _Co263       # noqa: E402
+s = SessionLocal()
+if not s.query(_Co263).filter(_Co263.id == 2).first():
+    s.add(_Co263(id=2, name="Ikkinchi P", code="IKKI-P263B"))
+    s.commit()
+with contextlib.redirect_stdout(_quiet):
+    auth.create_user(s, "boshqa_korxona_admini", "Parol123!", UserRole.ADMIN, "B", company_id=2)
+s.commit()
+s.close()
+if hasattr(main, "_BAND_URINISHLAR"):
+    main._BAND_URINISHLAR.clear()
+r = c.post("/api/users", json={"username": "boshqa_korxona_admini", "password": "Parol-263-Kuchli", "role": "manager"})
+check("B1 boshqa korxonadagi band login — 400, matnda «band» / «username» YO'Q (umumiy sabab)",
+      lambda: r.status_code == 400 and "ishlatib bo'lmaydi" in js(r).get("detail", "") and "band" not in js(r).get("detail", "").lower()
+      and "username" not in js(r).get("detail", "").lower(), (r.status_code, r.text[:200]))
+r = c.post("/api/users", json={"username": "admin", "password": "Parol-263-Kuchli", "role": "manager"})
+check("B2 platforma egasining «admin» i — xuddi shu umumiy matn", lambda: r.status_code == 400 and "ishlatib bo'lmaydi" in js(r).get("detail", ""),
+      (r.status_code, r.text[:200]))
+for i in range(5):
+    c.post("/api/users", json={"username": f"yaroqsiz_{i}", "password": "1"})            # boshqa sabab bilan rad — sanalmaydi
+for i in range(7):
+    c.post("/api/users", json={"username": "boshqa_korxona_admini", "password": "Parol-263-Kuchli", "role": "manager"})
+r9 = c.post("/api/users", json={"username": "boshqa_korxona_admini", "password": "Parol-263-Kuchli", "role": "manager"})
+r10 = c.post("/api/users", json={"username": "terish_yangi", "password": "Parol-263-Kuchli", "role": "manager"})
+check("B3 soatiga 10 ta «band» urinishdan keyin — yaratish 429 (oldingi 10-chisi hali 400), foydalanuvchi yaratilmadi",
+      lambda: r9.status_code == 400 and r10.status_code == 429 and "band login" in js(r10).get("detail", "")
+      and SessionLocal().query(User).filter(User.username == "terish_yangi").count() == 0, (r9.status_code, r10.status_code, r10.text[:200]))
+if hasattr(main, "_BAND_URINISHLAR"):
+    main._BAND_URINISHLAR.clear()
+r = c.post("/api/users", json={"username": "terish_yangi2", "password": "Parol-263-Kuchli", "role": "manager"})
+check("B4 oddiy ko'p yaratish cheklanmaydi (boshqa sabablar sanalmaydi) — 200", lambda: r.status_code == 200, (r.status_code, r.text[:200]))
+
 section("S — users.html")
 u = open(os.path.join(ROOT, "templates", "users.html"), encoding="utf-8").read()
 check("S1 «Kamida 10 belgi», tekshiruv 10 (6 qolmadi)",
