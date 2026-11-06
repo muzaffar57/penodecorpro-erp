@@ -99,7 +99,9 @@ html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-1
 .rcv-seg button.on{background:var(--gold-btn);color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.35)}
 .rcv-boshl .rcv-seg button.on{background:var(--r-amber);box-shadow:none}
 @media(max-width:600px){.rcv-seg{width:100%}.rcv-seg button{flex:1;padding:0 6px;min-width:0}}
-@media(max-width:360px){.rcv-seg button{white-space:normal;font-size:13px;line-height:16px;text-align:center}}
+/* kech196 (JONLI sinov, sinov sayti 375 px — iPhone SE / mini: «Boshlang'ich qoldiq» 161 px matn 151 px tugmadan 5 px ikki tomonga chiqardi;
+   sig'ishi uchun ~ 408 px kerak): ≤ 420 px da yozuv ikki qatorga o'tadi (ilgari ≤ 360 px) */
+@media(max-width:420px){.rcv-seg button{white-space:normal;font-size:13px;line-height:16px;text-align:center}}
 
 /* ── Yo'nalish chiplari ── */
 .rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:8px}

@@ -17,8 +17,9 @@ o'zing ham kirib tekshirib, mainga chiqarishdan oldin to'g'rilab ber, mayda kamc
 TALAB (har biri o'lchanadi):
   S  manba: ustunlar (Omborda 80, Miqdor 84), `rcvSigdir` / `rcvSigKeyin` (apCalc, updateSummary, ResizeObserver, `input`), `.rcv-sig`
      belgilari, «✓» alohida (`ot-nom`), to'lov / tarix konteyner qoidalari, `#ap-volume-wrap` ichida `.rcv-vol`, panel `flex-wrap`
-  J  HAQIQIY Chromium: egasining holati (56 × 785 000) 1920 / 1440 / 1100 — summa TO'LIQ, shrift kichraymagan (13 px); katta qiymatlar
-     (12 345,5 × 1 234 567; 12 500 × 785 000; 1 234 567,25 kg qoldiq; uzun nom) 12 kenglikda — qirqilgan / toshgan matn va maydon YO'Q,
+  J  HAQIQIY Chromium (412 / 375 px telefonlar ham — 375 da sarlavha segmenti JONLI sinovda topilgan): egasining holati (56 × 785 000)
+     1920 / 1440 / 1100 — summa TO'LIQ, shrift kichraymagan (13 px); katta qiymatlar
+     (12 345,5 × 1 234 567; 12 500 × 785 000; 1 234 567,25 kg qoldiq; uzun nom) 14 kenglikda — qirqilgan / toshgan matn va maydon YO'Q,
      gorizontal surilish yo'q; «✓ ro'yxatda» ko'rinadi (telefonda «✓»); hisob nomlari to'liq; tarix — 1180 da karta, 1440 da jadval (pul
      bir qatorda); «1 blok =» kiritish qatorida savat qatori bilan bir chiziqda; `rcvSigdir` — kichraytiradi (≥ 11 px), sig'masa izoh,
      qisqa qiymatda asliga qaytadi; JS xato yo'q
@@ -133,6 +134,8 @@ check("S8 kiritish qatori «1 blok =»: ko'rinish tashqi o'ramda (`style.display
       and "document.getElementById('ap-volume-wrap').style.display = (item && item.is_penoplast) ? 'block' : 'none';" in SR)
 check("S9 telefon paneli — summalar sig'masa ikkinchi qatorga (`flex-wrap`)",
       ".rcv-dock-qator{display:flex;justify-content:space-between;flex-wrap:wrap;" in SR)
+check("S10 (JONLI 375 px) sarlavha segmenti — ≤ 420 px da yozuv ikki qatorga o'tadi («Boshlang'ich qoldiq» tugmadan chiqmaydi)",
+      "@media(max-width:420px){.rcv-seg button{white-space:normal;font-size:13px;line-height:16px;text-align:center}}" in SR)
 
 if MANBASIZ:
     check = _check_asl                     # noqa: F811
@@ -343,7 +346,8 @@ def _j_ssenariy():
         ctx.close()
     # ─── J2: katta qiymatlar — hech narsa qirqilmaydi / toshmaydi ───
     for w, h, tel in ((1920, 1000, False), (1440, 900, False), (1366, 768, False), (1180, 800, False), (1100, 800, False), (1024, 768, False),
-                      (900, 800, False), (761, 900, False), (744, 900, False), (600, 900, False), (390, 844, True), (320, 640, True)):
+                      (900, 800, False), (761, 900, False), (744, 900, False), (600, 900, False), (412, 915, True), (390, 844, True),
+                      (375, 812, True), (320, 640, True)):
         for katta in (False, True):
             ctx, pg = kontekst(w, h, tel=tel)
             sahifa(pg, tema="dark" if (w == 1440 and katta) else None)
