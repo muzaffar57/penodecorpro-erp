@@ -619,6 +619,10 @@ check("S3 «Tannarx va foyda» — alohida band (faqat Ko'rish); Menejer / Ombor
       and "tannarx" not in RX.TAYYOR_ROLLAR["omborchi"]["ruxsatlar"] and "tannarx" in RX.TAYYOR_ROLLAR["moliyachi"]["ruxsatlar"])
 # kech129 (zip 153, MOSLANDI): kech123 dagi `SAAS_IXTIYORIY` istisnosi OLIB TASHLANDI — o'sha 8 marshrut (qorovuli `auth.admin_only`)
 # jadvaldan tashqarida qolib, mijoz korxona admini ham kirishi sezilmagan edi. Endi istisno YO'Q: har marshrut jadvalda bo'lishi shart.
+# kech199 (zip 263, xavfsizlik REJA 2-band — MOSLANDI; versiya manbadan): platforma egasi kirishining Telegram kodi sahifasi — ochiq (kirishdan
+# OLDIN; o'zi yaroqli `kirish_kod` cookie sini talab qiladi). Eski kodda bu marshrutlar yo'q — jadvalga qo'shilmaydi.
+if hasattr(main, "login_kod_sahifa"):
+    YANGI_MARSHRUTLAR.update({"GET /login/kod": "-", "POST /login/kod": "-"})
 _jadvalsiz = sorted(k for k in MARSHRUT if k not in ESKI and k not in YANGI_MARSHRUTLAR)
 _yoq = sorted(k for k in list(ESKI) + list(YANGI_MARSHRUTLAR) if k not in MARSHRUT)
 check("S4 HAR marshrut jadvalda (yangi marshrut ruxsati belgilanmay qolmagan), jadvaldagi hamma marshrut ilovada bor",
@@ -682,6 +686,11 @@ _rollar_A = sorted(r.kod or "" for r in db.query(Rol).filter(Rol.company_id == 1
 check("H2 1-korxona rollari: Admin, Menejer, Omborchi, Moliyachi + «Usta (eski)» (faqat usta foydalanuvchisi bor bo'lgani uchun)",
       _rollar_A == sorted(["admin", "menejer", "omborchi", "moliyachi", "usta"]), _rollar_A)
 db.close()
+
+
+# kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): API orqali YARATILADIGAN hisob paroli — yangi qoidaga mos (10+ belgi, oddiy emas);
+# eski kodda ham yaroqli (6+). Bazaga to'g'ridan-to'g'ri yozilgan hisoblar — avvalgidek «Parol123!».
+API_PAROL = "Parol-263-Kuchli"
 
 
 def kirish(login, parol="Parol123!"):
@@ -894,11 +903,11 @@ KB = kirish("rt_B_admin")
 _bd = js(KB.get("/api/rollar"))
 _b_admin_rol = {"id": rol_id(2, "admin")}
 _b_men_rol = {"id": rol_id(2, "menejer")}
-_r = KB.post("/api/users", json={"username": "rt_B_admin2", "password": "Parol123!", "rol_id": _b_admin_rol["id"]})
+_r = KB.post("/api/users", json={"username": "rt_B_admin2", "password": API_PAROL, "rol_id": _b_admin_rol["id"]})
 _b2 = js(_r).get("id")
 check("R18 yangi foydalanuvchi Admin roli bilan — `role` = admin (Admin belgisi roldan)",
       _r.status_code == 200 and js(_r).get("role") == "admin" and js(_r).get("rol_nomi") == "Admin", js(_r))
-KB2 = kirish("rt_B_admin2")
+KB2 = kirish("rt_B_admin2", API_PAROL)
 _r1 = KB2.put(f"/api/users/{user_id('rt_B_admin')}/rol", json={"rol_id": _b_men_rol["id"]})
 _r2 = kirish("rt_B_admin").get("/api/rollar").status_code
 check("R19 ikkinchi Admin bor — birinchi Admin Menejer qilinadi (endi rollar sahifasi 403)", _r1.status_code == 200 and _r2 == 403,
@@ -927,8 +936,8 @@ check("R21 korxonada kamida bitta FAOL Admin qoladi (oxirgi Admin tushirilmaydi)
       _xato == "Korxonada kamida bitta faol Admin qolishi kerak", _xato)
 check("R22 B korxona admini faqat o'z rollarini ko'radi (A ning o'zi yaratgan rollari yo'q), A rolini tahrirlay olmaydi (404)",
       bool(_bd.get("rollar")) and all(r.get("id") != _men["id"] for r in _bd.get("rollar", [])) and KB1.put(f"/api/rollar/{_men['id']}", json={"nom": "X"}).status_code == 404)
-_r = A.post("/api/users", json={"username": "rt_yangi", "password": "Parol123!", "rol_id": _b_rol.id})
-_r2 = A.post("/api/users", json={"username": "rt_yangi", "password": "Parol123!", "rol_id": _men["id"], "full_name": "Yangi"})
+_r = A.post("/api/users", json={"username": "rt_yangi", "password": API_PAROL, "rol_id": _b_rol.id})
+_r2 = A.post("/api/users", json={"username": "rt_yangi", "password": API_PAROL, "rol_id": _men["id"], "full_name": "Yangi"})
 check("R23 foydalanuvchi yaratish: boshqa korxona roli — 400; o'z roli — 200 (role = manager, rol — Menejer)",
       _r.status_code == 400 and _r2.status_code == 200 and js(_r2).get("rol_nomi") == "Menejer" and js(_r2).get("role") == "manager",
       (_r.status_code, js(_r2)))
@@ -936,7 +945,7 @@ check("R23 foydalanuvchi yaratish: boshqa korxona roli — 400; o'z roli — 200
 _bo = js(A.post("/api/rollar", json={"nom": "Bo'sh rol"}))
 _y_id = js(_r2).get("id")
 A.put(f"/api/users/{_y_id}/rol", json={"rol_id": _bo.get("id")})
-KY = kirish("rt_yangi")
+KY = kirish("rt_yangi", API_PAROL)
 _x = KY.get("/", headers={"accept": "text/html"}, follow_redirects=False)
 check("R24 birorta bo'limi yo'q rol — bosh sahifa 403 (sababi: «hali birorta bo'lim berilmagan»), menyu bo'sh",
       _x.status_code == 403 and "birorta bo" in _x.text and not re.findall(r'class="nav-item', _x.text), (_x.status_code, _x.text[:200]))

@@ -188,6 +188,12 @@ def rad400(label, r, h0, h1, matnmi=True):
 # FIKSTURA
 # ════════════════════════════════════════════════════════════════
 PAROL = "Parol123!"
+# kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI; versiya manbadan): yangi parol qoidasi — kamida 10 belgi, oddiy parol emas. API orqali
+# YARATILADIGAN / almashtiriladigan parollar — ikkala kodda ham yaroqli (`PAROL_API`, «Yangi-…-Parol», 72 baytli turli belgilar); qoida
+# chegarasi va xabarlari — versiyaga qarab (`Z263`). Bazaga to'g'ridan-to'g'ri yozilgan hisoblar — avvalgidek `PAROL`.
+PAROL_API = "Parol-263-Kuchli"
+Z263 = hasattr(crud, "parol_zaifligi")
+QISQA_XABAR = "Parol kamida 10 belgi bo'lsin" if Z263 else "Parol kamida 6 belgi"
 db = SessionLocal()
 with contextlib.redirect_stdout(_quiet):
     auth.create_user(db, "TQ_admin", PAROL, UserRole.ADMIN, "TQ Admin", company_id=1)
@@ -290,31 +296,31 @@ def userlar():
 # ════════════════════════════════════════════════════════════════
 section("A. Foydalanuvchi yaratish — POST /api/users")
 # ════════════════════════════════════════════════════════════════
-r = req(C, "post", "/api/users", json={"username": "tq_u1", "password": PAROL, "role": "manager", "full_name": "Ali Vali"})
+r = req(C, "post", "/api/users", json={"username": "tq_u1", "password": PAROL_API, "role": "manager", "full_name": "Ali Vali"})
 check("A1 NAZORAT (users.html tanasi) → 200, saqlangan", r.status_code == 200 and user_bor("tq_u1") == ("tq_u1", "Ali Vali", "manager"),
       f"{r.status_code} {r.text[:120]} {user_bor('tq_u1')}")
 _rad = [
-    ("A2 username kalit yo'q", {"password": PAROL}),
+    ("A2 username kalit yo'q", {"password": PAROL_API}),
     ("A2 password kalit yo'q", {"username": "tq_a2b"}),
-    ("A2 noma'lum kalit (is_platform_admin, company_id)", {"username": "tq_a2c", "password": PAROL, "is_platform_admin": True,
+    ("A2 noma'lum kalit (is_platform_admin, company_id)", {"username": "tq_a2c", "password": PAROL_API, "is_platform_admin": True,
                                                           "company_id": BCID}),
-    ("A2 username true", {"username": True, "password": PAROL}),
-    ("A2 username son 12345", {"username": 12345, "password": PAROL}),
-    ("A2 username '' (bo'sh)", {"username": "", "password": PAROL}),
-    ("A2 username faqat tab / newline", {"username": "\t\n ", "password": PAROL}),
-    ("A2 username 51 belgi", {"username": "u" * 51, "password": PAROL}),
-    ("A2 full_name 101 belgi", {"username": "tq_a2d", "password": PAROL, "full_name": "f" * 101}),
-    ("A2 full_name son", {"username": "tq_a2e", "password": PAROL, "full_name": 5}),
+    ("A2 username true", {"username": True, "password": PAROL_API}),
+    ("A2 username son 12345", {"username": 12345, "password": PAROL_API}),
+    ("A2 username '' (bo'sh)", {"username": "", "password": PAROL_API}),
+    ("A2 username faqat tab / newline", {"username": "\t\n ", "password": PAROL_API}),
+    ("A2 username 51 belgi", {"username": "u" * 51, "password": PAROL_API}),
+    ("A2 full_name 101 belgi", {"username": "tq_a2d", "password": PAROL_API, "full_name": "f" * 101}),
+    ("A2 full_name son", {"username": "tq_a2e", "password": PAROL_API, "full_name": 5}),
     ("A2 parol 5 belgi", {"username": "tq_a2f", "password": "12345"}),
     ("A2 parol 1 belgi", {"username": "tq_a2g", "password": "1"}),
     ("A2 parol true", {"username": "tq_a2h", "password": True}),
     ("A2 parol faqat bo'shliq (6)", {"username": "tq_a2i", "password": "      "}),
     ("A2 parol 73 belgi (lotin, 73 bayt)", {"username": "tq_a2j", "password": "A" * 72 + "X"}),
     ("A2 parol 37 kirill harf (74 bayt)", {"username": "tq_a2k", "password": "Ж" * 37}),
-    ("A2 rol true", {"username": "tq_a2l", "password": PAROL, "role": True}),
-    ("A2 rol 'MANAGER' (enum nomi)", {"username": "tq_a2m", "password": PAROL, "role": "MANAGER"}),
-    ("A2 rol null", {"username": "tq_a2n", "password": PAROL, "role": None}),
-    ("A2 rol 'superadmin'", {"username": "tq_a2o", "password": PAROL, "role": "superadmin"}),
+    ("A2 rol true", {"username": "tq_a2l", "password": PAROL_API, "role": True}),
+    ("A2 rol 'MANAGER' (enum nomi)", {"username": "tq_a2m", "password": PAROL_API, "role": "MANAGER"}),
+    ("A2 rol null", {"username": "tq_a2n", "password": PAROL_API, "role": None}),
+    ("A2 rol 'superadmin'", {"username": "tq_a2o", "password": PAROL_API, "role": "superadmin"}),
 ]
 for lbl, tana in _rad:
     h0 = userlar()
@@ -324,38 +330,38 @@ h0 = userlar()
 r = xom(C, "post", "/api/users", '{"username": NaN, "password": "Parol123!"}')
 check("A2 username NaN (xom) → 400 / 422, yaratilmadi", r.status_code in (400, 422) and userlar() == h0, f"{r.status_code} {r.text[:120]}")
 d = detail(req(C, "post", "/api/users", json={"username": "tq_a2p", "password": "12345"}))
-check("A3 qisqa parol xabari — 'Parol kamida 6 belgi' (almashtirish bilan bir xil)", d == "Parol kamida 6 belgi", d)
+check(f"A3 qisqa parol xabari — '{QISQA_XABAR}' (almashtirish bilan bir xil)", d == QISQA_XABAR, d)
 d = detail(req(C, "post", "/api/users", json={"username": "tq_a2q", "password": "Ж" * 37}))
 check("A3 uzun parol xabari — 72 bayt va kirill 36 belgi aytiladi", isinstance(d, str) and "72" in d and "36" in d, d)
 # Chegaralar — qabul
-r = req(C, "post", "/api/users", json={"username": "v" * 50, "password": PAROL})
+r = req(C, "post", "/api/users", json={"username": "v" * 50, "password": PAROL_API})
 check("A4 username 50 belgi (chegara) → 200", r.status_code == 200 and user_bor("v" * 50) is not None, f"{r.status_code} {r.text[:100]}")
-r = req(C, "post", "/api/users", json={"username": "tq_a4b", "password": PAROL, "full_name": "f" * 100})
+r = req(C, "post", "/api/users", json={"username": "tq_a4b", "password": PAROL_API, "full_name": "f" * 100})
 check("A4 full_name 100 belgi (chegara) → 200", r.status_code == 200, f"{r.status_code} {r.text[:100]}")
-P72 = "A" * 72
+P72 = ("Kuchli-Parol-" * 6)[:72]          # kech199 (zip 263, MOSLANDI): 72 bayt, lekin bir xil belgilar emas
 r = req(C, "post", "/api/users", json={"username": "tq_a4c", "password": P72})
 _, _l1 = klient("tq_a4c", P72)
 check("A4 parol 72 bayt (lotin) → 200 va aynan shu parol bilan kiradi", r.status_code == 200 and _l1 == 302, f"{r.status_code} {_l1}")
-P36 = "Ж" * 36
+P36 = "ЖФЫВАП" * 6                        # kech199 (zip 263, MOSLANDI): 36 kirill (72 bayt), bir xil belgilar emas
 r = req(C, "post", "/api/users", json={"username": "tq_a4d", "password": P36})
 _, _l2 = klient("tq_a4d", P36)
 check("A4 parol 36 kirill harf (72 bayt) → 200 va kiradi", r.status_code == 200 and _l2 == 302, f"{r.status_code} {_l2}")
-r = req(C, "post", "/api/users", json={"username": "tq_a4e", "password": "123456"})
-check("A4 parol 6 belgi (eng kami) → 200", r.status_code == 200, f"{r.status_code} {r.text[:100]}")
-r = req(C, "post", "/api/users", json={"username": "  tq_a4f  ", "password": PAROL})
-_, _l3 = klient("tq_a4f")
+r = req(C, "post", "/api/users", json={"username": "tq_a4e", "password": "Kuchli-10b" if Z263 else "123456"})
+check("A4 parol eng kami (zip 263: 10 belgi, oddiy emas; avval 6) → 200", r.status_code == 200, f"{r.status_code} {r.text[:100]}")
+r = req(C, "post", "/api/users", json={"username": "  tq_a4f  ", "password": PAROL_API})
+_, _l3 = klient("tq_a4f", PAROL_API)
 check("A4 login chetidagi bo'shliqlar — avvalgidek kesilib saqlanadi va kiradi", r.status_code == 200 and user_bor("tq_a4f") is not None
       and _l3 == 302, f"{r.status_code} {user_bor('tq_a4f')} {_l3}")
-r = req(C, "post", "/api/users", json={"username": "tq a4g", "password": PAROL})
+r = req(C, "post", "/api/users", json={"username": "tq a4g", "password": PAROL_API})
 check("A4 login ichida bo'shliq — avvalgidek ruxsat", r.status_code == 200 and user_bor("tq a4g") is not None, f"{r.status_code}")
-r = req(C, "post", "/api/users", json={"username": "tq_a4h", "password": PAROL})
+r = req(C, "post", "/api/users", json={"username": "tq_a4h", "password": PAROL_API})
 check("A4 rol berilmagan → 'manager' (avvalgidek)", r.status_code == 200 and (user_bor("tq_a4h") or ("", "", ""))[2] == "manager",
       f"{r.status_code} {user_bor('tq_a4h')}")
-r = req(C, "post", "/api/users", json={"username": "tq_a4i", "password": PAROL, "role": "warehouse", "full_name": None})
+r = req(C, "post", "/api/users", json={"username": "tq_a4i", "password": PAROL_API, "role": "warehouse", "full_name": None})
 check("A4 rol 'warehouse', full_name null → 200 (null avvalgidek saqlanadi)", r.status_code == 200
       and user_bor("tq_a4i") == ("tq_a4i", None, "warehouse"), f"{r.status_code} {user_bor('tq_a4i')}")
 h0 = userlar()
-r = req(C, "post", "/api/users", json={"username": "tq_u1", "password": PAROL})
+r = req(C, "post", "/api/users", json={"username": "tq_u1", "password": PAROL_API})
 check("A5 takror login → 400 'Bu username band' (o'zgarmadi)", r.status_code == 400 and detail(r) == "Bu username band"
       and userlar() == h0, f"{r.status_code} {detail(r)}")
 h0 = userlar()
@@ -369,8 +375,8 @@ check("A6 bazada bo'sh (yoki faqat bo'shliqli) loginli foydalanuvchi YO'Q", _bos
 # ════════════════════════════════════════════════════════════════
 section("B. Parolni almashtirish — POST /api/users/{id}/password")
 # ════════════════════════════════════════════════════════════════
-r = req(C, "post", f"/api/users/{BOSHQA_ID}/password", json={"new_password": "Yangi123!"})
-_, _l = klient("TQ_boshqa", "Yangi123!")
+r = req(C, "post", f"/api/users/{BOSHQA_ID}/password", json={"new_password": "Yangi-123-Parol"})
+_, _l = klient("TQ_boshqa", "Yangi-123-Parol")
 check("B1 NAZORAT (boshqa foydalanuvchi, users.html tanasi) → 200 va yangi parol bilan kiradi", r.status_code == 200 and _l == 302,
       f"{r.status_code} {_l}")
 for lbl, tana in [("B2 {} (kalit yo'q)", {}), ("B2 new_password true", {"new_password": True}),
@@ -384,16 +390,16 @@ for lbl, tana in [("B2 {} (kalit yo'q)", {}), ("B2 new_password true", {"new_pas
     r = req(C, "post", f"/api/users/{BOSHQA_ID}/password", json=tana)
     rad400(f"{lbl} → 400 (matn), parol o'zgarmadi", r, h0, xesh(BOSHQA_ID))
 d = detail(req(C, "post", f"/api/users/{BOSHQA_ID}/password", json={}))
-check("B3 kalit yo'q — xabar avvalgidek 'Parol kamida 6 belgi'", d == "Parol kamida 6 belgi", d)
+check(f"B3 kalit yo'q — xabar '{QISQA_XABAR}'", d == QISQA_XABAR, d)
 for lbl, cp in [("son 123", 123), ("ro'yxat", ["a"]), ("true", True)]:
     h0 = xesh(ADMIN_ID)
-    r = req(C, "post", f"/api/users/{ADMIN_ID}/password", json={"new_password": "Yangi789!", "current_password": cp})
+    r = req(C, "post", f"/api/users/{ADMIN_ID}/password", json={"new_password": "Yangi-789-Parol", "current_password": cp})
     rad400(f"B4 o'z paroli: current_password {lbl} → 400 (500 EMAS), parol o'zgarmadi", r, h0, xesh(ADMIN_ID))
 h0 = xesh(ADMIN_ID)
-r = req(C, "post", f"/api/users/{ADMIN_ID}/password", json={"new_password": "Yangi789!", "current_password": ""})
+r = req(C, "post", f"/api/users/{ADMIN_ID}/password", json={"new_password": "Yangi-789-Parol", "current_password": ""})
 check("B4 o'z paroli: current_password '' → 400 'Joriy parolni kiriting' (o'zgarmadi)",
       r.status_code == 400 and detail(r) == "Joriy parolni kiriting" and xesh(ADMIN_ID) == h0, f"{r.status_code} {detail(r)}")
-r = req(C, "post", f"/api/users/{ADMIN_ID}/password", json={"new_password": "Yangi789!", "current_password": "notogri!"})
+r = req(C, "post", f"/api/users/{ADMIN_ID}/password", json={"new_password": "Yangi-789-Parol", "current_password": "notogri!"})
 check("B4 o'z paroli: noto'g'ri joriy parol → 400 (o'zgarmadi)", r.status_code == 400 and xesh(ADMIN_ID) == h0, f"{r.status_code}")
 h0 = xesh(B_USER_ID)
 r = req(C, "post", f"/api/users/{B_USER_ID}/password", json={"new_password": "Buzildi123!"})
@@ -950,8 +956,8 @@ _cv = getattr(crud, "_clean_val", None)
 check("S9 _clean_val('BOM'): nom None / '' / '   ' → 'Standart'",
       all(xavfsiz(_cv, "BOM", dict(BOM0, variant_name=v)).get("variant_name") == "Standart" if isinstance(xavfsiz(_cv, "BOM", dict(BOM0, variant_name=v)), dict)
           else False for v in (None, "", "   ")))
-check("S9 _clean_val('UserCreate'): login kesiladi", (xavfsiz(_cv, "UserCreate", {"username": " a ", "password": PAROL}) or {}).get("username") == "a"
-      if isinstance(xavfsiz(_cv, "UserCreate", {"username": " a ", "password": PAROL}), dict) else False)
+check("S9 _clean_val('UserCreate'): login kesiladi", (xavfsiz(_cv, "UserCreate", {"username": " a ", "password": PAROL_API}) or {}).get("username") == "a"
+      if isinstance(xavfsiz(_cv, "UserCreate", {"username": " a ", "password": PAROL_API}), dict) else False)
 
 # ════════════════════════════════════════════════════════════════
 section("U. UI — HAQIQIY shablon funksiyalari (node) yuborgan tanalar serverga")
@@ -1061,7 +1067,7 @@ async function yur() {
   EL = {}; QSA = {}; CUR = 'G3'; v('giftPeriodAddMasterSelect', K.m2); await submitAddMasterToGiftPeriod();
   EL = {}; QSA = {}; CUR = 'G4'; await submitCloseGiftPeriod(false);
   EL = {}; QSA = {}; CUR = 'U1';
-  v('f-username', ' ui_user '); v('f-password', 'Parol123!'); v('f-role', K.rol); v('f-fullname', 'UI Foydalanuvchi');
+  v('f-username', ' ui_user '); v('f-password', 'Parol-263-Kuchli'); v('f-role', K.rol); v('f-fullname', 'UI Foydalanuvchi');
   await saveUser();
   EL = {}; QSA = {}; CUR = 'U2'; await changePass(990003, 'ui_user', null);
   v('parol-yangi', 'UiYangi123!'); v('parol-takror', 'UiYangi123!'); await parolSaqlash();
@@ -1219,7 +1225,8 @@ for _m, _k, _tbl, _ust in [("UserCreate", "username", User, "username"), ("UserC
     _q = (_rules.get(_m) or {}).get(_k)
     check(f"H3 qoida {_m}.{_k} matn chegarasi = ustun sig'imi ({_tbl.__tablename__}.{_ust})",
           bool(_q) and _q[0] == "matn" and _q[2] == uzunlik(_tbl, _ust), f"{_q} vs {uzunlik(_tbl, _ust)}")
-check("H4 parol eng ko'pi 72 bayt (bcrypt), eng kami 6", getattr(crud, "_PAROL_MAX_BAYT", None) == 72 and getattr(crud, "_PAROL_MIN", None) == 6)
+check(f"H4 parol eng ko'pi 72 bayt (bcrypt), eng kami {10 if Z263 else 6} (zip 263: 10)",
+      getattr(crud, "_PAROL_MAX_BAYT", None) == 72 and getattr(crud, "_PAROL_MIN", None) == (10 if Z263 else 6))
 _fp_cost = FinishedProduct.__table__.c["cost_price"].type
 _fp_unit = FinishedProduct.__table__.c["unit_cost_stable"].type
 check("H5 K93-2 chegaralari ustun sig'imidan: cost_price Numeric(12,2), unit_cost_stable Numeric(14,4)",

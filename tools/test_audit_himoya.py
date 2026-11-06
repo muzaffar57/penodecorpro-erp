@@ -491,13 +491,17 @@ _r = kir(mijoz(HUJ), "h_egasi")
 check("D2 hujumchi IP sining o'zidan — to'g'ri parol bilan ham bloklangan (parol terish to'xtaydi)", not kirdimi(_r)
       and "Juda ko" in (_r.text or ""), (_r.status_code, (_r.text or "")[:150]))
 RIP = "198.18.0.20"
-for i in range(19):
+# kech199 (zip 263, xavfsizlik REJA 17-band — MOSLANDI; versiya manbadan): IP chegarasi 20 → 60 — funksiyaning standart qiymatidan;
+# eski kodda (20) — avvalgidek AYNAN
+import inspect as _insp263
+_IPMAX = _insp263.signature(crud.check_login_rate_limit).parameters["ip_max_attempts"].default
+for i in range(_IPMAX - 1):
     kir(mijoz(RIP), f"yoq_login_{i}", "xato")
 _r = kir(mijoz(RIP), "h_ip_a")
-check("D3 bir IP dan 19 xato (turli hisoblar) — o'sha IP dagi boshqa xodim kiradi", kirdimi(_r), _r.status_code)
+check(f"D3 bir IP dan {_IPMAX - 1} xato (turli hisoblar) — o'sha IP dagi boshqa xodim kiradi", kirdimi(_r), _r.status_code)
 kir(mijoz(RIP), "yoq_login_x", "xato")
 _r = kir(mijoz(RIP), "h_ip_b")
-check("D4 20 xato — o'sha IP dan kirish bloklanadi (avvalgidek)", not kirdimi(_r) and "Juda ko" in (_r.text or ""), _r.status_code)
+check(f"D4 {_IPMAX} xato — o'sha IP dan kirish bloklanadi (avvalgidek)", not kirdimi(_r) and "Juda ko" in (_r.text or ""), _r.status_code)
 _r = kir(mijoz(), "h_ip_b")
 check("D4b boshqa IP dan — kiradi", kirdimi(_r), _r.status_code)
 TANISH = "203.0.113.200"
@@ -620,7 +624,8 @@ P1, P2 = mijoz(), mijoz()
 kir(P1, "h_parol")
 kir(P2, "h_parol")
 _uid = SessionLocal().query(User.id).filter(User.username == "h_parol").scalar()
-_r = req(P1, "post", f"/api/users/{_uid}/password", json={"new_password": "Yangi456!", "current_password": PAROL})
+# kech199 (zip 263, 4-band — MOSLANDI): yangi parol qoidaga mos (eski kodda ham yaroqli)
+_r = req(P1, "post", f"/api/users/{_uid}/password", json={"new_password": "Yangi-456-Parol", "current_password": PAROL})
 check("E5 o'z parolini almashtirish — joriy sessiya qoladi, boshqa qurilma chiqadi (xeshli tokenda ham)",
       _r.status_code == 200 and ishlaydimi(P1) == 200 and ishlaydimi(P2) == 401, (_r.status_code, ishlaydimi(P1), ishlaydimi(P2)))
 _d = SessionLocal()

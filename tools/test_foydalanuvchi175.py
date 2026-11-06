@@ -313,7 +313,9 @@ boshqa_adminlar(True, _boshqa)
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 section("B. Foydalanuvchi yaratish — amal kaliti, jurnal (U4, X2)")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
-_tana = {"username": "fy_yangi1", "password": PAROL, "role": "manager", "full_name": "Yangi Bir"}
+# kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): API orqali YARATILADIGAN hisob paroli — yangi qoidaga mos (10+ belgi, oddiy emas); eski kodda ham yaroqli
+API_PAROL = "Parol-263-Kuchli"
+_tana = {"username": "fy_yangi1", "password": API_PAROL, "role": "manager", "full_name": "Yangi Bir"}
 K1 = "fy175kalit0001abcd"
 r1 = A.post("/api/users", json=_tana, headers={"X-Amal-Kaliti": K1})
 check("B1 yaratildi (kalit bilan) — 200", r1.status_code == 200 and js(r1).get("username") == "fy_yangi1", (r1.status_code, r1.text[:200]))

@@ -274,13 +274,17 @@ check("R1 bitta hisobga 5 xato — shu hisob TO'G'RI parol bilan ham 15 daqiqa k
 _r = kir(mijoz(RIP), "k116_b")
 check("R2 o'sha IP dagi BOSHQA xodim (to'g'ri parol) kiradi — bitta xodimning xatosi ofisni yopmaydi (asl: IP 5 da bloklardi)",
       kirdimi(_r), (_r.status_code, (_r.text or "")[:120]))
-for i in range(14):
+# kech199 (zip 263, xavfsizlik REJA 17-band — MOSLANDI; versiya manbadan): IP chegarasi 20 → 60 (CGNAT) — sanoq funksiyaning standart
+# qiymatidan; eski kodda (20) — avvalgidek AYNAN (5 + 14 = 19, keyin 20).
+import inspect as _insp263
+_IPMAX = _insp263.signature(crud.check_login_rate_limit).parameters["ip_max_attempts"].default
+for i in range(_IPMAX - 6):
     kir(mijoz(RIP), f"yoq_login_{i}", "xato")
 _r = kir(mijoz(RIP), "k116_d")
-check("R3 19 xato (IP bo'yicha) — hali kiradi", kirdimi(_r), (_r.status_code, (_r.text or "")[:120]))
+check(f"R3 {_IPMAX - 1} xato (IP bo'yicha) — hali kiradi", kirdimi(_r), (_r.status_code, (_r.text or "")[:120]))
 kir(mijoz(RIP), "yoq_login_x", "xato")
 _r = kir(mijoz(RIP), "k116_e")
-check("R4 20 xato bir IP dan (turli hisoblarga) — shu IP dagi keyingi kirish bloklanadi", not kirdimi(_r)
+check(f"R4 {_IPMAX} xato bir IP dan (turli hisoblarga) — shu IP dagi keyingi kirish bloklanadi", not kirdimi(_r)
       and "Juda ko" in (_r.text or ""), (_r.status_code, (_r.text or "")[:120]))
 _r = hkir("k116_e", "Parol123!", "198.51.100.200")
 check("R5 boshqa IP dan (haqiqiy IP 198.51.100.200) shu foydalanuvchi kiradi", _r.status_code in (302, 303),
@@ -323,20 +327,21 @@ def sessiyalar(login):
 
 
 _oldin = [ishlaydimi(X1), ishlaydimi(X2), sessiyalar("k116_x")]
-_r = req(ADM, "post", f"/api/users/{uid('k116_x')}/password", json={"new_password": "Yangi456!"})
+# kech199 (zip 263, 4-band — MOSLANDI): yangi parollar qoidaga mos («Yangi456!» — 9 belgi; eski kodda ham yaroqli)
+_r = req(ADM, "post", f"/api/users/{uid('k116_x')}/password", json={"new_password": "Yangi-456-Parol"})
 _keyin = [ishlaydimi(X1), ishlaydimi(X2), sessiyalar("k116_x")]
 check("P1 admin X ning parolini almashtirdi — X ning IKKALA qurilmasi chiqarildi (401), sessiya 0 (asl: ishlayverardi)",
       _r.status_code == 200 and _oldin == [200, 200, 2] and _keyin == [401, 401, 0], (_r.status_code, _oldin, _keyin))
-check("P2 X yangi parol bilan kiradi, eskisi bilan — yo'q", kirdimi(kir(mijoz(), "k116_x", "Yangi456!"))
+check("P2 X yangi parol bilan kiradi, eskisi bilan — yo'q", kirdimi(kir(mijoz(), "k116_x", "Yangi-456-Parol"))
       and not kirdimi(kir(mijoz(), "k116_x", "Parol123!")))
 check("P3 admin sessiyasi o'zgarmadi", ishlaydimi(ADM) == 200)
 Y1, Y2 = mijoz(), mijoz()
 check("P4 Y ikki qurilmada kirdi", kirdimi(kir(Y1, "k116_y")) and kirdimi(kir(Y2, "k116_y")))
-_r = req(Y1, "post", f"/api/users/{uid('k116_y')}/password", json={"new_password": "Yangi789!", "current_password": "xato"})
+_r = req(Y1, "post", f"/api/users/{uid('k116_y')}/password", json={"new_password": "Yangi-789-Parol", "current_password": "xato"})
 check("P5 o'z parolida joriy parol noto'g'ri — 400 «Joriy parol noto'g'ri», hech kim chiqarilmadi",
       _r.status_code == 400 and "noto'g'ri" in str(js(_r).get("detail")) and [ishlaydimi(Y1), ishlaydimi(Y2)] == [200, 200],
       (_r.status_code, js(_r)))
-_r = req(Y1, "post", f"/api/users/{uid('k116_y')}/password", json={"new_password": "Yangi789!", "current_password": "Parol123!"})
+_r = req(Y1, "post", f"/api/users/{uid('k116_y')}/password", json={"new_password": "Yangi-789-Parol", "current_password": "Parol123!"})
 check("P6 Y o'z parolini almashtirdi — JORIY qurilma ishlaydi, boshqasi chiqarildi (asl: ikkalasi ham ishlardi)",
       _r.status_code == 200 and [ishlaydimi(Y1), ishlaydimi(Y2)] == [200, 401] and sessiyalar("k116_y") == 1,
       (_r.status_code, ishlaydimi(Y1), ishlaydimi(Y2), sessiyalar("k116_y")))
@@ -347,7 +352,7 @@ _r = req(BK, "post", f"/api/users/{uid('k116_admin')}/password", json={"new_pass
 check("P7 B korxona admini A ning parolini almashtira olmaydi (404) — A ning sessiyalari joyida",
       _r.status_code == 404 and sessiyalar("k116_admin") == _s0 and ishlaydimi(ADM) == 200, (_r.status_code, _s0))
 _r = req(ADM, "post", f"/api/users/{uid('k116_x')}/password", json={"new_password": "123"})
-check("P8 qisqa parol — 400, hech narsa o'zgarmadi", _r.status_code == 400 and kirdimi(kir(mijoz(), "k116_x", "Yangi456!")),
+check("P8 qisqa parol — 400, hech narsa o'zgarmadi", _r.status_code == 400 and kirdimi(kir(mijoz(), "k116_x", "Yangi-456-Parol")),
       (_r.status_code, js(_r)))
 
 # ══════════════════════════════════════════════════════════════

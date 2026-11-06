@@ -372,6 +372,7 @@ PRJ_JS = [
         let tana = null; try { tana = t ? JSON.parse(t.body) : null; } catch (e) { tana = {XATO: String(e)}; }
         return {tana};"""),
 ]
+# kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): yangi parollar 10+ belgili va oddiy emas («Yangi123» — 8 belgi); eski kodda ham yaroqli
 USR = [
     q("f1", amal=f"""
       const b = document.querySelector('button[data-username="u116_boshqa"]');
@@ -381,8 +382,8 @@ USR = [
         turlar: ['parol-eski','parol-yangi','parol-takror'].map(i => document.getElementById(i) ? document.getElementById(i).type : null),
         prompt: window.__promptlar};"""),
     q("f2", amal=r"""
-      document.getElementById('parol-yangi').value = 'Yangi123';
-      document.getElementById('parol-takror').value = 'Boshqa123';
+      document.getElementById('parol-yangi').value = 'Yangi-123-Parol';
+      document.getElementById('parol-takror').value = 'Boshqa-123-Parol';
       window.__sorovlar.length = 0;
       await parolSaqlash();""",
       natija=M + r"""return {xato: __m(document.getElementById('parol-xato')), sorov: window.__sorovlar.filter(x => x.method === 'POST').length,
@@ -392,7 +393,7 @@ USR = [
         parolKozcha('parol-yangi', document.querySelector('#parolModal button[onclick*="parol-yangi"]'));
         return {ochiq: t1, yopiq: document.getElementById('parol-yangi').type};"""),
     q("f4", amal=r"""
-      document.getElementById('parol-takror').value = 'Yangi123';
+      document.getElementById('parol-takror').value = 'Yangi-123-Parol';
       window.__sorovlar.length = 0;
       window.__xabar = null;
       const __aslMsg = window.showMsg;
@@ -410,8 +411,8 @@ USR = [
         oldin: window.__f5_oldin, turlar: ['parol-eski','parol-yangi','parol-takror'].map(i => document.getElementById(i).type)};"""),
     q("f6", amal=r"""
       document.getElementById('parol-eski').value = 'notogri';
-      document.getElementById('parol-yangi').value = 'Yangi456';
-      document.getElementById('parol-takror').value = 'Yangi456';
+      document.getElementById('parol-yangi').value = 'Yangi-456-Parol';
+      document.getElementById('parol-takror').value = 'Yangi-456-Parol';
       window.__sorovlar.length = 0;
       await parolSaqlash();""",
       natija=M + r"""return {xato: __m(document.getElementById('parol-xato')), modal: document.getElementById('parolModal').style.display,
@@ -595,7 +596,7 @@ check("F3 ko'zcha: ko'rsatish (text) ↔ yashirish (password)", g("f3", "ochiq")
 _f4 = g("f4", "sorov") or []
 check("F4 to'g'ri — BITTA POST /api/users/{id}/password {new_password}, oyna yopildi, maydonlar tozalandi, xabar «ochiq kirishlari yopildi»",
       len(_f4) == 1 and _f4[0].get("url") == f"/api/users/{BOSHQA_ID}/password"
-      and json.loads(_f4[0].get("body") or "{}") == {"new_password": "Yangi123"} and g("f4", "modal") == "none"
+      and json.loads(_f4[0].get("body") or "{}") == {"new_password": "Yangi-123-Parol"} and g("f4", "modal") == "none"
       and g("f4", "maydon") == "" and "kirishlari yopildi" in ((g("f4", "xabar") or {}).get("t") or ""), N.get("f4"))
 check("F5 «Parolimni o'zgartirish» — joriy parol qatori ko'rinadi", g("f5", "eski") == "" and "Parolimni" in (g("f5", "sarlavha") or ""),
       N.get("f5"))

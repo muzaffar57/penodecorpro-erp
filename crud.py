@@ -6275,14 +6275,14 @@ def _clean_val(model: str, data) -> dict:
         _parol = toza.get(_pk)
         if _parol is None or len(_parol) < _PAROL_MIN:
             raise ValueError(f"Parol kamida {_PAROL_MIN} belgi bo'lsin")
-        # kech199 (zip 263, 4-band): oddiy parollar qoidasi (yaratishda — login bilan; almashtirishda login — marshrutda)
-        _zaif = parol_zaifligi(_parol, toza.get("username") if model == "UserCreate" else None)
-        if _zaif:
-            raise ValueError(_zaif)
         if len(_parol.encode("utf-8")) > _PAROL_MAX_BAYT:
             raise ValueError(f"Parol juda uzun: ko'pi bilan {_PAROL_MAX_BAYT} bayt "
                              f"(lotin harflarida {_PAROL_MAX_BAYT} belgi, kirill harflarida "
                              f"{_PAROL_MAX_BAYT // 2} belgi)")
+        # kech199 (zip 263, 4-band): oddiy parollar qoidasi (yaratishda — login bilan; almashtirishda login — marshrutda)
+        _zaif = parol_zaifligi(_parol, toza.get("username") if model == "UserCreate" else None)
+        if _zaif:
+            raise ValueError(_zaif)
     # Login bazaga chetidagi bo'shliqlarsiz yoziladi (`auth.create_user` va
     # login formasi ham `strip()` qiladi) — chegara ham shu qiymatga.
     if model == "UserCreate":
