@@ -623,6 +623,9 @@ check("S3 «Tannarx va foyda» — alohida band (faqat Ko'rish); Menejer / Ombor
 # OLDIN; o'zi yaroqli `kirish_kod` cookie sini talab qiladi). Eski kodda bu marshrutlar yo'q — jadvalga qo'shilmaydi.
 if hasattr(main, "login_kod_sahifa"):
     YANGI_MARSHRUTLAR.update({"GET /login/kod": "-", "POST /login/kod": "-"})
+# kech199 (zip 263, 9 + 11-band — MOSLANDI): «Hisobim» — har kirgan foydalanuvchi (barcha rollar) o'z paroli / logini
+if hasattr(main, "api_me_password"):
+    YANGI_MARSHRUTLAR.update({"GET /hisobim": "AMFWU", "POST /api/me/password": "AMFWU", "POST /api/me/login": "AMFWU"})
 _jadvalsiz = sorted(k for k in MARSHRUT if k not in ESKI and k not in YANGI_MARSHRUTLAR)
 _yoq = sorted(k for k in list(ESKI) + list(YANGI_MARSHRUTLAR) if k not in MARSHRUT)
 check("S4 HAR marshrut jadvalda (yangi marshrut ruxsati belgilanmay qolmagan), jadvaldagi hamma marshrut ilovada bor",

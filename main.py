@@ -5925,6 +5925,111 @@ def _ruxsat_farqi(eski: dict, yangi: dict) -> str:
     return "; ".join(q) if q else "ruxsatlar o'zgarmadi"
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech199 (zip 263, xavfsizlik REJA 9 + 11-band): «🔐 Hisobim» — HAR kirgan foydalanuvchi o'z parolini va loginini o'zgartiradi.
+#   * 11 (Fable F7, O'LCHANGAN): admin bo'lmagan foydalanuvchi o'z parolini almashtira olmasdi (`/api/users/{id}/password` — admin_only) —
+#     parolni doim admin bilardi, oshkor bo'lgan parolni egasi o'zi almashtira olmasdi.
+#   * 9 (egasi so'rovi 06.11 17:42): o'z loginini o'zgartirish — interfeysda yo'q edi.
+# Ikkalasi ham JORIY PAROL bilan tasdiqlanadi (ochiq qolgan kompyuterda begona odam hisobni egallab olmasin); noto'g'ri joriy parol —
+# kirish urinishi sifatida sanaladi (`log_login_attempt` — 5 tadan keyin 15 daqiqa blok). Muvaffaqiyatda boshqa qurilmalardagi
+# kirishlar yopiladi (joriysi qoladi), «Faoliyat jurnali» ga yoziladi (parol YOZILMAYDI). Platforma egasi bayrog'i — o'zgarmaydi.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_LOGIN_QOIDA_RE = _re_tg.compile(r"[A-Za-z0-9_.\-]{3,50}")
+LOGIN_BAND_XABARI = "Bu login ishlatib bo'lmaydi — boshqasini tanlang"
+
+
+def _ozim_joriy_parol(request, db, user, data):
+    """Joriy parol tekshiruvi (blok — 429, noto'g'ri — 400 va urinish yoziladi)."""
+    ip = auth.mijoz_ip(request)
+    rl = crud.check_login_rate_limit(db, user.username, ip)
+    if rl["blocked"]:
+        raise HTTPException(status_code=429, detail=f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.")
+    eski = data.get("current_password")
+    if not isinstance(eski, str) or not eski:
+        raise HTTPException(status_code=400, detail="Joriy parolni kiriting")
+    if len(eski.encode("utf-8")) > 200 or not auth.verify_and_upgrade_password(db, user, eski):
+        crud.log_login_attempt(db, user.username, success=False, ip_address=ip,
+                               user_agent=request.headers.get("user-agent", "")[:250])
+        raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+
+
+@app.get("/hisobim", response_class=HTMLResponse)
+def hisobim_sahifa(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
+    """«🔐 Hisobim» — o'z paroli va logini (har kirgan foydalanuvchi)."""
+    return templates.TemplateResponse(request, "hisobim.html", {"current_user": current_user, "active_page": "hisobim",
+                                                                 "parol_min": crud._PAROL_MIN})
+
+
+@app.post("/api/me/password")
+def api_me_password(data: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
+    """O'z parolini almashtirish: {"current_password", "new_password"}."""
+    if not isinstance(data, dict) or set(data) - {"current_password", "new_password"}:
+        raise HTTPException(status_code=400, detail="Noma'lum maydon")
+    yangi = data.get("new_password")
+    if not isinstance(yangi, str):
+        raise HTTPException(status_code=400, detail=f"Parol kamida {crud._PAROL_MIN} belgi bo'lsin")
+    try:
+        crud._clean_val("UserPassword", {"new_password": yangi})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _zaif = crud.parol_zaifligi(yangi, current_user.username)
+    if _zaif:
+        raise HTTPException(status_code=400, detail=_zaif)
+    _ozim_joriy_parol(request, db, current_user, data)
+    if auth.verify_password(yangi, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Yangi parol hozirgisidan farq qilishi kerak")
+    if not auth.change_password(db, current_user.id, yangi, company_id=auth.company_id_of(current_user),
+                                saqlanadigan_token=request.cookies.get("session_token"), bajaruvchi=current_user):
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    try:
+        crud.log_activity(db, "parol_ozgartirildi", "user", current_user.id, f"Foydalanuvchi «{current_user.username}»",
+                          performed_by=current_user.full_name or current_user.username, company_id=auth.company_id_of(current_user))
+    except Exception as _e263:            # noqa: BLE001
+        print(f"⚠ Parol almashinuvi jurnalga yozilmadi: {_e263}")
+    return {"status": "ok", "sessiyalar_yopildi": True}
+
+
+@app.post("/api/me/login")
+def api_me_login(data: dict, request: Request, db: Session = Depends(get_db), current_user=Depends(auth.require_login)):
+    """O'z loginini o'zgartirish: {"current_password", "new_username"}. Login — butun tizimda yagona (katta-kichik harf farqisiz)."""
+    from models import User as _U263m, UserSession as _US263m
+    from sqlalchemy import func as _f263m
+    if not isinstance(data, dict) or set(data) - {"current_password", "new_username"}:
+        raise HTTPException(status_code=400, detail="Noma'lum maydon")
+    yangi = data.get("new_username")
+    yangi = yangi.strip() if isinstance(yangi, str) else ""
+    if not _LOGIN_QOIDA_RE.fullmatch(yangi):
+        raise HTTPException(status_code=400, detail="Login 3–50 belgi: lotin harflari, raqamlar va «_ . -» (bo'shliqsiz)")
+    if yangi == current_user.username:
+        raise HTTPException(status_code=400, detail="Yangi login hozirgisi bilan bir xil")
+    _ozim_joriy_parol(request, db, current_user, data)
+    band = (db.query(_U263m.id).execution_options(skip_tenant_filter=True)
+            .filter(_f263m.lower(_U263m.username) == yangi.lower(), _U263m.id != current_user.id).first())
+    if band is not None:
+        raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
+    eski = current_user.username
+    u = db.query(_U263m).filter(_U263m.id == current_user.id, _U263m.company_id == auth.company_id_of(current_user)).first()
+    if u is None:
+        raise HTTPException(status_code=404, detail="Topilmadi")
+    u.username = yangi
+    _joriy = request.cookies.get("session_token")
+    _sq = db.query(_US263m).filter(_US263m.user_id == u.id)
+    if _joriy:
+        _sq = _sq.filter(_US263m.token != auth.token_xesh(_joriy))
+    _sq.delete(synchronize_session=False)
+    try:
+        db.commit()
+    except Exception:                      # noqa: BLE001 — parallel so'rov shu loginni oldi (unique)
+        db.rollback()
+        raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
+    try:
+        crud.log_activity(db, "login_ozgartirildi", "user", u.id, f"Login «{eski}» → «{yangi}»",
+                          performed_by=u.full_name or yangi, company_id=auth.company_id_of(current_user))
+    except Exception as _e263:            # noqa: BLE001
+        print(f"⚠ Login almashinuvi jurnalga yozilmadi: {_e263}")
+    return {"status": "ok", "username": yangi, "sessiyalar_yopildi": True}
+
 @app.get("/rollar", response_class=HTMLResponse)
 async def rollar_page(request: Request, db: Session = Depends(get_db), current_user=Depends(auth.admin_only)):
     return templates.TemplateResponse(request, "rollar.html", {"current_user": current_user, "active_page": "rollar"})

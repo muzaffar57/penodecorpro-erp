@@ -7268,6 +7268,8 @@ AUDIT_AMALLARI = {
     "faollashtirildi": ("✅", "— yoqildi (kira oladi)", "Foydalanuvchi yoqildi / o'chirildi"),
     "faolsizlantirildi": ("⛔", "— o'chirildi (kira olmaydi)", "Foydalanuvchi yoqildi / o'chirildi"),
     "parol_ozgartirildi": ("🔑", "— o'z parolini o'zgartirdi", "Parol tiklandi"),
+    # kech199 (zip 263, 9-band): o'z loginini o'zgartirdi — `entity_name` da «eski» → «yangi»
+    "login_ozgartirildi": ("🪪", "— o'z loginini o'zgartirdi", "Login o'zgartirildi"),
     # kech145 (zip 182, N5 — egasi qarori «Avtomatik yopilsin»): shu mahsulotning boshqa partiyasidan minus (yoki band kamomadi)
     # yopildi — `old_value` / `new_value` da partiyalar va miqdor
     "tm_minus_yopildi": ("🔁", "— minus yopildi (boshqa partiyadan ko'chirildi)", "Tayyor mahsulot minusi yopildi"),
