@@ -169,6 +169,31 @@ X0 = len(XABAR)
 for _ in range(3):
     hodim(pin="0000")
 check("P7 qulfda xato — sanoq oshmaydi, xabar takrorlanmaydi", lambda: holat(E1) == (10, True) and len(XABAR) == X0, (holat(E1), XABAR[X0:]))
+# kech200 (zip 263, review263 R6): «qulflangan» — faqat TO'G'RI PIN bilan; noto'g'ri PIN — yo'q raqam bilan AYNAN bir xil matn
+tarix_tozala()
+r_q, _ = hodim(pin="0000")
+_yoq_tel = TEL
+TEL = "+998 90 999 00 77"                                  # bu korxonada yo'q raqam
+r_y, _ = hodim(pin="0000")
+TEL = _yoq_tel
+
+
+def _xato_matni(r):
+    import re as _re
+    m = _re.search(r'class="[^"]*\b(?:error|xato)[^"]*"[^>]*>(.*?)</', r.text, _re.S)
+    return _html.unescape(m.group(1)).strip() if m else _html.unescape(r.text)
+
+
+check("P7b qulfda NOTO'G'RI PIN — «qulflangan» YO'Q, «Telefon yoki PIN noto'g'ri!» (yo'q raqam javobi bilan bir xil — raqam borligi oshkor emas)",
+      lambda: not kirdimi(r_q) and "qulflangan" not in _html.unescape(r_q.text)
+      and "Telefon yoki PIN noto'g'ri!" in _html.unescape(r_q.text) and "Telefon yoki PIN noto'g'ri!" in _html.unescape(r_y.text)
+      and _html.unescape(r_q.text).replace("90 263 11 22", "X").replace("90 999 00 77", "X")
+      == _html.unescape(r_y.text).replace("90 263 11 22", "X").replace("90 999 00 77", "X"),
+      (_xato_matni(r_q)[:200], _xato_matni(r_y)[:200]))
+tarix_tozala()
+r, c = hodim(pin=PIN)
+check("P7c qulfda TO'G'RI PIN — hali ham «qulflangan» (hodimning o'zi biladi), qulf ochilmadi",
+      lambda: not kirdimi(r) and "qulflangan" in _html.unescape(r.text) and holat(E1) == (10, True), (r.status_code, holat(E1)))
 ca = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
 ra = ca.post("/login", data={"username": "p263_admin", "password": "Parol263!xyz"})
 rj = ca.get("/api/employees")

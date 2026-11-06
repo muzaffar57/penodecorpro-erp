@@ -130,8 +130,12 @@ def tashkent_oy_oraligi(yil, oy):
 
 
 def tashkent_yil_oraligi(yil):
-    """Toshkent kalendar yili → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    """Toshkent kalendar yili → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI.
+    kech200 (zip 263, review263 R5 — O'LCHANGAN): yil chegarasi oy oralig'idagi kabi — ilgari `/api/masters/kpi-report?year=1` (99999,
+    -5) `datetime(…) - TASHKENT_OFFSET` da OverflowError / ValueError bilan 500 berardi; endi `DavrXatosi` (400)."""
     yil = int(yil)
+    if not (DAVR_YIL_MIN <= yil <= DAVR_YIL_MAX):
+        raise DavrXatosi(f"Davr noto'g'ri: yil {DAVR_YIL_MIN} … {DAVR_YIL_MAX} oralig'ida bo'lsin")
     return datetime(yil, 1, 1) - TASHKENT_OFFSET, datetime(yil + 1, 1, 1) - TASHKENT_OFFSET
 
 

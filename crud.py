@@ -5718,6 +5718,40 @@ def parol_zaifligi(parol, login: str = None):
         (_dum.isdigit() and len(_dum) == 4 and _dum[:2] in ("19", "20"))
     if len(harflar) >= 3 and len(qolgani) <= 8 and _dum_oddiy and any(harflar in k or harflar in k[::-1] for k in _KETMA_KETLIKLAR):
         return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    # kech200 (zip 263, review263 R7 — O'LCHANGAN): «11112222aa», «1234567890ab», «abc1234567890», «P@ssw0rd1234» o'tib ketardi.
+    # (a) 10+ belgida atigi 3–5 xil belgi — taxmin qilish oson;
+    if len(set(q)) <= 5:
+        return "Parolda belgilar juda kam xil (masalan «11112222aa») — turli harf, raqam va belgilar qo'shing"
+    # (b) parolning asosiy qismi (≥ 6 belgi) — ketma-ketlik bo'lagi, qolgani ≤ 4 belgi («1234567890ab», «abc1234567890», «qwerty12ab»);
+    _qism = parol_ketma_ketlik_qoldigi(q)
+    if _qism is not None and len(_qism) <= 4:
+        return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    # (c) «leet» yozuv: @ → a, 0 → o, $ / 5 → s, 3 → e, 4 → a, 7 → t, ! → i, 1 → l yoki i — zaif so'z (≥ 4 harf) + qisqa / oddiy dum («P@ssw0rd1234»)
+    for _soz in _ZAIF_ILDIZLAR:
+        if len(_soz) < 4:
+            continue
+        _i = max(q.translate(_PAROL_LEET).find(_soz), q.translate(_PAROL_LEET_I).find(_soz))
+        if _i < 0:
+            continue
+        _qold = _re263.sub(r"[!@#$%^&*()_+\-=.,?;: ]", "", q[:_i] + q[_i + len(_soz):])
+        if len(_qold) <= 4 or (_qold.isdigit() and len(_qold) <= 8):
+            return "Parol juda oddiy (oddiy so'z + raqam, masalan «Parol123!») — kutilmagan so'zlar va belgilar qo'shing"
+    return None
+
+
+_PAROL_LEET = str.maketrans({"@": "a", "4": "a", "0": "o", "$": "s", "5": "s", "3": "e", "7": "t", "!": "i", "1": "l"})
+_PAROL_LEET_I = str.maketrans({"@": "a", "4": "a", "0": "o", "$": "s", "5": "s", "3": "e", "7": "t", "!": "i", "1": "i"})
+
+
+def parol_ketma_ketlik_qoldigi(q):
+    """kech200 (zip 263, review263 R7): `q` (kichik harf) ichidagi ENG UZUN ketma-ketlik bo'lagi (≥ 6 belgi; `_KETMA_KETLIKLAR`, teskarisi
+    ham) olib tashlangandan keyingi qoldiq (belgilarsiz); bunday bo'lak yo'q — None."""
+    n = len(q)
+    for uz in range(n, 5, -1):
+        for i in range(0, n - uz + 1):
+            bolak = q[i:i + uz]
+            if any(bolak in k or bolak in k[::-1] for k in _KETMA_KETLIKLAR):
+                return (q[:i] + q[i + uz:]).strip("!@#$%^&*()_+-=.,?;: ")
     return None
 
 
@@ -17803,6 +17837,16 @@ def hodim_pin_qulfdami(db: Session, phone: str, company_id: int = None) -> bool:
     """kech199 (zip 263, 3-band): shu telefonli hodim(lar) kirishi qulflanganmi (hammasi qulflangan bo'lsa — True)."""
     n = hodim_pin_nomzodlari(db, phone, company_id)
     return bool(n) and all(bool(e.pin_qulflangan) for e in n)
+
+
+def hodim_qulfda_pin_togrimi(db: Session, phone: str, pin, company_id: int = None) -> bool:
+    """kech200 (zip 263, review263 R6): qulflangan hodim(lar)dan birortasining PIN i to'g'rimi — «qulflangan» matni faqat hodimning o'ziga
+    (to'g'ri PIN bilan) ko'rinsin. PIN tekshiruvi — `auth.verify_pin` (qulf ochilmaydi, sanoq o'zgarmaydi)."""
+    import auth
+    p = pin.strip() if isinstance(pin, str) else ""
+    if not p:
+        return False
+    return any(bool(e.pin_qulflangan) and auth.verify_pin(p, e.pin_hash) for e in hodim_pin_nomzodlari(db, phone, company_id))
 
 
 def hodim_pin_xato(db: Session, phone: str, company_id: int = None) -> list:

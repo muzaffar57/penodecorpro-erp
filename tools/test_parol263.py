@@ -87,7 +87,12 @@ RAD = [("Parol123!", None, "10 belgi"), ("Qisqa-9ta", None, "10 belgi"), ("Admin
        ("Toshkent2024", None, "oddiy"), ("1234567890", None, "raqam"), ("998901234567", None, "raqam"), ("qwertyuiop", None, "ketma"),
        ("abcdefgh12", None, "ketma"), ("asdfghjk!!", None, "ketma"), ("aaaaaaaaaa", None, "bir xil"), ("ababababab", None, "bir xil"),
        ("Ali_karimov01", "ali_karimov", "login"), ("PAROLIM2024", None, "oddiy"), ("Password123", None, "oddiy")]
-QABUL = ["Parol-263-Kuchli", "MaxfiyYozuv7", "Uy-raqam-17-qavat", "Yangi-Parol-263!x", "zaxira-paroli-263", "Tog'-Olcha-58!"]
+# kech200 (zip 263, review263 R7 — O'LCHANGAN: avval qabul qilinardi): kam xil belgi, ketma-ketlik + qisqa qo'shimcha, «leet» yozuv
+RAD += [("11112222aa", None, "kam xil"), ("1234567890ab", None, "ketma"), ("abc1234567890", None, "ketma"),
+        ("ab0987654321", None, "ketma"), ("zyxwvutsr!1", None, "ketma"), ("P@ssw0rd1234", None, "oddiy"), ("Parol123!x", None, "oddiy"),
+        ("@dm1n-2026", None, "oddiy"), ("T0shk3nt-1991", None, "oddiy"), ("aabbccdd11", None, "kam xil")]
+QABUL = ["Parol-263-Kuchli", "MaxfiyYozuv7", "Uy-raqam-17-qavat", "Yangi-Parol-263!x", "zaxira-paroli-263", "Tog'-Olcha-58!",
+         "tR7#kq2Lm9", "Mening-uyim-7-qavat", "Andijon2026!Gul", "Kuchli_Parol_263x"]
 for p, lg, kut in RAD:
     check(f"Q rad: {p!r}" + (f" (login {lg})" if lg else ""), lambda p=p, lg=lg, kut=kut: (zaif(p, lg) or "") and kut in zaif(p, lg),
           zaif(p, lg))

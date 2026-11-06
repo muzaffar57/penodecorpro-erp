@@ -314,13 +314,20 @@ if PW_BOR:
         xav(pp.click, "#tg-security-btn")
         kut(pp, "(() => { const m = document.getElementById('ccModal'); return m && getComputedStyle(m).display !== 'none'; })()", 5000)
         xav(pp.click, "#ccModalOk")
-        kut(pp, "((document.getElementById('tg-security-result') || {}).textContent || '').includes('Muvaffaqiyatli')")
+        # kech200 (zip 263, REJA 21-band, MOSLANDI — versiya manbadan): yangi kodda tugma yangi sir yaratmaydi — Railway dagi imzo
+        # (shu testda UMUMIY_SIR) botga beriladi va sahifada KO'RINMAYDI; eski kodda — yangi sir sahifada
+        _Z263_21 = hasattr(main, "TG_UMUMIY_SIR_MIN")
+        kut(pp, "((document.getElementById('tg-security-result') || {}).textContent || '').includes("
+                + ("'xavfsiz imzo bilan ulandi'" if _Z263_21 else "'Muvaffaqiyatli'") + ")")
         time.sleep(0.5)
         with _qulf:
             _sw = [t for _, m, t in CHAQ[n0:] if m == "setWebhook"]
         _nat = matn(pp, "#tg-security-result") or ""
-        check("U4b «Ulash» → setWebhook SHU saytga; oynadagi yangi sir = Telegram'ga ketgan sir; keyin holat qayta o'qildi",
-              len(_sw) == 1 and _sw[0].get("url") == BU_URL and _sw[0].get("secret_token") and _sw[0]["secret_token"] in _nat
+        check("U4b «Ulash» → setWebhook SHU saytga; " + ("Railway imzosi bilan, sir sahifada YO'Q" if _Z263_21 else
+                                                          "oynadagi yangi sir = Telegram'ga ketgan sir") + "; keyin holat qayta o'qildi",
+              len(_sw) == 1 and _sw[0].get("url") == BU_URL and _sw[0].get("secret_token")
+              and ((_sw[0]["secret_token"] == UMUMIY_SIR and UMUMIY_SIR not in _nat and "xavfsiz imzo bilan ulandi" in _nat)
+                   if _Z263_21 else _sw[0]["secret_token"] in _nat)
               and metodlar()[n0:].count("getWebhookInfo") >= 2, (_sw, _nat[:200], metodlar()[n0:]))
         check("U4b2 natijada bot OLDIN qayerda bo'lgani: «Bot oldin shu manzilga ulangan edi: …web-sinov…»",
               "Bot oldin shu manzilga ulangan edi: https://web-sinov.up.railway.app/telegram/webhook" in _nat, _nat[-300:])

@@ -15,7 +15,8 @@ BO'LIMLAR
       → sessiya + «bu qurilma», qayta ishlatish yo'q, ishonchli qurilma (o'zi / parol almashsa / muddati / begona foydalanuvchi /
       «eslab qolish» yo'q), 5 urinish, muddati, Telegram yuborilmadi, 15 daqiqada 5 kod, PLATFORMA_2FA=0, Telegram sozlanmagan,
       noto'g'ri parol, xeshlar, bo'shliqli kod, cookie siz sahifa, jurnal, nofaol foydalanuvchi, atomar urinish;
-  C — 12 / 17-band: tarqoq blok — egasi to'g'ri parol bilan kodga o'tadi, noto'g'ri parol — blok matni, oddiy foydalanuvchi — blok
+  C — 12 / 17-band: tarqoq blok — egasi FAQAT ishonchli qurilmadan o'tadi (kech200, review263 R1: yangi qurilmadan to'g'ri / noto'g'ri
+      parol — AYNAN bir xil blok matni), oddiy foydalanuvchi — blok
       (korxona chatiga ogohlantirish), ogohlantirish 15 daqiqada bir marta, (login, IP) bloki — o'tilmaydi, 2FA o'chiq — o'tilmaydi,
       `sabab`, IP chegarasi 60;
   D — sxema: jadvallar, zaxiradan tashqari, foydalanuvchi o'chirilganda yozuvlar;
@@ -439,18 +440,43 @@ TG.clear()
 XABAR.clear()
 c = mijoz("198.18.0.1")
 r = kir(c)
-check("C2 platforma egasi to'g'ri parol (yangi IP) — blokdan o'tib KODGA (sessiya yo'q)",
-      lambda: r.status_code == 302 and r.headers.get("location") == "/login/kod" and not c.cookies.get("session_token") and len(TG) == 1,
-      (r.status_code, r.headers.get("location"), r.text[-200:]))
-check("C3 egasiga ogohlantirish (tizim chati, company_id yo'q)",
-      lambda: len(XABAR) == 1 and "30 dan ortiq" in XABAR[0][0] and "i263_egasi" in XABAR[0][0] and XABAR[0][1] is None, XABAR)
-r = c.post("/login/kod", data={"kod": oxirgi_kod()})
-check("C4 … kod bilan kirdi", lambda: r.status_code == 302 and r.headers.get("location") == "/" and c.cookies.get("session_token"))
+_t_togri = _html.unescape(r.text)
+# kech200 (zip 263, review263 R1): blokdan FAQAT ishonchli qurilma o'tadi — yangi qurilmadan to'g'ri parol ham blok matni (oracle yo'q)
+check("C2 platforma egasi to'g'ri parol, yangi IP, ishonchli qurilmasiz — BLOK matni (kodga O'TMAYDI), kod yuborilmadi, sessiya yo'q",
+      lambda: r.status_code == 200 and "Juda ko'p noto'g'ri urinish" in _t_togri and TG == [] and not c.cookies.get("session_token")
+      and not c.cookies.get("kirish_kod"), (r.status_code, r.headers.get("location"), r.text[-200:]))
+check("C3 egasiga ogohlantirish (tizim chati, company_id yo'q) + qayerdan kira olishi (ishonchli qurilma / odatdagi joy)",
+      lambda: len(XABAR) == 1 and "30 dan ortiq" in XABAR[0][0] and "i263_egasi" in XABAR[0][0] and XABAR[0][1] is None
+      and "ishonchli qurilmangizdan" in XABAR[0][0], XABAR)
 TG.clear()
 XABAR.clear()
 r = kir(mijoz("198.18.0.2"), parol="notogri-parol-zz")
-check("C5 blokda noto'g'ri parol — BLOK matni (farqsiz), kod yo'q, ogohlantirish takrorlanmadi",
-      lambda: r.status_code == 200 and "Juda ko'p noto'g'ri urinish" in _html.unescape(r.text) and TG == [] and XABAR == [], (r.text[-300:], XABAR))
+check("C5 blokda noto'g'ri parol — BLOK matni, to'g'ri paroldagi javob bilan AYNAN bir xil (parol oshkor emas), ogohlantirish takrorlanmadi",
+      lambda: r.status_code == 200 and "Juda ko'p noto'g'ri urinish" in _html.unescape(r.text) and TG == [] and XABAR == []
+      and _html.unescape(r.text) == _t_togri, (r.text[-300:], XABAR))
+s = SessionLocal()
+_pe = s.query(User).filter(User.username == "i263_egasi").first()
+_qur_blok = (ikki_bosqich.qurilma_yarat(s, _pe, "203.0.113.5", "Sinov qurilma") if ikki_bosqich is not None
+             else "asl-kodda-yoq")          # asl kodda modul yo'q — sinov qulamasin
+s.close()
+TG.clear()
+c = mijoz("198.18.0.5")
+c.cookies.set("ishonchli_qurilma", _qur_blok, path="/login")
+r = kir(c)
+check("C4 egasining ISHONCHLI qurilmasi + to'g'ri parol — blokdan o'tadi, kodsiz sessiya",
+      lambda: r.status_code == 302 and r.headers.get("location") == "/" and javob_cookie(r, "session_token") and TG == [],
+      (r.status_code, r.headers.get("location"), r.text[-200:]))
+c = mijoz("198.18.0.6")
+c.cookies.set("ishonchli_qurilma", _qur_blok, path="/login")
+r = kir(c, parol="notogri-parol-zz")
+check("C4b ishonchli qurilma + noto'g'ri parol — BLOK matni, sessiya yo'q",
+      lambda: r.status_code == 200 and "Juda ko'p noto'g'ri urinish" in _html.unescape(r.text) and not javob_cookie(r, "session_token"),
+      r.status_code)
+c = mijoz("198.18.0.7")
+c.cookies.set("ishonchli_qurilma", "soxta-qurilma-kaliti-123", path="/login")
+r = kir(c)
+check("C4c soxta ishonchli qurilma cookie si + to'g'ri parol — BLOK matni (kod ham yo'q)",
+      lambda: r.status_code == 200 and "Juda ko'p noto'g'ri urinish" in _html.unescape(r.text) and TG == [], (r.status_code, TG))
 tarix_tozala()
 tarqoq_xato("i263_oddiy")
 XABAR.clear()

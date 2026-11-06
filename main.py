@@ -4222,13 +4222,11 @@ class _TanaChegarasi:
             uzunlik = None
         chegara = tana_chegarasi(yol, tur)
         if yol in _TIKLASH_YOLLARI and tur.startswith("multipart/form-data") and (uzunlik is None or uzunlik > chegara):
-            from http.cookies import SimpleCookie as _SC263
-            token = None
+            # kech200 (zip 263, review263 R8): Starlette'ning o'z cookie o'quvchisi (`request.cookies` bilan AYNAN bir) — `SimpleCookie`
+            # qat'iy: oldinroq bitta buzuq cookie bo'lsa butun satrni rad etib, `session_token` o'qilmasdi (egasining katta zaxirasi — 413)
+            from starlette.requests import cookie_parser as _cp200
             try:
-                _c = _SC263()
-                _c.load(cookie_s)
-                if "session_token" in _c:
-                    token = _c["session_token"].value
+                token = _cp200(cookie_s).get("session_token") or None
             except Exception:              # noqa: BLE001
                 token = None
             if token:
@@ -5244,13 +5242,19 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     if rl["blocked"]:
         _blok_matni = f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining."
         # kech199 (zip 263, xavfsizlik REJA 12-band — Fable F4): login bo'yicha TARQOQ blok (30 xato turli IP lardan) — egasiga /
-        # korxona chatiga xabar (15 daqiqada bir marta); platforma egasi esa to'g'ri parol + Telegram kodi bilan blokdan o'tadi
-        # (hujumchi kodni ololmaydi; noto'g'ri parolga javob — blok xabarining AYNAN o'zi).
+        # korxona chatiga xabar (15 daqiqada bir marta).
+        # kech200 (zip 263, review263 R1 — O'LCHANGAN): ilgari platforma egasi blokda ISTALGAN qurilmadan parol + kod bilan o'tardi —
+        # hujumchi blok paytida ham egasining parolini cheksiz terardi (faqat IP chegarasi) va javobdan bilardi: noto'g'ri — 200 blok
+        # matni, to'g'ri — 302 /login/kod (vaqti ham farq: egasi bcrypt ~340 ms, boshqalar ~6 ms). Endi blokdan FAQAT egasining
+        # ISHONCHLI QURILMASI (oldin kod bilan «eslab qolingan», `ishonchli_qurilma` cookie si — hujumchida yo'q) o'tadi; boshqa har
+        # holatda (parol to'g'ri / noto'g'ri, egasi / boshqa login) — bir xil blok matni, bcrypt yo'q. Egasining tanish manzillari
+        # (`check_login_rate_limit` — oxirgi 30 kunda muvaffaqiyatli kirgan IP) blokka umuman tushmaydi.
         _blok_ogohlantir(db, username, rl)
         _pe = None
-        if rl.get("sabab") == "login_jami" and ikki_bosqich.yoqilganmi():
+        if rl.get("sabab") == "login_jami" and ikki_bosqich.yoqilganmi() and request.cookies.get(ikki_bosqich.QURILMA_COOKIE):
             _pe = db.query(User).filter(User.username == username, User.is_active == True).first()   # noqa: E712
-            if not ikki_bosqich.kerakmi(_pe):
+            if not (ikki_bosqich.kerakmi(_pe)
+                    and ikki_bosqich.qurilma_ishonchlimi(db, _pe, request.cookies.get(ikki_bosqich.QURILMA_COOKIE))):
                 _pe = None
         if _pe is None:
             return templates.TemplateResponse(request, "login.html", {"error": _blok_matni, "username": username})
@@ -5321,6 +5325,10 @@ def _blok_ogohlantir(db, username, rl):
         _BLOK_OGOH_OXIRGI.clear()
     matn = (f"⚠️ *Kirish urinishlari*\n\n«{username}» hisobiga 15 daqiqada 30 dan ortiq noto'g'ri parol urinishi bo'ldi (turli "
             f"manzillardan). Yangi qurilmadan kirish vaqtincha yopildi.\n\nBu siz bo'lmasangiz — parolni kuchliroq parolga almashtiring.")
+    if getattr(u, "is_platform_admin", False) and ikki_bosqich.kerakmi(u):
+        # kech200 (zip 263, review263 R1): blokdan faqat ishonchli qurilma o'tadi — egasi qayerdan kira olishini bilsin
+        matn += ("\n\nSiz o'z ishonchli qurilmangizdan (oldin «Bu qurilmani eslab qol» belgilangan) yoki odatda kiradigan "
+                 "joyingizdan kira olasiz.")
     try:
         if getattr(u, "is_platform_admin", False):
             _send_telegram(matn)
@@ -5780,6 +5788,10 @@ def api_create_user(request: Request, response: Response, data: dict, db: Sessio
         toza = crud._clean_val("UserCreate", data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # kech200 (zip 263, review263 R4): platforma egasiga ajratilgan nomlar («admin», «root» …) — band login bilan bir xil javob va sanoq
+    if auth.login_zaxiralanganmi(toza.get("username")):
+        _band_urinish_yoz(current_user.id)
+        raise HTTPException(status_code=400, detail=auth.LOGIN_BAND_XABARI)
     role = UserRole(toza.get("role") or "manager")
     # M1: yangi foydalanuvchi ALBATTA joriy adminning korxonasiga tegishli.
     # kech118 (ROLLAR): `rol_id` — korxona roli (sahifa shuni yuboradi); berilmasa — `role` turining tayyor roli.
@@ -6033,10 +6045,15 @@ def api_me_login(data: dict, request: Request, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=400, detail="Login 3–50 belgi: lotin harflari, raqamlar va «_ . -» (bo'shliqsiz)")
     if yangi == current_user.username:
         raise HTTPException(status_code=400, detail="Yangi login hozirgisi bilan bir xil")
+    # kech200 (zip 263, review263 R2 — O'LCHANGAN): har kirgan foydalanuvchi (menejer ham) shu yo'l bilan platformadagi loginlarni
+    # cheklovsiz aniqlardi (28 urinish — 429 yo'q). Endi `/api/users` dagi kabi: soatiga 10 ta «band» urinishdan keyin 429.
+    if len(_band_urinishlari(current_user.id)) >= BAND_LOGIN_SOAT_MAX:
+        raise HTTPException(status_code=429, detail="Juda ko'p band login sinab ko'rildi — bir soatdan so'ng qayta urining")
     _ozim_joriy_parol(request, db, current_user, data)
     band = (db.query(_U263m.id).execution_options(skip_tenant_filter=True)
             .filter(_f263m.lower(_U263m.username) == yangi.lower(), _U263m.id != current_user.id).first())
-    if band is not None:
+    if band is not None or auth.login_zaxiralanganmi(yangi, current_user):
+        _band_urinish_yoz(current_user.id)
         raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
     eski = current_user.username
     u = db.query(_U263m).filter(_U263m.id == current_user.id, _U263m.company_id == auth.company_id_of(current_user)).first()
@@ -7437,6 +7454,13 @@ def hodim_login_submit(request: Request, background_tasks: BackgroundTasks, phon
     if crud.hodim_pin_qulfdami(db, phone, _korxona.id):
         crud.log_login_attempt(db, _tel_kalit, success=False, ip_address=ip, user_agent=ua,
                                company_id=(_korxona.id if _tel_yaroqli183 else None), aniqla=False)
+        # kech200 (zip 263, review263 R6 — O'LCHANGAN): «qulflangan» matni ISTALGAN PIN ga chiqardi — korxona kodini bilgan begona odam
+        # telefon raqami shu korxonada borligini bilardi (yo'q raqamga boshqa matn). Endi «qulflangan» — faqat TO'G'RI PIN bilan (hodimning
+        # o'zi); noto'g'ri PIN — oddiy «Telefon yoki PIN noto'g'ri!» (yo'q raqam bilan AYNAN bir xil).
+        if not crud.hodim_qulfda_pin_togrimi(db, phone, pin, _korxona.id):
+            return templates.TemplateResponse(request, "hodim_login.html", {
+                "error": "Telefon yoki PIN noto'g'ri! PIN ni unutgan bo'lsangiz — korxona administratoridan so'rang.",
+                "kod": (korxona or "").strip()[:30], "telefon": (phone or "").strip()[:20]})
         return templates.TemplateResponse(request, "hodim_login.html", {
             "error": ("Kirish qulflangan: PIN ko'p marta noto'g'ri terildi. Korxona administratori «🔑 Kirish» orqali yangi PIN "
                       "berishi kerak."),
@@ -10070,6 +10094,10 @@ def api_reports_comparison(year: int, month: int, db: Session = Depends(get_db),
 
 @app.get("/api/reports/forecast")
 def api_reports_forecast(year: int, month: int, db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("hisobot", "korish"))):
+    # kech200 (zip 263, review263 R5 — O'LCHANGAN): month=13 / 0 → 500 edi; davr qoidasi `database.tashkent_oy_oraligi` bilan bir (400)
+    from database import DAVR_YIL_MIN as _dmin200, DAVR_YIL_MAX as _dmax200
+    if not (_dmin200 <= year <= _dmax200) or not (1 <= month <= 12):
+        raise _DavrXatosi263(f"Davr noto'g'ri: yil {_dmin200} … {_dmax200}, oy 1 … 12 oralig'ida bo'lsin")
     return services.get_simple_forecast(db, year, month, company_id=auth.company_id_of(current_user))
 
 
