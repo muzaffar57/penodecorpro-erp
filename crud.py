@@ -5663,7 +5663,17 @@ _XARAJAT_KATEGORIYA_MAX = 30
 # kech93 (8-band) — foydalanuvchi, parol va ishlab chiqarish tanalari chegaralari.
 _LOGIN_MAX = 50                 # `users.username` String(50)
 _TOLIQ_ISM_MAX = 100            # `users.full_name` String(100)
-_PAROL_MIN = 6                  # parol almashtirishdagi mavjud qoida — endi yaratishda ham
+# kech199 (zip 263, xavfsizlik REJA 4-band — Fable F9 / Opus): 6 → 10 belgi + oddiy parollar qoidasi (`parol_zaifligi`). Faqat YANGI /
+# almashtirilgan parol — mavjud parollar ishlayveradi (kirish tekshiruvi o'zgarmagan).
+_PAROL_MIN = 10
+# Zaif «ildiz» so'zlar (kichik harf; parolning HARFLI qismi aynan shu bo'lsa va qolgani qisqa — «Parol123!», «Admin2024», «Qwerty12345»)
+_ZAIF_ILDIZLAR = frozenset({
+    "parol", "parolim", "password", "passwd", "pass", "qwerty", "qwertyuiop", "asdfgh", "asdfghjkl", "zxcvbn", "admin", "administrator",
+    "epserp", "penodecor", "penodecorpro", "penoplast", "salom", "assalom", "maxfiy", "sir", "secret", "letmein", "welcome", "iloveyou",
+    "uzbekistan", "ozbekiston", "toshkent", "tashkent", "andijon", "andijan", "user", "login", "test", "abc", "abcd", "abcdef", "qwe",
+    "q", "w", "e", "a", "z", "x", "manager", "menejer", "omborchi", "buxgalter", "kassir", "hisobchi"})
+_KETMA_KETLIKLAR = ("0123456789012345678901234567890", "abcdefghijklmnopqrstuvwxyz", "qwertyuiopasdfghjklzxcvbnm",
+                    "1qaz2wsx3edc4rfv5tgb6yhn7ujm", "1q2w3e4r5t6y7u8i9o0p", "zaq12wsxcde34rfv")
 _PAROL_MAX_BELGI = 72
 # bcrypt 72 BAYTDAN keyingi qismini JIM tashlab yuboradi — HAQIQIY o'lchangan
 # (`work/probe8b.py` U2 / U3 / P5, bcrypt 4.2.0): 72 ta "A" + "X" parol bilan
@@ -5675,6 +5685,40 @@ _PAROL_MAX_BELGI = 72
 _PAROL_MAX_BAYT = 72
 _QOPLAMA_KOEF_MAX = 100.0       # `production_schemas.ProductTypeCreate` `le=100` (ustun Numeric(5,2))
 _RETSEPT_QATOR_MAX = 500        # bitta retsept (BOM) qatorlari / tanlangan ixtiyoriy qatorlar
+
+
+def parol_zaifligi(parol, login: str = None):
+    """kech199 (zip 263, xavfsizlik REJA 4-band): YANGI parol qoidasi. None — yaroqli; matn — o'zbekcha sabab.
+    Kamida `_PAROL_MIN` belgi; login (yoki uning bir qismi) bo'lmasin; 1–2 xil belgidan iborat bo'lmasin («aaaaaaaaaa»,
+    «ababababab»); faqat raqam bo'lmasin (telefon raqami, sana — taxmin qilinadi); oddiy ketma-ketlik bo'lmasin («1234567890»,
+    «qwertyuiop», teskarisi ham); zaif so'z + qisqa dum bo'lmasin («Parol123!», «Admin12345», «Qwerty2024!»)."""
+    import re as _re263
+    p = parol if isinstance(parol, str) else ""
+    if len(p) < _PAROL_MIN:
+        return f"Parol kamida {_PAROL_MIN} belgi bo'lsin"
+    q = p.lower()
+    lg = (login or "").strip().lower()
+    if lg and len(lg) >= 3 and (lg in q or q in lg):
+        return "Parolda login bo'lmasin — boshqa parol tanlang"
+    if len(set(q)) <= 2:
+        return "Parol bir xil belgilardan iborat — boshqa parol tanlang"
+    if q.isdigit():
+        return "Parol faqat raqamlardan iborat bo'lmasin (telefon raqami, sana oson topiladi) — harf ham qo'shing"
+    for k in _KETMA_KETLIKLAR:
+        if q in k or q in k[::-1]:
+            return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    harflar = _re263.sub(r"[^a-zа-яёʻʼ'ўқғҳ]", "", q)
+    qolgani = _re263.sub(r"[a-zа-яёʻʼ'ўқғҳ]", "", q)
+    if harflar in _ZAIF_ILDIZLAR and len(qolgani) <= 8:
+        return "Parol juda oddiy (oddiy so'z + raqam, masalan «Parol123!») — kutilmagan so'zlar va belgilar qo'shing"
+    # harflar — ketma-ketlik («abcdefgh», «qwerty…»), qolgani — yo'q yoki oddiy («12», «2024», «111», «!»)
+    _dum = qolgani.strip("!@#$%^&*()_+-=.,?;: ")
+    _raqam = _KETMA_KETLIKLAR[0]
+    _dum_oddiy = (not _dum) or len(set(_dum)) <= 1 or (_dum.isdigit() and (_dum in _raqam or _dum in _raqam[::-1])) or \
+        (_dum.isdigit() and len(_dum) == 4 and _dum[:2] in ("19", "20"))
+    if len(harflar) >= 3 and len(qolgani) <= 8 and _dum_oddiy and any(harflar in k or harflar in k[::-1] for k in _KETMA_KETLIKLAR):
+        return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    return None
 
 
 def _faqat_kalitlar(data, ruxsat) -> dict:
@@ -6230,7 +6274,11 @@ def _clean_val(model: str, data) -> dict:
         _pk = "password" if model == "UserCreate" else "new_password"
         _parol = toza.get(_pk)
         if _parol is None or len(_parol) < _PAROL_MIN:
-            raise ValueError(f"Parol kamida {_PAROL_MIN} belgi")
+            raise ValueError(f"Parol kamida {_PAROL_MIN} belgi bo'lsin")
+        # kech199 (zip 263, 4-band): oddiy parollar qoidasi (yaratishda — login bilan; almashtirishda login — marshrutda)
+        _zaif = parol_zaifligi(_parol, toza.get("username") if model == "UserCreate" else None)
+        if _zaif:
+            raise ValueError(_zaif)
         if len(_parol.encode("utf-8")) > _PAROL_MAX_BAYT:
             raise ValueError(f"Parol juda uzun: ko'pi bilan {_PAROL_MAX_BAYT} bayt "
                              f"(lotin harflarida {_PAROL_MAX_BAYT} belgi, kirill harflarida "

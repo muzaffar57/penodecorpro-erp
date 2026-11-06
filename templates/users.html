@@ -120,7 +120,7 @@
       <div class="form-group" style="margin:0"><label>To'liq ismi</label><input type="text" id="f-fullname" placeholder="Sardor A."></div>
     </div>
     <div class="form-row">
-      <div class="form-group" style="margin:0"><label>Parol</label><input type="password" id="f-password" placeholder="Kamida 6 belgi"></div>
+      <div class="form-group" style="margin:0"><label>Parol</label><input type="password" id="f-password" placeholder="Kamida 10 belgi"></div>
       <div class="form-group" style="margin:0"><label>Rol</label>
         <select id="f-role">
           {% for r in rollar %}<option value="{{ r.id }}" {% if r.kod == 'menejer' %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
@@ -151,7 +151,7 @@
       </div>
     </div>
     <div class="form-group">
-      <label>Yangi parol (kamida 6 belgi)</label>
+      <label>Yangi parol (kamida 10 belgi)</label>
       <div style="display:flex;gap:6px">
         <input type="password" id="parol-yangi" autocomplete="new-password" style="flex:1">
         <button type="button" class="btn btn-outline btn-icon" onclick="parolKozcha('parol-yangi', this)" title="Ko'rsatish / yashirish" aria-label="Parolni ko'rsatish">👁</button>
@@ -390,7 +390,7 @@ async function parolSaqlash() {
   const yangi = document.getElementById('parol-yangi').value;
   const takror = document.getElementById('parol-takror').value;
   if (parolHolat.ozim && !eski) { parolXato("Joriy parolni kiriting."); return; }
-  if (yangi.length < 6) { parolXato("Yangi parol kamida 6 belgi bo'lishi kerak."); return; }
+  if (yangi.length < 10) { parolXato("Yangi parol kamida 10 belgi bo'lishi kerak."); return; }   // kech199 (zip 263, 4-band)
   if (yangi !== takror) { parolXato("Yangi parol va takrori mos kelmadi."); return; }
   const tana = parolHolat.ozim ? { new_password: yangi, current_password: eski } : { new_password: yangi };
   const holat = parolHolat;
@@ -709,7 +709,7 @@ async function saveUser(){
   // hamma joyidagi chiroyli, moslashtirilgan xabarlardan farq qilardi
   // (va ayrim avtomatlashtirilgan vositalarni "muzlatib" qo'yardi).
   if(!username||!password){ err.textContent='Login va parol shart!'; err.style.display='block'; return; }
-  if(password.length<6){ err.textContent='Parol kamida 6 belgi bo\'lishi kerak!'; err.style.display='block'; return; }
+  if(password.length<10){ err.textContent='Parol kamida 10 belgi bo\'lishi kerak!'; err.style.display='block'; return; }   // kech199 (zip 263, 4-band)
   err.style.display='none';
   if (isSavingUser) return; // Ikki marta bosishdan himoya
   isSavingUser = true;

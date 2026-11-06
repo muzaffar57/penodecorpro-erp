@@ -5806,6 +5806,12 @@ def api_change_password(user_id: int, data: dict, request: Request, db: Session 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     new_pass = toza["new_password"]
+    # kech199 (zip 263, xavfsizlik REJA 4-band): yangi parolda shu hisobning logini bo'lmasin (qolgan qoidalar — `_clean_val`)
+    from models import User as _U263p
+    _maqsad = db.query(_U263p).filter(_U263p.id == user_id, _U263p.company_id == auth.company_id_of(current_user)).first()
+    _zaif = crud.parol_zaifligi(new_pass, getattr(_maqsad, "username", None))
+    if _zaif:
+        raise HTTPException(status_code=400, detail=_zaif)
 
     # 2026-09-20 — O'Z parolini almashtirishda ESKI parol so'raladi.
     # Sabab: kimdir ochiq qolgan sessiyadan foydalanib parolni almashtirib,
