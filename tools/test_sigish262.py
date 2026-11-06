@@ -437,12 +437,16 @@ def _j_ssenariy():
         r.push([parseFloat(q.style.fontSize) || 0, q.scrollWidth <= q.clientWidth + 1]);
         q.value = '12345678901234'; q.dispatchEvent(new Event('input', {bubbles: true}));
         r.push([parseFloat(q.style.fontSize) || 0, q.title]);
+        // mut262 U15: o'z `oninput` ida xulosa yangilanmaydigan maydon («Eski qarzni to'lash» summasi) — `input` tinglovchisi bilan darhol
+        document.getElementById('sup-quickpay-joy').hidden = false;   // (sinov ta'minotchisining eski qarzi yo'q — maydon qo'lda ochiladi)
+        const k = document.getElementById('sup-quickpay-amount'); k.style.flex = '0 0 90px'; k.value = '123456789012'; formatPriceInput(k); k.dispatchEvent(new Event('input', {bubbles: true}));
+        r.push([parseFloat(k.style.fontSize) || 0, !!k.title]);
         return r; }""")
     check("J7 `rcvSigdir`: juda uzun — 11 px va to'liq qiymat izohda; 10 xonali — kichraygan va sig'adi (izohsiz); qisqa — asl shrift; "
           "miqdor yozilganda (`input`) — darhol",
           _s[0][0] == 11 and _s[0][1] and _s[0][2] == "9 999 999 999 999 999 so'm"
           and (_s[1][0] == "" or float(_s[1][0][:-2]) >= 11) and _s[1][1] and _s[1][2] == "" and _s[1][3] == ""
-          and _s[2] == ["", ""] and _s[3][1] and _s[4] == [11, "12345678901234"], _s)
+          and _s[2] == ["", ""] and _s[3][1] and _s[4] == [11, "12345678901234"] and 11 <= _s[5][0] < 13 and _s[5][1], _s)
     ctx.close()
     # ─── J9: kenglik o'zgarsa (telefon kartasi → kompyuter jadvali) — qayta o'lchanadi (ResizeObserver) ───
     ctx, pg = kontekst(390, 844)
@@ -496,6 +500,26 @@ def _j_ssenariy():
     check("J12b ta'minotchi bekor qilinsa: «—», shrift asliga qaytgan, oldingi summaning izohi va bo'linish belgisi yo'q",
           all(x[0] == "—" and x[1] == "" and x[2] == "" and "rcv-sig-sinmaydi" not in x[3] for x in _st2), _st2)
     ctx.close()
+    # ─── J13 (mut262 U20 / U21 / U22): ODDIY qiymatlarda hech narsa kichraytirilmaydi (ustun kengliklari yetarli), № belgisi ustunida ───
+    for w, h, tel in ((1440, 900, False), (1100, 800, False), (390, 844, True), (320, 640, True)):
+        ctx, pg = kontekst(w, h, tel=tel)
+        sahifa(pg)
+        pg.evaluate("() => showAllMaterials()")
+        for nom, q, p in (("Penoplast 14P", "56", "785000"), ("K262 Granula", "1250", "265.5"), ("K262 Penoplast 15", "12", "375000")):
+            kiritish(pg, nom, q, p)
+            pg.evaluate("() => apAddToBasket()")
+            pg.wait_for_timeout(100)
+        kiritish(pg, "Penoplast 14P", "56" if w > 400 else "12500", "785000")
+        pg.wait_for_timeout(300)
+        _o = pg.evaluate("""() => { const kich = [...document.querySelectorAll('#rcv-mat-jadval .rcv-sig')].filter(e => e.getClientRects().length && e.style.fontSize)
+              .map(e => [e.id || e.className, e.tagName === 'INPUT' ? e.value : e.textContent, e.style.fontSize]);
+            const nr = [...document.querySelectorAll('#rcv-mat-jadval td.c-nr')].filter(td => td.getClientRects().length).map(td => {
+              const a = td.querySelector('.rcv-nr').getBoundingClientRect(), b = td.getBoundingClientRect(); return a.right <= b.right + 0.5 && a.left >= b.left - 0.5; });
+            return {kich, nr: nr.every(Boolean), soni: nr.length}; }""")
+        check(f"J13 {w} px: oddiy qiymatlar (22 dona, 2 400 kg, 56 / 1 250 / 12, 785 000 / 265,5{'' if w > 400 else ', kartada 9 812 500 000 so\'m'}) "
+              "— hech biri kichraytirilmagan; № belgisi o'z katagida",
+              not _o["kich"] and _o["nr"] and _o["soni"] >= 4, _o)
+        ctx.close()
     check("J8 JS xatosi yo'q", not JS_XATO, JS_XATO[:5])
 
 
