@@ -337,9 +337,10 @@ def _j_ssenariy():
         kiritish(pg, "Penoplast 14P", "56", "785000")
         pg.wait_for_timeout(150)
         _t = pg.evaluate("() => { const e = document.getElementById('ap-total'); const tr = e.closest('tr');"
-                         " return [e.value, e.scrollWidth, e.clientWidth, getComputedStyle(e).fontSize, getComputedStyle(tr).display, e.title]; }")
+                         " return [e.value, e.scrollWidth, e.clientWidth, getComputedStyle(e).fontSize, getComputedStyle(tr).display, e.title, e.style.fontSize]; }")
         check(f"J1 {w} px (egasining skrinshoti): kiritish qatori summasi «43 960 000 so'm» TO'LIQ sig'adi, shrift 13 px (kichraymagan), jadval",
-              re.sub(r"[\s\u00a0\u202f]", " ", _t[0]) == "43 960 000 so'm" and _t[1] <= _t[2] + 1 and _t[3] == "13px" and _t[4] == "table-row" and not _t[5], _t)
+              re.sub(r"[\s\u00a0\u202f]", " ", _t[0]) == "43 960 000 so'm" and _t[1] <= _t[2] + 1 and _t[3] == "13px" and _t[4] == "table-row" and not _t[5]
+              and _t[6] == "", _t)   # mut262 U08: 13 px — qoidadan, `rcvSigdir` kichraytirgani emas
         if RASM and w == 1440:
             os.makedirs(RASM, exist_ok=True)
             pg.locator("#rcv-mat-jadval").screenshot(path=os.path.join(RASM, "j1_1440.png"))
