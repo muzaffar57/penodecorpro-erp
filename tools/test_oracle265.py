@@ -281,6 +281,50 @@ if not PG_URL:
     _r = orm(_ota_osilgan_usta_qoy)
     check("C5b osilgan (o'zgarmagan) ota-yozuvli (project_id) yozuvda boshqa havola o'zgarsa — yoziladi (ota faqat o'zgarsa tekshiriladi)",
           _r == "OK", _r)
+    def _expired_qayta(d):
+        o = d.query(Order).filter(Order.id == _osilgan_id).first()
+        d.expire(o)                         # atribut eski qiymati noma'lum («o'zgargan» ko'rinadi)
+        o.master_id = YOQ_ID                # bazadagi AYNAN o'sha osilgan qiymat qayta yoziladi
+        o.notes = "OR265 expired qayta"
+    _r = orm(_expired_qayta)
+    check("C4c expired atributga bazadagi o'sha osilgan qiymat qayta yozilsa — o'zgarmagan hisoblanadi, yoziladi (review265 PAST-3)",
+          _r == "OK", _r)
+
+    # review265 PAST-2: qaytgan detal omborga — detaldagi penoplast bazadan butunlay o'chgan (osilgan id) bo'lsa ham qaytarish to'xtamaydi
+    d = SessionLocal()
+    try:
+        with tenant_context.system_context(d):
+            _pen = crud.add_item(d, schemas.InventoryCreate(item_name="OR265 o'chadigan penoplast", unit="m3", stock_quantity=1,
+                                                            price_per_unit=1000), company_id=2)
+            _pen_id = _pen.id
+            _ord_q = Order(project_id=PB, company_id=2, order_type=models.OrderType.PRODUCT, notes="OR265 qaytarish")
+            d.add(_ord_q)
+            d.flush()
+            _it_q = models.OrderItem(order_id=_ord_q.id, company_id=2, name="OR265 qaytgan detal", category="panel", quantity=2,
+                                     width=10, thickness=10, length=1, penoplast_id=_pen_id)
+            d.add(_it_q)
+            d.commit()
+            _it_q_id, _ord_q_id = _it_q.id, _ord_q.id
+            d.execute(_sql("DELETE FROM inventory_movements WHERE inventory_id = :i"), {"i": _pen_id})
+            d.execute(_sql("DELETE FROM inventory WHERE id = :i"), {"i": _pen_id})
+            d.commit()
+    finally:
+        d.close()
+    d = SessionLocal()
+    try:
+        with tenant_context.system_context(d):
+            _it_q = d.query(models.OrderItem).filter(models.OrderItem.id == _it_q_id).first()
+            try:
+                with contextlib.redirect_stdout(_quiet):
+                    _fp_q = crud.add_returned_to_stock(d, _it_q, 1, "OR265 qaytarish", order_id=_ord_q_id)
+                _natija_q = ("OK", getattr(_fp_q, "penoplast_id", "yo'q"), getattr(_fp_q, "id", None))
+            except TenantMismatchError as e:
+                d.rollback()
+                _natija_q = ("RAD", str(e), None)
+    finally:
+        d.close()
+    check("C4d qaytgan detal omborga: detaldagi penoplast bazadan o'chgan — qaytarish yoziladi, partiyada penoplast bo'sh",
+          _natija_q[0] == "OK" and _natija_q[1] is None and _natija_q[2], _natija_q)
 else:
     print("  · [PG] C4 / C5 / C5b — PostgreSQL FK osilgan havolani yozdirmaydi (holat faqat FK siz eski ustunlarda bo'ladi) — SQLite da sinaladi")
 
@@ -360,6 +404,13 @@ r = CB.post("/api/orders", json=buyurtma_tanasi(master_id=MA, recipe_id=YOQ_ID))
 check("D2 bir so'rovda begona usta + yo'q retsept — 404, bitta umumiy matn", r.status_code == 404
       and js(r).get("detail") == main.TENANT_BOG_XATO_MATNI, (r.status_code, r.text[:300]))
 check("D3 ustalar soni o'zgarmadi", sanoq(Master) == _s0)
+_jurnal = io.StringIO()
+with contextlib.redirect_stdout(_jurnal):
+    r = CB.post("/api/orders", json=buyurtma_tanasi(master_id=YOQ_ID))
+_j = _jurnal.getvalue()
+check("D5 ichki sabab SERVER jurnaliga yoziladi (yo'l + model + ustun), javobda emas (review265 O'RTA-1)",
+      r.status_code == 404 and "/api/orders" in _j and "master_id" in _j and str(YOQ_ID) in _j
+      and str(YOQ_ID) not in r.text, (r.status_code, _j[-300:]))
 check("D4 retseptlar o'z joyida (A retsepti A da)", sanoq(Recipe, id=RA, company_id=1) == 1)
 _ = models  # modul import qilingan (qo'riqchi ro'yxatga olingan)
 

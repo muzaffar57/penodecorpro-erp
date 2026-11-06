@@ -4398,6 +4398,13 @@ TENANT_BOG_XATO_MATNI = ("Bog'lanayotgan ma'lumot topilmadi — u o'chirilgan yo
 
 @app.exception_handler(_TenantMismatchError)
 async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
+    # kech202 (zip 265, review265 O'RTA-1): ichki sabab (model, ustun, id) — FAQAT server jurnaliga (Railway loglari); foydalanuvchi javobi
+    # o'zgarmaydi. Ilgari yo'q id PostgreSQL da 500 + ErrorLog edi — dasturdagi xato (o'chirilgan yozuv id sini ko'chirish) izsiz qolmasin.
+    # ErrorLog ga YOZILMAYDI: begona id bilan so'rov yuborib jadvalni to'ldirish mumkin bo'lmasin.
+    try:
+        print(f"⚠ Bog'lanish rad etildi (404) {request.method} {request.url.path}: {str(exc)[:400]}")
+    except Exception:                                   # noqa: BLE001
+        pass
     return JSONResponse(
         status_code=404,
         content={"detail": TENANT_BOG_XATO_MATNI},

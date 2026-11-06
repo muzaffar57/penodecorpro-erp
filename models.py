@@ -3786,6 +3786,38 @@ def _shu_flushda_yangi(session, cls, fk_value) -> bool:
     return False
 
 
+def _bazada_shu_qiymat(session, obj, fk_attr, fk_value) -> bool:
+    """kech202 (zip 265, review265 PAST-3): o'zgartirilgan (dirty) yozuvda ustun «o'zgargan» ko'rinsa-yu, bazadagi qiymati AYNAN shu bo'lsa
+    (expired atributga o'sha eski osilgan qiymat qayta yozilgan) — haqiqatda o'zgarmagan: topilmadi deb rad etilmaydi.
+    Faqat «topilmadi» tarmog'ida (kamdan-kam) bitta SELECT."""
+    from sqlalchemy import inspect as _i265, select as _s265
+    try:
+        _ident = _i265(obj).identity
+        _tbl = type(obj).__table__
+        _pk = list(_tbl.primary_key.columns)
+        _col = _tbl.columns.get(fk_attr)
+        if not _ident or len(_pk) != 1 or _col is None:
+            return False
+        _v = session.execute(_s265(_col).where(_pk[0] == _ident[0]).execution_options(**_GUARD_READ_OPTS)).scalar()
+        return _v is not None and _v == fk_value
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def _yoq_rad_etilsinmi(session, obj, cls, fk_attr, fk_value, yoqni_tekshir) -> bool:
+    """kech202 (zip 265): topilmagan havola rad etiladimi — `True` (yangi yozuv) — har havola; to'plam (o'zgartirilgan yozuv) — faqat
+    o'zgargan ustun va bazadagi qiymati boshqa bo'lsa; shu flush da yangi (id qo'lda) ota-yozuv — topilgan hisoblanadi."""
+    if yoqni_tekshir is True:
+        pass
+    elif not yoqni_tekshir or fk_attr not in yoqni_tekshir:
+        return False
+    if _shu_flushda_yangi(session, cls, fk_value):
+        return False
+    if yoqni_tekshir is not True and _bazada_shu_qiymat(session, obj, fk_attr, fk_value):
+        return False
+    return True
+
+
 def _havola_yoq_xatosi(obj, fk_attr, fk_value, nom):
     return TenantMismatchError(
         f"{type(obj).__name__}.{fk_attr}={fk_value}: bog'lanayotgan {nom} yozuvi topilmadi "
@@ -3811,8 +3843,7 @@ def _resolve_parent_company(session, obj, rules, yoqni_tekshir=None):
         parent = session.get(parent_cls, fk_value,
                              execution_options=_GUARD_READ_OPTS)
         if parent is None:
-            if ((yoqni_tekshir is True or (yoqni_tekshir and fk_attr in yoqni_tekshir))
-                    and not _shu_flushda_yangi(session, parent_cls, fk_value)):
+            if _yoq_rad_etilsinmi(session, obj, parent_cls, fk_attr, fk_value, yoqni_tekshir):
                 raise _havola_yoq_xatosi(obj, fk_attr, fk_value, parent_name)
             continue
         cid = getattr(parent, "company_id", None)
@@ -3855,8 +3886,7 @@ def _check_refs(session, obj, own_cid, yoqni_tekshir=None):
         ref = session.get(ref_cls, fk_value,
                           execution_options=_GUARD_READ_OPTS)
         if ref is None:
-            if ((yoqni_tekshir is True or (yoqni_tekshir and fk_attr in yoqni_tekshir))
-                    and not _shu_flushda_yangi(session, ref_cls, fk_value)):
+            if _yoq_rad_etilsinmi(session, obj, ref_cls, fk_attr, fk_value, yoqni_tekshir):
                 raise _havola_yoq_xatosi(obj, fk_attr, fk_value, ref_name)
             continue
         ref_cid = getattr(ref, "company_id", None)

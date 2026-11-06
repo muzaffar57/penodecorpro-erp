@@ -746,8 +746,15 @@ topilmasa — `TenantMismatchError` (`_havola_yoq_xatosi`; shu flush da yangi, i
 `_shu_flushda_yangi`); o'zgarmagan eski osilgan havola TEKSHIRILMAYDI (eski yozuvni boshqa maydoni
 bo'yicha tahrirlash ishlaydi). `main.tenant_mismatch_handler` — ikkala holatga BIR XIL 404 + `TENANT_BOG_XATO_MATNI` (ichki sabab,
 id, korxona raqami ko'rinmaydi); `_dokon_bajar` — avvalgidek ikkalasiga 400 «Qiymat noto'g'ri». Bazadagi FK lar O'ZGARMAGAN (barcha
-128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Test `tools/test_oracle265.py` (36; PG 33; asl 26fc68d da
-SQLite 20, PG 18 yiqiladi, qulamaydi); mutatsiya `work/k265/mut265.py` — 13 / 13 O'LDI. Production ma'lumotida osilgan havola YO'Q:
+128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Mustaqil tekshiruv `work/k265/review265/HISOBOT.md` (KRITIK / YUQORI yo'q): O'RTA-1 — ichki sabab endi server jurnalida (`print` «⚠ Bog'lanish
+rad etildi (404) <usul> <yo'l>: …»; ErrorLog ga emas — begona id bilan jadval to'ldirilmasin); PAST-3 — expired atributga bazadagi o'sha
+qiymat qayta yozilsa o'zgarmagan hisoblanadi (`_bazada_shu_qiymat`, faqat «topilmadi» tarmog'ida bitta SELECT); PAST-2 —
+`crud.add_returned_to_stock` detaldagi o'chgan penoplastni qaytgan partiyaga ko'chirmaydi (bo'sh); PAST-1 (o'z `company_id` si yo'q
+modellarda begona ota ORM darajasida — zip 265 dan oldingi holat, HTTP orqali yopiq) — keyingi ish; PAST-4 (hodim avans oynasi 404 da
+qatorni olib tashlaydi — amalda yetib bo'lmaydi, ma'lumot o'zgarmaydi, yangilashda qaytadi) — qoldirildi.
+Test `tools/test_oracle265.py` (39; PG 34; asl 26fc68d da
+SQLite 22, PG 19 yiqiladi, qulamaydi); mutatsiya `work/k265/mut265.py` — 17: 16 O'LDI + M08 EKVIVALENT
+(a'zolik sharti — `_bazada_shu_qiymat` ham ushlaydi). Production ma'lumotida osilgan havola YO'Q:
 tiklash har FK ustunini fayldagi qatorga tekshiradi (`crud` «Zaxira fayli buzilgan …») — 2026-11-07 zaxirasi xatosiz tiklangan.
 **«O'z bugungi xarajatim» — foydalanuvchi ID si bo'yicha (kech201, zip 264 — xavfsizlik REJA 16-band, Fable F11).** Ustun
 `expense_transactions.created_by_user_id` (Integer, NULL; mavjud jadvalga `sync_missing_columns`). `crud.create_expense_transaction(…,

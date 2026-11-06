@@ -16145,7 +16145,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         source=StockSource.RETURNED,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
-        penoplast_id=order_item.penoplast_id,
+        # kech202 (zip 265, review265 PAST-2): detaldagi penoplast keyin bazadan butunlay o'chgan bo'lsa (eski FK siz ustunda osilgan id) —
+        # qaytgan partiyaga ko'chirilmaydi (bo'sh): qo'riqchi yangi yozuvdagi topilmagan havolani rad etadi, qaytarish to'xtamasin
+        penoplast_id=(order_item.penoplast_id if (order_item.penoplast_id and db.query(Inventory.id).filter(
+            Inventory.id == order_item.penoplast_id, Inventory.company_id == _ret_cid).first() is not None) else None),
         # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). MRP mahsuloti
         # (`category='mrp_product'`) buyurtmadan qaytarilganda, turi
         # yo'qolmasin. Eski turkumlarda bu maydon NULL — bu ATAYLAB.
