@@ -515,11 +515,21 @@ def _j_ssenariy():
               .map(e => [e.id || e.className, e.tagName === 'INPUT' ? e.value : e.textContent, e.style.fontSize]);
             const nr = [...document.querySelectorAll('#rcv-mat-jadval td.c-nr')].filter(td => td.getClientRects().length).map(td => {
               const a = td.querySelector('.rcv-nr').getBoundingClientRect(), b = td.getBoundingClientRect(); return a.right <= b.right + 0.5 && a.left >= b.left - 0.5; });
-            return {kich, nr: nr.every(Boolean), soni: nr.length}; }""")
+            const omb = [...document.querySelectorAll('#rcv-mat-jadval .rcv-omb > span')].filter(e => e.getClientRects().length).map(e => {
+              const r = document.createRange(); r.selectNodeContents(e); return [e.textContent, new Set([...r.getClientRects()].map(x => Math.round(x.top))).size]; });
+            return {kich, nr: nr.every(Boolean), soni: nr.length, omb: omb.filter(x => x[1] > 1)}; }""")
         check(f"J13 {w} px: oddiy qiymatlar (22 dona, 2 400 kg, 56 / 1 250 / 12, 785 000 / 265,5{'' if w > 400 else ', kartada 9 812 500 000 so\'m'}) "
-              "— hech biri kichraytirilmagan; № belgisi o'z katagida",
-              not _o["kich"] and _o["nr"] and _o["soni"] >= 4, _o)
+              "— hech biri kichraytirilmagan, «Omborda» bir qatorda; № belgisi o'z katagida",
+              not _o["kich"] and _o["nr"] and _o["soni"] >= 4 and not _o["omb"], _o)   # omb: «2 400 kg» — bir qatorda (mut262 U20)
         ctx.close()
+    # ─── J14 (mut262 U04): kiritish qatori — faqat miqdor / narx yozilganda (boshqa hech narsa o'zgarmasa ham) summa darhol sig'adi ───
+    ctx, pg = kontekst(1440, 900)
+    sahifa(pg)
+    kiritish(pg, "Penoplast 14P", "12500", "785000")
+    _k = pg.evaluate("() => { const e = document.getElementById('ap-total'); return [e.value, e.scrollWidth <= e.clientWidth + 1, e.style.fontSize, e.title]; }")
+    check("J14 1440 px: 12 500 × 785 000 yozilgan zahoti — «9 812 500 000 so'm» kiritish qatorida sig'adi (kichraygan, izohsiz)",
+          _k[1] and _k[2] != "" and _k[3] == "", _k)
+    ctx.close()
     check("J8 JS xatosi yo'q", not JS_XATO, JS_XATO[:5])
 
 

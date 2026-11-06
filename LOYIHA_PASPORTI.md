@@ -5533,7 +5533,9 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   (summa to'liq, 13 px), katta qiymatlar 12 kenglikda (qirqilgan / toshgan matn, sig'magan maydon, izohsiz «…», surilish — yo'q, «Ombordan
   tanlash» bilan), «✓ ro'yxatda», hisob nomlari va «To'liq» joylashuvi, tarix kartalari, «1 blok =», `rcvSigdir` chegaralari, 390 → 1440
   qayta o'lchov, «Hisob-kitob» yorliqlari, kiritish «Omborda», 124 mlrd statistika va ta'minotchini bekor qilish, JS xato; `K262_MANBASIZ=1`
-  — faqat brauzer, mutatsiya uchun). SQ 71/0, TF1 71/0; asl (zip 261) — 37 ta yiqiladi, qulamaydi.
+  — faqat brauzer, mutatsiya uchun; J13 / J14 — oddiy qiymatlar kichraymaydi, kiritish summasi darhol; 412 / 375 px). SQ 81/0, TF1 81/0;
+  asl (zip 261) — 42 ta yiqiladi, qulamaydi. Mutatsiya `work/k262/mut262.py` — 25: 24 O'LDI + U17 EKVIVALENT (panel `flex-wrap`siz ham
+  matn spanlar ichida o'raladi). Sarlavha segmenti (zip 261) — ≤ 420 px da ikki qator (JONLI 375 px da «Boshlang'ich qoldiq» chiqardi).
 - (kech195, zip 261) «Kirim qilish» oynasi: `tools/test_kirim261.py` (S — manba: segment ↔ yashirin belgi, «Omborda», `rcvTrend`,
   joyida tahrir, «Ombordan tanlash», chala qator to'xtatadi, To'liq / Qisman / Qarzga, qoralama, telefon paneli; A — `oxirgi_narx` /
   `oxirgi_sana`: oxirgi, boshlang'ich chiqariladi, teng vaqt — katta id, boshqa ta'minotchi / korxona; J — Chromium 1440 / 1100 / 390 /
