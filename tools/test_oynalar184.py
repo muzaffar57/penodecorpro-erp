@@ -161,7 +161,8 @@ QOSHIMCHA_JS = r"""async (a) => {
   }
   // ikkinchi usta (uzun nom) va foydalanuvchi
   await so('/api/masters', 'POST', {name: M + ' Usta Karimov Abdurahmon', phone: '+998907654321', cashback_percent: 5, kpi_percent: 0, region: 'Andijon viloyati, Asaka tumani'});
-  await so('/api/users', 'POST', {username: 'o183_operator', password: 'Parol123!', role: 'manager', full_name: M + ' Operator Xasanova'});
+  // kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): parol yangi qoidaga mos (10+ belgi, oddiy emas); eski kodda ham yaroqli
+  await so('/api/users', 'POST', {username: 'o183_operator', password: 'Parol-263-Kuchli', role: 'manager', full_name: M + ' Operator Xasanova'});
   return {R, L: L.filter(x => !(x[1] >= 200 && x[1] < 300))};
 }"""
 

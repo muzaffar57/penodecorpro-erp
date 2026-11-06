@@ -225,12 +225,25 @@ check("T3b keyingi urinishda yuborildi — endi belgilanadi («…:7»), xabar e
 section("T4. Kunlik zaxira yuborilmasa — «Xatoliklar» jurnalida")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 TG_DOC_NATIJA[0] = False
+# kech199 (zip 263, xavfsizlik REJA 1-band — MOSLANDI; versiya manbadan): kunlik zaxira endi KORXONA BO'YICHA alohida va SHIFRLANGAN —
+# `ZAXIRA_PAROLI` siz fayl umuman yuborilmaydi; har korxona fayli yuborilmasa — o'z xato yozuvi («… Telegramga yuborilmadi (-100178)»).
+# Eski kodda (zip 263 dan oldin) — avvalgi tekshiruv AYNAN.
+_Z263 = hasattr(main, "zaxira_shifrla")
+if _Z263:
+    os.environ["ZAXIRA_PAROLI"] = "Sinov-178-zaxira-paroli"
 _e0 = db_ishi(lambda d: d.query(ErrorLog).filter(ErrorLog.error_message.like("%Kunlik zaxira%")).count())
 with contextlib.redirect_stdout(io.StringIO()):
     main.run_daily_backup()
+os.environ.pop("ZAXIRA_PAROLI", None)
 _e1 = db_ishi(lambda d: [x.error_message for x in d.query(ErrorLog).filter(ErrorLog.error_message.like("%Kunlik zaxira%")).all()])
-check("T4 zaxira fayli Telegramga ketmadi — jurnalda «Kunlik zaxira Telegramga yuborilmadi (-100178)» (ilgari faqat konsolda)",
-      len(_e1) == _e0 + 1 and "Telegramga yuborilmadi (-100178)" in _e1[-1] and TG_DOC and TG_DOC[-1][0] == "-100178", (_e0, _e1, TG_DOC))
+if _Z263:
+    _kn = db_ishi(lambda d: d.query(Company).count())
+    check("T4 zaxira fayllari Telegramga ketmadi — jurnalda har korxona uchun «… Telegramga yuborilmadi (-100178)» (zip 263: korxona bo'yicha)",
+          len(_e1) == _e0 + _kn and all("Telegramga yuborilmadi (-100178)" in x for x in _e1[_e0:]) and len(TG_DOC) >= _kn
+          and TG_DOC[-1][0] == "-100178", (_e0, _kn, _e1, TG_DOC))
+else:
+    check("T4 zaxira fayli Telegramga ketmadi — jurnalda «Kunlik zaxira Telegramga yuborilmadi (-100178)» (ilgari faqat konsolda)",
+          len(_e1) == _e0 + 1 and "Telegramga yuborilmadi (-100178)" in _e1[-1] and TG_DOC and TG_DOC[-1][0] == "-100178", (_e0, _e1, TG_DOC))
 TG_DOC_NATIJA[0] = True
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════

@@ -693,6 +693,48 @@ qatorlar KARTA (birlik — yorliqda «Miqdor (kg)»), ≤ 700 px da pastda yopis
 (`#receive-submit-dock`). MOSLANGAN eski testlar (versiya manbadan — `id="rcv-seg-boshl"`): `test_d121` N2, `test_joylashuv_matn`
 (J4 RUXSAT, T4), `test_audit_ombor_ui.js` M1, `test_f_ombor` («Eski qarzni to'lash» ochiladi), `test_sahifa_skroll_ui` (yopiq
 `<details>` ichi ko'rinmaydi) va boshqalar — `work/k261/mos261.txt`.
+**XAVFSIZLIK AUDITI tuzatishlari (kech198 … kech200, zip 263 — egasi so'rovi 06.11 17:11 «kuchli audit, maksimal xavfsizlik»; ikki
+mustaqil audit — `work/k263/opus/HISOBOT.md`, `work/k263/fable/HISOBOT.md`: YUQORI / KRITIK yo'q, korxonalar ajratilishi TOZA; reja —
+`work/k263/REJA263.md`).** EGASI QARORLARI (06.11 17:33, qayta so'ralmaydi): kunlik zaxira — HAR KORXONA ALOHIDA, SHIFRLANGAN, faqat
+egasiga; platforma egasi kirishiga TELEGRAM KODI. (5–8) `database.DavrXatosi` — hisobot yili 2000 … 2100 tashqarisida 400 (ilgari 500);
+yo'q loginda soxta bcrypt (`auth.soxta_parol_tekshiruvi` — javob vaqti teng, login borligi oshkor emas); sarlavhalar — CSP
+`frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'`, Referrer-Policy `strict-origin-when-cross-origin`,
+Permissions-Policy; `ADMIN_PASSWORD` yo'q bo'lsa standart admin — tasodifiy parol («Admin123!» YO'Q; `RESET_ADMIN_PASSWORD` faqat
+`ADMIN_PASSWORD` bilan). (10) TANA CHEGARASI — `main._TanaChegarasi` (sof ASGI, ENG TASHQI qatlam): JSON / forma 8 MB (`TANA_ODDIY_MAX`),
+multipart `MAX_UPLOAD_SIZE` + 1 MB, `/tiklash` va `/api/system/restore` — 200 + 1 MB FAQAT platforma egasi sessiyasi bilan
+(`_tana_platforma_egasimi`); `Content-Length` katta — ilova CHAQIRILMAYDI, chunked — o'qilgan sari sanaladi; javob 413 «… MB dan oshmasin»
+(qolgan tana 128 MB gacha o'qib tashlanadi — brauzer 413 ni ko'rsin; undan katta — `connection: close`). Ikkinchi qavat — `_save_upload`,
+logo, tiklash chegara + 1 bayt o'qiydi. O'LCHOV `work/k263/probe263_tana.py`: asl kodda kirishsiz 300 MB JSON — RAM +1 144 MB; endi 413,
++0 MB. (1) ZAXIRA — `run_daily_backup` har korxona uchun `epserp-<kod>-<sana>.zip` (AES-256, pyzipper; ichida `<kod>-<sana>.json` —
+`/tiklash` ga to'g'ridan-to'g'ri), parol — Railway `ZAXIRA_PAROLI` (≥ 12 belgi, `ZAXIRA_PAROL_MIN`); parol yo'q / qisqa — HECH QANDAY fayl
+yuborilmaydi (egasiga har kuni «⛔ Kunlik zaxira YUBORILMADI» + «Xatoliklar» jurnali). Maxfiy sozlamalar (`crud._SECRET_SETTING_KEYS` —
+bot tokeni, webhook imzosi) zaxiraga KIRMAYDI, tiklashda JORIY qiymat qoladi. `/tiklash`, `/api/system/restore` — .zip (parol formadan
+yoki serverdagi `ZAXIRA_PAROLI`; `zaxira_ochish` — bitta .json, hajm chegarasi) va eski .json. (2, 12, 17) PLATFORMA EGASI 2FA —
+`ikki_bosqich.py`: FAQAT `is_platform_admin`, FAQAT tizim Telegrami sozlangan bo'lsa (`TELEGRAM_BOT_TOKEN` + `BACKUP_TELEGRAM_CHAT_ID`);
+`PLATFORMA_2FA=0` — favqulodda o'chirish. To'g'ri paroldan keyin sessiya YARATILMAYDI — 6 xonali kod (bazada HMAC xeshi, jadval
+`ikki_bosqich_kodlar`), 5 daqiqa, 5 urinish (atomar sanoq), 15 daqiqada 5 tadan ortiq so'rov yo'q; kod sahifasi `/login/kod` (cookie
+`kirish_kod`, yo'l `/login`). «Bu qurilmani eslab qol» — 30 kun (`ishonchli_qurilmalar`, cookie `ishonchli_qurilma`; xeshi bazada, parol
+almashsa bekor — `parol_belgisi`). Telegram yuborilmasa — kirish YO'Q. 12: tarqoq xatolar bilan login bloklanganda platforma egasi
+to'g'ri parol + kod bilan o'tadi, blok paytida ogohlantirish; 17: IP chegarasi 20 → 60 (CGNAT). (3) HODIM PIN QULFI —
+`employees.pin_xato_soni`, `pin_qulflangan` (sync migratsiya): ketma-ket 10 xato (`PIN_QULF_XATO`) → qulf (to'g'ri PIN ham kirmaydi),
+5-xatoda (`PIN_OGOH_XATO`) korxona chatiga ogohlantirish; admin «🔑 Kirish» dan yangi PIN bersa — ochiladi; to'g'ri kirish sanoqni
+nollaydi (`crud.hodim_pin_xato` atomar, `hodim_pin_xatolarini_nolla`); hodimlar ro'yxatida qulf belgisi. (4) PAROL QOIDASI —
+`crud.parol_zaifligi` (YANGI / almashtirilgan parol): kamida 10 belgi, login bo'lmasin, 1–2 xil belgi / faqat raqam / ketma-ketlik
+(teskarisi ham) / «oddiy so'z + raqam» rad; 72 bayt chegarasi qoidadan OLDIN; mavjud parollar bilan kirish o'zgarmagan.
+(9, 11) «🔐 Hisobim» (`/hisobim`, `templates/hisobim.html`, menyuda `.s-hisobim`): HAR kirgan foydalanuvchi o'z parolini
+(`POST /api/me/password`) va loginini (`POST /api/me/login`) JORIY parol bilan o'zgartiradi (noto'g'ri joriy parol — kirish cheklovi
+hisobida, 5 → 429); login butun tizimda yagona (katta-kichik harf farqisiz), boshqa qurilmalar yopiladi, jurnal; `is_platform_admin`
+o'sha qatorda qoladi. (13) Band login — umumiy matn `auth.LOGIN_BAND_XABARI` («Bu login ishlatib bo'lmaydi — boshqasini tanlang»;
+boshqa korxona / platforma egasi loginlari oshkor emas), admin bo'yicha soatiga 10 «band» urinishdan keyin yaratish 429. (15) Excel —
+O'LCHANDI, o'zgarish kerak emas (`crud.dokon_excel_yarat` har matn katagiga `data_type = "s"`). (21) «🔐 Telegram xavfsizligini
+yoqish» YANGI imzo YARATMAYDI — umumiy botga Railway dagi MAVJUD `TELEGRAM_WEBHOOK_SECRET` beriladi (`main._tg_umumiy_sir_xatosi`:
+Telegram qoidasi — faqat A–Z a–z 0–9 _ -, `TG_UMUMIY_SIR_MIN` = 20 … 256 belgi; `fullmatch` — oxiridagi «\n» ham rad); yo'q / yaroqsiz —
+409 + tasodifiy `taklif`, Telegram'ga so'rov KETMAYDI (bot hozirgi ulanishida qoladi), sahifada 3 qadamli yo'riqnoma (`#tg-sir-taklif`);
+javobda sir YO'Q. Sabab (kech198, 06.11 17:50): eski tugma yangi sirni Telegram'ga berardi, server eski imzo bilan tekshirardi — egasi
+Railway ni yangilaguncha @Penoustabot xabarlari 403. «Bot hozir qayerga ulangan» da 403 maslahati (asosiy sayt, mos, kutayotgan > 0,
+oxirgi xato 403). QOLDI (PAST, keyingi zip): 14 (begona id → 409 o'rniga 404), 16 (`created_by_user_id`); 18 — egasi cron-job.org ni
+`X-Cron-Secret` sarlavhasiga o'tkazishi; 19 — biznes savol (bloklangan korxona do'koni); 20 — info. Mutatsiya — `work/k263/mut263.py`:
+61 mutant — 59 O'LDI, 2 EKVIVALENT (P07 — teskari ketma-ketlikni (b) qoida qamraydi; Z07 — `len(data) > eng_kopi` ikkinchi qavat); review263 (`work/k263/review263/HISOBOT.md`: 1 O'RTA, 6 PAST — HAMMASI tuzatildi: R1 tarqoq blokdan egasi FAQAT ishonchli qurilma bilan o'tadi (blokda parol oshkor emas), R2 `/api/me/login` soatiga 10 band urinish, R3 login yagonaligi katta-kichik harf farqisiz (`auth._login_egasi`), R4 `auth.ZAXIRALANGAN_LOGINLAR` («admin», «root» …) faqat platforma egasiga + `RESET_ADMIN_PASSWORD` nishoni — platforma egasi, R5 yil / oy chegarasi (`database.tashkent_yil_oraligi`, forecast) — 400, R6 «qulflangan» faqat to'g'ri PIN bilan (`crud.hodim_qulfda_pin_togrimi`), R7 parol qoidasi kuchaytirildi (`crud.parol_ketma_ketlik_qoldigi`, kam xil belgi, «leet»), R8 tana chegarasida Starlette `cookie_parser`) — test `tools/test_review263.py`.
 **«Kirim qilish» — raqam / matn katagiga sig'adi (kech196, zip 262 — egasi so'rovi 06.11 03:57, skrinshot: kiritish qatorida
 «43 960 000 so'm» to'liq ko'rinmasdi; «shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar qolmasin»).** O'lchov —
 `work/k262/olchov262.py` (19 kenglik × egasining / katta qiymatlar, tungi). `templates/supplier_receive.html`: ustunlar «Omborda» 80,
@@ -723,7 +765,9 @@ sarlavha `--f-eff6ff`, tana `--f-f8fafc`, ichki buyurtmalar — oq kartalar (ora
 3 px ramka). Loyiha nomi — 14 px (umumiy shkala, `test_u13`). MOSLANGAN eski testlar (versiya manbadan — `data-pul="{{`):
 `test_buyurtma_korinish203` (D1c, D6b, D6c), `test_loyiha_papka207` (S1, S4, S5, D1 … D11, D16).
 **Telegram: bot manzili, holati va har korxonaga o'z boti (kech130, zip 154 — kech129 da O'LCHANGAN; egasi QARORLARI 08.10 17:3x–17:42).**
-(1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish» (`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
+(kech200, zip 263, 21-band: tugma imzoni Railway dagi `TELEGRAM_WEBHOOK_SECRET` dan oladi — yangi sir yaratmaydi; yo'q / yaroqsiz —
+409 + taklif, Telegram'ga so'rov yo'q — XAVFSIZLIK AUDITI bandiga qarang.) (1) MANZIL HIMOYASI: «🔐 Telegram xavfsizligini yoqish»
+(`telegram-setup-webhook-security`) qaysi saytda bosilsa, umumiy bot (@Penoustabot,
 `TELEGRAM_BOT_TOKEN`) o'sha saytga ulanadi (`request.base_url`) — kech129 da bot sinov saytiga ulanib qolgan edi (ustalar sinov bazasini
 ko'rgan bo'lishi mumkin). Endi bot manzilini O'ZGARTIRADIGAN har amal (umumiy bot — ulash va «Botni asl holatiga qaytarish»; korxona boti —
 ulash, token almashganda uzish) FAQAT asosiy muhitda: `main._asosiy_muhitmi` — Railway `RAILWAY_ENVIRONMENT_NAME` AYNAN «production»
@@ -5528,6 +5572,16 @@ parallel yurgizmang. Bitta test ≤ 900 s. Test yurib turganda u o'qiydigan fayl
   25 … 60; B — buyurtma = narx so'rovi (yashirin qator, teng masofa id teskari, bir balandlikda ikki qator); K — katalog, chegirma; U — sahifa
   (yopiq / ochiq kataklar, ⚠, yopilmaydigan oyna); Z — B korxona o'z do'koni bilan, jurnal). SQ 92/0, TF1 92/0, PG 81/0; asl (zip 256) —
   74 ta yiqiladi, qulamaydi. `tools/test_karniz255.py` — oraliq test ichida 15 … 40 ga qaytariladi, R2 — qobiliyat bayrog'i.
+- (kech198 … kech200, zip 263) XAVFSIZLIK: `tools/test_tana263.py` (tana chegarasi — CL / chunked / multipart / tiklash, platforma egasi
+  sessiyasi, 413 matni, xotira), `tools/test_zaxira263.py` (korxona bo'yicha AES-256 zip, `ZAXIRA_PAROLI` yo'q / qisqa — yuborilmaydi,
+  maxfiy sozlamalar, /tiklash .zip / .json, buzuq / ko'p fayl / katta zip), `tools/test_ikki_bosqich263.py` (2FA kodi, urinish, muddat,
+  ishonchli qurilma, parol almashsa bekor, tarqoq blok, `PLATFORMA_2FA=0`), `tools/test_pin_qulf263.py` (10 / 5, qulfda to'g'ri PIN,
+  yangi PIN ochadi), `tools/test_parol263.py` (qoida, band login B1–B4), `tools/test_hisobim263.py` («Hisobim», o'z paroli / logini,
+  sessiyalar), `tools/test_tg_imzo263.py` (21-band: A — imzo yaroqliligi, B — marshrut 409 / 200, sir javobda yo'q, webhook o'sha imzoni
+  qabul qiladi; C — Chromium: taklif bloki, muvaffaqiyat, 403 maslahati, 390 px). Har biri SQ / TF1 / PG yashil; asl (894aa9b) da
+  yiqiladi, qulamaydi. MOSLANGAN eski testlar (versiya manbadan, eski kodda AYNAN): test_hodim_tg_pdf178 T4, test_toshkent_korinish A6,
+  test_rollar (S4 jadval + API parollari), test_a116_kirish (IP 60), test_a116_ui, test_audit_himoya, test_foydalanuvchi175,
+  test_foydalanuvchi_ui175, test_tf1_login_band, test_oynalar184, test_tana_qatiy, test_telegram_webhook A5, test_joylashuv_matn (RUXSAT).
 - (kech196, zip 262) «Kirim qilish» — sig'ish: `tools/test_sigish262.py` (S — manba: ustunlar, `rcvSigdir` va chaqiruvlari,
   `.rcv-sig`, «✓» alohida, to'lov / tarix konteyner qoidalari, «1 blok =» o'rami, panel; J — Chromium: egasining holati 1920 / 1440 / 1100
   (summa to'liq, 13 px), katta qiymatlar 12 kenglikda (qirqilgan / toshgan matn, sig'magan maydon, izohsiz «…», surilish — yo'q, «Ombordan
@@ -7860,19 +7914,21 @@ Quyidagi bloklar `python3 tools/pasport_xarita.py --yoz` bilan KODDAN yasaladi �
 Kod o'qiydigan muhit o'zgaruvchilari (Railway → Variables). Ro'yxat `os.getenv` / `os.environ` dan olingan.
 
 - `ADMIN_PASSWORD` — `auth.py`
-- `BACKUP_TELEGRAM_CHAT_ID` — `main.py`
+- `BACKUP_TELEGRAM_CHAT_ID` — `ikki_bosqich.py`, `main.py`
 - `CRON_SECRET` — `main.py`
 - `DATABASE_URL` — `database.py`
+- `PLATFORMA_2FA` — `ikki_bosqich.py`
 - `QOPLAMACHI_TELEGRAM_CHAT_ID` — `main.py`
 - `RAILWAY_ENVIRONMENT` — `main.py`, `saas_migration.py`
 - `RAILWAY_ENVIRONMENT_NAME` — `main.py`, `saas_migration.py`
 - `RAILWAY_PUBLIC_DOMAIN` — `saas_migration.py`
 - `RAILWAY_SERVICE_NAME` — `saas_migration.py`
 - `RESET_ADMIN_PASSWORD` — `auth.py`
-- `TELEGRAM_BOT_TOKEN` — `main.py`
+- `TELEGRAM_BOT_TOKEN` — `ikki_bosqich.py`, `main.py`
 - `TELEGRAM_WEBHOOK_SECRET` — `main.py`
 - `TENANT_FILTER` — `tenant_context.py`
 - `WEB_CONCURRENCY` — `services.py`
+- `ZAXIRA_PAROLI` — `main.py`
 <!-- AVTO:MUHIT OXIRI -->
 
 ### 9.2 Ishga tushish tartibi (migratsiyalar)
@@ -7930,11 +7986,12 @@ bajariladigan chaqiruvlar — AYNAN shu tartibda. `_migrate_*` — idempotent sx
 46. `app.include_router(production_router)`
 47. `app.add_middleware`
 48. `app.add_middleware`
-49. `_yuklama_marshrutini_oldinga`
-50. `_scheduler.add_job`
+49. `app.add_middleware`
+50. `_yuklama_marshrutini_oldinga`
 51. `_scheduler.add_job`
 52. `_scheduler.add_job`
-53. `_scheduler.start`
+53. `_scheduler.add_job`
+54. `_scheduler.start`
 <!-- AVTO:ISHGA_TUSHISH OXIRI -->
 
 ### 9.3 Sahifalar: URL → handler → shablon → API
@@ -7969,6 +8026,10 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 - `finished.html` API: `/api/finished`, `/api/finished/katalog-detallar`, `/api/finished/produce`, `/api/finished/sales/batch/{}/pdf`, `/api/finished/sales/{}/pdf`, `/api/finished/sell`, `/api/finished/sell-batch`, `/api/finished/stats`, `/api/finished/{}`, `/api/finished/{}/add`, `/api/finished/{}/complete`, `/api/finished/{}/image`, `/api/finished/{}/kam-chegara`, `/api/finished/{}/profit`, `/api/finished/{}/release-reservation`, `/api/loy-cost`, `/api/sayt-bandlar`
 
+### `GET /hisobim` → `main.py:hisobim_sahifa` → `templates/hisobim.html`
+- Qorovul: auth.require_login
+- `hisobim.html` API: `/api/me/login`, `/api/me/password`
+
 ### `GET /hodim` → `main.py:hodim_panel` → `templates/hodim_kutish.html`, `templates/hodim_panel.html`, `templates/hodim_pin.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
 - Server chaqiruvlari: auth.delete_employee_session, auth.hodim_holati
@@ -7982,7 +8043,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `POST /hodim/login` → `main.py:hodim_login_submit` → `templates/hodim_login.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
-- Server chaqiruvlari: auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_qurilma_ozi, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
+- Server chaqiruvlari: auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_pin_qulfdami, crud.hodim_pin_xato, crud.hodim_pin_xatolarini_nolla, crud.hodim_qulfda_pin_togrimi, crud.hodim_qurilma_ozi, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
 
 ### `GET /hodim/pin` → `main.py:hodim_pin_sahifa` → `templates/hodim_pin.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
@@ -8010,7 +8071,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `POST /login` → `main.py:login_submit` → `templates/login.html`
 - Qorovul: — (tanada tekshiriladi yoki ochiq)
-- Server chaqiruvlari: auth.create_session, auth.mijoz_ip, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
+- Server chaqiruvlari: auth.mijoz_ip, auth.soxta_parol_tekshiruvi, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
 
 ### `GET /logs` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.ruxsat('jurnal', 'korish')
@@ -8310,6 +8371,10 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/api/material-royxati` (1)
 - `GET /api/material-royxati` → `main.py:api_material_royxati` · 🔒 auth.ruxsat_biri(('material_royxat', 'korish'), ('material', 'korish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_inventory
 
+#### `/api/me` (2)
+- `POST /api/me/login` → `main.py:api_me_login` · 🔒 auth.require_login · auth.company_id_of, auth.login_zaxiralanganmi, auth.token_xesh, crud.log_activity
+- `POST /api/me/password` → `main.py:api_me_password` · 🔒 auth.require_login · auth.change_password, auth.company_id_of, auth.verify_password, crud._clean_val, crud.log_activity, crud.parol_zaifligi
+
 #### `/api/murojaatlar` (4)
 - `GET /api/murojaatlar` → `main.py:api_murojaatlar` · 🔒 auth.admin_only · auth.company_id_of
 - `POST /api/murojaatlar` → `main.py:api_murojaat_yarat` · 🔒 auth.admin_only · auth.company_id_of
@@ -8584,8 +8649,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /api/transport-stats` → `main.py:api_transport_stats` · 🔒 auth.ruxsat('dashboard', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_transport_stats
 
 #### `/api/users` (4)
-- `POST /api/users` → `main.py:api_create_user` · 🔒 auth.admin_only · auth.company_id_of, auth.create_user, crud._clean_val, crud.log_activity
-- `POST /api/users/{user_id}/password` → `main.py:api_change_password` · 🔒 auth.admin_only · auth.change_password, auth.company_id_of, auth.verify_and_upgrade_password, crud._clean_val, crud.log_activity
+- `POST /api/users` → `main.py:api_create_user` · 🔒 auth.admin_only · auth.company_id_of, auth.create_user, auth.login_zaxiralanganmi, crud._clean_val, crud.log_activity
+- `POST /api/users/{user_id}/password` → `main.py:api_change_password` · 🔒 auth.admin_only · auth.change_password, auth.company_id_of, auth.verify_and_upgrade_password, crud._clean_val, crud.log_activity, crud.parol_zaifligi
 - `PUT /api/users/{user_id}/rol` → `main.py:api_user_rol` · 🔒 auth.admin_only · auth.company_id_of, auth.rol_biriktir, crud.log_activity
 - `POST /api/users/{user_id}/toggle` → `main.py:api_toggle_user` · 🔒 auth.admin_only · auth.company_id_of, auth.toggle_user_active, crud._pul_qulfi, crud.bitta_tranzaksiya, crud.log_activity
 
@@ -8613,10 +8678,13 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/finished` (1)
 - `GET /finished` → `main.py:finished_page` · 🔒 auth.ruxsat_biri(('tayyor', 'korish'), ('sotuv', 'korish')) · auth.company_id_of, auth.ruxsat_biri, crud.get_employees, crud.get_finished_products, crud.get_finished_stats, crud.get_masters, crud.get_recipes, services.get_default_penoplast, services.get_penoplast_list
 
+#### `/hisobim` (1)
+- `GET /hisobim` → `main.py:hisobim_sahifa` · 🔒 auth.require_login
+
 #### `/hodim` (5)
 - `GET /hodim` → `main.py:hodim_panel` · 🔓 · auth.delete_employee_session, auth.hodim_holati
 - `GET /hodim/login` → `main.py:hodim_login_page` · 🔓 · auth.hodim_holati
-- `POST /hodim/login` → `main.py:hodim_login_submit` · 🔓 · auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_qurilma_ozi, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
+- `POST /hodim/login` → `main.py:hodim_login_submit` · 🔓 · auth.create_employee_session, auth.mijoz_ip, auth.qurilma_hash_ol, auth.qurilma_kaliti, auth.yangi_qurilma_kaliti, crud.authenticate_employee, crud.check_login_rate_limit, crud.hodim_pin_qulfdami, crud.hodim_pin_xato, crud.hodim_pin_xatolarini_nolla, crud.hodim_qulfda_pin_togrimi, crud.hodim_qurilma_ozi, crud.hodim_qurilma_sorovi, crud.log_login_attempt, crud.qurilma_nomi_yasash, crud.resolve_company_by_code, crud.telefon_kaliti
 - `GET /hodim/logout` → `main.py:hodim_logout` · 🔓 · auth.delete_employee_session
 - `GET /hodim/pin` → `main.py:hodim_pin_sahifa` · 🔓 · auth.hodim_holati
 
@@ -8629,9 +8697,11 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/kunlik-xarajat` (1)
 - `GET /kunlik-xarajat` → `main.py:kunlik_xarajat_page` · 🔒 auth.ruxsat_biri(('kunlik', 'korish'), ('kunlik', 'yaratish')) · auth.ruxsat_biri
 
-#### `/login` (2)
+#### `/login` (4)
 - `GET /login` → `main.py:login_page` · 🔓 · auth.get_current_user
-- `POST /login` → `main.py:login_submit` · 🔓 · auth.create_session, auth.mijoz_ip, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
+- `POST /login` → `main.py:login_submit` · 🔓 · auth.mijoz_ip, auth.soxta_parol_tekshiruvi, auth.verify_and_upgrade_password, crud.check_login_rate_limit, crud.log_login_attempt
+- `GET /login/kod` → `main.py:login_kod_sahifa` · 🔓
+- `POST /login/kod` → `main.py:login_kod_submit` · 🔓 · auth.mijoz_ip, crud.check_login_rate_limit, crud.log_login_attempt
 
 #### `/logout` (1)
 - `GET /logout` → `main.py:logout` · 🔓 · auth.delete_session
@@ -8701,7 +8771,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 437 (main.py: 416, production_routes.py: 21).
+Jami marshrutlar: 442 (main.py: 421, production_routes.py: 21).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -8742,7 +8812,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `employee_compensation_history` — `EmployeeCompensationHistory` (`models.py`, 13) — ota orqali (employee_id→Employee)
 - `employee_monthly_adjustments` — `EmployeeMonthlyAdjustment` (`models.py`, 10) — ota orqali (employee_id→Employee)
 - `employee_sessions` — `EmployeeSession` (`models.py`, 5) — ota orqali (employee_id→Employee)
-- `employees` — `Employee` (`models.py`, 27) — o'z `company_id`
+- `employees` — `Employee` (`models.py`, 29) — o'z `company_id`
 - `error_logs` — `ErrorLog` (`models.py`, 8) — o'z `company_id`
 - `expense_transactions` — `ExpenseTransaction` (`models.py`, 13) — o'z `company_id`
 - `finished_product_losses` — `FinishedProductLoss` (`models.py`, 14) — o'z `company_id` + ota tekshiruvi (finished_product_id→FinishedProduct)
@@ -8752,10 +8822,12 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `gift_period_tiers` — `GiftPeriodTier` (`models.py`, 6) — o'z `company_id` + ota tekshiruvi (period_id→GiftPeriod)
 - `gift_periods` — `GiftPeriod` (`models.py`, 6) — o'z `company_id`
 - `hodim_ish_davrlari` — `HodimIshDavri` (`models.py`, 8) — o'z `company_id` + ota tekshiruvi (employee_id→Employee)
+- `ikki_bosqich_kodlar` — `IkkiBosqichKod` (`models.py`, 9) — korxonasiz
 - `inventory` — `Inventory` (`models.py`, 19) — o'z `company_id`
 - `inventory_movements` — `InventoryMovement` (`models.py`, 18) — o'z `company_id` + ota tekshiruvi (inventory_id→Inventory, order_id→Order, supplier_id→Supplier)
 - `inventory_purchases` — `InventoryPurchase` (`models.py`, 22) — ota orqali (inventory_id→Inventory, supplier_id→Supplier)
 - `inventory_receipts` — `InventoryReceipt` (`models.py`, 15) — o'z `company_id` + ota tekshiruvi (supplier_id→Supplier)
+- `ishonchli_qurilmalar` — `IshonchliQurilma` (`models.py`, 9) — korxonasiz
 - `login_history` — `LoginHistory` (`models.py`, 7) — o'z `company_id`
 - `master_gift_period_redemptions` — `MasterGiftPeriodRedemption` (`models.py`, 10) — ota orqali (period_id→GiftPeriod)
 - `master_gift_redemptions` — `MasterGiftRedemption` (`models.py`, 7) — ota orqali (master_id→Master)
@@ -8791,7 +8863,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `usta_keshbeklar` — `UstaKeshbek` (`models.py`, 13) — o'z `company_id`
 - `yonalishlar` — `Yonalish` (`models.py`, 8) — o'z `company_id`
 
-Jami jadvallar: 80.
+Jami jadvallar: 82.
 <!-- AVTO:MODELLAR OXIRI -->
 
 ### 9.6 Testlar katalogi
@@ -8894,6 +8966,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_hajm217.py` · PG — kech157 (zip 217 «Kirim bekori — blok hajmi» — egasi tanlovi 25.10: «Kirim bekori — blok hajmi (Tavsiya)»).
 - `test_havola254.py` · PG — kech186 (zip 254: do'kon 3-bosqich «Ustaning shaxsiy havolasi», ERP tomoni).
 - `test_himoya_ui.py` — kech143 (zip 171): HAQIQIY brauzer (Chromium) — himoya qatlami (A-X04, A-X06) va kech142 jonli sinovi topilmalari N2, N3, guruh «Sotish» bekor qilinishi.
+- `test_hisobim263.py` · PG — kech199 (zip 263, xavfsizlik REJA 9 + 11-band): «🔐 Hisobim» — HAR kirgan foydalanuvchi o'z parolini va loginini o'zgartiradi (joriy parol bilan).
 - `test_hisoblar210.py` · PG — kech155 (zip 210 «Naqd / Bank / Karta» — egasi so'rovi 23.10 15:56, ko'rinish tasdig'i 16:1x).
 - `test_hisobot_kesh.py` · PG — kech89 darvozasi (2026-09-26, 52-band: Moliya hisobotidagi N+1 so'rovlar).
 - `test_hisobot_korxona.py` · PG — kech79 darvozasi (2026-09-25, 101-band): Hisobotlar "Oyma-oy solishtirish" (`/api/reports/comparison`, `services.get_monthly_comparison`) va "Bashorat" (`/api/reports/foreca…
@@ -8912,6 +8985,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_html_escape.py` — STATIK DARVOZA — shablonlardagi escape qoidalari (5.2d 4-band, kech33).
 - `test_html_escape_dom.py` — DINAMIK innerHTML / HTML in'ektsiya darvozasi (5-bo'lim 2-band, kech29).
 - `test_idor.py` — IDOR (Insecure Direct Object Reference) darvozasi.
+- `test_ikki_bosqich263.py` · PG — kech199 (zip 263, xavfsizlik REJA 2-band + 12-band + 17-band): platforma egasi kirishiga TELEGRAM KODI (EGASI QARORI 06.11 17:33 «Ha qo'shilsin»), tarqoq blokdan egasining o…
 - `test_ish_davri_ui.py` · PG — kech141 (zip 169): hodim ishdan ketish / qaytish oynalari va «Tayyor» summasi tuzatishlari — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lokal server bilan (uvicorn, test…
 - `test_ishlab181.py` · PG — kech144 (zip 181, AUDIT 2-to'lqin — «Ishlab chiqarish»; `work/k180_tayyorgarlik/agentlar/ishlab/HISOBOT.md`): takror so'rov ikkinchi tur / tarkib / ishlab chiqarish yaratmaydi, ke…
 - `test_joylashuv_matn.py` — kech132 (zip 156): foydalanuvchiga ko'rinadigan matnda JOYLASHUV so'zlari yo'q (kech127 / kech130 qoidasi).
@@ -8997,10 +9071,12 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_oylik_tafsilot188.py` — kech147 (zip 188): hodim oyligi TAFSILOTI matni (KPI → «Oylik hisob-kitob», Qarzdorlar → «Hodimlarga qarzimiz»).
 - `test_oynalar184.py` · PG — kech146 (zip 184): OYNALAR (modal) TELEFON KENGLIGIDA — 320 × 640, 375 × 667, 390 × 844, HAQIQIY Chromium (Playwright, `is_mobile`, `has_touch`, `device_scale_factor=2`), HAQIQIY…
 - `test_oynalar185.py` · PG — kech147 (zip 185): OYNALAR 2-qism — TELEFON BRAUZER PANELI BILAN (ekranning ko'rinadigan qismi kichik: 375 × 548 — iPhone SE Safari, 360 × 560 — Android Chrome, 320 × 460 — kichi…
+- `test_parol263.py` · PG — kech199 (zip 263, xavfsizlik REJA 4-band — Fable F9 / Opus): YANGI parol qoidasi — kamida 10 belgi, login yo'q, bir xil belgilar / faqat raqam / oddiy ketma-ketlik / «oddiy so'z +…
 - `test_pasport.py` · PG — `LOYIHA_PASPORTI.md` (16-band) izchilligi va shablon → marshrut havolalari darvozasi (kech104, 2026-09-28).
 - `test_pdf_matn.py` · PG — kech106, K106-3 va K106-4 darvozasi: PDF hujjatlardagi foydalanuvchi matni va korxona nomi.
 - `test_pdf_shrift.py` · PG — kech106, K106-1 darvozasi: PDF hujjatlarda shriftda YO'Q belgi (QORA KVADRAT ■) chiqmasin.
 - `test_peno_tenant.py` — "asosiy penoplast" bo'yicha korxonalararo darvoza va `models._tenant_guard` ning filtr ostida ishlashi.
+- `test_pin_qulf263.py` · PG — kech199 (zip 263, xavfsizlik REJA 3-band — Fable F3): hodim paneli PIN i — KETMA-KET 10 ta xato → QULF (to'g'ri PIN bilan ham kirmaydi), admin «🔑 Kirish» dan yangi PIN bersa och…
 - `test_platforma_korinish206.py` · PG — kech154 (zip 206 «Platforma — jadval»; EGASI so'rovi 22.10 11:40 «Platforma sahifasi juda katta ko'rinadi — o'zgartirib ber», TANLOVI «2 · Jadval»): mijoz korxonalar r…
 - `test_platforma_obuna.py` · PG — kech111 darvozasi: PLATFORMA ADMIN PANELI (egasi QARORLARI kech109 / kech110 / kech111).
 - `test_pul_oqimi223.py` · PG — kech160 (zip 223 «Pul oqimi — haqiqiy pul berilgan kunda»; egasi 29.10 «ZIP 223 ni boshlash (Tavsiya)», egasining G1-03 qarori kech114 «Pul oqimi — haqiqiy pul»).
@@ -9030,6 +9106,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_retsept_almashtirish.py` · PG — 5-bo'lim 53-band (+ 67-band) darvozasi (kech63, 2026-09-24): jarayondagi buyurtmada QOPLAMA RETSEPTI o'zgartirilsa eski retsept loyi omborga QAYTADI, yangisidan YECHILA…
 - `test_retsept_oyna.py` · PG — kech133 (zip 157): «Loy retseptlari» oynalari — SERVER (takror nom, o'chirilgan material) va SHABLON (statik).
 - `test_retsept_oyna_ui.py` · PG — kech133 (zip 157): «Loy retseptlari» oynalari (yangi / tahrir) — HAQIQIY brauzerda (Chromium, Playwright), HAQIQIY lokal server bilan (uvicorn, test bazasi) O'LCHANADI.
+- `test_review263.py` · PG — kech200 (zip 263): mustaqil tekshiruv review263 (`work/k263/review263/HISOBOT.md`) topilmalari R2 … R5, R8. (R1 — `test_ikki_bosqich263.py` C2 … C5; R6 — `test_pin_qulf263.py` P7b…
 - `test_rollar.py` · PG — kech118 ROLLAR VA RUXSATLAR (egasi QARORI 2026-09-30 15:23: «Hodim rollarini admin o'zi boshqaradigan qilaylik»; tugmali javoblar 15:30 — rasmdagidek 4 belgi (Ko'rish / Yaratish / Ta…
 - `test_royxat260.py` · PG — kech191 (zip 260): «Buyurtmalar» ro'yxati — 2-namuna «Aksentli chap chiziq».
 - `test_royxat_n1.py` · PG — kech97 (2026-09-27), 116-band 1-qadam (buyurtma / loyiha N+1) + 114-band (ro'yxat tartibi).
@@ -9057,6 +9134,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_taminot180.py` · PG — kech144 (zip 180, AUDIT 2-to'lqin — «Ta'minotchilar» + «Xomashyo kirimi»; `work/k180_tayyorgarlik/agentlar/taminot/HISOBOT.md`): takror so'rov ikkinchi yozuv yaratmaydi, yuklovch…
 - `test_taminotchisiz_xarid.py` · PG — kech100 darvozasi (2026-09-27, 109-band).
 - `test_tan_narx_muzlash.py` · PG — K47-1 (5-bo'lim 32-band) darvozasi (kech48, 2026-09-24).
+- `test_tana263.py` · PG — kech199 (zip 263, xavfsizlik REJA 10-band — Fable F2): so'rov TANASI hajmi chegarasi (`main._TanaChegarasi`).
 - `test_tana_qatiy.py` · PG — kech93 darvozasi (2026-09-27, 8-band + K93-1 + K93-2): tanasi ilgari QAT'IY tekshirilmagan marshrutlar — foydalanuvchi, parol, usta KPI, sovg'a davri, material narxi / min qoldig…
 - `test_tannarx.py` · PG — kech118 ROLLAR 2-qism: «TANNARX VA FOYDA» RUXSATI (egasi QARORLARI 2026-09-30 18:4x, tugmali, QAYTA SO'RALMAYDI: «Tannarx va foyda» ruxsati YO'Q rol — tannarx HAMMA joyda «—» (Menej…
 - `test_tayyor_atomik.py` · PG — kech101 darvozasi (2026-09-27, 142-band + K101-1 … K101-4).
@@ -9073,6 +9151,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_telegram_xato_izoh_ui.py` · PG — kech131 (zip 155): Telegram xatolari O'ZBEKCHA — HAQIQIY brauzerda (Chromium, Playwright) O'LCHANADI.
 - `test_tenant_isolation.py` — ikki korxonali avtomatik izolyatsiya testi.
 - `test_tf1_login_band.py` · PG — kech108, K107-2 darvozasi: TENANT_FILTER=1 da boshqa korxonada BAND login.
+- `test_tg_imzo263.py` · PG — kech200 (zip 263, xavfsizlik REJA 21-band): «🔐 Telegram xavfsizligini yoqish» YANGI imzo YARATMAYDI — umumiy botga (@Penoustabot) Railway dagi MAVJUD `TELEGRAM_WEBHOOK_SECRET` be…
 - `test_tizim_tekshiruvi191.py` · PG — kech150 (zip 191): «Sozlamalar → Tizim salomatligi» moliyaviy izchillik tekshiruvi ANIQ va TUSHUNARLI; sahifa ochilayotganda kutilmagan xato — o'zbekcha sahifa (xom JSON…
 - `test_tm_buyurtma176.py` · PG — kech144 (zip 176, AUDIT A-O10 d): buyurtma TAYYOR MAHSULOTdan oladi — EGASI QARORLARI 13.10 21:2x: «Minusga ruxsat bersin» (yetmasa — tasdiq bilan minus) va band — «Rad etsin…
 - `test_tm_detal_tannarx.py` · PG — 5-bo'lim 56-band + K103-1 darvozasi (kech103, 2026-09-28): "Tayyor mahsulotdan" olingan detal tannarxi OLINGAN paytda muzlaydi.
@@ -9111,6 +9190,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yonalish_natija.py` · PG — kech118 (egasi QARORI 2026-09-30 15:23, tugmali javoblar 15:30 — QAYTA SO'RALMAYDI): YO'NALISHLAR BO'YICHA MOLIYAVIY NATIJA — umumiy xarajat TAQSIMLANMAYDI, oyliklar alohida…
 - `test_yuk_xati_loyiha.py` · PG — kech124 (zip 144): loyiha sahifasida «Yuk xatlari», yuk xati raqami LOYIHA bo'yicha, «Jamlab olish».
 - `test_yuk_xati_oylik.py` · PG — kech123 (zip 143): qoplamachi bonusi va «har birlik uchun» (blok / metr / dona) hodim haqi YUK XATLARI bo'yicha.
+- `test_zaxira263.py` · PG — kech199 (zip 263, xavfsizlik REJA 1-band — EGASI QARORI 06.11 17:33): kunlik zaxira — HAR KORXONA ALOHIDA, SHIFRLANGAN (AES-256 zip, parol `ZAXIRA_PAROLI`), faqat egasiga; bot tok…
 - `test_zaxira_loy_narx.py` · PG — kech107, 36-band darvozasi: TAYYOR LOY ZAXIRASIDAN olingan qoplama narxi.
 - `test_audit_ombor_ui.js` · JS — kech142 (zip 170): AUDIT — OMBOR / MRP topilmalarining SAHIFADAGI qismi.
 - `test_avans_yubor_ui.js` · JS — kech140 (zip 168, audit A-P09 — egasi QARORLARI 11.10 «Ogohlantirib so'rasin», «Keyingi oydan ushlansin»).
@@ -9151,5 +9231,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 349 (Python 311, JS 38).
+Jami test fayllari: 357 (Python 319, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->

@@ -237,18 +237,23 @@ RUXSAT = [
     # kech195 (zip 261, MOSLANDI): yangi «Kirim qilish» oynasida bu izoh yo'q (ta'minotchi kartasi — o'z nomi bilan)
     ("templates/supplier_receive.html", "👤 Quyidagi ma'lumotlar — faqat <b>tanlangan ta'minotchi</b>ga tegishli:", "ketma-ket",
      "ta'minotchi kartasi: izoh va raqamlar katakchalari — BITTA blok"),
-]) + [
+]) + ([] if "TG_UMUMIY_SIR_MIN" in open(os.path.join(ROOT, "main.py"), encoding="utf-8").read() else [
+    # kech200 (zip 263, REJA 21-band, MOSLANDI): «🔐 Telegram xavfsizligini yoqish» yangi sir yaratmaydi — Railway dagi imzoni botga
+    # beradi; «Endi quyidagi qiymatni nusxalab» natija bloki va API `message` dagi «yuqoridagi 'new_secret'» matni yo'q
     ("templates/users.html", "Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b>", "ketma-ket",
      "natija bloki: nusxalanadigan qiymat SHU blokda darhol keladi"),
+]) + [
     ("templates/users.html", "\"Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\"", "ketma-ket",
      "kiritish oynasi: so'z (izoh: HAMMASINI-OCHIR) SHU oyna ichida"),
     ("main.py", "Quyidagi tugmalardan foydalaning:", "ketma-ket",
      "Telegram /start: klaviatura SHU xabarga biriktirilgan (reply_markup)"),
     ("main.py", "avval quyidagilar tuzatilsin:", "ui-emas",
      "server jurnali (print) — ro'yxat keyingi qatorlarda"),
+] + ([] if "TG_UMUMIY_SIR_MIN" in open(os.path.join(ROOT, "main.py"), encoding="utf-8").read() else [
+    # kech200 (zip 263, REJA 21-band, MOSLANDI) — yuqoridagi izohga qarang
     ("main.py", "MUHIM: yuqoridagi 'new_secret' qiymatini nusxalab", "ui-emas",
      "API JSON `message` — sahifa uni ko'rsatmaydi (users.html o'z matnini quradi); «yuqoridagi» — JSON dagi `new_secret` kaliti"),
-]
+])
 
 
 def ruxsatmi(fayl, soz, matn, ishlatilgan, orin):

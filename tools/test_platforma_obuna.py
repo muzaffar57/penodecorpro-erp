@@ -977,8 +977,10 @@ _logs = open(os.path.join(ROOT, "templates", "logs.html"), encoding="utf-8").rea
 check("S10 logs.html «Korxonalar» — /platforma havolasi, eski jadval funksiyalari yo'q", 'href="/platforma"' in _logs
       and "loadPlatformCompanies" not in _logs and "createCompany" not in _logs)
 _ls = manba(main, "login_submit")
+# kech200 (zip 263, MOSLANDI — versiya manbadan): 2FA (kech199, 2-band) bilan sessiya `_sessiya_bilan_kirish` yordamchisida yaratiladi
+_ses263 = "_sessiya_bilan_kirish" if "_sessiya_bilan_kirish(" in _ls else "create_session"
 check("S11 login_submit: blok tekshiruvi parol TO'G'RI bo'lgandan KEYIN, sessiya yaratishdan OLDIN",
-      tartibda(_ls, "verify_and_upgrade_password", "kirish_rad_sababi", "create_session"), _ls[-600:])
+      tartibda(_ls, "verify_and_upgrade_password", "kirish_rad_sababi", _ses263), _ls[-600:])
 
 print(f"\nNATIJA: o'tdi = {OK}   yiqildi = {FAIL}   jami = {OK + FAIL}")
 if FAILED:

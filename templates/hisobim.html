@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Hisobim — epserp{% endblock %}
+{% block page_title %}Hisobim{% endblock %}
+{% block page_sub %}Parolingiz va loginingiz{% endblock %}
+{# kech199 (zip 263, xavfsizlik REJA 9 + 11-band): har kirgan foydalanuvchi o'z parolini va loginini o'zgartiradi (joriy parol bilan).
+   Server — `POST /api/me/password`, `POST /api/me/login`; muvaffaqiyatda boshqa qurilmalardagi kirishlar yopiladi. #}
+{% block content %}
+<style>
+  .hb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:980px}
+  .hb-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .hb-card h3{margin:0 0 4px;font-size:16px}
+  .hb-izoh{font-size:13px;color:var(--text3);margin:0 0 14px;line-height:1.5}
+  .hb-card .form-group{margin-bottom:12px}
+  .hb-card input{width:100%;box-sizing:border-box}
+  .hb-xato{display:none;background:var(--f-fee2e2);color:var(--m-dc2626);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px}
+  .hb-ok{display:none;background:var(--f-dcfce7);color:var(--m-166534);border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px}
+  .hb-joriy{font-size:13px;color:var(--text2);margin-bottom:12px}
+  .hb-joriy b{font-family:'JetBrains Mono',monospace}
+</style>
+<div class="hb-grid">
+  <div class="hb-card" id="hbParolKarta">
+    <h3>🔑 Parolni o'zgartirish</h3>
+    <p class="hb-izoh">Kamida {{ parol_min }} belgi. Oddiy parollar («Parol123», «12345…», login, tug'ilgan yil) qabul qilinmaydi.
+      Saqlangach boshqa qurilmalardagi kirishlaringiz yopiladi.</p>
+    <div class="hb-xato" id="hbParolXato"></div>
+    <div class="hb-ok" id="hbParolOk"></div>
+    <div class="form-group"><label for="hbEski">Joriy parol</label>
+      <input type="password" id="hbEski" autocomplete="current-password"></div>
+    <div class="form-group"><label for="hbYangi">Yangi parol</label>
+      <input type="password" id="hbYangi" autocomplete="new-password" minlength="{{ parol_min }}"></div>
+    <div class="form-group"><label for="hbTakror">Yangi parol (takror)</label>
+      <input type="password" id="hbTakror" autocomplete="new-password"></div>
+    <button type="button" class="btn btn-dark" id="hbParolBtn" onclick="hbParolSaqla()">Parolni saqlash</button>
+  </div>
+  <div class="hb-card" id="hbLoginKarta">
+    <h3>🪪 Loginni o'zgartirish</h3>
+    <p class="hb-izoh">3–50 belgi: lotin harflari, raqamlar va «_ . -». Keyingi kirishda yangi login bilan kirasiz.</p>
+    <div class="hb-joriy">Hozirgi login: <b id="hbJoriyLogin">{{ current_user.username }}</b></div>
+    <div class="hb-xato" id="hbLoginXato"></div>
+    <div class="hb-ok" id="hbLoginOk"></div>
+    <div class="form-group"><label for="hbYangiLogin">Yangi login</label>
+      <input type="text" id="hbYangiLogin" maxlength="50" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
+    <div class="form-group"><label for="hbLoginParol">Joriy parol</label>
+      <input type="password" id="hbLoginParol" autocomplete="current-password"></div>
+    <button type="button" class="btn btn-dark" id="hbLoginBtn" onclick="hbLoginSaqla()">Loginni saqlash</button>
+  </div>
+</div>
+<script>
+function hbKor(id, matn) { const el = document.getElementById(id); el.textContent = matn || ''; el.style.display = matn ? 'block' : 'none'; }
+async function hbYubor(url, tana, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch(url, {method: 'POST', cache: 'no-store', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(tana)});
+    if (r.ok) { let j = {}; try { j = await r.json(); } catch (e) { j = {}; } return {ok: true, javob: j}; }
+    return {ok: false, xato: await amalSababi(r)};
+  } catch (e) {
+    return {ok: false, xato: await amalSababi(e)};
+  } finally { btn.disabled = false; }
+}
+async function hbParolSaqla() {
+  hbKor('hbParolXato', ''); hbKor('hbParolOk', '');
+  const eski = document.getElementById('hbEski').value, yangi = document.getElementById('hbYangi').value,
+        takror = document.getElementById('hbTakror').value;
+  if (!eski) { hbKor('hbParolXato', 'Joriy parolni kiriting.'); return; }
+  if (yangi.length < {{ parol_min }}) { hbKor('hbParolXato', "Yangi parol kamida {{ parol_min }} belgi bo'lishi kerak."); return; }
+  if (yangi !== takror) { hbKor('hbParolXato', "Yangi parol ikki marta bir xil yozilmadi."); return; }
+  const n = await hbYubor('/api/me/password', {current_password: eski, new_password: yangi}, document.getElementById('hbParolBtn'));
+  if (!n.ok) { hbKor('hbParolXato', n.xato); return; }
+  ['hbEski', 'hbYangi', 'hbTakror'].forEach(i => { document.getElementById(i).value = ''; });
+  hbKor('hbParolOk', "✅ Parol o'zgartirildi. Boshqa qurilmalardagi kirishlaringiz yopildi.");
+}
+async function hbLoginSaqla() {
+  hbKor('hbLoginXato', ''); hbKor('hbLoginOk', '');
+  const yangi = document.getElementById('hbYangiLogin').value.trim(), parol = document.getElementById('hbLoginParol').value;
+  if (!/^[A-Za-z0-9_.\-]{3,50}$/.test(yangi)) { hbKor('hbLoginXato', "Login 3–50 belgi: lotin harflari, raqamlar va «_ . -» (bo'shliqsiz)."); return; }
+  if (!parol) { hbKor('hbLoginXato', 'Joriy parolni kiriting.'); return; }
+  const n = await hbYubor('/api/me/login', {current_password: parol, new_username: yangi}, document.getElementById('hbLoginBtn'));
+  if (!n.ok) { hbKor('hbLoginXato', n.xato); return; }
+  document.getElementById('hbJoriyLogin').textContent = (n.javob && n.javob.username) || yangi;
+  ['hbYangiLogin', 'hbLoginParol'].forEach(i => { document.getElementById(i).value = ''; });
+  hbKor('hbLoginOk', "✅ Login o'zgartirildi. Keyingi kirishda yangi login bilan kiring.");
+}
+</script>
+{% endblock %}

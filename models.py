@@ -1610,6 +1610,11 @@ class Employee(Base):
     # kirgach avval o'z PIN ini qo'yadi (`crud.hodim_pin_almashtir`). Mavjud qatorlarga `sync_missing_columns` DEFAULT TRUE bilan
     # qo'shadi — hozirgi PIN lar ham admin bergan. NULL — vaqtinchalik deb olinadi (xavfsiz tomon).
     pin_vaqtinchalik = Column(Boolean, nullable=True, default=True)
+    # kech199 (zip 263, xavfsizlik REJA 3-band — Fable F3, O'LCHANGAN: turli IP lardan 15 daqiqada 30 ta PIN → 4 xonali PIN ~3,5 kunda
+    # topilardi): KETMA-KET noto'g'ri PIN soni (to'g'ri kirishda 0) va qulf — 10 ta xato: to'g'ri PIN bilan ham kirmaydi, admin «🔑 Kirish»
+    # dan yangi PIN bersa ochiladi (`crud.set_employee_login`). 5-xatoda korxona chatiga ogohlantirish. NULL — 0 / qulfsiz.
+    pin_xato_soni = Column(Integer, nullable=True, default=0)
+    pin_qulflangan = Column(Boolean, nullable=True, default=False)
     # kech141 (zip 169, audit A-P02 — egasi QARORI 12.10 «Kirgan kundan»): TRUE — ishga kirgan oy oyligi KIRGAN KUNDAN (kunlarga
     # mutanosib; `hire_date` — admin tanlagan «Ishga kirgan sana»). FALSE / NULL — zip 169 dan oldingi hodim: kirgan oyi TO'LIQ
     # (o'tgan oylar o'zgarmasin). Mavjud qatorlarga `sync_missing_columns` DEFAULT FALSE bilan qo'shadi; `crud.create_employee` — TRUE.
@@ -1845,6 +1850,42 @@ class UserSession(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IkkiBosqichKod(Base):
+    """kech199 (zip 263, xavfsizlik REJA 2-band — EGASI QARORI 06.11 17:33): platforma egasi kirishining Telegram kodi (2FA).
+    To'g'ri paroldan keyin sessiya YARATILMAYDI — 6 xonali kod egasining Telegram chatiga ketadi; brauzerda vaqtinchalik
+    `kirish_kod` cookie si (tasodifiy, bazada — `token_xesh`). Kodning o'zi saqlanmaydi: `kod_xesh` = HMAC-SHA256(cookie, kod) —
+    baza ma'lumoti tushib qolsa ham kodni tiklab bo'lmaydi. 5 daqiqa, 5 urinish, bir marta (`ishlatilgan`). Korxonaga tegishli
+    emas (sessiya kabi) — zaxiraga kirmaydi (`crud._NON_TENANT_TABLES`). Mantiq — `ikki_bosqich.py`."""
+    __tablename__ = "ikki_bosqich_kodlar"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_xesh = Column(String(64), nullable=False, unique=True)
+    kod_xesh = Column(String(64), nullable=False)
+    urinish = Column(Integer, nullable=False, default=0)
+    ishlatilgan = Column(Boolean, nullable=False, default=False)
+    ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    expires_at = Column(DateTime, nullable=False)
+
+
+class IshonchliQurilma(Base):
+    """kech199 (zip 263, 2-band): kod bilan kirilgan «bu qurilma» — 30 kun kod so'ralmaydi. Brauzerda `ishonchli_qurilma` cookie si
+    (tasodifiy, faqat /login yo'lida), bazada — xeshi. `parol_belgisi` — o'sha paytdagi parol xeshining belgisi: parol almashtirilsa
+    (o'zi, platforma, RESET_ADMIN_PASSWORD) qurilma o'z-o'zidan BEKOR bo'ladi. Zaxiraga kirmaydi."""
+    __tablename__ = "ishonchli_qurilmalar"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_xesh = Column(String(64), nullable=False, unique=True)
+    parol_belgisi = Column(String(64), nullable=False)
+    qurilma = Column(String(250), nullable=True)
+    ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    oxirgi = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
 
 
 class EmployeeSession(Base):

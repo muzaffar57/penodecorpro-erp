@@ -1279,6 +1279,10 @@ function closeAdvanceModal() {
 
 // ══ kech133 (zip 159): hodim telefoni — qatordagi qisqa holat va «🔑 Kirish» oynasidagi bo'lim ══
 function qurilmaQatori(e) {
+  // kech199 (zip 263, xavfsizlik REJA 3-band): 10 ta ketma-ket noto'g'ri PIN — kirish qulflangan (yangi PIN bilan ochiladi)
+  if (e.pin_qulflangan) {
+    return `<div class="emp-qurilma emp-pin-qulf" style="margin-top:4px;font-size:12px;font-weight:700;color:var(--m-dc2626)">🔒 Kirish qulflangan — ko'p marta noto'g'ri PIN. «🔑 Kirish» da yangi PIN bering</div>`;
+  }
   if (e.qurilma_sorov) {
     return `<div class="emp-qurilma" style="margin-top:4px;font-size:12px;font-weight:700;color:var(--m-b45309)">🔔 Yangi telefon ruxsat kutmoqda: ${escapeHtml(e.qurilma_sorov.nomi || "Noma'lum telefon")}</div>`;
   }
@@ -1385,13 +1389,16 @@ function paQurilmaChiz(empId) {
       </div>`;
   }
   if (e.qurilma) {
-    h += `<div>📱 Bog'langan telefon: <b>${escapeHtml(e.qurilma.nomi || "Noma'lum telefon")}</b> (${tkSana(e.qurilma.vaqti)} dan)</div>
+    h += `<div>📱 Bog'langan telefon: <b>${escapeHtml(e.qurilma.nomi || "Noma'lum telefon")}</b> (${escapeHtml(tkSana(e.qurilma.vaqti))} dan)</div>
       <button type="button" class="btn btn-outline btn-sm" style="margin:6px 0" data-id="${e.id}" onclick="paQurilmaAmal(this, 'uzish')">Telefonni uzish</button>`;
   } else if (!e.qurilma_sorov) {
     h += `<div style="color:var(--text3)">📱 Telefon hali bog'lanmagan — hodim birinchi kirganda shu yerda (va Bosh sahifada) ruxsat so'rovi chiqadi.</div>`;
   }
   if (e.phone) {
     h += `<div style="color:var(--text3)">🔒 ${e.pin_vaqtinchalik ? "PIN hali vaqtinchalik — hodim kirgach o'zinikini qo'yadi" : "PIN ni hodimning o'zi qo'ygan"}</div>`;
+  }
+  if (e.pin_qulflangan) {
+    h += `<div class="pa-pin-qulf" style="color:var(--m-dc2626);font-weight:700">🔒 Kirish qulflangan (ko'p marta noto'g'ri PIN) — yangi PIN bersangiz ochiladi</div>`;
   }
   box.innerHTML = h;
 }

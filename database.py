@@ -103,10 +103,23 @@ def tashkent_oy_kesimi(yil, oy, kun):
         _OY_KESIMI.reset(_token)
 
 
+class DavrXatosi(ValueError):
+    """kech198 (zip 263, xavfsizlik auditi 8-band — O'LCHANGAN `work/k263/opus/probe263.py` P4): `year=1` (yoki 9999) so'rovi
+    `datetime(…) - TASHKENT_OFFSET` da OverflowError → 8 ta hisobot API si 500 berardi. Endi davr chegaradan tashqarida — shu xato,
+    `main` uni 400 ga aylantiradi (`davr_xatosi_handler`)."""
+
+
+DAVR_YIL_MIN = 1900
+DAVR_YIL_MAX = 9000
+
+
 def tashkent_oy_oraligi(yil, oy):
     """Toshkent kalendar oyi → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI. `tashkent_oy_kesimi` bloki ichida (shu oy
-    uchun) oxiri — kesim kunining oxiri (oy oxiridan keyin emas)."""
+    uchun) oxiri — kesim kunining oxiri (oy oxiridan keyin emas). kech198 (zip 263): yil `DAVR_YIL_MIN` … `DAVR_YIL_MAX`, oy 1 … 12
+    tashqarisida — `DavrXatosi` (400)."""
     yil, oy = int(yil), int(oy)
+    if not (DAVR_YIL_MIN <= yil <= DAVR_YIL_MAX) or not (1 <= oy <= 12):
+        raise DavrXatosi(f"Davr noto'g'ri: yil {DAVR_YIL_MIN} … {DAVR_YIL_MAX}, oy 1 … 12 oralig'ida bo'lsin")
     oxiri = datetime(yil + 1, 1, 1) if oy == 12 else datetime(yil, oy + 1, 1)
     boshi = datetime(yil, oy, 1) - TASHKENT_OFFSET
     oxiri = oxiri - TASHKENT_OFFSET
@@ -117,8 +130,12 @@ def tashkent_oy_oraligi(yil, oy):
 
 
 def tashkent_yil_oraligi(yil):
-    """Toshkent kalendar yili → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI."""
+    """Toshkent kalendar yili → `(boshi, oxiri)` UTC (naive), oxiri KIRMAYDI.
+    kech200 (zip 263, review263 R5 — O'LCHANGAN): yil chegarasi oy oralig'idagi kabi — ilgari `/api/masters/kpi-report?year=1` (99999,
+    -5) `datetime(…) - TASHKENT_OFFSET` da OverflowError / ValueError bilan 500 berardi; endi `DavrXatosi` (400)."""
     yil = int(yil)
+    if not (DAVR_YIL_MIN <= yil <= DAVR_YIL_MAX):
+        raise DavrXatosi(f"Davr noto'g'ri: yil {DAVR_YIL_MIN} … {DAVR_YIL_MAX} oralig'ida bo'lsin")
     return datetime(yil, 1, 1) - TASHKENT_OFFSET, datetime(yil + 1, 1, 1) - TASHKENT_OFFSET
 
 

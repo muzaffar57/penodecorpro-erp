@@ -146,14 +146,17 @@ CA = TestClient(main.app, base_url="https://testserver", raise_server_exceptions
 _l = req(CA, "post", "/login", data={"username": "A_ADMIN", "password": "Parol123!"}, follow_redirects=False)
 check("A_ADMIN kirdi (302)", _l.status_code == 302, _l.status_code)
 USERS_INSERT.clear()
-r = req(CA, "post", "/api/users", json={"username": "B_BAND", "password": "Parol123!", "role": "manager", "full_name": "x"})
+# kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): API orqali YARATILADIGAN hisob paroli — yangi qoidaga mos (10+ belgi, oddiy emas); eski kodda ham yaroqli
+r = req(CA, "post", "/api/users", json={"username": "B_BAND", "password": "Parol-263-Kuchli", "role": "manager", "full_name": "x"})
 check("1.1 B korxonadagi band login → 400 'Bu username band' (asl: 500)",
-      r.status_code == 400 and "band" in str((js(r) or {}).get("detail", "")), (r.status_code, getattr(r, "text", "")[:200]))
+      # kech199 (zip 263, 13-band — MOSLANDI; versiya manbadan): band login matni umumiy («ishlatib bo'lmaydi»), eski kodda — «band»
+      r.status_code == 400 and getattr(auth, "LOGIN_BAND_XABARI", "band") in str((js(r) or {}).get("detail", "")),
+      (r.status_code, getattr(r, "text", "")[:200]))
 check("1.1b band login — INSERT urinishi YO'Q (oldindan tekshiruv butun tizim bo'yicha to'xtatdi; IntegrityError zaxira yo'li emas)",
       len(USERS_INSERT) == 0, len(USERS_INSERT))
-r = req(CA, "post", "/api/users", json={"username": "A_YANGI", "password": "Parol123!", "role": "manager", "full_name": "y"})
+r = req(CA, "post", "/api/users", json={"username": "A_YANGI", "password": "Parol-263-Kuchli", "role": "manager", "full_name": "y"})
 check("1.2 yangi login → 200", r.status_code == 200 and (js(r) or {}).get("username") == "A_YANGI", (r.status_code, getattr(r, "text", "")[:200]))
-r = req(CA, "post", "/api/users", json={"username": "A_YANGI", "password": "Parol123!", "role": "manager", "full_name": "y"})
+r = req(CA, "post", "/api/users", json={"username": "A_YANGI", "password": "Parol-263-Kuchli", "role": "manager", "full_name": "y"})
 check("1.3 o'sha login yana (o'z korxonasida band) → 400", r.status_code == 400, (r.status_code, getattr(r, "text", "")[:200]))
 check("1.4 B korxona foydalanuvchilari o'zgarmadi", b_sanoq() == B0, b_sanoq())
 s = SessionLocal()

@@ -66,6 +66,8 @@ YORLIQ = "[PG] " if PG_URL else ""
 OK = FAIL = 0
 FAILED = []
 PAROL = "Parol123!"
+# kech199 (zip 263, xavfsizlik REJA 4-band — MOSLANDI): API orqali YARATILADIGAN hisob paroli — yangi qoidaga mos (10+ belgi, oddiy emas); eski kodda ham yaroqli
+API_PAROL = "Parol-263-Kuchli"
 
 
 def check(label, cond, detail=""):
@@ -380,7 +382,7 @@ if br:
         # U4: yangi foydalanuvchi — 502 (server yaratdi), qayta bosish — takror, bitta foydalanuvchi
         ochiq(pg, "/users")
         pg.evaluate(f"""() => {{ showAddModal(); document.getElementById('f-username').value = 'fu_yangi';
-            document.getElementById('f-password').value = '{PAROL}'; document.getElementById('f-fullname').value = 'FU Yangi';
+            document.getElementById('f-password').value = '{API_PAROL}'; document.getElementById('f-fullname').value = 'FU Yangi';
             const s = document.getElementById('f-role'); s.value = s.options[s.options.length - 1].value; }}""")
         h = Bajar502()
         pg.route("**/api/users", h)

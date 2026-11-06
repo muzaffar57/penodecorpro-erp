@@ -5663,7 +5663,17 @@ _XARAJAT_KATEGORIYA_MAX = 30
 # kech93 (8-band) — foydalanuvchi, parol va ishlab chiqarish tanalari chegaralari.
 _LOGIN_MAX = 50                 # `users.username` String(50)
 _TOLIQ_ISM_MAX = 100            # `users.full_name` String(100)
-_PAROL_MIN = 6                  # parol almashtirishdagi mavjud qoida — endi yaratishda ham
+# kech199 (zip 263, xavfsizlik REJA 4-band — Fable F9 / Opus): 6 → 10 belgi + oddiy parollar qoidasi (`parol_zaifligi`). Faqat YANGI /
+# almashtirilgan parol — mavjud parollar ishlayveradi (kirish tekshiruvi o'zgarmagan).
+_PAROL_MIN = 10
+# Zaif «ildiz» so'zlar (kichik harf; parolning HARFLI qismi aynan shu bo'lsa va qolgani qisqa — «Parol123!», «Admin2024», «Qwerty12345»)
+_ZAIF_ILDIZLAR = frozenset({
+    "parol", "parolim", "password", "passwd", "pass", "qwerty", "qwertyuiop", "asdfgh", "asdfghjkl", "zxcvbn", "admin", "administrator",
+    "epserp", "penodecor", "penodecorpro", "penoplast", "salom", "assalom", "maxfiy", "sir", "secret", "letmein", "welcome", "iloveyou",
+    "uzbekistan", "ozbekiston", "toshkent", "tashkent", "andijon", "andijan", "user", "login", "test", "abc", "abcd", "abcdef", "qwe",
+    "q", "w", "e", "a", "z", "x", "manager", "menejer", "omborchi", "buxgalter", "kassir", "hisobchi"})
+_KETMA_KETLIKLAR = ("0123456789012345678901234567890", "abcdefghijklmnopqrstuvwxyz", "qwertyuiopasdfghjklzxcvbnm",
+                    "1qaz2wsx3edc4rfv5tgb6yhn7ujm", "1q2w3e4r5t6y7u8i9o0p", "zaq12wsxcde34rfv")
 _PAROL_MAX_BELGI = 72
 # bcrypt 72 BAYTDAN keyingi qismini JIM tashlab yuboradi — HAQIQIY o'lchangan
 # (`work/probe8b.py` U2 / U3 / P5, bcrypt 4.2.0): 72 ta "A" + "X" parol bilan
@@ -5675,6 +5685,74 @@ _PAROL_MAX_BELGI = 72
 _PAROL_MAX_BAYT = 72
 _QOPLAMA_KOEF_MAX = 100.0       # `production_schemas.ProductTypeCreate` `le=100` (ustun Numeric(5,2))
 _RETSEPT_QATOR_MAX = 500        # bitta retsept (BOM) qatorlari / tanlangan ixtiyoriy qatorlar
+
+
+def parol_zaifligi(parol, login: str = None):
+    """kech199 (zip 263, xavfsizlik REJA 4-band): YANGI parol qoidasi. None — yaroqli; matn — o'zbekcha sabab.
+    Kamida `_PAROL_MIN` belgi; login (yoki uning bir qismi) bo'lmasin; 1–2 xil belgidan iborat bo'lmasin («aaaaaaaaaa»,
+    «ababababab»); faqat raqam bo'lmasin (telefon raqami, sana — taxmin qilinadi); oddiy ketma-ketlik bo'lmasin («1234567890»,
+    «qwertyuiop», teskarisi ham); zaif so'z + qisqa dum bo'lmasin («Parol123!», «Admin12345», «Qwerty2024!»)."""
+    import re as _re263
+    p = parol if isinstance(parol, str) else ""
+    if len(p) < _PAROL_MIN:
+        return f"Parol kamida {_PAROL_MIN} belgi bo'lsin"
+    q = p.lower()
+    lg = (login or "").strip().lower()
+    if lg and len(lg) >= 3 and (lg in q or q in lg):
+        return "Parolda login bo'lmasin — boshqa parol tanlang"
+    if len(set(q)) <= 2:
+        return "Parol bir xil belgilardan iborat — boshqa parol tanlang"
+    if q.isdigit():
+        return "Parol faqat raqamlardan iborat bo'lmasin (telefon raqami, sana oson topiladi) — harf ham qo'shing"
+    for k in _KETMA_KETLIKLAR:
+        if q in k or q in k[::-1]:
+            return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    harflar = _re263.sub(r"[^a-zа-яёʻʼ'ўқғҳ]", "", q)
+    qolgani = _re263.sub(r"[a-zа-яёʻʼ'ўқғҳ]", "", q)
+    if harflar in _ZAIF_ILDIZLAR and len(qolgani) <= 8:
+        return "Parol juda oddiy (oddiy so'z + raqam, masalan «Parol123!») — kutilmagan so'zlar va belgilar qo'shing"
+    # harflar — ketma-ketlik («abcdefgh», «qwerty…»), qolgani — yo'q yoki oddiy («12», «2024», «111», «!»)
+    _dum = qolgani.strip("!@#$%^&*()_+-=.,?;: ")
+    _raqam = _KETMA_KETLIKLAR[0]
+    _dum_oddiy = (not _dum) or len(set(_dum)) <= 1 or (_dum.isdigit() and (_dum in _raqam or _dum in _raqam[::-1])) or \
+        (_dum.isdigit() and len(_dum) == 4 and _dum[:2] in ("19", "20"))
+    if len(harflar) >= 3 and len(qolgani) <= 8 and _dum_oddiy and any(harflar in k or harflar in k[::-1] for k in _KETMA_KETLIKLAR):
+        return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    # kech200 (zip 263, review263 R7 — O'LCHANGAN): «11112222aa», «1234567890ab», «abc1234567890», «P@ssw0rd1234» o'tib ketardi.
+    # (a) 10+ belgida atigi 3–5 xil belgi — taxmin qilish oson;
+    if len(set(q)) <= 5:
+        return "Parolda belgilar juda kam xil (masalan «11112222aa») — turli harf, raqam va belgilar qo'shing"
+    # (b) parolning asosiy qismi (≥ 6 belgi) — ketma-ketlik bo'lagi, qolgani ≤ 4 belgi («1234567890ab», «abc1234567890», «qwerty12ab»);
+    _qism = parol_ketma_ketlik_qoldigi(q)
+    if _qism is not None and len(_qism) <= 4:
+        return "Parol oddiy ketma-ketlik (1234…, qwerty…) — boshqa parol tanlang"
+    # (c) «leet» yozuv: @ → a, 0 → o, $ / 5 → s, 3 → e, 4 → a, 7 → t, ! → i, 1 → l yoki i — zaif so'z (≥ 4 harf) + qisqa / oddiy dum («P@ssw0rd1234»)
+    for _soz in _ZAIF_ILDIZLAR:
+        if len(_soz) < 4:
+            continue
+        _i = max(q.translate(_PAROL_LEET).find(_soz), q.translate(_PAROL_LEET_I).find(_soz))
+        if _i < 0:
+            continue
+        _qold = _re263.sub(r"[!@#$%^&*()_+\-=.,?;: ]", "", q[:_i] + q[_i + len(_soz):])
+        if len(_qold) <= 4 or (_qold.isdigit() and len(_qold) <= 8):
+            return "Parol juda oddiy (oddiy so'z + raqam, masalan «Parol123!») — kutilmagan so'zlar va belgilar qo'shing"
+    return None
+
+
+_PAROL_LEET = str.maketrans({"@": "a", "4": "a", "0": "o", "$": "s", "5": "s", "3": "e", "7": "t", "!": "i", "1": "l"})
+_PAROL_LEET_I = str.maketrans({"@": "a", "4": "a", "0": "o", "$": "s", "5": "s", "3": "e", "7": "t", "!": "i", "1": "i"})
+
+
+def parol_ketma_ketlik_qoldigi(q):
+    """kech200 (zip 263, review263 R7): `q` (kichik harf) ichidagi ENG UZUN ketma-ketlik bo'lagi (≥ 6 belgi; `_KETMA_KETLIKLAR`, teskarisi
+    ham) olib tashlangandan keyingi qoldiq (belgilarsiz); bunday bo'lak yo'q — None."""
+    n = len(q)
+    for uz in range(n, 5, -1):
+        for i in range(0, n - uz + 1):
+            bolak = q[i:i + uz]
+            if any(bolak in k or bolak in k[::-1] for k in _KETMA_KETLIKLAR):
+                return (q[:i] + q[i + uz:]).strip("!@#$%^&*()_+-=.,?;: ")
+    return None
 
 
 def _faqat_kalitlar(data, ruxsat) -> dict:
@@ -6230,11 +6308,15 @@ def _clean_val(model: str, data) -> dict:
         _pk = "password" if model == "UserCreate" else "new_password"
         _parol = toza.get(_pk)
         if _parol is None or len(_parol) < _PAROL_MIN:
-            raise ValueError(f"Parol kamida {_PAROL_MIN} belgi")
+            raise ValueError(f"Parol kamida {_PAROL_MIN} belgi bo'lsin")
         if len(_parol.encode("utf-8")) > _PAROL_MAX_BAYT:
             raise ValueError(f"Parol juda uzun: ko'pi bilan {_PAROL_MAX_BAYT} bayt "
                              f"(lotin harflarida {_PAROL_MAX_BAYT} belgi, kirill harflarida "
                              f"{_PAROL_MAX_BAYT // 2} belgi)")
+        # kech199 (zip 263, 4-band): oddiy parollar qoidasi (yaratishda — login bilan; almashtirishda login — marshrutda)
+        _zaif = parol_zaifligi(_parol, toza.get("username") if model == "UserCreate" else None)
+        if _zaif:
+            raise ValueError(_zaif)
     # Login bazaga chetidagi bo'shliqlarsiz yoziladi (`auth.create_user` va
     # login formasi ham `strip()` qiladi) — chegara ham shu qiymatga.
     if model == "UserCreate":
@@ -7078,7 +7160,7 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
 
 
 def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
-                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20,
+                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 60,
                             login_jami_max: int = 30, tanish_kun: int = 30, company_id: int = None,
                             aniqla: bool = True) -> dict:
     """Rate limit — oxirgi `window_minutes` daqiqadagi MUVAFFAQIYATSIZ urinishlar bo'yicha kirishni bloklaydi. Mavjud LoginHistory
@@ -7098,7 +7180,13 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
       * IP noma'lum (`ip_address` yo'q) — eski qoida: login bo'yicha 5.
     Hodim kirishi (telefon raqami kaliti) — xuddi shu qoida.
 
-    Qaytaradi: {"blocked": bool, "retry_after_minutes": int}"""
+    kech199 (zip 263, xavfsizlik REJA 17-band — Fable F12): IP chegarasi 20 → 60. Uyali operatorlar minglab abonentni bitta umumiy
+    manzil (CGNAT) ortida chiqaradi — 20 ta begona xato shu manzildagi HAMMA foydalanuvchi va hodimni 15 daqiqa kiritmasdi. Asosiy himoya —
+    (login, IP) juftligi (5) va login bo'yicha jami (30) — o'zgarmagan; IP chegarasi faqat bitta manzildan ko'p hisoblarni terishga qarshi.
+    kech199 (zip 263, 12-band): natijada blok SABABI ham bor (`sabab`: «login_ip» / «ip» / «login_jami» / «login») — platforma egasi
+    tarqoq hujumda (`login_jami`) to'g'ri parol + Telegram kodi bilan blokdan o'tadi (`main.login_submit`), egasiga xabar ketadi.
+
+    Qaytaradi: {"blocked": bool, "retry_after_minutes": int, "sabab": str (faqat blokda)}"""
     from models import LoginHistory
     from datetime import timedelta
 
@@ -7122,12 +7210,12 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     _blok = {"blocked": True, "retry_after_minutes": window_minutes}
     if not ip_address:
         if _uq.count() >= max_attempts:
-            return _blok
+            return dict(_blok, sabab="login")
         return {"blocked": False, "retry_after_minutes": 0}
     if _uq.filter(LoginHistory.ip_address == ip_address).count() >= max_attempts:
-        return _blok
+        return dict(_blok, sabab="login_ip")
     if q.filter(LoginHistory.ip_address == ip_address).count() >= ip_max_attempts:
-        return _blok
+        return dict(_blok, sabab="ip")
     if _uq.count() >= login_jami_max:
         _tq = db.query(LoginHistory.id).filter(
             LoginHistory.success == True,
@@ -7138,7 +7226,7 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
         if _uname_cid is not None:
             _tq = _tq.filter(LoginHistory.company_id == _uname_cid)
         if _tq.first() is None:
-            return _blok
+            return dict(_blok, sabab="login_jami")
     return {"blocked": False, "retry_after_minutes": 0}
 
 
@@ -7214,6 +7302,8 @@ AUDIT_AMALLARI = {
     "faollashtirildi": ("✅", "— yoqildi (kira oladi)", "Foydalanuvchi yoqildi / o'chirildi"),
     "faolsizlantirildi": ("⛔", "— o'chirildi (kira olmaydi)", "Foydalanuvchi yoqildi / o'chirildi"),
     "parol_ozgartirildi": ("🔑", "— o'z parolini o'zgartirdi", "Parol tiklandi"),
+    # kech199 (zip 263, 9-band): o'z loginini o'zgartirdi — `entity_name` da «eski» → «yangi»
+    "login_ozgartirildi": ("🪪", "— o'z loginini o'zgartirdi", "Login o'zgartirildi"),
     # kech145 (zip 182, N5 — egasi qarori «Avtomatik yopilsin»): shu mahsulotning boshqa partiyasidan minus (yoki band kamomadi)
     # yopildi — `old_value` / `new_value` da partiyalar va miqdor
     "tm_minus_yopildi": ("🔁", "— minus yopildi (boshqa partiyadan ko'chirildi)", "Tayyor mahsulot minusi yopildi"),
@@ -11469,12 +11559,19 @@ _TENANT_PARENTS = {
 # kech170 (zip 236): + do'kon API kaliti (`dokon_api_kalitlar` — kalit xeshi; tiklash o'chirilgan / almashtirilgan kalitni qayta
 # tiriltirmasin; «Barcha ma'lumotlarni o'chirish» unga tegmaydi — `_reset_table_order` da yo'q)
 # kech181 (zip 248): + do'kon kirish urinishlari va mijoz sessiyalari (xeshlar; tiklash eski sessiyani tiriltirmasin)
+# kech199 (zip 263, 2-band): + platforma egasi kirish kodlari va ishonchli qurilmalar (sessiya kabi — tiklash ularni tiriltirmasin)
 _NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari", "dokon_api_kalitlar",
-                      "dokon_kirishlar", "dokon_sessiyalar"}
+                      "dokon_kirishlar", "dokon_sessiyalar", "ikki_bosqich_kodlar", "ishonchli_qurilmalar"}
 
 # Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
 # kech133 (zip 159): + hodim telefon kalitlari xeshi (ruxsat berilgan va kutayotgan) — tiklashdan keyin telefonlar qayta tasdiqlanadi
 _SECRET_COLUMNS = {"password_hash", "pin_hash", "qurilma_hash", "qurilma_sorov_hash"}
+
+# kech199 (zip 263, xavfsizlik REJA 1-band — Fable F1 / Opus, O'LCHANGAN `work/k263/fable/probes/backup_check.py`): korxona sozlamalaridagi
+# SIRLAR — Telegram bot tokeni (BotFather) va webhook imzosi — zaxiraga XOM holda tushardi (kunlik zaxira Telegram chatida yotadi: fayl
+# kimning qo'liga tushsa, HAR korxona botini boshqara olardi). Endi zaxiraga KIRMAYDI; tiklashda korxonaning JORIY qiymati saqlanib
+# qoladi (`import_full_backup`) — bot to'xtamaydi. Yangi sir kaliti qo'shilsa — shu ro'yxatga.
+_SECRET_SETTING_KEYS = frozenset({"telegram_bot_token", "telegram_webhook_secret"})
 
 
 def _tenant_filter(db: Session, model, query, company_id: int):
@@ -11574,6 +11671,8 @@ def export_full_backup(db: Session, company_id: int = None) -> dict:
             # Tenantga bog'lanmagan jadval — korxona zahirasiga kiritilmaydi.
             skipped.append(table_name)
             continue
+        if table_name == "company_settings":
+            q = q.filter(~model.key.in_(sorted(_SECRET_SETTING_KEYS)))     # kech199 (zip 263, 1-band): sirlar — zaxiraga emas
         rows = q.all()
         backup[table_name] = [
             {col: serialize_value(getattr(row, col)) for col in columns}
@@ -11838,6 +11937,12 @@ def import_full_backup(db: Session, data: dict, company_id: int,
     if _dokon_x:
         return {"success": False, "message": _dokon_x}
 
+    # kech199 (zip 263, 1-band): korxonaning joriy SIR sozlamalari (bot tokeni, webhook imzosi) — zaxirada yo'q; tozalashdan OLDIN
+    # olinadi va tiklangandan keyin qaytariladi (eski zaxirada bo'lsa ham — joriy qiymat ustun: fayldagisi eskirgan bo'lishi mumkin)
+    from models import CompanySetting as _CS263
+    _sirlar263 = {k: v for k, v in db.query(_CS263.key, _CS263.value).filter(
+        _CS263.company_id == company_id, _CS263.key.in_(sorted(_SECRET_SETTING_KEYS))).all()}
+
     try:
         # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi.
         # kech139 (zip 167, A-T01): DOIM — bo'sh korxonada ham (startup yaratgan sozlama / yo'nalish qatorlari bilan to'qnashmasin).
@@ -11915,6 +12020,15 @@ def import_full_backup(db: Session, data: dict, company_id: int,
                     seq_fixed += 1
                 except Exception:
                     pass
+
+        # kech199 (zip 263, 1-band): sir sozlamalari qaytariladi (ketma-ketliklar yangilangandan KEYIN — yangi qator id si)
+        for _k263, _v263 in _sirlar263.items():
+            _q263 = db.query(_CS263).filter(_CS263.company_id == company_id, _CS263.key == _k263).first()
+            if _q263 is None:
+                db.add(_CS263(company_id=company_id, key=_k263, value=_v263))
+            else:
+                _q263.value = _v263
+        db.flush()
 
         # kech141 (zip 169, A-P02): zip 169 dan oldingi zaxira (ish davrlari jadvalisiz) — o'chirilgan hodimlarning ish davri
         # jurnaldan (ishga tushishdagi migratsiya bilan bir funksiya). Ketma-ketliklar yangilangandan KEYIN (yangi qator id si).
@@ -12091,6 +12205,8 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
         other_user_ids = [u.id for u in _uq.all()]
         if other_user_ids:
             db.query(UserSession).filter(UserSession.user_id.in_(other_user_ids)).delete(synchronize_session=False)
+            import ikki_bosqich as _ikb263                 # kech199 (zip 263, 2-band): kod / ishonchli qurilma yozuvlari (FK users.id)
+            _ikb263.foydalanuvchilar_yozuvlarini_ochir(db, other_user_ids)
             n_users = db.query(User).filter(User.id.in_(other_user_ids)).delete(synchronize_session=False)
         else:
             n_users = 0
@@ -17650,6 +17766,7 @@ def set_employee_login(db: Session, emp_id: int, phone: str, pin: str) -> Option
     emp.phone = phone.strip()
     emp.pin_hash = auth.hash_pin(pin.strip())
     emp.pin_vaqtinchalik = True
+    hodim_pin_xatolarini_nolla(db, emp, commit=False)      # kech199 (zip 263, 3-band): yangi PIN — qulf ochiladi
     # kech116 (G6-06, O'LCHANGAN — audit: PIN almashtirilgach eski kirish 14 kungacha ishlardi): hodimning HAMMA panel
     # sessiyalari PIN bilan BITTA tranzaksiyada o'chiriladi — yangi PIN bilan qayta kiradi.
     from models import EmployeeSession as _ES116
@@ -17696,6 +17813,77 @@ def resolve_company_by_code(db: Session, code: str):
     return korxonalar[0] if len(korxonalar) == 1 else None
 
 
+PIN_OGOH_XATO = 5                  # kech199 (zip 263, 3-band): ketma-ket shuncha xatoda korxona chatiga ogohlantirish
+PIN_QULF_XATO = 10                 # … shuncha xatoda kirish qulflanadi (admin yangi PIN bersa ochiladi)
+
+
+def hodim_pin_nomzodlari(db: Session, phone: str, company_id: int = None) -> list:
+    """Shu korxonada shu telefon (`telefon_kaliti`) li, kira oladigan (faol, o'chirilmagan, PIN i bor) hodimlar."""
+    if not company_id:
+        return []
+    kalit = telefon_kaliti(phone)
+    if len(kalit) < 7:
+        return []
+    return [e for e in db.query(Employee).filter(
+        Employee.company_id == company_id,
+        Employee.is_active == True,
+        Employee.is_deleted.isnot(True),
+        Employee.phone.isnot(None),
+        Employee.pin_hash.isnot(None),
+    ).all() if telefon_kaliti(e.phone) == kalit]
+
+
+def hodim_pin_qulfdami(db: Session, phone: str, company_id: int = None) -> bool:
+    """kech199 (zip 263, 3-band): shu telefonli hodim(lar) kirishi qulflanganmi (hammasi qulflangan bo'lsa — True)."""
+    n = hodim_pin_nomzodlari(db, phone, company_id)
+    return bool(n) and all(bool(e.pin_qulflangan) for e in n)
+
+
+def hodim_qulfda_pin_togrimi(db: Session, phone: str, pin, company_id: int = None) -> bool:
+    """kech200 (zip 263, review263 R6): qulflangan hodim(lar)dan birortasining PIN i to'g'rimi — «qulflangan» matni faqat hodimning o'ziga
+    (to'g'ri PIN bilan) ko'rinsin. PIN tekshiruvi — `auth.verify_pin` (qulf ochilmaydi, sanoq o'zgarmaydi)."""
+    import auth
+    p = pin.strip() if isinstance(pin, str) else ""
+    if not p:
+        return False
+    return any(bool(e.pin_qulflangan) and auth.verify_pin(p, e.pin_hash) for e in hodim_pin_nomzodlari(db, phone, company_id))
+
+
+def hodim_pin_xato(db: Session, phone: str, company_id: int = None) -> list:
+    """kech199 (zip 263, 3-band): noto'g'ri PIN — shu telefonli hodim(lar)ning KETMA-KET xato sanog'i +1 (ATOMAR, bazada); 10 ga yetsa —
+    qulf. Qaytaradi — xabar kerak bo'lganlar: [{"id", "name", "son", "qulflandi"}] (son = 5 — ogohlantirish, 10 — qulflandi)."""
+    from sqlalchemy import update as _upd263, func as _f263
+    nomzod = hodim_pin_nomzodlari(db, phone, company_id)
+    if not nomzod:
+        return []
+    ids = [e.id for e in nomzod if not e.pin_qulflangan]
+    if not ids:
+        return []
+    t = Employee.__table__
+    db.execute(_upd263(t).where(t.c.id.in_(ids), t.c.company_id == company_id)
+               .values(pin_xato_soni=_f263.coalesce(t.c.pin_xato_soni, 0) + 1))
+    db.execute(_upd263(t).where(t.c.id.in_(ids), t.c.company_id == company_id, t.c.pin_xato_soni >= PIN_QULF_XATO)
+               .values(pin_qulflangan=True))
+    db.commit()
+    xabarlar = []
+    for r in db.execute(t.select().with_only_columns(t.c.id, t.c.name, t.c.pin_xato_soni).where(t.c.id.in_(ids))).all():
+        son = int(r.pin_xato_soni or 0)
+        if son in (PIN_OGOH_XATO, PIN_QULF_XATO):
+            xabarlar.append({"id": r.id, "name": r.name, "son": son, "qulflandi": son >= PIN_QULF_XATO})
+    return xabarlar
+
+
+def hodim_pin_xatolarini_nolla(db: Session, emp, commit: bool = True) -> None:
+    """To'g'ri kirish / yangi PIN — ketma-ket xatolar 0, qulf ochiladi."""
+    if emp is None:
+        return
+    if (emp.pin_xato_soni or 0) or emp.pin_qulflangan:
+        emp.pin_xato_soni = 0
+        emp.pin_qulflangan = False
+        if commit:
+            db.commit()
+
+
 def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = None):
     """Telefon+PIN to'g'riligini tekshiradi — KORXONA ICHIDA.
 
@@ -17712,19 +17900,9 @@ def authenticate_employee(db: Session, phone: str, pin: str, company_id: int = N
     («O'chirilganlar» dagi) hodim KIRMAYDI (ilgari faqat `is_active` tekshirilardi — o'chirilgan hodim kirib avans yozardi).
     Bir xil raqamli ikki eski yozuvdan PIN i mos kelgani olinadi; ikkalasi mos kelsa — hech biri (noaniq)."""
     import auth
-    if not company_id:
-        return None
-    kalit = telefon_kaliti(phone)
-    if len(kalit) < 7:
-        return None
-    nomzodlar = [e for e in db.query(Employee).filter(
-        Employee.company_id == company_id,
-        Employee.is_active == True,
-        Employee.is_deleted.isnot(True),
-        Employee.phone.isnot(None),
-        Employee.pin_hash.isnot(None),
-    ).all() if telefon_kaliti(e.phone) == kalit]
-    mos = [e for e in nomzodlar if auth.verify_pin(pin.strip(), e.pin_hash)]
+    nomzodlar = hodim_pin_nomzodlari(db, phone, company_id)
+    # kech199 (zip 263, 3-band): qulflangan hodim — to'g'ri PIN bilan ham kirmaydi
+    mos = [e for e in nomzodlar if not e.pin_qulflangan and auth.verify_pin(pin.strip(), e.pin_hash)]
     if len(mos) != 1:
         return None
     emp = mos[0]
@@ -17894,6 +18072,7 @@ def hodim_qurilma_xulosa(emp) -> dict:
         "qurilma_sorov": ({"nomi": emp.qurilma_sorov_nomi, "vaqti": _utc_iso(emp.qurilma_sorov_vaqti),
                            "kalit": _qurilma_sorov_kaliti(emp)} if emp.qurilma_sorov_hash else None),
         "pin_vaqtinchalik": bool(emp.pin_hash) and emp.pin_vaqtinchalik is not False,
+        "pin_qulflangan": bool(emp.pin_hash) and bool(emp.pin_qulflangan),      # kech199 (zip 263, 3-band)
     }
 
 
@@ -17992,6 +18171,7 @@ def hodim_pin_almashtir(db: Session, emp, yangi: str, takror: str, eski: str = N
         raise ValueError("Yangi PIN hozirgisidan farq qilishi kerak")
     emp.pin_hash = auth.hash_pin(yangi)
     emp.pin_vaqtinchalik = False
+    hodim_pin_xatolarini_nolla(db, emp, commit=False)      # kech199 (zip 263, 3-band)
     _hodim_sessiyalarini_yop(db, emp, qoldir_token=joriy_token)
     log_activity(db, "pin_ozgartirildi", "employee", emp.id, emp.name, emp.name, company_id=emp.company_id, commit=False)
     db.commit()

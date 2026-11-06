@@ -98,6 +98,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _hmac143.compare_digest(_eski, hashed_password)
 
 
+_SOXTA_XESH263 = []
+
+
+def soxta_parol_tekshiruvi(plain_password: str) -> bool:
+    """kech198 (zip 263, xavfsizlik auditi 6-band — O'LCHANGAN `work/k263/opus/probe263.py` P2: mavjud login 271 ms, yo'q login 8 ms):
+    login topilmasa ham bcrypt tekshiruvi BIR XIL vaqt oladi — javob vaqtidan login borligini bilib bo'lmaydi. Natija har doim False.
+    Soxta xesh birinchi chaqiruvda yasaladi (`hash_password` bilan bir xil narx)."""
+    if not _SOXTA_XESH263:
+        _SOXTA_XESH263.append(hash_password("soxta-parol-" + secrets.token_hex(8)))
+    verify_password(str(plain_password or ""), _SOXTA_XESH263[0])
+    return False
+
+
 def verify_and_upgrade_password(db: Session, user, plain_password: str) -> bool:
     """verify_password bilan bir xil natija qaytaradi, lekin QO'SHIMCHA:
     agar parol TO'G'RI bo'lsa-yu, hali ESKI (SHA-256) formatda saqlangan
@@ -552,13 +565,32 @@ def all_staff(request: Request, db: Session = Depends(get_db)) -> User:
 # Foydalanuvchi CRUD (faqat admin uchun)
 # ============================================================
 
+# kech199 (zip 263, xavfsizlik REJA 13-band — Fable F5, O'LCHANGAN): login BUTUN TIZIMDA yagona — «Bu username band» javobi boshqa korxona
+# admini uchun platformadagi loginlar (platforma egasining «admin» i ham) borligini tasdiqlardi. Endi umumiy matn (sabab aytilmaydi);
+# yaratish urinishlari ham cheklangan (`main.api_create_user` — admin bo'yicha soatiga 30).
+LOGIN_BAND_XABARI = "Bu login ishlatib bo'lmaydi — boshqasini tanlang"
+# kech200 (zip 263, review263 R4 — O'LCHANGAN): platforma egasi «admin» loginini o'zgartirgach boshqa korxona admini o'zini «admin» qila
+# olardi — `RESET_ADMIN_PASSWORD` esa «admin» nomli hisobni tiklardi (begona korxonanikini). Endi bu nomlar faqat platforma egasiga
+# (u «admin» ga qaytishi mumkin); boshqalarga — band login bilan bir xil umumiy javob. Tiklash nishoni — platforma egasi
+# (`create_default_admin`).
+ZAXIRALANGAN_LOGINLAR = frozenset({"admin", "administrator", "root", "superadmin", "superuser", "platforma", "epserp", "system", "tizim"})
+
+
+def login_zaxiralanganmi(username, user=None) -> bool:
+    """`username` faqat platforma egasiga ajratilgan nommi (katta-kichik harf farqisiz) va `user` platforma egasi EMASmi."""
+    return str(username or "").strip().lower() in ZAXIRALANGAN_LOGINLAR and not getattr(user, "is_platform_admin", False)
+
+
 def _login_egasi(db: Session, username: str):
     """kech108 (K107-2): login (`User.username`) BUTUN TIZIM bo'yicha yagona (`ix_users_username`) — egasi har qanday
     korxonadan. Tizim so'rovi (`skip_tenant_filter`): TENANT_FILTER=1 da global filtr so'rovni joriy korxona bilan
     cheklardi va boshqa korxonadagi band login ko'rinmasdi (INSERT → unique xatosi → 500). Faqat bandlikni tekshirish
     uchun (foydalanuvchi ma'lumoti chaqiruvchiga qaytmaydi — `create_user` faqat None / emasligini ko'radi)."""
+    # kech200 (zip 263, review263 R3 — O'LCHANGAN): katta-kichik harf farqisiz — «boshqa_korxona_boss» bor bo'lsa «Boshqa_Korxona_Boss»
+    # ham band (ilgari yaratilardi; `/api/me/login` esa farqsiz tekshirardi — qoida bir xil emas edi)
+    from sqlalchemy import func as _f200
     return (db.query(User).execution_options(skip_tenant_filter=True)
-            .filter(User.username == username).first())
+            .filter(_f200.lower(User.username) == str(username or "").strip().lower()).first())
 
 
 def create_user(db: Session, username: str, password: str,
@@ -591,7 +623,7 @@ def create_user(db: Session, username: str, password: str,
     # cheklardi: boshqa korxonadagi login ko'rinmas, INSERT unique xatosi bilan 500 berardi (400 o'rniga).
     existing = _login_egasi(db, username)
     if existing:
-        raise HTTPException(status_code=400, detail="Bu username band")
+        raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
 
     # kech118 (ROLLAR): har yangi foydalanuvchi korxonaning ROLIGA biriktiriladi. `rol_id` berilsa — shu rol (korxonaniki
     # bo'lishi SHART), `role` rolga moslanadi (Admin roli — ADMIN); berilmasa — `role` turining tayyor roli.
@@ -620,7 +652,7 @@ def create_user(db: Session, username: str, password: str,
         # kech108 (K107-2): parallel yaratish — tekshiruvdan keyin boshqa so'rov shu loginni yozib ulgurgan
         db.rollback()
         if _login_egasi(db, username) is not None:
-            raise HTTPException(status_code=400, detail="Bu username band")
+            raise HTTPException(status_code=400, detail=LOGIN_BAND_XABARI)
         raise
     db.refresh(user)
     return user
@@ -1118,10 +1150,17 @@ def require_employee_login(request: Request, db: Session = Depends(get_db)) -> E
 def create_default_admin(db: Session):
     """Agar hech qanday foydalanuvchi bo'lmasa — standart admin yaratadi."""
     import os
-    password = os.environ.get("ADMIN_PASSWORD", "Admin123!")
+    # kech198 (zip 263, xavfsizlik auditi 5-band — O'LCHANGAN P7): `ADMIN_PASSWORD` berilmasa ilgari HAMMAGA MA'LUM «Admin123!» qo'yilardi
+    # (yangi o'rnatma — login «admin» + shu parol). Endi — TASODIFIY parol, faqat bo'sh bazada va BIR MARTA server jurnaliga chiqadi.
+    # `RESET_ADMIN_PASSWORD=true` faqat `ADMIN_PASSWORD` berilganda ishlaydi (tasodifiy parolga jim almashtirib, egasini tizimdan
+    # chiqarib qo'ymasin).
+    _berilgan = (os.environ.get("ADMIN_PASSWORD") or "").strip()
+    password = _berilgan or secrets.token_urlsafe(12)
 
     count = db.query(User).count()
     if count == 0:
+        if not _berilgan:
+            print(f"⚠ ADMIN_PASSWORD berilmagan — standart admin uchun TASODIFIY parol: {password} (kirgach almashtiring)")
         create_user(
             db=db,
             username="admin",
@@ -1134,8 +1173,13 @@ def create_default_admin(db: Session):
     else:
         # Agar RESET_ADMIN_PASSWORD=true bo'lsa — admin parolini yangilaydi
         reset = os.environ.get("RESET_ADMIN_PASSWORD", "false").lower()
-        if reset == "true":
-            admin = db.query(User).filter(User.username == "admin").first()
+        if reset == "true" and not _berilgan:
+            print("⚠ RESET_ADMIN_PASSWORD=true, lekin ADMIN_PASSWORD berilmagan — parol O'ZGARTIRILMADI")
+        elif reset == "true":
+            # kech200 (zip 263, review263 R4): nishon — PLATFORMA EGASI (eng birinchisi); «admin» nomi boshqa korxonaga o'tgan bo'lishi
+            # mumkin edi. Platforma egasi bayrog'i yo'q eski baza — 1-korxonadagi «admin» (avvalgidek).
+            admin = (db.query(User).filter(User.is_platform_admin == True).order_by(User.id).first()          # noqa: E712
+                     or db.query(User).filter(User.username == "admin", User.company_id == DEFAULT_COMPANY_ID).first())
             if admin:
                 admin.password_hash = hash_password(password)
                 # kech139 (zip 167, AUDIT A-X02): parol tiklanganda eski kirishlar ham yopiladi

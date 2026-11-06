@@ -48,6 +48,11 @@ ALLOW_FUNCTIONS = {
     "_company_of_username",          # login: korxonani ANIQLAYDIGAN funksiyaning o'zi
     "resolve_company_by_code",       # login: korxona kodini qidiradi
     "check_login_rate_limit",        # IP bo'yicha global himoya — ataylab
+    # kech199 (zip 263): kirishdan OLDINGI / global tekshiruvlar (sessiya — korxona konteksti — hali yo'q; login butun tizimda yagona)
+    "_tana_platforma_egasimi",       # tana chegarasi: sessiya cookie si — platforma egasimi (id bo'yicha, sessiyadan)
+    "_blok_ogohlantir",              # blok ogohlantirishi kimga (login bo'yicha)
+    "login_kod_submit",              # Telegram kodi yozuvidagi foydalanuvchi (id bo'yicha)
+    "api_me_login",                  # yangi login butun tizimda bandmi (faqat id; ma'lumot qaytmaydi)
     "cleanup_expired_sessions",      # tizim: muddati o'tgan sessiyalar
     "get_session_user",              # sessiya token bo'yicha
     "logout_user",
