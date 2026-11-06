@@ -4389,12 +4389,18 @@ async def global_error_logger(request: Request, exc: Exception):
 from models import TenantMismatchError as _TenantMismatchError
 
 
+# kech202 (zip 265 — xavfsizlik auditi REJA 14-band, Fable F6): begona korxonaning id si ham, umuman YO'Q id ham (qo'riqchi endi
+# ikkalasini bir xil xato bilan rad etadi — `models._havola_yoq_xatosi`) — BIR XIL 404 va BIR XIL matn: javobdan «bu id boshqa korxonada
+# bor» degan xulosa chiqmaydi (ilgari 409 ↔ 200 / 500). Ichki sabab (`str(exc)`) foydalanuvchiga ko'rsatilmaydi.
+TENANT_BOG_XATO_MATNI = ("Bog'lanayotgan ma'lumot topilmadi — u o'chirilgan yoki sizning korxonangizga tegishli emas. "
+                         "Amal bekor qilindi.")
+
+
 @app.exception_handler(_TenantMismatchError)
 async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
     return JSONResponse(
-        status_code=409,
-        content={"detail": "Boshqa korxonaning ma'lumoti bilan bog'lab bo'lmaydi. "
-                           "Amal bekor qilindi."},
+        status_code=404,
+        content={"detail": TENANT_BOG_XATO_MATNI},
     )
 
 

@@ -143,7 +143,9 @@ Ildizdagi Python fayllari (vazifasi; aniq marshrutlar va funksiyalar — 9-bo'li
 **Korxona (tenant) izolyatsiyasi.** (kech108, K107-2: login `User.username` BUTUN TIZIM bo'yicha yagona — bandlik tekshiruvi `auth._login_egasi` tizim so'rovi, `skip_tenant_filter`; TENANT_FILTER=1 da boshqa korxonadagi band login — 400.) Har korxona ma'lumoti `company_id` bilan. So'rovdagi korxona —
 `auth.company_id_of(current_user)`; ID bo'yicha yozuv faqat korxona qorovuli bilan olinadi
 (`auth.order_of_company`, `auth.project_of_company`, …). `models.py` dagi `_TENANT_RULES` (ota orqali korxona)
-va `_TENANT_REFS` (begona korxona yozuviga havola → `TenantMismatchError`, 409) ORM darajasida ikkinchi to'siq.
+va `_TENANT_REFS` (begona korxona yozuviga havola → `TenantMismatchError`, 404 — kech202 / zip 265 gacha 409) ORM darajasida ikkinchi
+to'siq; YANGI qo'yilayotgan havola umuman topilmasa ham xuddi shu xato (`models._havola_yoq_xatosi`; yangi yozuvda — har havola,
+o'zgartirilgan yozuvda — faqat o'zgargan ustun), javob — bitta umumiy 404 matni `main.TENANT_BOG_XATO_MATNI`.
 `TENANT_FILTER=1` (Railway o'zgaruvchisi) — `tenant_context.py` har SELECT ga korxona shartini qo'shadi
 (uchinchi to'siq). Yangi yozuv yaratilganda `company_id` ANIQ beriladi (bazada `DEFAULT` yo'q — unutilsa NOT NULL
 xatosi). `tools/tenant_lint.py` yangi filtrsiz so'rovni ushlaydi (`--update` faqat qator raqamlari siljiganda).
@@ -732,9 +734,19 @@ Telegram qoidasi — faqat A–Z a–z 0–9 _ -, `TG_UMUMIY_SIR_MIN` = 20 … 2
 409 + tasodifiy `taklif`, Telegram'ga so'rov KETMAYDI (bot hozirgi ulanishida qoladi), sahifada 3 qadamli yo'riqnoma (`#tg-sir-taklif`);
 javobda sir YO'Q. Sabab (kech198, 06.11 17:50): eski tugma yangi sirni Telegram'ga berardi, server eski imzo bilan tekshirardi — egasi
 Railway ni yangilaguncha @Penoustabot xabarlari 403. «Bot hozir qayerga ulangan» da 403 maslahati (asosiy sayt, mos, kutayotgan > 0,
-oxirgi xato 403). QOLDI (PAST, keyingi zip): 14 (begona id → 409 o'rniga 404), 16 (`created_by_user_id` — zip 264 da QILINDI, pastda); 18 — egasi cron-job.org ni
+oxirgi xato 403). QOLDI (PAST, keyingi zip): 14 (begona id → 409 o'rniga 404 — zip 265 da QILINDI, pastda), 16 (`created_by_user_id` — zip 264 da QILINDI, pastda); 18 — egasi cron-job.org ni
 `X-Cron-Secret` sarlavhasiga o'tkazishi; 19 — biznes savol (bloklangan korxona do'koni); 20 — info. Mutatsiya — `work/k263/mut263.py`:
 61 mutant — 59 O'LDI, 2 EKVIVALENT (P07 — teskari ketma-ketlikni (b) qoida qamraydi; Z07 — `len(data) > eng_kopi` ikkinchi qavat); review263 (`work/k263/review263/HISOBOT.md`: 1 O'RTA, 6 PAST — HAMMASI tuzatildi: R1 tarqoq blokdan egasi FAQAT ishonchli qurilma bilan o'tadi (blokda parol oshkor emas), R2 `/api/me/login` soatiga 10 band urinish, R3 login yagonaligi katta-kichik harf farqisiz (`auth._login_egasi`), R4 `auth.ZAXIRALANGAN_LOGINLAR` («admin», «root» …) faqat platforma egasiga + `RESET_ADMIN_PASSWORD` nishoni — platforma egasi, R5 yil / oy chegarasi (`database.tashkent_yil_oraligi`, forecast) — 400, R6 «qulflangan» faqat to'g'ri PIN bilan (`crud.hodim_qulfda_pin_togrimi`), R7 parol qoidasi kuchaytirildi (`crud.parol_ketma_ketlik_qoldigi`, kam xil belgi, «leet»), R8 tana chegarasida Starlette `cookie_parser`) — test `tools/test_review263.py`.
+**Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
+korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
+(osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
+farqi «shu id boshqa korxonada BOR» deb ko'rsatardi. Endi `models._tenant_guard`: YANGI yozuvning har havolasi va ota-yozuvi
+(`_TENANT_REFS`, `_TENANT_RULES` — `yoqni_tekshir=True`), O'ZGARTIRILGAN yozuvning faqat o'zgargan ustunlari (`yoqni_tekshir=ozgargan`)
+topilmasa — `TenantMismatchError` (`_havola_yoq_xatosi`); o'zgarmagan eski osilgan havola TEKSHIRILMAYDI (eski yozuvni boshqa maydoni
+bo'yicha tahrirlash ishlaydi). `main.tenant_mismatch_handler` — ikkala holatga BIR XIL 404 + `TENANT_BOG_XATO_MATNI` (ichki sabab,
+id, korxona raqami ko'rinmaydi); `_dokon_bajar` — avvalgidek ikkalasiga 400 «Qiymat noto'g'ri». Bazadagi FK lar O'ZGARMAGAN (barcha
+128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Test `tools/test_oracle265.py` (31; PG 29; asl 26fc68d da
+SQLite 17, PG 16 yiqiladi).
 **«O'z bugungi xarajatim» — foydalanuvchi ID si bo'yicha (kech201, zip 264 — xavfsizlik REJA 16-band, Fable F11).** Ustun
 `expense_transactions.created_by_user_id` (Integer, NULL; mavjud jadvalga `sync_missing_columns`). `crud.create_expense_transaction(…,
 performed_by_user_id=)` — faqat chaqiruvchi beradi (`POST /api/finance/transactions` — `current_user.id`); tanadagi `created_by_user_id` —
@@ -9074,6 +9086,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ombor_kpi_loy.py` · PG — K35-1 darvozasi (kech36, 2026-09-23).
 - `test_ombor_platforma_yuklash_ui.py` · PG — kech139 (zip 166): «Omborxona» va «Platforma» sahifalari bitta so'rov xatosida QOTMAYDI, yolg'on qiymat («Yangi · 0», oldingi ochilishning «21 400 000 so'm» jami,…
 - `test_ombor_turkum.py` · PG — kech105 darvozasi: K105-2 (ombor turkumi "Boshqa" har deployda "Bazalt" ga aylanardi) va K105-3 (penoplast belgisi material NOMIDAN har deployda qo'yilardi; Ta'minotchilar sahi…
+- `test_oracle265.py` · PG — kech202 (zip 265): xavfsizlik REJA 14-band (Fable F6) — «mavjudlik oracle'i» yopiladi.
 - `test_ord066_tuzatish.py` · PG — kech127 (zip 150): `main` (production) dagi ORD-066-1 LOY XATOSINING bir martalik tuzatishi (`main._migrate_ord066_loy_xatosi`; egasi QARORI 07.10, tugmali: loy 500 kg, qold…
 - `test_ortiqcha_qaytarish.py` · PG — 5-bo'lim 57-band darvozasi (kech60, 2026-09-24): ORTIQCHA mahsulot omborga.
 - `test_oy_boshi.py` · PG — kech119 darvozasi (2026-10-01): Hisobotlar «oy boshi» xatolari va «Foyda tahlili» matnlari.
@@ -9241,5 +9254,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 358 (Python 320, JS 38).
+Jami test fayllari: 359 (Python 321, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
