@@ -746,8 +746,9 @@ topilmasa — `TenantMismatchError` (`_havola_yoq_xatosi`; shu flush da yangi, i
 `_shu_flushda_yangi`); o'zgarmagan eski osilgan havola TEKSHIRILMAYDI (eski yozuvni boshqa maydoni
 bo'yicha tahrirlash ishlaydi). `main.tenant_mismatch_handler` — ikkala holatga BIR XIL 404 + `TENANT_BOG_XATO_MATNI` (ichki sabab,
 id, korxona raqami ko'rinmaydi); `_dokon_bajar` — avvalgidek ikkalasiga 400 «Qiymat noto'g'ri». Bazadagi FK lar O'ZGARMAGAN (barcha
-128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Test `tools/test_oracle265.py` (32; PG 30; asl 26fc68d da
-SQLite 17, PG 16 yiqiladi).
+128 qoidaviy havola ustunining modelda FK si bor — `work/k265/fk_olchov265.py`). Test `tools/test_oracle265.py` (36; PG 33; asl 26fc68d da
+SQLite 20, PG 18 yiqiladi, qulamaydi); mutatsiya `work/k265/mut265.py` — 13 / 13 O'LDI. Production ma'lumotida osilgan havola YO'Q:
+tiklash har FK ustunini fayldagi qatorga tekshiradi (`crud` «Zaxira fayli buzilgan …») — 2026-11-07 zaxirasi xatosiz tiklangan.
 **«O'z bugungi xarajatim» — foydalanuvchi ID si bo'yicha (kech201, zip 264 — xavfsizlik REJA 16-band, Fable F11).** Ustun
 `expense_transactions.created_by_user_id` (Integer, NULL; mavjud jadvalga `sync_missing_columns`). `crud.create_expense_transaction(…,
 performed_by_user_id=)` — faqat chaqiruvchi beradi (`POST /api/finance/transactions` — `current_user.id`); tanadagi `created_by_user_id` —

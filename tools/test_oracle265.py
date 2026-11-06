@@ -257,12 +257,32 @@ if not PG_URL:
 
     def _kuzatilgan_boshqa(d):
         o = d.query(Order).filter(Order.id == _osilgan_id).first()
-        o.recipe_id = RB                   # kuzatiladigan, LEKIN osilgan master_id emas
+        o.qoplama_retsept_id = RB          # qo'riqchi kuzatadigan havola (_TENANT_REFS), LEKIN osilgan master_id emas
     _r = orm(_kuzatilgan_boshqa)
-    check("C5 osilgan master_id li yozuvda BOSHQA havola (recipe_id) o'zgarsa — yoziladi (faqat o'zgargan ustun tekshiriladi)",
+    check("C5 osilgan master_id li yozuvda BOSHQA kuzatiladigan havola (qoplama_retsept_id) o'zgarsa — yoziladi (faqat o'zgargan ustun)",
+          _r == "OK", _r)
+
+    # Osilgan OTA-yozuv (project_id) — o'zgarmagan; boshqa kuzatiladigan havola (master_id) o'zgaradi
+    d = SessionLocal()
+    try:
+        with tenant_context.system_context(d):
+            _o2 = Order(project_id=PB, company_id=2, master_id=None, order_type=models.OrderType.PRODUCT, notes="OR265 osilgan ota")
+            d.add(_o2)
+            d.commit()
+            _osilgan_ota = _o2.id
+            d.execute(_sql("UPDATE orders SET project_id = :p WHERE id = :i"), {"p": YOQ_ID, "i": _osilgan_ota})
+            d.commit()
+    finally:
+        d.close()
+
+    def _ota_osilgan_usta_qoy(d):
+        o = d.query(Order).filter(Order.id == _osilgan_ota).first()
+        o.master_id = MB
+    _r = orm(_ota_osilgan_usta_qoy)
+    check("C5b osilgan (o'zgarmagan) ota-yozuvli (project_id) yozuvda boshqa havola o'zgarsa — yoziladi (ota faqat o'zgarsa tekshiriladi)",
           _r == "OK", _r)
 else:
-    print("  · [PG] C4 / C5 — PostgreSQL FK osilgan havolani yozdirmaydi (holat faqat FK siz eski ustunlarda bo'ladi) — SQLite da sinaladi")
+    print("  · [PG] C4 / C5 / C5b — PostgreSQL FK osilgan havolani yozdirmaydi (holat faqat FK siz eski ustunlarda bo'ladi) — SQLite da sinaladi")
 
 
 def _ozgart(master_id):
@@ -276,6 +296,32 @@ _rb = orm(_ozgart(MA))
 _ry = orm(_ozgart(YOQ_ID))
 check("C6 o'zgartirilgan yozuv: begona havola — rad", _rb.startswith("RAD:"), _rb)
 check("C7 o'zgartirilgan yozuv: YO'Q havolaga o'zgartirish — rad (topilmadi)", _ry.startswith("RAD:") and "topilmadi" in _ry, _ry)
+
+# Ota-yozuv qoidasi o'zgartirilgan yozuvda: buyurtma detalini (OrderItem — order_id faqat _TENANT_RULES da, _TENANT_REFS da emas)
+# umuman yo'q buyurtmaga ko'chirish
+d = SessionLocal()
+try:
+    with tenant_context.system_context(d):
+        _ord_det = d.query(Order.id).filter(Order.project_id == PB).order_by(Order.id).first()[0]
+        _it = models.OrderItem(order_id=_ord_det, company_id=2, name="OR265 detal ORM", category="panel", quantity=1)
+        d.add(_it)
+        d.commit()
+        _DET_ID = _it.id
+finally:
+    d.close()
+
+
+def _detal_kochir(order_id):
+    def f(d):
+        it = d.query(models.OrderItem).filter(models.OrderItem.id == _DET_ID).first()
+        it.order_id = order_id
+    return f
+
+
+_rd = orm(_detal_kochir(YOQ_ID))
+check("C7b o'zgartirilgan yozuv: ota-yozuvni (OrderItem.order_id) YO'Q buyurtmaga o'zgartirish — rad (topilmadi)",
+      _rd.startswith("RAD:") and "topilmadi" in _rd, _rd)
+check("C7c detal o'z buyurtmasida qoldi", sanoq(models.OrderItem, id=_DET_ID, order_id=_ord_det) == 1)
 
 # Ota-yozuv qoidasi (_TENANT_RULES): yangi buyurtma umuman yo'q loyihaga
 _rp = orm(lambda d: d.add(Order(project_id=YOQ_ID, order_type=models.OrderType.PRODUCT)))
@@ -294,6 +340,17 @@ def _bir_flushda(d):
 _r = orm(_bir_flushda)
 check("C10 havola qilingan yozuv SHU flush da yangi (id qo'lda) — topilmadi deb rad etilmaydi, ikkalasi yoziladi",
       _r == "OK" and sanoq(Master, id=_QOLDA_ID) == 1 and sanoq(Order, master_id=_QOLDA_ID) == 1, _r)
+
+
+def _bir_flushda_boshqa_id(d):
+    # shu flush da BOSHQA id li yangi usta bor, buyurtma esa umuman yo'q ustaga ishora qiladi
+    d.add(Master(id=_QOLDA_ID + 1, name="OR265 bir flush usta 2", phone="+998903000266", company_id=2))
+    d.add(Order(project_id=PB, company_id=2, master_id=YOQ_ID, order_type=models.OrderType.PRODUCT, notes="OR265 bir flush 2"))
+
+
+_r = orm(_bir_flushda_boshqa_id)
+check("C10b shu flush dagi yangi yozuv BOSHQA id li bo'lsa — yo'q havola baribir rad, hech biri yozilmaydi",
+      _r.startswith("RAD:") and "topilmadi" in _r and sanoq(Master, id=_QOLDA_ID + 1) == 0, _r)
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════════
 section("D — javob ishlovchisi")
