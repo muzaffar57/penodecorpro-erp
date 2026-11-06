@@ -1389,7 +1389,7 @@ function paQurilmaChiz(empId) {
       </div>`;
   }
   if (e.qurilma) {
-    h += `<div>📱 Bog'langan telefon: <b>${escapeHtml(e.qurilma.nomi || "Noma'lum telefon")}</b> (${tkSana(e.qurilma.vaqti)} dan)</div>
+    h += `<div>📱 Bog'langan telefon: <b>${escapeHtml(e.qurilma.nomi || "Noma'lum telefon")}</b> (${escapeHtml(tkSana(e.qurilma.vaqti))} dan)</div>
       <button type="button" class="btn btn-outline btn-sm" style="margin:6px 0" data-id="${e.id}" onclick="paQurilmaAmal(this, 'uzish')">Telefonni uzish</button>`;
   } else if (!e.qurilma_sorov) {
     h += `<div style="color:var(--text3)">📱 Telefon hali bog'lanmagan — hodim birinchi kirganda shu yerda (va Bosh sahifada) ruxsat so'rovi chiqadi.</div>`;
