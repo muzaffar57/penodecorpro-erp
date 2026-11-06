@@ -1847,6 +1847,42 @@ class UserSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class IkkiBosqichKod(Base):
+    """kech199 (zip 263, xavfsizlik REJA 2-band — EGASI QARORI 06.11 17:33): platforma egasi kirishining Telegram kodi (2FA).
+    To'g'ri paroldan keyin sessiya YARATILMAYDI — 6 xonali kod egasining Telegram chatiga ketadi; brauzerda vaqtinchalik
+    `kirish_kod` cookie si (tasodifiy, bazada — `token_xesh`). Kodning o'zi saqlanmaydi: `kod_xesh` = HMAC-SHA256(cookie, kod) —
+    baza ma'lumoti tushib qolsa ham kodni tiklab bo'lmaydi. 5 daqiqa, 5 urinish, bir marta (`ishlatilgan`). Korxonaga tegishli
+    emas (sessiya kabi) — zaxiraga kirmaydi (`crud._NON_TENANT_TABLES`). Mantiq — `ikki_bosqich.py`."""
+    __tablename__ = "ikki_bosqich_kodlar"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_xesh = Column(String(64), nullable=False, unique=True)
+    kod_xesh = Column(String(64), nullable=False)
+    urinish = Column(Integer, nullable=False, default=0)
+    ishlatilgan = Column(Boolean, nullable=False, default=False)
+    ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    expires_at = Column(DateTime, nullable=False)
+
+
+class IshonchliQurilma(Base):
+    """kech199 (zip 263, 2-band): kod bilan kirilgan «bu qurilma» — 30 kun kod so'ralmaydi. Brauzerda `ishonchli_qurilma` cookie si
+    (tasodifiy, faqat /login yo'lida), bazada — xeshi. `parol_belgisi` — o'sha paytdagi parol xeshining belgisi: parol almashtirilsa
+    (o'zi, platforma, RESET_ADMIN_PASSWORD) qurilma o'z-o'zidan BEKOR bo'ladi. Zaxiraga kirmaydi."""
+    __tablename__ = "ishonchli_qurilmalar"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_xesh = Column(String(64), nullable=False, unique=True)
+    parol_belgisi = Column(String(64), nullable=False)
+    qurilma = Column(String(250), nullable=True)
+    ip = Column(String(64), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    oxirgi = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+
+
 class EmployeeSession(Base):
     """Xodim (/hodim panel) sessiyasi — bazada saqlanadi, xuddi UserSession kabi."""
     __tablename__ = "employee_sessions"

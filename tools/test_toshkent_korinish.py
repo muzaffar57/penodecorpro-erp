@@ -420,12 +420,23 @@ check("A5 ombor hisoboti: 01.10.2026 01:59", _r.status_code == 200 and tg_vaqtla
 
 TG.clear()
 os.environ["BACKUP_TELEGRAM_CHAT_ID"] = "5550003"
+# kech199 (zip 263, xavfsizlik REJA 1-band — MOSLANDI; versiya manbadan): kunlik zaxira — korxona bo'yicha SHIFRLANGAN .zip
+# (`epserp-<kod>-<sana>.zip`), `ZAXIRA_PAROLI` siz yuborilmaydi. Sana qoidasi (Toshkent kuni) — o'sha. Eski kodda — avvalgi tekshiruv AYNAN.
+_Z263 = hasattr(main, "zaxira_shifrla")
+if _Z263:
+    os.environ["ZAXIRA_PAROLI"] = "Toshkent-sinov-263-parol"
 xavfsiz(main.run_daily_backup)
 os.environ.pop("BACKUP_TELEGRAM_CHAT_ID", None)
+os.environ.pop("ZAXIRA_PAROLI", None)
 _x = [x for x in TG if x["tur"] == "_send_telegram_document"]
-check("A6 kunlik zaxira: fayl nomi …2026-10-01.json va xabarda 📅 01.10.2026 (asl: 2026-09-30 / 30.09.2026)",
-      len(_x) == 1 and "penodecorpro-backup-2026-10-01.json" in _x[0]["matn"] and "📅 01.10.2026" in _x[0]["matn"]
-      and UTC_SANA not in _x[0]["matn"], [x["matn"][:160] for x in _x])
+if _Z263:
+    check("A6 kunlik zaxira (zip 263): fayl nomi …-2026-10-01.zip va xabarda 📅 01.10.2026 (asl: 2026-09-30 / 30.09.2026)",
+          len(_x) >= 1 and all("-2026-10-01.zip" in x["matn"] and "📅 01.10.2026" in x["matn"] and UTC_SANA not in x["matn"]
+                               for x in _x), [x["matn"][:160] for x in _x])
+else:
+    check("A6 kunlik zaxira: fayl nomi …2026-10-01.json va xabarda 📅 01.10.2026 (asl: 2026-09-30 / 30.09.2026)",
+          len(_x) == 1 and "penodecorpro-backup-2026-10-01.json" in _x[0]["matn"] and "📅 01.10.2026" in _x[0]["matn"]
+          and UTC_SANA not in _x[0]["matn"], [x["matn"][:160] for x in _x])
 
 # ── yozuv vaqtlari — LAHZA (Toshkent 01.10 01:30) ──────────────────────────────────────────────────────────
 _r1 = req(C, "post", "/api/finished/sell", json={"finished_product_id": TM_ID, "quantity": 1, "unit_price": 10_000,

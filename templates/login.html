@@ -167,6 +167,11 @@
       margin-top:6px;
     }
     .btn-submit:hover{background:var(--amber-dark)}
+    /* kech199 (zip 263, 2-band): Telegram kodi maydoni va «eslab qolish» */
+    .field input.kod-maydon{font-family:'JetBrains Mono',monospace;font-size:22px;letter-spacing:6px;text-align:center}
+    .eslab-qol{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.45;color:var(--text2);margin:-4px 0 14px;cursor:pointer}
+    .eslab-qol input{margin-top:2px;width:16px;height:16px;flex-shrink:0}
+    .parol-unutdim a{color:var(--amber-dark);font-weight:600}
 
     @media(max-width:860px){
       .side{display:none}
@@ -197,9 +202,16 @@
   <div class="main">
     <div class="form-wrap">
       <div class="mobil-brend"><img src="/static/epserp_logo.svg?v={{ static_version }}" alt="epserp" width="134" height="34"></div>
+      {% if kod_bosqichi %}
+      {# kech199 (zip 263, xavfsizlik REJA 2-band — EGASI QARORI 06.11): platforma egasi kirishining ikkinchi bosqichi — Telegram kodi #}
+      <div class="form-eyebrow">Ikkinchi bosqich</div>
+      <div class="form-title">Telegram kodi</div>
+      <div class="form-sub">Telegramga 6 xonali kod yuborildi. Kod {{ kod_daqiqa or 5 }} daqiqa amal qiladi.</div>
+      {% else %}
       <div class="form-eyebrow">Tizimga kirish</div>
       <div class="form-title">Xush kelibsiz</div>
       <div class="form-sub">Davom etish uchun login va parolingizni kiriting</div>
+      {% endif %}
 
       {% if error %}
       <div class="error-box">⚠ {{ error }}</div>
@@ -211,6 +223,20 @@
       </div>
       {% endif %}
 
+      {% if kod_bosqichi %}
+      <form method="POST" action="/login/kod" id="kodForma">
+        <div class="field">
+          <label for="kodMaydon">Tasdiqlash kodi</label>
+          <input type="text" name="kod" id="kodMaydon" inputmode="numeric" autocomplete="one-time-code" maxlength="12"
+                 placeholder="123456" required autofocus class="kod-maydon">
+        </div>
+        <label class="eslab-qol"><input type="checkbox" name="eslab_qol" value="1" checked>
+          Bu qurilmani {{ qurilma_kun or 30 }} kun eslab qolish (kod so'ralmaydi)</label>
+        <button class="btn-submit" type="submit">Tasdiqlash <span>→</span></button>
+      </form>
+      <div class="parol-unutdim" id="kodYordam">Kod kelmadimi? <a href="/login">Qaytadan kirish</a> — yangi kod yuboriladi.
+        Begona kompyuterda «eslab qolish» belgisini olib tashlang.</div>
+      {% else %}
       <form method="POST" action="/login">
         <div class="field">
           <label>Foydalanuvchi nomi</label>
@@ -229,6 +255,7 @@
       {# kech120 (zip 137 — F bosqichi 5-qism, audit G6-24): parolni unutgan foydalanuvchi nima qilishni bilmasdi #}
       <div class="parol-unutdim" id="parolUnutdim"><b>Parolni unutdingizmi?</b> Korxona administratoriga murojaat qiling — u
         «Foydalanuvchilar» bo'limida yangi parol beradi. Administrator parolini dastur xizmati tiklaydi.</div>
+      {% endif %}
     </div>
   </div>
 

@@ -26,6 +26,7 @@ import auth
 # kech111 — platforma: korxona obunasi / bloklash / eslatma (YAGONA manba — `obuna.py`)
 import obuna as _obuna
 import murojaat as _mj
+import ikki_bosqich                          # kech199 (zip 263, 2-band): platforma egasi kirishining Telegram kodi
 from models import UserRole, Inventory, OrderStatus
 
 # 2026-09-16: Dinamik Ishlab chiqarish (Production/MRP) moduli — ATAYLAB
@@ -4128,6 +4129,194 @@ class _ManbaHimoyasi:
 app.add_middleware(_ManbaHimoyasi)
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech199 (zip 263, xavfsizlik REJA 10-band — Fable F2; O'LCHANGAN `work/k263/probe263_tana.py`, haqiqiy uvicorn, zip 263 1-qism
+# kodi): so'rov TANASINING hajmi cheklanmagan edi. FastAPI tanani qorovuldan (kirish tekshiruvidan) OLDIN o'qiydi, shuning uchun:
+#   * KIRISHSIZ 300 MB JSON (istalgan `Body` li yo'l, masalan /api/sayt-katalogi/excel/saqla) — server xotirasi +1 144 MB, keyin 401;
+#   * KIRISHSIZ 300 MB fayl (/tiklash) — 279 MB vaqtinchalik disk, keyin kirish sahifasiga;
+#   * kirgan foydalanuvchining 120 MB «rasmi» — `_save_upload` butun faylni xotiraga o'qib (+121 MB), keyin «25 MB dan katta».
+# Bitta konteyner — HAMMA korxonalar: bir necha shunday so'rov serverni to'xtatardi. Endi tana ilovaga yetguncha sanaladi:
+#   * JSON / forma / boshqa — `TANA_ODDIY_MAX` (8 MB: eng katta haqiqiy so'rov — Excel'dan 5 000 narx o'zgarishi ≈ 2,5 MB);
+#   * fayl yuklash (`multipart/form-data`) — `MAX_UPLOAD_SIZE` + 1 MB (forma maydonlari va chegaralar);
+#   * zaxiradan tiklash (/tiklash, /api/system/restore) — `TIKLASH_MAX_BAYT` + 1 MB, FAQAT platforma egasining sessiyasi bilan
+#     (sessiya — tana o'qilishidan OLDIN, bazadan tekshiriladi); boshqalarga — fayl chegarasi.
+# `Content-Length` chegaradan katta — ilova chaqirilmaydi; yo'q (chunked) yoki yolg'on bo'lsa — o'qilgan baytlar sanaladi, oshgan
+# zahoti ilova to'xtaydi (uning javobi yuborilmaydi). Ikkala holatda ham javob — 413 va tushunarli sabab. Brauzer yuklashni
+# tugatmasdan javob kelsa ko'pincha «aloqa uzildi» deb ko'rsatadi — shuning uchun qolgan tana `TANA_TOKISH_MAX` gacha O'QIB
+# TASHLANADI (xotirada saqlanmaydi), keyin 413; undan ham katta — darhol 413 va ulanish yopiladi.
+# Ikkinchi qavat (shu yerdan o'tgan fayl uchun): fayl o'qiydigan joylar chegara + 1 bayt o'qiydi (`_save_upload`, logotip, tiklash).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+TANA_ODDIY_MAX = 8 * 1024 * 1024
+TIKLASH_MAX_BAYT = 200 * 1024 * 1024
+TANA_TOKISH_MAX = 128 * 1024 * 1024
+_TIKLASH_YOLLARI = frozenset({"/tiklash", "/api/system/restore"})
+_TANA_TOKISH_BOLAK = 1024 * 1024
+
+
+def tana_chegarasi(yol: str, tur: str, platforma_egasi: bool = False) -> int:
+    """So'rov tanasining ruxsat etilgan eng katta hajmi (bayt). `tur` — Content-Type (kichik harf)."""
+    fayl_max = MAX_UPLOAD_SIZE + 1024 * 1024
+    if str(tur or "").strip().lower().startswith("multipart/form-data"):
+        if yol in _TIKLASH_YOLLARI and platforma_egasi:
+            return TIKLASH_MAX_BAYT + 1024 * 1024
+        return fayl_max
+    return TANA_ODDIY_MAX
+
+
+def tana_katta_xabari(chegara: int) -> str:
+    if chegara >= TIKLASH_MAX_BAYT:
+        mb = TIKLASH_MAX_BAYT // (1024 * 1024)
+    elif chegara > TANA_ODDIY_MAX:
+        mb = MAX_UPLOAD_SIZE // (1024 * 1024)
+    else:
+        mb = TANA_ODDIY_MAX // (1024 * 1024)
+    return f"Yuborilgan fayl yoki ma'lumot juda katta — {mb} MB dan oshmasin."
+
+
+def _tana_platforma_egasimi(token) -> bool:
+    """Tiklash yo'llari uchun: sessiya cookie si — faol platforma egasimi (tana o'qilmasdan, bazadan). Xato — yo'q deb olinadi."""
+    if not token:
+        return False
+    from database import SessionLocal as _SL263
+    from models import User as _U263
+    db = _SL263()
+    try:
+        s = auth.get_session(db, token)
+        if not s:
+            return False
+        u = db.query(_U263).filter(_U263.id == s["user_id"], _U263.is_active == True).first()   # noqa: E712
+        return bool(u is not None and getattr(u, "is_platform_admin", False))
+    except Exception:                      # noqa: BLE001 — tekshirib bo'lmasa, katta chegara berilmaydi
+        return False
+    finally:
+        db.close()
+
+
+class _TanaKatta(Exception):
+    """Tana chegaradan oshdi (ilova ichida ushlansa ham `_TanaChegarasi` 413 qaytaradi)."""
+
+
+class _TanaChegarasi:
+    """kech199 (zip 263, 10-band): so'rov tanasi hajmi chegarasi — sof ASGI, ENG TASHQI qatlam (yuqoridagi izoh)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        yol = str(scope.get("path", ""))
+        tur, uzunlik_s, cookie_s = "", None, ""
+        for k, v in scope.get("headers") or []:
+            kk = k.lower()
+            if kk == b"content-type" and not tur:
+                tur = v.decode("latin-1").lower()
+            elif kk == b"content-length" and uzunlik_s is None:
+                uzunlik_s = v.decode("latin-1").strip()
+            elif kk == b"cookie":
+                cookie_s += ("; " if cookie_s else "") + v.decode("latin-1")
+        try:
+            uzunlik = int(uzunlik_s) if uzunlik_s not in (None, "") else None
+        except ValueError:
+            uzunlik = None
+        chegara = tana_chegarasi(yol, tur)
+        if yol in _TIKLASH_YOLLARI and tur.startswith("multipart/form-data") and (uzunlik is None or uzunlik > chegara):
+            from http.cookies import SimpleCookie as _SC263
+            token = None
+            try:
+                _c = _SC263()
+                _c.load(cookie_s)
+                if "session_token" in _c:
+                    token = _c["session_token"].value
+            except Exception:              # noqa: BLE001
+                token = None
+            if token:
+                from starlette.concurrency import run_in_threadpool as _rit263
+                if await _rit263(_tana_platforma_egasimi, token):
+                    chegara = tana_chegarasi(yol, tur, platforma_egasi=True)
+        if uzunlik is not None and uzunlik > chegara:
+            print(f"⚠ Juda katta so'rov rad etildi: {scope.get('method')} {yol} ({uzunlik} bayt, chegara {chegara})")
+            toliq = False
+            if uzunlik <= chegara + TANA_TOKISH_MAX:
+                toliq = await self._tokish(receive, TANA_TOKISH_MAX + chegara)
+            await self._javob(scope, send, chegara, yopish=not toliq)
+            return
+        holat = {"oqildi": 0, "oshdi": False, "boshlandi": False, "tugadi": False}
+
+        async def _receive():
+            if holat["oshdi"]:
+                raise _TanaKatta()
+            xabar = await receive()
+            if xabar.get("type") == "http.request":
+                holat["oqildi"] += len(xabar.get("body") or b"")
+                if not xabar.get("more_body", False):
+                    holat["tugadi"] = True
+                if holat["oqildi"] > chegara:
+                    holat["oshdi"] = True
+                    raise _TanaKatta()
+            return xabar
+
+        async def _send(xabar):
+            if holat["oshdi"]:
+                return                     # ilovaning (400 / 401 / 500 …) javobi o'rniga — 413
+            if xabar.get("type") == "http.response.start":
+                holat["boshlandi"] = True
+            await send(xabar)
+
+        try:
+            await self.app(scope, _receive, _send)
+        except Exception:                  # noqa: BLE001
+            if not holat["oshdi"]:
+                raise
+        if not holat["oshdi"]:
+            return
+        print(f"⚠ Juda katta so'rov to'xtatildi: {scope.get('method')} {yol} ({holat['oqildi']}+ bayt, chegara {chegara})")
+        if holat["boshlandi"]:
+            raise RuntimeError("So'rov tanasi chegaradan oshdi (javob boshlangan edi) — ulanish yopiladi")
+        toliq = holat["tugadi"] or await self._tokish(receive, TANA_TOKISH_MAX)
+        await self._javob(scope, send, chegara, yopish=not toliq)
+
+    @staticmethod
+    async def _tokish(receive, eng_kopi):
+        """Qolgan tanani o'qib TASHLAYDI (xotirada saqlamaydi) — `eng_kopi` baytgacha. True — tana oxirigacha o'qildi."""
+        oqildi = 0
+        while oqildi <= eng_kopi:
+            xabar = await receive()
+            if xabar.get("type") != "http.request":
+                return False               # mijoz uzildi
+            oqildi += len(xabar.get("body") or b"")
+            if not xabar.get("more_body", False):
+                return True
+        return False
+
+    @staticmethod
+    async def _javob(scope, send, chegara, yopish):
+        import json as _js263
+        matn = tana_katta_xabari(chegara)
+        if str(scope.get("path", "")).startswith("/api/"):
+            tana = _js263.dumps({"detail": matn}, ensure_ascii=False).encode("utf-8")
+            tur = b"application/json"
+        else:
+            import html as _ht263
+            tana = ('<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" '
+                    'content="width=device-width, initial-scale=1"><title>Juda katta</title></head>'
+                    '<body style="font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px">'
+                    f'<h1 style="font-size:20px">So\'rov rad etildi</h1><p>{_ht263.escape(matn)}</p>'
+                    '<p><a href="javascript:history.back()">&larr; Orqaga</a></p></body></html>').encode("utf-8")
+            tur = b"text/html; charset=utf-8"
+        sarlavhalar = [(b"content-type", tur), (b"content-length", str(len(tana)).encode()),
+                       (b"x-content-type-options", b"nosniff"), (b"x-frame-options", b"DENY"),
+                       (b"cache-control", b"no-store")]
+        if yopish:
+            sarlavhalar.append((b"connection", b"close"))
+        await send({"type": "http.response.start", "status": 413, "headers": sarlavhalar})
+        await send({"type": "http.response.body", "body": tana})
+
+
+app.add_middleware(_TanaChegarasi)
+
+
 def boshqa_saytdan_otishmi(request) -> bool:
     """kech143 (A-X04): GET bilan holat o'zgartiradigan yo'l (chiqish) boshqa saytdagi havoladan ochildimi
     (`Sec-Fetch-Site` = cross-site / same-site). Sarlavha yo'q (eski brauzer, test mijozi) — yo'q deb olinadi."""
@@ -5021,7 +5210,7 @@ def _blok_sahifa_xabari(db, b):
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, b: str = "", db: Session = Depends(get_db)):
+async def login_page(request: Request, b: str = "", kod: str = "", db: Session = Depends(get_db)):
     try:
         user = auth.get_current_user(request, db)
     except HTTPException as _e:
@@ -5034,8 +5223,10 @@ async def login_page(request: Request, b: str = "", db: Session = Depends(get_db
         return _r
     if user:
         return RedirectResponse("/", status_code=302)
+    # kech199 (zip 263, 2-band): Telegram kodi muddati / urinishlari tugadi — qaytadan parol bilan
+    _kx = ("Tasdiqlash kodi muddati yoki urinishlari tugadi — qaytadan kiring." if kod == "tugadi" else None)
     return templates.TemplateResponse(request, "login.html", {
-        "error": None, "username": "", "bloklangan": _blok_sahifa_xabari(db, b)})
+        "error": _kx, "username": "", "bloklangan": _blok_sahifa_xabari(db, b)})
 
 
 @app.post("/login")
@@ -5047,13 +5238,22 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     username = username.replace("\x00", "").strip()[:100]       # mustaqil tekshiruv R6: NUL — PostgreSQL 500
     ip = auth.mijoz_ip(request)     # kech116 (U-01): haqiqiy mijoz manzili (Railway proksisi emas)
     ua = request.headers.get("user-agent", "")[:250]
+    _blok_matni = None
 
     rl = crud.check_login_rate_limit(db, username, ip)
     if rl["blocked"]:
-        return templates.TemplateResponse(request, "login.html", {
-            "error": f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.",
-            "username": username
-        })
+        _blok_matni = f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining."
+        # kech199 (zip 263, xavfsizlik REJA 12-band — Fable F4): login bo'yicha TARQOQ blok (30 xato turli IP lardan) — egasiga /
+        # korxona chatiga xabar (15 daqiqada bir marta); platforma egasi esa to'g'ri parol + Telegram kodi bilan blokdan o'tadi
+        # (hujumchi kodni ololmaydi; noto'g'ri parolga javob — blok xabarining AYNAN o'zi).
+        _blok_ogohlantir(db, username, rl)
+        _pe = None
+        if rl.get("sabab") == "login_jami" and ikki_bosqich.yoqilganmi():
+            _pe = db.query(User).filter(User.username == username, User.is_active == True).first()   # noqa: E712
+            if not ikki_bosqich.kerakmi(_pe):
+                _pe = None
+        if _pe is None:
+            return templates.TemplateResponse(request, "login.html", {"error": _blok_matni, "username": username})
 
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
     # kech198 (zip 263, audit 6-band): login yo'q — baribir bcrypt (javob vaqti login borligini oshkor qilmasin)
@@ -5063,7 +5263,8 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
         parol_togri = auth.verify_and_upgrade_password(db, user, password)
     if not parol_togri:
         crud.log_login_attempt(db, username, success=False, ip_address=ip, user_agent=ua)
-        return templates.TemplateResponse(request, "login.html", {"error": "Login yoki parol noto'g'ri!", "username": username})
+        return templates.TemplateResponse(request, "login.html", {"error": _blok_matni or "Login yoki parol noto'g'ri!",
+                                                                   "username": username})
 
     # kech111 — korxonasi bloklangan (platforma bloki): parol TO'G'RI bo'lsa ham kirilmaydi, sabab xabari ko'rsatiladi.
     # Xabar faqat to'g'ri parol bilan chiqadi (begona odam login yozib korxona holatini bila olmaydi); urinish
@@ -5077,10 +5278,149 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
             return templates.TemplateResponse(request, "login.html", {
                 "error": None, "username": username, "bloklangan": _rad[0]})
 
+    # kech199 (zip 263, xavfsizlik REJA 2-band — EGASI QARORI 06.11 17:33): platforma egasi — Telegram kodi (ishonchli qurilmadan
+    # tashqari). Sessiya FAQAT kod to'g'ri bo'lganda (`login_kod_submit`).
+    if ikki_bosqich.kerakmi(user) and not ikki_bosqich.qurilma_ishonchlimi(db, user, request.cookies.get(ikki_bosqich.QURILMA_COOKIE)):
+        return _ikki_bosqich_boshla(request, db, user, ip, ua)
+
     crud.log_login_attempt(db, username, success=True, ip_address=ip, user_agent=ua)
+    return _sessiya_bilan_kirish(db, user, "/")
+
+
+def _sessiya_bilan_kirish(db, user, manzil):
+    """Sessiya yaratadi va `manzil` ga yo'naltiradi (cookie — 8 soat)."""
     token = auth.create_session(db, user.id)
-    response = RedirectResponse("/", status_code=302)
+    response = RedirectResponse(manzil, status_code=302)
     response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 8, samesite="lax", secure=True)
+    return response
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech199 (zip 263, xavfsizlik REJA 2-band + 12-band): platforma egasi kirishining Telegram kodi — mantiq `ikki_bosqich.py`.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+_BLOK_OGOH_OXIRGI = {}               # login → oxirgi ogohlantirish vaqti (jarayon xotirasida; 15 daqiqada bir marta)
+_BLOK_OGOH_DAQIQA = 15
+
+
+def _blok_ogohlantir(db, username, rl):
+    """12-band: login bo'yicha tarqoq blok (`login_jami`) — hisob egasiga Telegram xabari: platforma egasi — tizim chatiga,
+    korxona foydalanuvchisi — korxona chatiga. Yo'q login — xabar yo'q. 15 daqiqada bir marta (jarayon xotirasi)."""
+    if rl.get("sabab") != "login_jami" or not username:
+        return
+    import time as _t263
+    hozir = _t263.monotonic()
+    oxirgi = _BLOK_OGOH_OXIRGI.get(username)
+    if oxirgi is not None and hozir - oxirgi < _BLOK_OGOH_DAQIQA * 60:
+        return
+    from models import User as _U263b
+    u = db.query(_U263b).filter(_U263b.username == username, _U263b.is_active == True).first()   # noqa: E712
+    if u is None:
+        return
+    _BLOK_OGOH_OXIRGI[username] = hozir
+    if len(_BLOK_OGOH_OXIRGI) > 5000:
+        _BLOK_OGOH_OXIRGI.clear()
+    matn = (f"⚠️ *Kirish urinishlari*\n\n«{username}» hisobiga 15 daqiqada 30 dan ortiq noto'g'ri parol urinishi bo'ldi (turli "
+            f"manzillardan). Yangi qurilmadan kirish vaqtincha yopildi.\n\nBu siz bo'lmasangiz — parolni kuchliroq parolga almashtiring.")
+    try:
+        if getattr(u, "is_platform_admin", False):
+            _send_telegram(matn)
+        else:
+            _send_telegram(matn, company_id=u.company_id)
+    except Exception as e:                 # noqa: BLE001 — xabar yuborilmasa ham kirish mantig'i o'zgarmaydi
+        print(f"⚠ Blok ogohlantirishi yuborilmadi: {e}")
+
+
+def _ikki_bosqich_yubor(matn) -> bool:
+    """Kodni tizim boti orqali egasining chat(lar)iga yuboradi. True — kamida bitta chatga yetdi."""
+    token, chatlar = ikki_bosqich.telegram_manzil()
+    ketdi = False
+    for chat in chatlar:
+        try:
+            _tg_post_message(token, chat, matn)
+            ketdi = True
+        except Exception as e:             # noqa: BLE001
+            print(f"⚠ Kirish kodi Telegramga yuborilmadi: {_tg_toza(e, token)}")
+    return ketdi
+
+
+def _qurilma_nomi(ua) -> str:
+    """Brauzer satridan qisqa nom («Windows · Chrome») — hodim panelidagi bilan bir funksiya."""
+    try:
+        return crud.qurilma_nomi_yasash(ua or "") or (ua or "")[:120]
+    except Exception:                      # noqa: BLE001
+        return (ua or "")[:120]
+
+
+def _ikki_bosqich_boshla(request, db, user, ip, ua):
+    """To'g'ri paroldan keyin: kod yaratiladi, Telegramga yuboriladi, brauzerga vaqtinchalik cookie, /login/kod ga yo'naltiriladi.
+    Kod yuborilmasa — kirish YO'Q."""
+    if ikki_bosqich.sorovlar_soni(db, user.id) >= ikki_bosqich.KOD_SORASH_MAX:
+        return templates.TemplateResponse(request, "login.html", {
+            "error": f"Juda ko'p kod so'raldi. {ikki_bosqich.KOD_SORASH_OYNA_DAQIQA} daqiqadan so'ng qayta urining.",
+            "username": user.username})
+    xom, kod = ikki_bosqich.kod_yarat(db, user, ip)
+    if not _ikki_bosqich_yubor(ikki_bosqich.kod_xabari(kod, user.username, ip, _qurilma_nomi(ua))):
+        ikki_bosqich.kod_bekor(db, xom)
+        try:
+            crud.log_error(db, "Platforma egasi kirish kodi Telegramga yuborilmadi (kirish to'xtatildi)", endpoint="/login")
+        except Exception:                  # noqa: BLE001
+            db.rollback()
+        return templates.TemplateResponse(request, "login.html", {
+            "error": "Tasdiqlash kodi Telegramga yuborilmadi — birozdan so'ng qayta urining.", "username": user.username})
+    response = RedirectResponse("/login/kod", status_code=302)
+    response.set_cookie(key=ikki_bosqich.KOD_COOKIE, value=xom, httponly=True, max_age=ikki_bosqich.KOD_DAQIQA * 60,
+                        samesite="strict", secure=True, path=ikki_bosqich.COOKIE_YOL)
+    return response
+
+
+def _kod_sahifa(request, xato=None, status_code=200):
+    return templates.TemplateResponse(request, "login.html", {
+        "kod_bosqichi": True, "error": xato, "username": "", "kod_daqiqa": ikki_bosqich.KOD_DAQIQA,
+        "qurilma_kun": ikki_bosqich.QURILMA_KUN}, status_code=status_code)
+
+
+@app.get("/login/kod", response_class=HTMLResponse)
+def login_kod_sahifa(request: Request, db: Session = Depends(get_db)):
+    """Telegram kodi kiritiladigan sahifa (faqat yaroqli `kirish_kod` cookie si bilan)."""
+    if ikki_bosqich.kod_topish(db, request.cookies.get(ikki_bosqich.KOD_COOKIE)) is None:
+        return RedirectResponse("/login?kod=tugadi", status_code=302)
+    return _kod_sahifa(request)
+
+
+@app.post("/login/kod")
+def login_kod_submit(request: Request, kod: str = Form(default=""), eslab_qol: str = Form(default=""),
+                     db: Session = Depends(get_db)):
+    """Kod to'g'ri — sessiya (va xohlasa «bu qurilma» 30 kun). Noto'g'ri — qolgan urinish; tugasa — qaytadan parol.
+    Har noto'g'ri kod — kirish cheklovi hisobiga (`log_login_attempt`, (login, IP) — 5)."""
+    from models import User
+    ip = auth.mijoz_ip(request)
+    ua = request.headers.get("user-agent", "")[:250]
+    xom = request.cookies.get(ikki_bosqich.KOD_COOKIE)
+    q = ikki_bosqich.kod_topish(db, xom)
+    if q is None:
+        return RedirectResponse("/login?kod=tugadi", status_code=302)
+    user = db.query(User).filter(User.id == q.user_id, User.is_active == True).first()   # noqa: E712
+    if user is None or not getattr(user, "is_platform_admin", False):
+        ikki_bosqich.kod_bekor(db, xom)
+        return RedirectResponse("/login?kod=tugadi", status_code=302)
+    rl = crud.check_login_rate_limit(db, user.username, ip)
+    if rl["blocked"] and rl.get("sabab") != "login_jami":
+        return _kod_sahifa(request, f"Juda ko'p noto'g'ri urinish. {rl['retry_after_minutes']} daqiqadan so'ng qayta urining.", 429)
+    natija = ikki_bosqich.kod_tekshir(db, xom, kod)
+    if not natija["ok"]:
+        crud.log_login_attempt(db, user.username, success=False, ip_address=ip, user_agent=ua)
+        if natija["yaroqsiz"]:
+            r = RedirectResponse("/login?kod=tugadi", status_code=302)
+            r.delete_cookie(ikki_bosqich.KOD_COOKIE, path=ikki_bosqich.COOKIE_YOL)
+            return r
+        return _kod_sahifa(request, f"Kod noto'g'ri. Yana {natija['qolgan']} ta urinish qoldi.", 400)
+    crud.log_login_attempt(db, user.username, success=True, ip_address=ip, user_agent=ua)
+    response = _sessiya_bilan_kirish(db, user, "/")
+    response.delete_cookie(ikki_bosqich.KOD_COOKIE, path=ikki_bosqich.COOKIE_YOL)
+    if str(eslab_qol).lower() in ("1", "on", "true", "yes", "ha"):
+        qx = ikki_bosqich.qurilma_yarat(db, user, ip, _qurilma_nomi(ua))
+        response.set_cookie(key=ikki_bosqich.QURILMA_COOKIE, value=qx, httponly=True,
+                            max_age=ikki_bosqich.QURILMA_KUN * 24 * 3600, samesite="lax", secure=True, path=ikki_bosqich.COOKIE_YOL)
     return response
 
 
@@ -12962,7 +13302,7 @@ async def api_upload_company_logo(file: UploadFile = File(...),
     if file.content_type not in RUXSAT:
         raise HTTPException(status_code=400,
                             detail="Faqat PNG, JPG yoki WEBP rasm yuklash mumkin")
-    data = await file.read()
+    data = await file.read(2 * 1024 * 1024 + 1)          # kech199 (zip 263, 10-band): chegara + 1 bayt, butun fayl emas
     if len(data) > 2 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Rasm 2 MB dan katta bo'lmasin")
     if not data:
@@ -13178,6 +13518,7 @@ def api_telegram_bot_ulash(request: Request, db: Session = Depends(get_db),
 @app.post("/api/system/restore")
 async def api_restore_backup(file: UploadFile = File(...),
                              replace: bool = False,
+                             zaxira_paroli: str = Form(default=""),
                              db: Session = Depends(get_db),
                              current_user=Depends(auth.platform_admin_only)):
     """Zaxira nusxadan korxona ma'lumotini tiklaydi (Faza 2).
@@ -13187,8 +13528,15 @@ async def api_restore_backup(file: UploadFile = File(...),
     tozalanadi (boshqa korxonalarga tegilmaydi). Hammasi bitta
     tranzaksiyada — xato bo'lsa hech narsa o'zgarmaydi."""
     import json as _json_r
+    # kech199 (zip 263, 10-band): hajm chegarasi — /tiklash bilan bir xil (`TIKLASH_MAX_BAYT`; ilgari bu yo'lda chegara YO'Q edi)
+    raw = await file.read(TIKLASH_MAX_BAYT + 1)
+    if len(raw) > TIKLASH_MAX_BAYT:
+        raise HTTPException(status_code=400, detail=f"Fayl juda katta ({TIKLASH_MAX_BAYT // (1024 * 1024)} MB dan oshdi)")
     try:
-        raw = await file.read()
+        raw = await _ip_ichida(zaxira_json_ol, raw, zaxira_paroli)      # kech199 (zip 263, 1-band): shifrlangan .zip ham
+    except ZaxiraOchishXato as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    try:
         data = _json_r.loads(raw.decode("utf-8"))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Faylni o'qib bo'lmadi: {e}")
@@ -13217,6 +13565,103 @@ async def api_restore_backup(file: UploadFile = File(...),
 _TIKLASH_SOZ = "TIKLASHNI-TASDIQLAYMAN"
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech199 (zip 263, xavfsizlik REJA 1-band — EGASI QARORI 06.11 17:33: «har korxona ALOHIDA, SHIFRLANGAN, faqat egasiga»):
+# kunlik zaxira — korxona bo'yicha alohida AES-256 zip (WinZip AES — 7-Zip / WinRAR ochadi), paroli — Railway o'zgaruvchisi
+# `ZAXIRA_PAROLI` (egasi o'zi qo'yadi, kodda / bazada yo'q). Parol yo'q yoki qisqa — fayl SHIFRSIZ YUBORILMAYDI (egasiga xabar).
+# Tiklash (/tiklash, /api/system/restore) — shu .zip ni ham (parol — formadan, bo'sh bo'lsa serverdagi `ZAXIRA_PAROLI`), eski .json ni ham
+# qabul qiladi. Zip ichida — BITTA .json; ochilgan hajm `TIKLASH_MAX_BAYT` dan oshmaydi (zip-bomba — chegara + 1 bayt o'qiladi).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ZAXIRA_PAROL_MIN = 12
+_ZIP_IMZO = b"PK\x03\x04"
+
+
+class ZaxiraOchishXato(ValueError):
+    """Zip zaxirani ochib bo'lmadi — sababi foydalanuvchiga ko'rsatiladi."""
+
+
+def zaxira_paroli_muhit() -> str:
+    """Railway o'zgaruvchisi `ZAXIRA_PAROLI` (chetidagi bo'shliqsiz)."""
+    return (os.environ.get("ZAXIRA_PAROLI") or "").strip()
+
+
+def zaxira_paroli_xatosi(parol) -> Optional[str]:
+    """None — parol yaroqli; matn — nima uchun shifrlab bo'lmaydi."""
+    if not parol:
+        return "ZAXIRA_PAROLI o'rnatilmagan"
+    if len(parol) < ZAXIRA_PAROL_MIN:
+        return f"ZAXIRA_PAROLI juda qisqa ({len(parol)} belgi — kamida {ZAXIRA_PAROL_MIN})"
+    return None
+
+
+def zaxira_shifrla(json_bayt: bytes, ichki_nom: str, parol: str) -> bytes:
+    """JSON zaxira → AES-256 bilan shifrlangan zip (ichida bitta `ichki_nom`)."""
+    import io as _io263
+    import pyzipper as _pz263
+    if zaxira_paroli_xatosi(parol):
+        raise ValueError(zaxira_paroli_xatosi(parol))
+    buf = _io263.BytesIO()
+    with _pz263.AESZipFile(buf, "w", compression=_pz263.ZIP_DEFLATED, encryption=_pz263.WZ_AES) as z:
+        z.setpassword(parol.encode("utf-8"))
+        z.setencryption(_pz263.WZ_AES, nbits=256)
+        z.writestr(ichki_nom, json_bayt)
+    return buf.getvalue()
+
+
+def zaxira_zipmi(raw) -> bool:
+    return bool(raw) and bytes(raw[:4]) == _ZIP_IMZO
+
+
+def zaxira_ochish(raw: bytes, parol: str, eng_kopi: int) -> bytes:
+    """Zip zaxira → ichidagi yagona .json baytlari (`eng_kopi` baytdan oshmaydi). Xato — `ZaxiraOchishXato` (o'zbekcha sabab)."""
+    import io as _io263
+    import zipfile as _zf263
+    import pyzipper as _pz263
+    try:
+        z = _pz263.AESZipFile(_io263.BytesIO(raw))
+    except Exception:                      # noqa: BLE001 — BadZipFile, buzilgan markaziy katalog
+        raise ZaxiraOchishXato("Zip fayl buzilgan — ochib bo'lmadi.")
+    with z:
+        fayllar = [i for i in z.infolist() if not i.is_dir()]
+        jsonlar = [i for i in fayllar if i.filename.lower().endswith(".json")]
+        if len(jsonlar) != 1 or len(fayllar) != 1:
+            raise ZaxiraOchishXato("Zip ichida bitta .json zaxira fayli bo'lishi kerak.")
+        i = jsonlar[0]
+        if i.file_size > eng_kopi:
+            raise ZaxiraOchishXato(f"Zaxira juda katta ({eng_kopi // (1024 * 1024)} MB dan oshdi).")
+        shifrli = bool(i.flag_bits & 0x1)
+        if shifrli:
+            if not parol:
+                raise ZaxiraOchishXato("Zip shifrlangan — parolni kiriting (serverda ZAXIRA_PAROLI ham yo'q).")
+            z.setpassword(str(parol).encode("utf-8"))
+        try:
+            with z.open(i) as f:
+                data = f.read(eng_kopi + 1)
+        except RuntimeError as e:
+            if "password" in str(e).lower():
+                raise ZaxiraOchishXato("Zaxira paroli noto'g'ri.")
+            raise ZaxiraOchishXato("Zip faylni ochib bo'lmadi.")
+        except (_zf263.BadZipFile, Exception):              # noqa: BLE001 — HMAC / CRC / zlib
+            raise ZaxiraOchishXato("Zip faylni ochib bo'lmadi — parol noto'g'ri yoki fayl buzilgan.")
+    if len(data) > eng_kopi:
+        raise ZaxiraOchishXato(f"Zaxira juda katta ({eng_kopi // (1024 * 1024)} MB dan oshdi).")
+    return data
+
+
+def zaxira_kodi(kod, cid) -> str:
+    """Fayl nomi uchun korxona kodi — faqat lotin harf / raqam / «-» / «_»; bo'sh bo'lsa `k<id>`."""
+    import re as _re263
+    t = _re263.sub(r"[^A-Za-z0-9_-]+", "-", str(kod or "")).strip("-_")[:40]
+    return t or f"k{int(cid)}"
+
+
+def zaxira_json_ol(raw: bytes, parol_formadan: str = "") -> bytes:
+    """Yuklangan fayl (eski .json yoki shifrlangan .zip) → JSON baytlari. Parol — formadan, bo'sh bo'lsa serverdagi `ZAXIRA_PAROLI`."""
+    if zaxira_zipmi(raw):
+        return zaxira_ochish(raw, (parol_formadan or "").strip() or zaxira_paroli_muhit(), TIKLASH_MAX_BAYT)
+    return raw
+
+
 def _tiklash_html(tana: str) -> str:
     return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -13232,7 +13677,7 @@ def _tiklash_html(tana: str) -> str:
  .ok{{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:18px}}
  label{{display:block;font-size:12px;font-weight:600;text-transform:uppercase;
    letter-spacing:.03em;color:#6b7280;margin:16px 0 6px}}
- input[type=text],input[type=file]{{width:100%;box-sizing:border-box;padding:10px 12px;
+ input[type=text],input[type=password],input[type=file]{{width:100%;box-sizing:border-box;padding:10px 12px;
    border:1px solid #d1d5db;border-radius:8px;font-size:14px;background:#fff}}
  .qator{{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px}}
  button{{margin-top:22px;width:100%;padding:12px;border:0;border-radius:8px;
@@ -13275,8 +13720,14 @@ def tiklash_sahifa(request: Request, db: Session = Depends(get_db),
     </div>
 
     <form method="post" action="/tiklash" enctype="multipart/form-data">
-      <label>Zaxira fayli (.json)</label>
-      <input type="file" name="file" accept=".json,application/json" required>
+      <label>Zaxira fayli (.zip yoki .json)</label>
+      <input type="file" name="file" accept=".zip,.json,application/zip,application/json" required>
+
+      <label>Zaxira paroli (shifrlangan .zip uchun)</label>
+      <input type="password" name="zaxira_paroli" autocomplete="off">
+      <div style="font-size:12px;color:#6b7280;margin-top:5px">
+        Bo'sh qoldirilsa — serverdagi <code>ZAXIRA_PAROLI</code> ishlatiladi. Eski .json fayl uchun kerak emas.
+      </div>
 
       <div class="qator">
         <input type="checkbox" name="replace" value="true" id="r">
@@ -13308,6 +13759,7 @@ def tiklash_sahifa(request: Request, db: Session = Depends(get_db),
 async def tiklash_bajarish(file: UploadFile = File(...),
                            replace: str = Form(default=""),
                            confirm: str = Form(default=""),
+                           zaxira_paroli: str = Form(default=""),
                            db: Session = Depends(get_db),
                            current_user=Depends(auth.platform_admin_only)):
     """Formadan kelgan faylni tiklaydi va natijani sahifada ko'rsatadi."""
@@ -13322,11 +13774,16 @@ async def tiklash_bajarish(file: UploadFile = File(...),
     if ustiga and confirm.strip() != _TIKLASH_SOZ:
         return xato(f"Ustiga yozish uchun tasdiqlash so'zi kerak: <code>{_TIKLASH_SOZ}</code>")
 
-    raw = await file.read()
+    raw = await file.read(TIKLASH_MAX_BAYT + 1)           # kech199 (zip 263, 10-band): chegara + 1 bayt, butun fayl emas
     if not raw:
         return xato("Fayl bo'sh.")
-    if len(raw) > 200 * 1024 * 1024:
-        return xato("Fayl juda katta (200 MB dan oshdi).")
+    if len(raw) > TIKLASH_MAX_BAYT:
+        return xato(f"Fayl juda katta ({TIKLASH_MAX_BAYT // (1024 * 1024)} MB dan oshdi).")
+    try:
+        raw = await _ip_ichida(zaxira_json_ol, raw, zaxira_paroli)      # kech199 (zip 263, 1-band): shifrlangan .zip ham
+    except ZaxiraOchishXato as e:
+        import html as _ht263
+        return xato(_ht263.escape(str(e)))
     try:
         data = _js_t.loads(raw.decode("utf-8"))
     except Exception as e:
@@ -14927,7 +15384,8 @@ def _save_upload(file: UploadFile, subfolder: str, allowed_ext: set) -> str:
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed_ext:
         raise HTTPException(status_code=400, detail=f"Ruxsat etilmagan fayl turi: {ext}")
-    contents = file.file.read()
+    # kech199 (zip 263, 10-band): butun fayl emas — chegara + 1 bayt (ilgari `read()` — 120 MB fayl to'liq xotiraga, O'LCHANGAN)
+    contents = file.file.read(MAX_UPLOAD_SIZE + 1)
     if len(contents) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail="Fayl hajmi 25 MB dan katta bo'lmasin")
     # kech128 (zip 152): kengaytmasi rasm bo'lsa — ichi ham rasm bo'lishi SHART (faqat-rasm yuklamasi ham, buyurtma ilovasi ham)
@@ -16008,9 +16466,19 @@ def api_sayt_dokon_bot_ulash(request: Request, data: dict = Body(...), db: Sessi
 # ============================================================
 
 def run_daily_backup():
-    """Har kuni bir marta ishga tushadi: butun bazaning zaxira nusxasini
-    JSON fayl qilib, Telegram orqali admin(lar)ga yuboradi."""
+    """Har kuni bir marta ishga tushadi: HAR KORXONA uchun alohida, SHIFRLANGAN (AES-256 zip, parol — `ZAXIRA_PAROLI`) zaxira nusxa,
+    Telegram orqali platforma egasining chat(lar)iga (`BACKUP_TELEGRAM_CHAT_ID`).
+
+    kech199 (zip 263, xavfsizlik REJA 1-band — EGASI QARORI 06.11 17:33): ilgari BUTUN baza bitta SHIFRSIZ JSON bo'lib ketardi — ichida
+    har korxonaning bot tokeni (O'LCHANGAN), mijozlari, narxlari, maoshlari; fayl Telegram chatida va egasining har qurilmasida yotadi.
+    Endi: korxona bo'yicha alohida fayl `epserp-<kod>-<sana>.zip` (ichida `<kod>-<sana>.json` — `/tiklash` ga to'g'ridan-to'g'ri
+    yuklanadi); bot tokeni / webhook imzosi zaxiraga KIRMAYDI (`crud._SECRET_SETTING_KEYS`). `ZAXIRA_PAROLI` yo'q yoki 12 belgidan qisqa —
+    HECH QANDAY fayl yuborilmaydi: egasiga har kuni «o'rnatilmagan» xabari + «Xatoliklar» jurnali. Fayllar korxonalarning o'ziga
+    YUBORILMAYDI (egasi qarori). Bitta korxona xatosi qolganlarini to'xtatmaydi; xatolar oxirida bitta xabar bilan."""
     import json as _json_mod
+    import time as _time263
+    import tenant_context as _tc263
+    from production_models import Company as _Co263
 
     chat_ids_raw = os.environ.get("BACKUP_TELEGRAM_CHAT_ID", "").strip()
     if not chat_ids_raw:
@@ -16018,61 +16486,70 @@ def run_daily_backup():
         return
 
     chat_ids = [c.strip() for c in chat_ids_raw.split(",") if c.strip()]
+    parol = zaxira_paroli_muhit()
+    bugun = _t_vaqt()            # kech106: fayl nomi va xabardagi sana — Toshkent kuni (qo'lda / kechikib ishga tushsa ham to'g'ri kun)
 
     db = SessionLocal()
     try:
-        # M7: kunlik zaxira — PLATFORMA darajasidagi tizim amali (hech qanday
-        # tenant so'rovi orqali emas, rejalashtiruvchi tomonidan ishga
-        # tushadi) va u platforma egasining o'z Telegram chatiga ketadi,
-        # shuning uchun ATAYLAB butun bazani qamraydi. Tenantga hech narsa
-        # oshkor qilinmaydi. Parol/PIN hashlari esa endi `export_full_backup`
-        # ning o'zida umuman chiqarilmaydi.
-        # Faza 3 (2-qadam): kunlik zaxira ATAYLAB platforma darajasida
-        # qoladi — u rejalashtiruvchi tomonidan, hech qanday korxona
-        # so'rovisiz ishga tushadi va platforma egasining chatiga boradi.
-        # Shu sababli u muhit o'zgaruvchilaridagi token/chatni ishlatadi.
-        backup_data = crud.export_full_backup(db)
-        content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
-
-        # Faza 4: Telegram bitta faylda 50 MB gacha ruxsat beradi. Mijozlar
-        # ko'paygan sari zaxira kattalashadi va chegaradan oshsa fayl
-        # JIMGINA yuborilmay qoladi — ya'ni kunlar davomida zaxirasiz
-        # qolish mumkin. Shuning uchun 40 MB dan oshganda ogohlantirish
-        # yuboriladi, 49 MB dan oshganda esa fayl o'rniga xabar ketadi.
-        _mb = len(content) / (1024 * 1024)
-        if _mb >= 49:
-            # kech144 (zip 178, audit T4): zaxira yuborilmadi — «Xatoliklar» jurnalida ham (platforma xatosi)
+        _px = zaxira_paroli_xatosi(parol)
+        if _px:
             try:
-                crud.log_error(db, f"Kunlik zaxira yuborilmadi — fayl {crud.xabar_son(_mb, 1)} MB (Telegram chegarasi 50 MB)",
-                               endpoint="run_daily_backup")
+                crud.log_error(db, f"Kunlik zaxira yuborilmadi — {_px} (shifrsiz zaxira yuborilmaydi)", endpoint="run_daily_backup")
             except Exception:
-                pass
+                db.rollback()
             _send_telegram(
-                f"⛔ *Kunlik zaxira YUBORILMADI*\n\nFayl hajmi {crud.xabar_son(_mb, 1)} MB — "
-                f"Telegram chegarasi (50 MB) dan oshdi.\n\n"
-                f"Zaxirani qo'lda yuklab oling: /api/system/backup\n"
-                f"Uzoq muddatli yechim kerak (masalan bulutli saqlash).")
-            print(f"⛔ Kunlik zaxira yuborilmadi — {_mb:.1f} MB")
+                f"⛔ *Kunlik zaxira YUBORILMADI*\n\n{_px}.\n\n"
+                f"Xavfsizlik uchun zaxira faqat SHIFRLANGAN holda yuboriladi. Railway → Variables → `ZAXIRA_PAROLI` "
+                f"(kamida {ZAXIRA_PAROL_MIN} belgi) qo'ying va parolni xavfsiz joyda saqlang — zaxirani ochish uchun kerak bo'ladi.")
+            print(f"⛔ Kunlik zaxira yuborilmadi — {_px}")
             return
-        if _mb >= 40:
-            _send_telegram(
-                f"⚠️ *Zaxira hajmi ogohlantirishi*\n\nBugungi zaxira {crud.xabar_son(_mb, 1)} MB.\n"
-                f"Telegram chegarasi 50 MB. Yaqinlashyapti — boshqa saqlash "
-                f"usulini rejalashtirish vaqti keldi.")
-        # kech106 (9 + 50-band B qismi): fayl nomi va xabardagi sana — Toshkent kuni (zaxira 23:30 Toshkentda
-        # yuradi — UTC sanasi bilan bir xil, lekin qo'lda / kechikib ishga tushsa ham to'g'ri kun).
-        filename = f"penodecorpro-backup-{_t_vaqt().strftime('%Y-%m-%d')}.json"
 
-        total_rows = sum(len(rows) for rows in backup_data["tables"].values())
-        caption = f"🗄 Kunlik avtomatik zaxira nusxa\n📅 {_t_vaqt().strftime('%d.%m.%Y')}\n📊 Jami {total_rows} ta yozuv"
-
-        for chat_id in chat_ids:
-            # kech144 (zip 178, audit T4): yuborilmasa — ilgari faqat konsolga; endi «Xatoliklar» jurnaliga (platforma xatosi)
-            if not _send_telegram_document(chat_id, content, filename, caption):
-                try:
-                    crud.log_error(db, f"Kunlik zaxira Telegramga yuborilmadi ({chat_id}) — {filename}", endpoint="run_daily_backup")
-                except Exception as _lx:
-                    print(f"⚠ Zaxira xatosini jurnalga yozib bo'lmadi: {_lx}")
+        with _tc263.system_context(db):
+            korxonalar = [(c.id, c.code, c.name) for c in db.query(_Co263).order_by(_Co263.id).all()]
+        sana_f, sana_x = bugun.strftime('%Y-%m-%d'), bugun.strftime('%d.%m.%Y')
+        xatolar, yuborildi, birinchi = [], 0, True
+        for cid, kod, nom in korxonalar:
+            kodt = zaxira_kodi(kod, cid)
+            nom_t = str(nom or kodt)
+            try:
+                with _tc263.system_context(db):
+                    backup_data = crud.export_full_backup(db, company_id=cid)
+                db.rollback()                      # o'qish tranzaksiyasi yopiladi (shifrlash / yuborish paytida baza band turmasin)
+                content = _json_mod.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
+                zip_b = zaxira_shifrla(content, f"{kodt}-{sana_f}.json", parol)
+                del content
+            except Exception as e:                 # noqa: BLE001
+                db.rollback()
+                xatolar.append(f"{nom_t} ({kodt}): zaxira tayyorlanmadi — {e}")
+                continue
+            # Faza 4: Telegram bitta faylda 50 MB gacha — har korxona fayli ALOHIDA tekshiriladi
+            _mb = len(zip_b) / (1024 * 1024)
+            if _mb >= 49:
+                xatolar.append(f"{nom_t} ({kodt}): fayl {crud.xabar_son(_mb, 1)} MB — Telegram chegarasi (50 MB) dan oshdi")
+                continue
+            total_rows = sum(len(rows) for rows in backup_data["tables"].values())
+            caption = (f"🗄 Kunlik zaxira — {nom_t} ({kodt})\n📅 {sana_x}\n📊 Jami {total_rows} ta yozuv\n"
+                       f"🔐 Shifrlangan (ZAXIRA_PAROLI)")
+            if _mb >= 40:
+                caption += f"\n⚠️ Hajmi {crud.xabar_son(_mb, 1)} MB — Telegram chegarasi 50 MB ga yaqin"
+            for chat_id in chat_ids:
+                if not birinchi:
+                    _time263.sleep(1.5)            # Telegram: bitta chatga daqiqasiga ~20 xabar chegarasi
+                birinchi = False
+                if _send_telegram_document(chat_id, zip_b, f"epserp-{kodt}-{sana_f}.zip", caption, content_type="application/zip"):
+                    yuborildi += 1
+                else:
+                    xatolar.append(f"{nom_t} ({kodt}): Telegramga yuborilmadi ({chat_id})")
+        for x in xatolar:
+            try:
+                crud.log_error(db, f"Kunlik zaxira: {x}", endpoint="run_daily_backup")
+            except Exception as _lx:               # noqa: BLE001
+                db.rollback()
+                print(f"⚠ Zaxira xatosini jurnalga yozib bo'lmadi: {_lx}")
+        if xatolar:
+            _send_telegram(f"⛔ *Kunlik zaxira — {len(xatolar)} ta xato*\n\n" + "\n".join(f"• {x}" for x in xatolar[:20])
+                           + ("\n…" if len(xatolar) > 20 else ""))
+        print(f"✓ Kunlik zaxira: {yuborildi} ta fayl yuborildi, {len(xatolar)} ta xato ({len(korxonalar)} korxona)")
     except Exception as e:
         print(f"⚠ Kunlik backup xatosi: {e}")
         try:

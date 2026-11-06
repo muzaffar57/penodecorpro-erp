@@ -7078,7 +7078,7 @@ def log_login_attempt(db: Session, username: str, success: bool, ip_address: str
 
 
 def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
-                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 20,
+                            max_attempts: int = 5, window_minutes: int = 15, ip_max_attempts: int = 60,
                             login_jami_max: int = 30, tanish_kun: int = 30, company_id: int = None,
                             aniqla: bool = True) -> dict:
     """Rate limit — oxirgi `window_minutes` daqiqadagi MUVAFFAQIYATSIZ urinishlar bo'yicha kirishni bloklaydi. Mavjud LoginHistory
@@ -7098,7 +7098,13 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
       * IP noma'lum (`ip_address` yo'q) — eski qoida: login bo'yicha 5.
     Hodim kirishi (telefon raqami kaliti) — xuddi shu qoida.
 
-    Qaytaradi: {"blocked": bool, "retry_after_minutes": int}"""
+    kech199 (zip 263, xavfsizlik REJA 17-band — Fable F12): IP chegarasi 20 → 60. Uyali operatorlar minglab abonentni bitta umumiy
+    manzil (CGNAT) ortida chiqaradi — 20 ta begona xato shu manzildagi HAMMA foydalanuvchi va hodimni 15 daqiqa kiritmasdi. Asosiy himoya —
+    (login, IP) juftligi (5) va login bo'yicha jami (30) — o'zgarmagan; IP chegarasi faqat bitta manzildan ko'p hisoblarni terishga qarshi.
+    kech199 (zip 263, 12-band): natijada blok SABABI ham bor (`sabab`: «login_ip» / «ip» / «login_jami» / «login») — platforma egasi
+    tarqoq hujumda (`login_jami`) to'g'ri parol + Telegram kodi bilan blokdan o'tadi (`main.login_submit`), egasiga xabar ketadi.
+
+    Qaytaradi: {"blocked": bool, "retry_after_minutes": int, "sabab": str (faqat blokda)}"""
     from models import LoginHistory
     from datetime import timedelta
 
@@ -7122,12 +7128,12 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
     _blok = {"blocked": True, "retry_after_minutes": window_minutes}
     if not ip_address:
         if _uq.count() >= max_attempts:
-            return _blok
+            return dict(_blok, sabab="login")
         return {"blocked": False, "retry_after_minutes": 0}
     if _uq.filter(LoginHistory.ip_address == ip_address).count() >= max_attempts:
-        return _blok
+        return dict(_blok, sabab="login_ip")
     if q.filter(LoginHistory.ip_address == ip_address).count() >= ip_max_attempts:
-        return _blok
+        return dict(_blok, sabab="ip")
     if _uq.count() >= login_jami_max:
         _tq = db.query(LoginHistory.id).filter(
             LoginHistory.success == True,
@@ -7138,7 +7144,7 @@ def check_login_rate_limit(db: Session, username: str, ip_address: str = None,
         if _uname_cid is not None:
             _tq = _tq.filter(LoginHistory.company_id == _uname_cid)
         if _tq.first() is None:
-            return _blok
+            return dict(_blok, sabab="login_jami")
     return {"blocked": False, "retry_after_minutes": 0}
 
 
@@ -11469,12 +11475,19 @@ _TENANT_PARENTS = {
 # kech170 (zip 236): + do'kon API kaliti (`dokon_api_kalitlar` — kalit xeshi; tiklash o'chirilgan / almashtirilgan kalitni qayta
 # tiriltirmasin; «Barcha ma'lumotlarni o'chirish» unga tegmaydi — `_reset_table_order` da yo'q)
 # kech181 (zip 248): + do'kon kirish urinishlari va mijoz sessiyalari (xeshlar; tiklash eski sessiyani tiriltirmasin)
+# kech199 (zip 263, 2-band): + platforma egasi kirish kodlari va ishonchli qurilmalar (sessiya kabi — tiklash ularni tiriltirmasin)
 _NON_TENANT_TABLES = {"user_sessions", "employee_sessions", "error_logs", "murojaatlar", "murojaat_xabarlari", "dokon_api_kalitlar",
-                      "dokon_kirishlar", "dokon_sessiyalar"}
+                      "dokon_kirishlar", "dokon_sessiyalar", "ikki_bosqich_kodlar", "ishonchli_qurilmalar"}
 
 # Zahira nusxaga HECH QACHON kiritilmaydigan ustunlar.
 # kech133 (zip 159): + hodim telefon kalitlari xeshi (ruxsat berilgan va kutayotgan) — tiklashdan keyin telefonlar qayta tasdiqlanadi
 _SECRET_COLUMNS = {"password_hash", "pin_hash", "qurilma_hash", "qurilma_sorov_hash"}
+
+# kech199 (zip 263, xavfsizlik REJA 1-band — Fable F1 / Opus, O'LCHANGAN `work/k263/fable/probes/backup_check.py`): korxona sozlamalaridagi
+# SIRLAR — Telegram bot tokeni (BotFather) va webhook imzosi — zaxiraga XOM holda tushardi (kunlik zaxira Telegram chatida yotadi: fayl
+# kimning qo'liga tushsa, HAR korxona botini boshqara olardi). Endi zaxiraga KIRMAYDI; tiklashda korxonaning JORIY qiymati saqlanib
+# qoladi (`import_full_backup`) — bot to'xtamaydi. Yangi sir kaliti qo'shilsa — shu ro'yxatga.
+_SECRET_SETTING_KEYS = frozenset({"telegram_bot_token", "telegram_webhook_secret"})
 
 
 def _tenant_filter(db: Session, model, query, company_id: int):
@@ -11574,6 +11587,8 @@ def export_full_backup(db: Session, company_id: int = None) -> dict:
             # Tenantga bog'lanmagan jadval — korxona zahirasiga kiritilmaydi.
             skipped.append(table_name)
             continue
+        if table_name == "company_settings":
+            q = q.filter(~model.key.in_(sorted(_SECRET_SETTING_KEYS)))     # kech199 (zip 263, 1-band): sirlar — zaxiraga emas
         rows = q.all()
         backup[table_name] = [
             {col: serialize_value(getattr(row, col)) for col in columns}
@@ -11838,6 +11853,12 @@ def import_full_backup(db: Session, data: dict, company_id: int,
     if _dokon_x:
         return {"success": False, "message": _dokon_x}
 
+    # kech199 (zip 263, 1-band): korxonaning joriy SIR sozlamalari (bot tokeni, webhook imzosi) — zaxirada yo'q; tozalashdan OLDIN
+    # olinadi va tiklangandan keyin qaytariladi (eski zaxirada bo'lsa ham — joriy qiymat ustun: fayldagisi eskirgan bo'lishi mumkin)
+    from models import CompanySetting as _CS263
+    _sirlar263 = {k: v for k, v in db.query(_CS263.key, _CS263.value).filter(
+        _CS263.company_id == company_id, _CS263.key.in_(sorted(_SECRET_SETTING_KEYS))).all()}
+
     try:
         # kech125 (zip 146): tozalash ham SHU tranzaksiyada — qo'shishda xato bo'lsa `rollback` uni ham qaytaradi.
         # kech139 (zip 167, A-T01): DOIM — bo'sh korxonada ham (startup yaratgan sozlama / yo'nalish qatorlari bilan to'qnashmasin).
@@ -11915,6 +11936,15 @@ def import_full_backup(db: Session, data: dict, company_id: int,
                     seq_fixed += 1
                 except Exception:
                     pass
+
+        # kech199 (zip 263, 1-band): sir sozlamalari qaytariladi (ketma-ketliklar yangilangandan KEYIN — yangi qator id si)
+        for _k263, _v263 in _sirlar263.items():
+            _q263 = db.query(_CS263).filter(_CS263.company_id == company_id, _CS263.key == _k263).first()
+            if _q263 is None:
+                db.add(_CS263(company_id=company_id, key=_k263, value=_v263))
+            else:
+                _q263.value = _v263
+        db.flush()
 
         # kech141 (zip 169, A-P02): zip 169 dan oldingi zaxira (ish davrlari jadvalisiz) — o'chirilgan hodimlarning ish davri
         # jurnaldan (ishga tushishdagi migratsiya bilan bir funksiya). Ketma-ketliklar yangilangandan KEYIN (yangi qator id si).
@@ -12091,6 +12121,8 @@ def factory_reset_all_data(db: Session, keep_only_user_id: int = None,
         other_user_ids = [u.id for u in _uq.all()]
         if other_user_ids:
             db.query(UserSession).filter(UserSession.user_id.in_(other_user_ids)).delete(synchronize_session=False)
+            import ikki_bosqich as _ikb263                 # kech199 (zip 263, 2-band): kod / ishonchli qurilma yozuvlari (FK users.id)
+            _ikb263.foydalanuvchilar_yozuvlarini_ochir(db, other_user_ids)
             n_users = db.query(User).filter(User.id.in_(other_user_ids)).delete(synchronize_session=False)
         else:
             n_users = 0
