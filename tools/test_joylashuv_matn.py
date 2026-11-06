@@ -233,8 +233,11 @@ RUXSAT = [
      "ishlab chiqarish oynasi: izoh qatori va undan keyingi jadval — BITTA blok"),
     ("templates/returns.html", ">Quyidagi taqsimot — shu oyning brak yozuvlari bo'yicha", "ketma-ket",
      "«Brak tahlili» kartasi: izoh va taqsimot qatorlari — BITTA blok"),
+] + ([] if 'id="rcv-seg-boshl"' in open(os.path.join(ROOT, "templates/supplier_receive.html"), encoding="utf-8").read() else [
+    # kech195 (zip 261, MOSLANDI): yangi «Kirim qilish» oynasida bu izoh yo'q (ta'minotchi kartasi — o'z nomi bilan)
     ("templates/supplier_receive.html", "👤 Quyidagi ma'lumotlar — faqat <b>tanlangan ta'minotchi</b>ga tegishli:", "ketma-ket",
      "ta'minotchi kartasi: izoh va raqamlar katakchalari — BITTA blok"),
+]) + [
     ("templates/users.html", "Endi quyidagi qiymatni nusxalab, <b>Railway → Variables</b>", "ketma-ket",
      "natija bloki: nusxalanadigan qiymat SHU blokda darhol keladi"),
     ("templates/users.html", "\"Tasdiqlash uchun quyidagi so'zni AYNAN shunday yozing:\"", "ketma-ket",
@@ -406,7 +409,9 @@ check("T4 Kirim: «Qo'shimcha xarajatlarni tannarxga qo'shish — yoqilsa, bu xa
       "xarajatlar» bo'limi (Transport, Tushirish, Yuklash, Boshqa) shu belgidan OLDIN",
       "<b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, bu xarajatlar materiallar qiymatiga proporsional taqsimlanib" in _sr
       and "yuqoridagi xarajatlar" not in _sr
-      and 0 < _sr.find('<div class="rcv-card-title" style="margin-top:16px">Qo\'shimcha xarajatlar') < _sr.find('id="ap-cost-boshqa"')
+      # kech195 (zip 261, MOSLANDI): bo'lim sarlavhasi — `<b>Qo'shimcha xarajatlar</b>` (yangi karta)
+      and 0 < max(_sr.find('<div class="rcv-card-title" style="margin-top:16px">Qo\'shimcha xarajatlar'),
+                  _sr.find("<b>Qo'shimcha xarajatlar</b>")) < _sr.find('id="ap-cost-boshqa"')
       < _sr.find("<b>Qo'shimcha xarajatlarni tannarxga qo'shish</b>"))
 _us = F.get("templates/users.html", "")
 

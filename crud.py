@@ -13910,6 +13910,11 @@ def get_pinned_orders(db: Session, company_id: int = None) -> list:
             "deadline": _tashkent_vaqt(o.deadline).strftime("%d.%m.%Y") if o.deadline else None,
             "deadline_urgency": get_deadline_urgency(o.deadline, o.status.value, o.is_fully_delivered),
             "project_id": o.project_id,
+            # kech194 (zip 261 — egasi so'rovi 06.11: «Ustuvor buyurtmalar» ham loyiha kartalari bilan bir xil ko'rinsin): karta chap
+            # chizig'i va «Qarz» / «✓ To'langan» belgisi — ro'yxatdagi buyurtma qatori bilan BIR manba (`Order.debt_amount`,
+            # `Order.kelishilgan_summa`; shablon `orders.html` dagi `debt = o.debt_amount`, `o.kelishilgan_summa`)
+            "debt_amount": float(o.debt_amount or 0),
+            "kelishilgan_summa": float(o.kelishilgan_summa or 0),
         })
     return result
 
@@ -21745,7 +21750,30 @@ def get_supplier_purchased_items(db: Session, supplier_id: int,
     if company_id is not None:
         _iq = _iq.filter(Inventory.company_id == company_id)
     items = _iq.all()
-    return [{"id": i.id, "item_name": i.item_name, "unit": i.unit, "category": i.category} for i in items]
+    # kech194 (zip 261 — egasi QARORI 06.11 «Kirim qilish» 2-variant: narx oxirgi xariddan farq qilsa «↑ 2,3%» belgisi, bosilsa — oxirgi
+    # narx va sanasi; «Ombordan tanlash» oynasida narx oxirgi xariddan yoziladi): har material uchun SHU ta'minotchidan OXIRGI xarid narxi
+    # va sanasi (Toshkent kuni). Boshlang'ich qoldiq (`is_opening_stock`) — xarid emas, hisobga olinmaydi; teng vaqtda — katta id.
+    # Bitta so'rov (vaqt bo'yicha kamayish) — birinchi uchragani oxirgisi.
+    _oxirgi = {}
+    _lq = db.query(InventoryPurchase).filter(
+        InventoryPurchase.supplier_id == supplier_id,
+        InventoryPurchase.inventory_id.in_(item_ids),
+        InventoryPurchase.is_opening_stock.isnot(True),
+    )
+    # tenant: materiallar yuqorida shu korxonaga cheklangan (`item_ids`); xaridlar ham AYNAN shu korxona materiallariga (tenant_lint)
+    if company_id is not None:
+        _lq = _lq.join(Inventory, Inventory.id == InventoryPurchase.inventory_id).filter(Inventory.company_id == company_id)
+    _lq = _lq.order_by(InventoryPurchase.purchased_at.desc(), InventoryPurchase.id.desc())
+    for _p in _lq.all():
+        if _p.inventory_id in _oxirgi:
+            continue
+        _oxirgi[_p.inventory_id] = {
+            "oxirgi_narx": float(_p.price_per_unit) if _p.price_per_unit is not None else None,
+            "oxirgi_sana": _tashkent_vaqt(_p.purchased_at).strftime("%d.%m.%Y") if _p.purchased_at else None,
+        }
+    return [{"id": i.id, "item_name": i.item_name, "unit": i.unit, "category": i.category,
+             "oxirgi_narx": (_oxirgi.get(i.id) or {}).get("oxirgi_narx"),
+             "oxirgi_sana": (_oxirgi.get(i.id) or {}).get("oxirgi_sana")} for i in items]
 
 
 def get_supplier_history(db: Session, supplier_id: int, start_date=None, end_date=None,

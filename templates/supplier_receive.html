@@ -5,39 +5,60 @@
 
 {% block head %}
 <style>
-.rcv-wrap{--r-bg:#F4F6FA;--r-card:#FFFFFF;--r-border:#E2E7EF;--r-primary:#2563EB;--r-primary-tint:#EEF4FF;--r-success:#15803D;--r-success-tint:#F0FDF4;--r-danger:#DC2626;--r-danger-tint:#FEF2F2;--r-warning:#B45309;--r-text:#1A1F2B;--r-text2:#4A5366;--r-text3:#5B6476;background:var(--r-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto}
+/* kech194 (zip 261 — egasi so'rovi va QARORLARI 06.11 00:38 … 00:57: «Kirim qilish» oynasi egasining varianti + «Ombordan tanlash» +
+   2-variant (alohida «Omborda» ustuni, narx o'zgarishi belgisi «↑ x%»); namuna — work/k261/namuna261.py, rasmlar work/k261/rasm, rasm2).
+   Palitra — avvalgi «B · Toza ko'k» (`--r-*`), tungi rejimda umumiy o'zgaruvchilarga o'tadi. */
+.rcv-wrap{--r-bg:#F4F6FA;--r-card:#FFFFFF;--r-border:#E2E7EF;--r-primary:#2563EB;--r-primary-d:#1D4ED8;--r-primary-tint:#EEF4FF;--r-primary-bd:#BFD3FB;--r-success:#15803D;--r-success-tint:#F0FDF4;--r-danger:#DC2626;--r-danger-tint:#FEF2F2;--r-warning:#B45309;--r-warning-tint:#FFFBEB;--r-warning-bd:#FCD34D;--r-amber:#D97706;--r-text:#1A1F2B;--r-text2:#4A5366;--r-text3:#5B6476;--r-text4:#8A93A6;background:var(--r-bg);padding:16px;height:calc(100vh - 58px);overflow-y:auto;position:relative;scrollbar-gutter:stable}
+/* kech195 (O'LCHANGAN 390 px: qidiruvli tanlagichning yashirin asl `<select>` i (`position:absolute`) aylanuvchi o'ramdan tashqariga
+   — hujjatga joylanib, sahifa (o'ram emas) ~50 px surilardi va pastdagi panel ekran pastidan ko'tarilib qolardi): o'ram — joylashuv asosi */
 /* kech118 (zip 122 — tungi rejim to'liq): sahifa o'zgaruvchilari tungi rejimda umumiy ranglarga (ish maydoni qorayadi, matn o'qiladi) */
-html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-border:var(--border); --r-primary:#93B4F5; --r-primary-tint:var(--gold-tint); --r-success:#4ADE80; --r-success-tint:var(--f-f0fdf4); --r-warning:#FBBF24; --r-warning-tint:var(--f-fffbeb); --r-danger:#F87171; --r-danger-tint:var(--f-fef2f2); --r-text:var(--text); --r-text2:var(--text2); --r-text3:var(--text3);}
+html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-border:var(--border); --r-primary:#93B4F5; --r-primary-d:#BFD3FB; --r-primary-tint:var(--gold-tint); --r-primary-bd:#3B5BA5; --r-success:#4ADE80; --r-success-tint:var(--f-f0fdf4); --r-warning:#FBBF24; --r-warning-tint:var(--f-fffbeb); --r-warning-bd:#92400E; --r-amber:#B45309; --r-danger:#F87171; --r-danger-tint:var(--f-fef2f2); --r-text:var(--text); --r-text2:var(--text2); --r-text3:var(--text3); --r-text4:var(--text3);}
 .rcv-wrap *{box-sizing:border-box}
-.rcv-grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+.rcv-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
 /* kech119 (C BOSQICH — telefon, audit G4-05, O'LCHANGAN work/k125/telefon.py: 390 px da sahifa 492 px kenglikda — «+ Yangi»,
    «💰 To'lov» tugmalari, izohlar o'ng chetda kesilardi; tasdiqlash tugmasi tarix jadvalidan keyin): ustun mazmun bilan
    kengaymaydi; o'ng ustun (xulosa, tasdiqlash) ikki qatorni egallaydi — tarix chap ustunda qoladi */
 .rcv-grid > *{min-width:0}
 .rcv-grid > .rcv-ong{grid-column:2;grid-row:1 / span 2}
 .rcv-grid > .rcv-tarix{grid-column:1;grid-row:2}
+/* kech194 (zip 261): o'ng ustun (Hisob-kitob + ta'minotchi) aylantirilganda ko'rinib turadi */
+.rcv-grid > .rcv-ong{position:sticky;top:0;align-self:start}
 @media(max-width:1150px){
   .rcv-grid{grid-template-columns:1fr}
   .rcv-grid > .rcv-ong, .rcv-grid > .rcv-tarix{grid-column:auto;grid-row:auto}
+  .rcv-grid > .rcv-ong{position:static}
 }
 @media(max-width:600px){
-  .rcv-wrap .rcv-card-body{padding:16px}   /* `.rcv-wrap` bilan — quyidagi asosiy `.rcv-card-body{padding:22px}` dan ustun */
-  .rcv-stat-grid > .rcv-quickpay{grid-column:1 / -1}
+  .rcv-wrap{padding:12px}
+  .rcv-wrap .rcv-dock{margin:4px -12px 0}   /* review261 №10: sahifa chekkasi bilan teng (601 … 700 px da 16 px) */
+  .rcv-wrap .rcv-card-body{padding:14px}   /* `.rcv-wrap` bilan — quyidagi asosiy `.rcv-card-body` dan ustun */
   .rcv-tarix-sarlavha{flex-wrap:wrap;row-gap:8px}
   .rcv-history-filter{flex-wrap:wrap}
-  /* «🆕 Ro'yxatda yo'q — yangi material yozaman» bir qatorda (nowrap) — kengroq shriftda 360 px da ekrandan chiqardi
-     (O'LCHANGAN, test_c_telefon): telefonda ikki qatorga o'tadi */
+  /* «Yangi material» bir qatorda (nowrap) — kengroq shriftda 360 px da ekrandan chiqardi (O'LCHANGAN, test_c_telefon): telefonda ikki
+     qatorga o'tadi */
   .rcv-wrap .rcv-newitem-link{white-space:normal;height:auto;min-height:var(--h-btn);padding:8px 14px;line-height:20px;max-width:100%}
 }
-.rcv-card{background:var(--r-card);border:1px solid var(--r-border);border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);margin-bottom:18px}
-.rcv-card-body{padding:22px}
-.rcv-card-title{font-size:16px;font-weight:700;color:var(--r-text);margin-bottom:18px}
-.rcv-field label{display:block;font-size:12px;font-weight:600;color:var(--r-text2);margin-bottom:6px}
+.rcv-card{background:var(--r-card);border:1px solid var(--r-border);border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.05);margin-bottom:14px}
+.rcv-card-body{padding:16px}
+.rcv-card-title{font-size:16px;font-weight:700;color:var(--r-text);margin-bottom:14px}
+.rcv-sec{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;row-gap:6px}
+.rcv-sec > .ti{font-size:24px;color:var(--r-primary)}
+.rcv-sec > b{font-size:16px;color:var(--r-text)}
+.rcv-sec .rcv-sec-izoh{font-size:13px;color:var(--r-text3)}
+.rcv-sec .rcv-sec-ong{margin-left:auto;font-size:13px;color:var(--r-text3)}
+.rcv-sec .rcv-sec-ong b{color:var(--r-text);font-size:16px}
+.rcv-badge{white-space:nowrap;background:var(--r-primary-tint);color:var(--r-primary-d);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700}
+.rcv-field label{display:block;font-size:13px;font-weight:700;color:var(--r-text2);margin-bottom:6px}
+.rcv-field label .rcv-req{color:var(--r-danger)}
 .rcv-field input,.rcv-field select{width:100%;min-height:var(--h-btn);padding:0 12px;line-height:20px;border:1px solid var(--r-border);border-radius:var(--r-btn);font-size:var(--fs-maydon);color:var(--r-text);outline:none;background:var(--white);transition:border-color .15s}
 .rcv-field input:focus,.rcv-field select:focus{border-color:var(--r-primary)}
 /* U-13 (kech123): maydon qoidasi (`min-height`) belgilash katagiga tushmaydi — «asosiy plotnost» katagi 40 px bo'lardi */
 .rcv-field input[type=checkbox],.rcv-field input[type=radio]{width:auto;min-height:0;padding:0}
 .rcv-field textarea{width:100%;padding:10px 12px;border:1px solid var(--r-border);border-radius:var(--r-btn);font-size:var(--fs-maydon);line-height:20px;outline:none;resize:vertical;min-height:80px}
+.rcv-field input:disabled,.rcv-field input[readonly]{background:var(--r-bg);color:var(--r-text2)}
+.rcv-ikonli{position:relative}
+.rcv-ikonli > .ti{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--r-text3);font-size:18px;pointer-events:none}
+.rcv-ikonli > input{padding-left:38px}
 .rcv-row{display:grid;gap:14px;margin-bottom:14px}
 /* kech147 (zip 187, O'LCHANGAN 375 × 548: uzun nomli ta'minotchi tanlanganda tanlagich matni (nowrap) ustunni 639 px ga kengaytirardi —
    sahifa yon tomonga surilib, «+ Yangi», «Hujjat raqami», «Sana» ekrandan tashqarida): katak mazmun bilan kengaymaydi */
@@ -46,15 +67,16 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 .rcv-row-2{grid-template-columns:1fr 1fr}
 .rcv-row-4{grid-template-columns:repeat(4,1fr)}
 @media(max-width:700px){.rcv-row-3,.rcv-row-2{grid-template-columns:1fr}}
-/* kech120 (zip 130 — G4-20, O'LCHANGAN — audit kech114: ta'minotchi maydoni ~145 px, uzun nomlar kesilardi): ta'minotchi —
-   butun qator (qidiruvli tanlagich ochilganda hujjat raqami / sana maydonlarini siqmaydi), ular — keyingi qatorda */
-@media(min-width:701px){.rcv-row-3.rcv-row-ta{grid-template-columns:1fr 1fr}.rcv-row-ta > .rcv-supplier-row{grid-column:1 / -1 !important}}
-/* material nomi ham uzun («Penoplast 15 (asosiy blok) (blok)» kesilardi) — material maydoni 2 ustun */
-@media(min-width:701px){.rcv-row-mat > :first-child{grid-column:span 2}}
+/* kech194 (zip 261 — egasining varianti): ta'minotchi, hujjat raqami va sana — bitta qatorda (1,35 : 1 : 0,8); tor ekranda ta'minotchi
+   butun qator, hujjat raqami va sana — keyingi qatorda yonma-yon (ilgari kech120 / zip 130 — G4-20: ta'minotchi doim butun qator) */
+@media(min-width:701px){.rcv-row-3.rcv-row-ta{grid-template-columns:1.35fr 1fr .8fr}}
+@media(min-width:701px) and (max-width:1300px){.rcv-row-3.rcv-row-ta{grid-template-columns:1fr 1fr}.rcv-row-ta > .rcv-supplier-row{grid-column:1 / -1 !important}}
+@media(max-width:700px){.rcv-row-3.rcv-row-ta{grid-template-columns:1fr 1fr}.rcv-row-ta > .rcv-supplier-row{grid-column:1 / -1 !important}}
+@media(max-width:360px){.rcv-row-3.rcv-row-ta{grid-template-columns:1fr}}
 @media(max-width:600px){.rcv-row-4{grid-template-columns:1fr 1fr}}
-@media(max-width:420px){.rcv-row-4{grid-template-columns:1fr}}
+@media(max-width:340px){.rcv-row-4{grid-template-columns:1fr}}
 .rcv-table-wrap{overflow-x:auto}
-.rcv-supplier-row{display:flex;gap:10px;align-items:flex-end}
+.rcv-supplier-row{display:flex;gap:8px;align-items:flex-end}
 .rcv-supplier-row .rcv-field{flex:1;min-width:0}
 .rcv-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:var(--h-btn);padding:0 16px;border-radius:var(--r-btn);border:none;cursor:pointer;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap;transition:transform .1s,box-shadow .15s}
 .rcv-btn-primary{background:var(--gold-btn);color:#fff}
@@ -62,29 +84,249 @@ html[data-theme="dark"] .rcv-wrap{--r-bg:var(--bg); --r-card:var(--white); --r-b
 .rcv-btn-dark{background:#222222;color:#fff}
 html[data-theme="dark"] .rcv-btn-dark{background:var(--f-f1f5f9);color:var(--m-16181f)}
 .rcv-btn:active{transform:scale(.97)}
-.rcv-stat-grid{display:grid;grid-template-columns:repeat(3,1fr) 1.3fr;gap:12px;margin-top:16px}
-@media(max-width:900px){.rcv-stat-grid{grid-template-columns:1fr 1fr}}
-.rcv-stat-box{background:var(--r-bg);border-radius:11px;padding:14px 16px}
-.rcv-stat-label{font-size:12px;color:var(--r-text3);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.rcv-stat-value{font-size:18px;font-weight:800;color:var(--r-text);margin-top:4px}
+/* «+» (yangi ta'minotchi) — kvadrat ikon tugma (egasining varianti) */
+.rcv-btn-ikon{width:var(--h-btn);min-width:var(--h-btn);height:var(--h-btn);padding:0;background:var(--white);color:var(--r-primary);border:1px solid var(--r-border);font-size:16px}
+.rcv-btn-ikon:hover{border-color:var(--r-primary);background:var(--r-primary-tint)}
+
+/* ── Sarlavha kartasi: «Kirim (xarid)» | «Boshlang'ich qoldiq» ── */
+.rcv-bosh{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.rcv-bosh-ikon{width:46px;height:46px;border-radius:12px;background:var(--gold-btn);color:#fff;display:grid;place-items:center;font-size:24px;flex-shrink:0}
+.rcv-bosh-matn{flex:1;min-width:180px}
+.rcv-bosh-matn h1{margin:0;font-size:18px;color:var(--r-text);line-height:26px}
+.rcv-bosh-matn p{margin:2px 0 0;color:var(--r-text3);font-size:13px}
+.rcv-seg{display:flex;background:var(--r-bg);border:1px solid var(--r-border);border-radius:calc(var(--r-btn) + 4px);padding:4px;gap:4px}
+.rcv-seg button{border:0;background:transparent;cursor:pointer;min-height:var(--h-md);padding:0 16px;border-radius:var(--r-btn);font-weight:700;font-size:14px;color:var(--r-text2);display:flex;gap:7px;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit}
+.rcv-seg button.on{background:var(--gold-btn);color:#fff;box-shadow:0 1px 3px rgba(37,99,235,.35)}
+.rcv-boshl .rcv-seg button.on{background:var(--r-amber);box-shadow:none}
+@media(max-width:600px){.rcv-seg{width:100%}.rcv-seg button{flex:1;padding:0 6px;min-width:0}}
+/* kech196 (JONLI sinov, sinov sayti 375 px — iPhone SE / mini: «Boshlang'ich qoldiq» 161 px matn 151 px tugmadan 5 px ikki tomonga chiqardi;
+   sig'ishi uchun ~ 408 px kerak): ≤ 420 px da yozuv ikki qatorga o'tadi (ilgari ≤ 360 px) */
+@media(max-width:420px){.rcv-seg button{white-space:normal;font-size:13px;line-height:16px;text-align:center}}
+
+/* ── Yo'nalish chiplari ── */
+.rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:8px}
+.rcv-cat-opt{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:var(--h-md);padding:0 14px;line-height:18px;
+  border:1px solid var(--r-border);border-radius:var(--r-btn);
+  font-size:13px;font-weight:700;color:var(--r-text2);background:var(--white);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.rcv-cat-opt:hover{border-color:var(--r-primary);color:var(--r-primary)}
+/* 2026-09-13: tanlangani aniq ko'rinadi; kech194 (zip 261): egasining varianti — och ko'k fon, ko'k chegara, ✓ belgisi */
+.rcv-cat-opt.active{background:var(--r-primary-tint);border-color:var(--r-primary);color:var(--r-primary-d);font-weight:800}
+.rcv-cat-opt.active::before{content:"✓";font-weight:800}
+.rcv-cat-toggle.rcv-cat-error .rcv-cat-opt{border-color:#DC2626}
+
+/* ── Materiallar jadvali (kompyuter) / kartalar (tor joyda — konteyner kengligi bo'yicha) ── */
+.rcv-mat-karta{container:rcvmat / inline-size}
+.rcv-mat{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0 8px;margin-top:-6px}
+.rcv-mat thead th{font-size:12px;color:var(--r-text3);text-align:left;font-weight:700;padding:0 5px;white-space:nowrap}
+.rcv-mat thead th .rcv-req{color:var(--r-danger)}
+.rcv-mat thead th.r,.rcv-mat td.c-omb,.rcv-mat td.c-sum{text-align:right}
+.rcv-mat td{padding:0 5px;vertical-align:top}
+/* kech195 (egasi so'rovi 06.11 03:25: «xomashyo nomi bir qatorda yozilsin, ikki-uch qator bo'lib qolmasin»): material ustuniga ko'proq joy —
+   narx belgisi endi maydon chegarasida (narx ustuni torroq), summa 13 px; nom — bitta qator (sig'masa «…», to'liq nomi — sichqoncha ostida) */
+/* kech196 (egasi so'rovi 06.11 03:57: «summa to'liq sig'mayapti — shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar
+   qolmasin»; O'LCHANGAN work/k262/olchov262.py — 19 kenglik × katta qiymatlar): kiritish qatorida «43 960 000 so'm» (140 / 128 px),
+   miqdor «12 345,5» / «12500» (78 / 64 px) qirqilardi, «1 234 567,25 kg» qoldig'i material katagiga toshardi, № katagi (34 px) ustundan
+   (28 px) 6 px chiqardi → «Omborda» 80, «Miqdor» 84 px, maydon ichki chegarasi 8 px, kiritish summasi — savat qatoridagi summa
+   o'lchamida (13 px), raqamlar sig'masa — `rcvSigdir` (shrift kichrayadi, raqam o'rtasidan bo'linmaydi) */
+.rcv-mat col.k-nr{width:38px}.rcv-mat col.k-omb{width:80px}.rcv-mat col.k-qty{width:84px}.rcv-mat col.k-unit{width:52px}
+.rcv-mat col.k-narx{width:120px}.rcv-mat col.k-sum{width:140px}.rcv-mat col.k-del{width:46px}
+.rcv-mat td.c-nr{padding-right:0}
+.rcv-mat .rcv-nr{width:32px}
+.rcv-nr{width:34px;height:var(--h-btn);border-radius:9px;background:var(--r-bg);display:grid;place-items:center;font-weight:700;color:var(--r-text2);font-size:13px}
+.rcv-nr-yangi{color:var(--r-primary);background:var(--r-primary-tint)}
+.rcv-matnom{min-height:var(--h-btn);height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 12px;font-weight:600;color:var(--r-text);background:var(--r-bg);line-height:calc(var(--h-btn) - 2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rcv-mat input.rcv-q{width:100%;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 8px;font-size:var(--fs-maydon);font-weight:600;color:var(--r-text);background:var(--white);text-align:right;outline:none;font-family:inherit}
+.rcv-mat input.rcv-q:focus{border-color:var(--r-primary)}
+.rcv-mat input.rcv-q:disabled{background:var(--r-bg);color:var(--r-primary);font-weight:800}
+.rcv-mat tr.rcv-kiritish td.c-sum input.rcv-q{font-size:13px;padding:0 6px}
+.rcv-mat tr.chala input.rcv-q.bosh{border-color:var(--r-danger);background:var(--r-danger-tint)}
+.rcv-unit{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-bg);display:grid;place-items:center;font-weight:700;color:var(--r-text2);border:1px dashed var(--r-border);font-size:13px;padding:0 4px;overflow-wrap:anywhere;text-align:center}
+/* review261 №1: belgi maydon ICHIDA bo'lsa tor katakda raqam qirqilardi («1 375 000» → «1 375 0», telefonda «1 375») — endi belgi maydonning
+   yuqori chegarasida (yorliq kabi), maydon to'liq enini saqlaydi; kartada (tor joy) — maydon ostida */
+.rcv-narxbox{position:relative}
+.rcv-narxbox .rcv-trend-joy,.rcv-narxbox #ap-trend{position:absolute;left:6px;top:-9px;z-index:1;display:flex}
+.rcv-narxbox .rcv-trend-joy:empty,#ap-trend:empty{display:none}
+.rcv-trend{display:inline-flex;align-items:center;gap:1px;border:0;cursor:pointer;font-size:12px;font-weight:800;color:var(--m-92400e);background:var(--f-fef3c7);border-radius:6px;padding:0 5px;box-shadow:0 0 0 2px var(--r-card);font-family:inherit;line-height:14px;white-space:nowrap}
+.rcv-trend.dn{color:var(--r-success);background:var(--r-success-tint)}
+html[data-theme="dark"] .rcv-trend{color:#FBBF24;background:rgba(251,191,36,.14)}
+html[data-theme="dark"] .rcv-trend.dn{color:#4ADE80;background:rgba(74,222,128,.12)}
+.rcv-sum{min-height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-primary-tint);display:flex;align-items:center;justify-content:flex-end;justify-content:safe flex-end;text-align:right;padding:2px 6px;font-weight:800;color:var(--r-text);font-size:13px;line-height:16px}
+.rcv-mat tr.chala .rcv-sum{color:var(--r-text3);font-weight:600;background:var(--r-bg)}
+.rcv-omb{min-height:var(--h-btn);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;font-weight:700;color:var(--r-text2);font-size:13px;line-height:16px;white-space:nowrap}
+.rcv-omb.kam{color:var(--r-danger)}
+.rcv-omb > span{max-width:100%;white-space:normal;text-align:right;overflow-wrap:normal}
+.rcv-wrap .rcv-sig-sinmaydi{overflow-wrap:anywhere;white-space:normal}
+.rcv-omb small{font-size:12px;font-weight:700;display:flex;align-items:center;gap:2px}
+.rcv-del{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);background:var(--r-danger-tint);color:var(--r-danger);border:0;display:grid;place-items:center;font-size:18px;cursor:pointer}
+.rcv-del:hover{background:var(--r-danger);color:#fff}
+.rcv-mat .rcv-del.rcv-icon-btn{width:var(--h-btn);height:var(--h-btn);margin:0;background:var(--r-danger-tint);color:var(--r-danger);border:0;font-size:16px}
+.rcv-mat .rcv-del.rcv-icon-btn:hover{background:var(--r-danger);color:#fff}
+.rcv-qosh{width:var(--h-btn);height:var(--h-btn);border-radius:var(--r-btn);background:var(--gold-btn);color:#fff;border:0;display:grid;place-items:center;font-size:16px;cursor:pointer}
+.rcv-vol{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;color:var(--r-warning);font-weight:700;flex-wrap:nowrap;white-space:nowrap}
+.rcv-vol input{width:64px;min-width:0;min-height:30px;height:30px;border:1px solid var(--r-warning-bd);background:var(--r-warning-tint);border-radius:8px;padding:0 8px;text-align:right;font-weight:700;color:var(--r-text);outline:none;font-family:inherit;font-size:13px}
+.rcv-mat tr.rcv-kiritish td{padding-top:6px;border-top:1px dashed var(--r-border)}
+.rcv-mat tr.rcv-bosh-qator td{text-align:center;color:var(--r-text3);padding:14px 6px;font-size:13px}
+.rcv-mat .qt{width:100%}
+/* (ko'rinishi — JS `style.display` da: 'flex' / 'none'; test_css_tartib T3 — `#id` qoidasi `style` bilan bekor bo'lmasin) */
+#ap-newitem-yorliq{min-height:var(--h-btn);border:1.5px dashed var(--r-primary);border-radius:var(--r-btn);align-items:center;padding:6px 12px;font-weight:700;color:var(--r-primary-d);background:var(--r-primary-tint);font-size:13px}
+.rcv-yorliq-ichki{display:none}
+/* tor joy (kartalar): har qator — karta; birlik ustuni — miqdor yorlig'ida («Miqdor (kg)») */
+/* kech195 (JONLI sinov, sinov sayti 743 px oynada O'LCHANGAN: 700 … 760 px kartada jadval qolib, material ustuni ~60 px — nom harflab
+   bo'linardi): jadval — kamida ~200 px material ustuni sig'adigan kenglikda, undan torda KARTA */
+@container rcvmat (max-width:760px){
+  .rcv-mat, .rcv-mat > tbody{display:block;width:100%}
+  .rcv-mat > thead, .rcv-mat > colgroup{display:none}
+  .rcv-mat > tbody > tr{display:grid;grid-template-columns:34px minmax(0,1fr) minmax(0,1fr) 42px;
+    grid-template-areas:"nr mat mat del" "omb omb omb omb" "qty qty narx narx" "sum sum sum sum";gap:8px;
+    border:1px solid var(--r-border);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--r-card)}
+  .rcv-mat > tbody > tr.rcv-bosh-qator{display:block}
+  .rcv-mat > tbody > tr.rcv-kiritish{border-style:dashed;border-color:var(--r-primary-bd)}
+  .rcv-mat > tbody > tr > td{padding:0;border:0;display:block;min-width:0}
+  .rcv-mat > tbody > tr.rcv-kiritish > td{border-top:0;padding-top:0}
+  .rcv-mat td.c-nr{grid-area:nr}.rcv-mat td.c-mat{grid-area:mat}.rcv-mat td.c-del{grid-area:del}
+  .rcv-mat td.c-omb{grid-area:omb;text-align:left}.rcv-mat td.c-qty{grid-area:qty}.rcv-mat td.c-narx{grid-area:narx}
+  .rcv-mat td.c-sum{grid-area:sum}.rcv-mat td.c-unit{display:none}
+  .rcv-narxbox{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:4px}
+  .rcv-narxbox .rcv-trend-joy,.rcv-narxbox #ap-trend{position:static}
+  .rcv-mat .rcv-nr{width:30px}
+  .rcv-yorliq-ichki{display:block;font-size:12px;font-weight:700;color:var(--r-text2);margin-bottom:5px;text-align:left}
+  .rcv-mat td.c-omb .rcv-omb{min-height:0;flex-direction:row;justify-content:flex-start;gap:6px;font-size:13px}
+  .rcv-mat td.c-omb .rcv-omb::before{content:"Omborda:";color:var(--r-text3);font-weight:600}
+  .rcv-mat td.c-sum{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--r-border);padding-top:10px}
+  .rcv-mat td.c-sum .rcv-yorliq-ichki{margin:0;font-weight:600;color:var(--r-text3);font-size:13px}
+  .rcv-mat td.c-sum .rcv-sum, .rcv-mat td.c-sum input.rcv-q{background:transparent;padding:0;min-height:0;border:0;font-size:16px;width:auto}
+  .rcv-mat td.c-sum input.rcv-q{min-height:var(--h-btn);height:var(--h-btn)}
+  .rcv-mat tr.rcv-kiritish td.c-sum input.rcv-q{font-size:16px;padding:0}
+  .rcv-mat td.c-sum input.rcv-q{width:auto;min-width:0;flex:1 1 0}
+  .rcv-mat td.c-sum .rcv-yorliq-ichki{flex-shrink:0;white-space:nowrap}
+  .rcv-mat td.c-sum .rcv-sum{min-width:0;flex:0 1 auto}
+  .rcv-omb > span{text-align:left}
+  .rcv-addbar{flex-direction:column}
+  .rcv-addbar .rcv-ab{flex:none;width:100%}
+  .rcv-addbar .rcv-ab-qator{display:flex;gap:8px;width:100%;flex-wrap:wrap;align-items:flex-start}
+  .rcv-addbar .rcv-ab-qator .rcv-ab{flex:1 1 auto}
+}
+.rcv-addbar{border:1.5px dashed var(--r-primary-bd);border-radius:12px;padding:10px;display:flex;gap:10px;margin-top:6px;background:var(--r-primary-tint)}
+html[data-theme="dark"] .rcv-addbar{background:transparent}
+.rcv-ab-qator{display:contents}
+.rcv-ab{flex:1;min-height:var(--h-btn);border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14px;cursor:pointer;border:1px solid var(--r-primary-bd);background:var(--white);color:var(--r-primary-d);font-family:inherit;padding:0 12px;white-space:nowrap}
+.rcv-ab.pr{background:var(--gold-btn);color:#fff;border-color:var(--gold-btn);flex:1.4}
+.rcv-ab.pr small{font-weight:600;opacity:.9;font-size:12px}
+.rcv-ab.gh{background:transparent;color:var(--r-text2);border-color:var(--r-border)}
+.rcv-ab .ti{font-size:18px}
+@media(max-width:420px){.rcv-ab.pr small{display:none}}
+
+.rcv-newitem-link{display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:var(--h-btn);padding:0 14px;border:1px solid var(--r-border);border-radius:var(--r-btn);color:var(--r-text2);font-size:14px;font-weight:800;cursor:pointer;background:transparent;white-space:nowrap}
+.rcv-newitem-box{display:none;background:var(--r-primary-tint);border:1px solid var(--ch-dbeafe);border-radius:11px;padding:16px;margin:4px 0 10px}
+
+/* ── Qo'shimcha xarajatlar, to'lov ── */
+.rcv-field label .ti{color:var(--r-text3)}
+.rcv-chk{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid var(--ch-dbeafe);border-radius:10px;font-size:13px;color:var(--r-primary-d);cursor:pointer;line-height:1.45}
+.rcv-chk input{width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-top:1px}
+.rcv-tolov-turi{display:flex;gap:8px;margin-bottom:14px}
+.rcv-ro{flex:1;min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);display:flex;align-items:center;gap:8px;padding:0 12px;font-weight:700;font-size:14px;color:var(--r-text2);background:var(--white);cursor:pointer;font-family:inherit;white-space:nowrap}
+.rcv-ro .dot{width:18px;height:18px;border-radius:50%;border:2px solid #9AA4B8;flex-shrink:0}
+.rcv-ro.on{border-color:var(--r-primary);background:var(--r-primary-tint);color:var(--r-primary-d)}
+.rcv-ro.on .dot{border:5px solid var(--r-primary)}
+@media(max-width:700px){.rcv-tolov-turi{flex-direction:column}.rcv-ro{flex:none}}
+.rcv-row-tolov{grid-template-columns:1fr 1.15fr .9fr}
+/* kech196 (O'LCHANGAN 1024 … 1366 px: «Qaysi hisobdan» ustuni 230 … 255 px — «Naqd pul», «Bank», «Karta» «N…», «B…», «K…» bo'lib qolardi;
+   uchala bo'lak ~ 275 px so'raydi): kartaning o'z kengligi bo'yicha — keng: uch ustun; o'rtacha: summa | muddat, ostida hisob butun
+   qator; tor: bitta ustun. Yorliq ikki qator bo'lsa ham maydonlar bir chiziqda (yorliq o'sadi) */
+@media(max-width:700px){.rcv-row-tolov{grid-template-columns:1fr}}   /* review262 №6: konteyner so'rovini bilmaydigan brauzer uchun zaxira */
+#rcv-tolov-karta > .rcv-card-body{container:rcvtolov / inline-size}
+.rcv-row-tolov > .rcv-field{display:flex;flex-direction:column}
+.rcv-row-tolov > .rcv-field > label{flex:1 0 auto}
+@container rcvtolov (max-width:759px){
+  .rcv-row-tolov{grid-template-columns:1fr 1fr}
+  .rcv-row-tolov > .rcv-field:nth-child(2){grid-column:1 / -1;grid-row:2}
+  .rcv-row-tolov:has(> #ap-due-wrap[style*="none"]) > .rcv-field:first-child{grid-column:1 / -1}
+}
+@container rcvtolov (max-width:439px){
+  .rcv-row-tolov{grid-template-columns:1fr}
+  .rcv-row-tolov > .rcv-field:nth-child(2){grid-row:auto}
+}
+.rcv-izoh{font-size:12px;color:var(--r-text3);line-height:1.5}
+
+/* ── Yig'iladigan bo'limlar ── */
+.rcv-yigma > summary{list-style:none;display:flex;align-items:center;gap:12px;padding:16px 18px;cursor:pointer;min-height:56px}
+.rcv-yigma > summary::-webkit-details-marker{display:none}
+.rcv-yigma > summary > .ti:first-child{font-size:24px;color:var(--r-primary)}
+.rcv-yigma > summary b{font-size:16px;color:var(--r-text)}
+.rcv-yigma > summary .rcv-yigma-izoh{margin-left:auto;font-size:13px;color:var(--r-text3)}
+.rcv-yigma > summary .rcv-yigma-ochar{color:var(--r-text3);transition:transform .15s}
+.rcv-yigma[open] > summary .rcv-yigma-ochar{transform:rotate(180deg)}
+.rcv-yigma > .rcv-card-body{border-top:1px solid var(--r-border)}
+@media(max-width:600px){.rcv-yigma > summary .rcv-yigma-izoh{display:none}.rcv-yigma > summary .rcv-yigma-ochar{margin-left:auto}}
+
+/* ── Hisob-kitob (o'ng ustun) ── */
+.rcv-kv{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;font-size:14px;color:var(--r-text2)}
+.rcv-kv > span{flex-shrink:0;white-space:nowrap}
+.rcv-kv b{color:var(--r-text);font-weight:700;text-align:right;min-width:0}
+.rcv-kv.tot{background:var(--r-primary-tint);margin:6px -10px;padding:12px 10px;border-radius:10px;font-size:16px}
+.rcv-kv.tot span{color:var(--r-text);font-weight:800}
+.rcv-kv.tot b{color:var(--r-primary-d);font-weight:800;font-size:16px}
+.rcv-kv.debt span{color:var(--r-text);font-weight:700}
+.rcv-kv.debt b{color:var(--r-danger);font-weight:800;font-size:16px}
+.rcv-kv.paid b{color:var(--r-success)}
+.rcv-hr{border:0;border-top:1px solid var(--r-border);margin:8px 0}
+.rcv-note{background:var(--r-primary-tint);border-radius:10px;padding:11px 12px;font-size:13px;color:var(--r-primary-d);display:flex;gap:8px;line-height:1.45;margin-top:10px}
+.rcv-note[style*="block"] > .ti{margin-right:6px}
+.rcv-note.amb{background:var(--r-warning-tint);color:var(--m-92400e);border:1px solid var(--ch-fde68a)}
+.rcv-go{width:100%;min-height:var(--h-btn);border-radius:var(--r-btn);font-size:16px;font-weight:800;margin-top:14px}
+.rcv-boshl .rcv-go,.rcv-boshl .rcv-dock .rcv-btn-primary{background:var(--r-amber)}
+.rcv-saqlandi{text-align:center;color:var(--r-success);font-size:13px;font-weight:600;margin-top:10px;display:flex;gap:6px;justify-content:center;align-items:center;min-height:18px}
+.rcv-sup-nom{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.rcv-sup-nom > .ti{font-size:18px;color:var(--r-primary)}
+.rcv-sup-nom b{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--r-text)}
+.rcv-sup-nom small{font-size:12px;color:var(--r-text3);white-space:nowrap}
+.rcv-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 /* kech147 (zip 187, O'LCHANGAN 360 × 560: tanlangan ta'minotchining katta summalari («1 244 443 800 so'm» — raqam guruhlari bo'linmas
    bo'shliq bilan) ikki ustunli to'rni 337 px ga kengaytirib, kirim sahifasi 370 px — «💰 To'lov» qirqilardi): katak mazmun bilan
    kengaymaydi; ≤ 420 px da «Jami xarid / To'langan / Qarz» — bitta ustunda, yorliq chapda, summa o'ngda */
 .rcv-stat-grid > *{min-width:0}
-.rcv-stat-value{overflow-wrap:anywhere}
+.rcv-stat-box{background:var(--r-bg);border-radius:10px;padding:9px 10px}
+.rcv-stat-label{font-size:12px;color:var(--r-text3);font-weight:700}
+.rcv-stat-value{font-size:13px;font-weight:800;color:var(--r-text);margin-top:2px;line-height:17px}
 @media(max-width:420px){
   .rcv-stat-grid{grid-template-columns:1fr}
   .rcv-stat-box{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 14px}
   .rcv-stat-value{margin-top:0;text-align:right}
 }
-.rcv-quickpay{background:var(--r-bg);border-radius:11px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
-.rcv-quickpay input{min-width:0;min-height:var(--h-sm);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 10px;font-size:var(--fs-maydon-sm);outline:none}
-.rcv-quickpay button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--h-sm);border-radius:var(--r-btn);border:none;background:#222222;color:#fff;font-size:13px;line-height:18px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;padding:0 12px}
-html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:var(--m-16181f)}
+.rcv-quickpay{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.rcv-pay2{min-height:var(--h-btn);border:1px solid var(--r-border);border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center;gap:7px;font-weight:700;color:var(--r-text2);font-size:14px;background:var(--white);cursor:pointer;font-family:inherit}
+.rcv-pay2:hover{border-color:var(--r-primary);color:var(--r-primary)}
+.rcv-quickpay-joy{display:flex;gap:6px}
+.rcv-quickpay-joy[hidden]{display:none}
+.rcv-quickpay input{flex:1;min-width:0;min-height:var(--h-sm);border:1px solid var(--r-border);border-radius:var(--r-btn);padding:0 10px;font-size:var(--fs-maydon-sm);outline:none;background:var(--white);color:var(--r-text)}
+.rcv-quickpay-joy button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--h-sm);border-radius:var(--r-btn);border:none;background:#222222;color:#fff;font-size:13px;line-height:18px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;padding:0 12px}
+html[data-theme="dark"] .rcv-quickpay-joy button{background:var(--f-f1f5f9);color:var(--m-16181f)}
 
-.rcv-newitem-link{display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:var(--h-btn);padding:0 14px;border:1.5px dashed var(--r-primary);border-radius:var(--r-btn);color:var(--r-primary);font-size:13px;font-weight:600;cursor:pointer;background:var(--r-primary-tint);white-space:nowrap}
-.rcv-newitem-box{display:none;background:var(--r-primary-tint);border:1px solid var(--ch-dbeafe);border-radius:11px;padding:16px;margin-bottom:14px}
+/* ── Rejim: boshlang'ich qoldiq — to'lov / xarajat yashiriladi, xulosa boshqa ── */
+.rcv-wrap .faqat-boshl{display:none}
+.rcv-wrap.rcv-boshl .faqat-kirim{display:none}
+.rcv-wrap.rcv-boshl .faqat-boshl{display:flex}
+.rcv-wrap.rcv-boshl div.rcv-note.faqat-boshl{display:flex}
 
+/* ── Tarix jadvali (avvalgidek) ── */
+/* kech196 (O'LCHANGAN 1180 px: tarix kartasi 518 px — 6 ustun siqilib, «999 999 / so'm» ikki qatorga, material nomlari 3 qatorga
+   bo'linardi): pul kataklari bir qatorda; karta tor bo'lsa (< 640 px) — har kirim alohida karta (telefondagi `telefon-karta` ko'rinishi) */
+#rcv-tarix-yigma > .rcv-card-body{container:rcvtarix / inline-size}
+.rcv-table td.rcv-pul{white-space:nowrap}
+@container rcvtarix (max-width:639px){
+  .rcv-table.telefon-karta, .rcv-table.telefon-karta > tbody, .rcv-table.telefon-karta > tbody > tr, .rcv-table.telefon-karta > tbody > tr > td{display:block;width:100%}
+  .rcv-table.telefon-karta{min-width:0 !important}
+  .rcv-table.telefon-karta > thead{display:none}
+  .rcv-table.telefon-karta > tbody > tr{border:1px solid var(--r-border);border-radius:12px;padding:8px 12px;margin-bottom:10px;background:var(--r-card)}
+  .rcv-table.telefon-karta > tbody > tr > td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 0 !important;border:none !important;text-align:right !important;min-width:0;overflow-wrap:anywhere}
+  .rcv-table.telefon-karta > tbody > tr > td::before{content:attr(data-label);color:var(--r-text3);font-size:12px;font-weight:600;text-align:left;flex-shrink:0;max-width:45%;margin-right:auto}
+  .rcv-table.telefon-karta > tbody > tr > td[colspan]{justify-content:center;text-align:center !important}
+  .rcv-table.telefon-karta > tbody > tr > td[colspan]::before{content:none}
+  .rcv-table td.rcv-pul{white-space:normal}
+}
 .rcv-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
 .rcv-table thead th{text-align:left;padding:10px 12px;color:var(--r-text3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--r-border)}
 .rcv-table tbody td{padding:12px;border-bottom:1px solid var(--r-border);color:var(--r-text2)}
@@ -92,36 +334,73 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
 .rcv-table tbody tr:last-child td{border-bottom:none}
 .rcv-icon-btn{width:var(--h-sm);height:var(--h-sm);border-radius:var(--r-btn);border:1px solid var(--r-border);background:var(--white);color:var(--r-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;transition:.12s}
 .rcv-icon-btn:hover{background:var(--r-danger-tint);border-color:var(--r-danger);color:var(--r-danger)}
-.rcv-totals-bar{display:flex;justify-content:flex-end;gap:24px;padding:14px 4px 4px;font-size:13px;color:var(--r-text2)}
-
-.rcv-summary-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--ch-f3f4f6);font-size:13px}
-.rcv-summary-row:last-child{border-bottom:none}
-.rcv-summary-row.total{background:var(--r-primary-tint);margin:8px -22px -22px;padding:16px 22px;border-radius:0 0 16px 16px;border-bottom:none}
-.rcv-summary-row.total .rcv-sum-label{font-weight:700;color:var(--r-text)}
-.rcv-summary-row.total .rcv-sum-val{font-weight:800;font-size:16px;color:var(--r-primary)}
-.rcv-summary-row.debt .rcv-sum-val{color:var(--r-danger);font-weight:800;font-size:16px}
-.rcv-sum-label{color:var(--r-text3)}
-.rcv-sum-val{font-weight:600;color:var(--r-text)}
-
-.rcv-upload{border:2px dashed var(--r-border);border-radius:11px;padding:24px;text-align:center;color:var(--r-text3);cursor:pointer;transition:.15s}
-.rcv-upload:hover{border-color:var(--r-primary);background:var(--r-primary-tint)}
-.rcv-upload .ti{font-size:24px;display:block;margin-bottom:8px;color:var(--r-primary)}
-
 .rcv-history-filter{display:flex;gap:8px;align-items:center}
 
-/* Yo'nalish — tugma-chip guruhi (dropdown o'rniga) */
-.rcv-cat-toggle{display:flex;flex-wrap:wrap;gap:6px}
-.rcv-cat-opt{
-  display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:var(--h-md);padding:0 12px;line-height:18px;
-  border:1.5px solid var(--ch-e5e7eb);border-radius:var(--r-btn);
-  font-size:13px;font-weight:600;color:var(--text3);background:var(--white);
-  cursor:pointer;transition:all .15s;white-space:nowrap;
+/* ── Telefon: pastda yopishgan panel «Umumiy · Qarz · Kirimni tasdiqlash» ── */
+.rcv-dock{display:none}
+@media(max-width:700px){
+  .rcv-wrap{padding-bottom:0}
+  .rcv-dock{display:block;position:sticky;bottom:0;z-index:5;margin:4px -16px 0;background:var(--r-card);border-top:1px solid var(--r-border);padding:10px 14px 14px;box-shadow:0 -6px 20px rgba(0,0,0,.08)}
+  .rcv-dock-qator{display:flex;justify-content:space-between;flex-wrap:wrap;column-gap:10px;row-gap:2px;font-size:13px;color:var(--r-text2);margin-bottom:8px}
+  .rcv-dock-qator > span{min-width:0}
+  .rcv-dock-qator b{color:var(--r-text)}
+  .rcv-dock-qator .qarz{color:var(--r-danger)}
+  .rcv-dock .rcv-btn{width:100%;min-height:var(--h-btn);font-size:16px;font-weight:800}
+  #rcv-hisob-karta .rcv-go{display:none}
 }
-.rcv-cat-opt:hover{border-color:var(--r-primary);color:var(--r-primary)}
-/* 2026-09-13: avval tanlangan/tanlanmagan farqi juda kuchsiz edi (faqat
-   och rang tint) — endi tanlangani to'liq bo'yalgan, aniq ko'rinadi. */
-.rcv-cat-opt.active{background:var(--gold-btn);border-color:var(--gold-btn);color:#fff;font-weight:700}
-.rcv-cat-toggle.rcv-cat-error .rcv-cat-opt{border-color:#DC2626}
+
+/* ── «Ombordan tanlash» oynasi: kompyuterda o'ngdan 560 px, telefonda pastdan ── */
+.ot-panel{position:absolute;top:0;right:0;bottom:0;width:560px;max-width:100%;background:var(--r-card);box-shadow:-12px 0 40px rgba(0,0,0,.18);display:flex;flex-direction:column}
+.ot-bosh{padding:18px 20px 12px;border-bottom:1px solid var(--r-border)}
+.ot-grab{display:none}
+.ot-sarlavha{display:flex;align-items:center;gap:10px}
+.ot-sarlavha > .ti{font-size:24px;color:var(--r-primary)}
+.ot-sarlavha b{font-size:18px;flex:1;color:var(--r-text)}
+.ot-x{width:var(--h-md);height:var(--h-md);border-radius:var(--r-btn);border:1px solid var(--r-border);display:grid;place-items:center;font-size:18px;color:var(--r-text2);background:var(--white);cursor:pointer}
+.ot-bosh p{margin:4px 0 12px;color:var(--r-text3);font-size:13px;line-height:1.45}
+.ot-qidiruv{position:relative;margin-bottom:10px}
+.ot-qidiruv .ti{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--r-text3);font-size:18px}
+.ot-qidiruv input{width:100%;min-height:42px;border:1px solid var(--r-border);border-radius:10px;padding:0 12px 0 38px;font-size:var(--fs-maydon);outline:none;background:var(--white);color:var(--r-text)}
+.ot-qidiruv input:focus{border-color:var(--r-primary)}
+.ot-chiplar{display:flex;gap:8px;flex-wrap:wrap}
+.ot-chip{min-height:var(--h-md);padding:0 14px;border-radius:999px;border:1px solid var(--r-border);font-weight:700;font-size:13px;color:var(--r-text2);background:var(--white);display:flex;gap:6px;align-items:center;cursor:pointer;font-family:inherit}
+.ot-chip.on{background:var(--r-primary-tint);border-color:var(--r-primary-bd);color:var(--r-primary-d)}
+.ot-chip.kam{color:var(--m-b91c1c);border-color:var(--ch-f3c7c7);background:var(--r-danger-tint)}
+.ot-chip.kam.on{border-color:var(--r-danger);box-shadow:inset 0 0 0 1px var(--r-danger)}
+.ot-ichi{flex:1;overflow-y:auto;padding:4px 20px 14px;min-height:0}
+.ot-grp{font-size:12px;font-weight:800;color:var(--r-text3);letter-spacing:.06em;margin:14px 0 6px;text-transform:uppercase}
+.ot-it{display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--r-border);border-radius:12px;margin-bottom:8px;cursor:pointer;background:var(--r-card)}
+.ot-it.on{border-color:var(--r-primary);background:var(--r-primary-tint)}
+.ot-it.dis{opacity:.6;cursor:default}
+.ot-it input{width:18px;height:18px;flex-shrink:0;cursor:inherit;accent-color:var(--r-primary)}
+.ot-nm{flex:1;min-width:0}
+/* kech196 (O'LCHANGAN: uzun nomda «✓ ro'yxatda» belgisi «…» bilan birga qirqilib yo'qolardi): nom — «…», belgi — doim ko'rinadi */
+.ot-nm > b{display:flex;align-items:center;min-width:0;font-size:14px;color:var(--r-text);white-space:nowrap}
+.ot-nm > b > .ot-nom{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* telefonda (O'LCHANGAN 320 … 430 px: belgi 75 px — nom 8 … 78 px gacha qisqarardi): faqat «✓» (katak ham belgilangan va o'chiq) */
+@media(max-width:480px){.ot-royxatda .ot-r-matn{display:none}.ot-nm .ot-royxatda{padding:1px 6px}}
+.ot-nm small{color:var(--r-text3);font-size:12px;line-height:1.4;display:block}
+.ot-nm small b{color:var(--r-text2)}
+.ot-royxatda{flex-shrink:0;white-space:nowrap;background:var(--r-success-tint);color:var(--r-success);border-radius:999px;padding:1px 7px;font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle}
+.ot-stk{text-align:right;font-size:13px;color:var(--r-text3);white-space:nowrap}
+.ot-stk b{display:block;font-size:14px;color:var(--r-text)}
+.ot-stk.kam b{color:var(--r-danger)}
+.ot-bosh-xabar{padding:24px 6px;text-align:center;color:var(--r-text3);font-size:13px}
+.ot-yangi{display:flex;gap:10px;align-items:center;width:100%;min-height:var(--h-btn);padding:8px 12px;border:1.5px dashed var(--r-warning-bd);background:var(--r-warning-tint);border-radius:12px;color:var(--m-92400e);font-weight:700;font-size:14px;margin-top:10px;cursor:pointer;font-family:inherit;text-align:left}
+.ot-yangi u{text-underline-offset:2px}
+.ot-past{padding:14px 20px;border-top:1px solid var(--r-border);display:flex;gap:10px;align-items:center}
+.ot-past .ot-holat{flex:1;font-size:13px;color:var(--r-text2)}
+.ot-past .ot-holat b{color:var(--r-text)}
+.ot-past .rcv-btn{min-height:var(--h-btn);font-weight:800;padding:0 20px}
+.ot-past .rcv-btn:disabled{opacity:.5;cursor:default}
+@media(max-width:700px){
+  .ot-panel{top:70px;left:0;width:auto;border-radius:18px 18px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2)}
+  .ot-grab{display:block;width:44px;height:5px;border-radius:3px;background:var(--ch-e2e8f0);margin:-8px auto 10px}
+  .ot-bosh{padding:16px 14px 12px}
+  .ot-ichi{padding:4px 14px 12px}
+  .ot-past{padding:12px 14px 16px}
+  .ot-past .ot-ortiq{display:none}
+}
 </style>
 {% endblock %}
 
@@ -138,96 +417,101 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
 {% if not current_user.ruxsat('taminotchi_tolov', 'yaratish') %}.rcv-quickpay { display: none !important; }{% endif %}
 {% if not current_user.ruxsat('material', 'yaratish') %}[onclick^="apToggleNewItem("] { display: none !important; }{% endif %}
 </style>
-<div class="rcv-wrap">
+<div class="rcv-wrap" id="rcvWrap">
   <div class="rcv-grid">
 
     <!-- ═══ CHAP USTUN ═══ -->
-    <div>
+    <div class="rcv-chap">
 
-      <!-- 1. Ta'minotchi ma'lumotlari -->
+      <!-- 0. Sarlavha: Kirim (xarid) | Boshlang'ich qoldiq — kech194 (zip 261): `#ap-opening-stock` belgisi O'RNIGA (belgi yashirin
+           qoladi — mavjud kod, qoralama va testlar uni o'qiydi; segment uni o'rnatadi va `change` yuboradi) -->
+      <div class="rcv-card">
+        <div class="rcv-card-body rcv-bosh">
+          <div class="rcv-bosh-ikon"><i class="ti ti-download"></i></div>
+          <div class="rcv-bosh-matn"><h1>Kirim qilish</h1><p>Ta'minotchidan materiallarni omborga qabul qilish</p></div>
+          <div class="rcv-seg" id="rcv-seg" role="radiogroup" aria-label="Kirim turi">
+            <button type="button" id="rcv-seg-kirim" class="on" role="radio" aria-checked="true" onclick="rcvSegment('kirim')"><i class="ti ti-shopping-cart"></i>Kirim (xarid)</button>
+            <button type="button" id="rcv-seg-boshl" role="radio" aria-checked="false" onclick="rcvSegment('boshlangich')"><i class="ti ti-box"></i>Boshlang'ich qoldiq</button>
+          </div>
+          <input type="checkbox" id="ap-opening-stock" hidden tabindex="-1" aria-hidden="true">
+        </div>
+      </div>
+
+      <!-- 1. Ta'minotchi, hujjat, sana, yo'nalish -->
       <div class="rcv-card">
         <div class="rcv-card-body">
-          <div class="rcv-card-title">Ta'minotchi ma'lumotlari</div>
-
-          <div class="rcv-row rcv-row-3 rcv-row-ta" style="margin-bottom:16px">
-            <div class="rcv-supplier-row" style="grid-column:span 1">
+          <div class="rcv-row rcv-row-3 rcv-row-ta">
+            <div class="rcv-supplier-row">
               <div class="rcv-field" style="flex:1">
-                <label>Ta'minotchi *</label>
+                <label for="r-supplier">Ta'minotchi <span class="rcv-req">*</span></label>
                 <select id="r-supplier" onchange="onSupplierChange()" data-qidiruvli data-qidiruv-joy="Ta'minotchi nomi…">
                   <option value="">— Tanlang —</option>
                   {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
                 </select>
               </div>
-              <button class="rcv-btn rcv-btn-primary" style="flex-shrink:0" onclick="openNewSupplier()">+ Yangi</button>
+              <button class="rcv-btn rcv-btn-ikon" style="flex-shrink:0" onclick="openNewSupplier()" title="Yangi ta'minotchi" aria-label="Yangi ta'minotchi"><i class="ti ti-plus"></i></button>
             </div>
-            <div class="rcv-field"><label>Hujjat raqami (ixtiyoriy)</label><input type="text" id="r-docnum" placeholder="Masalan: AUTO-21072026-001"></div>
-            <div class="rcv-field"><label>Sana *</label><input type="date" id="r-date"></div>
+            <div class="rcv-field rcv-ikonli-f"><label for="r-docnum">Hujjat raqami</label><div class="rcv-ikonli"><i class="ti ti-file-text"></i><input type="text" id="r-docnum" placeholder="Masalan: NK-2026-0412"></div></div>
+            <div class="rcv-field"><label for="r-date">Sana <span class="rcv-req">*</span></label><input type="date" id="r-date"></div>
           </div>
 
-          <div class="rcv-field" style="margin-bottom:16px">
-            <label>Yo'nalish <span style="font-weight:400;color:var(--r-text3);font-size:12px">— Moliya hisobotida to'g'ri taqsimlanishi uchun MUHIM, majburiy</span></label>
+          <div class="rcv-field" style="margin-bottom:0">
+            <label>Yo'nalish <span class="rcv-req">*</span> <span style="font-weight:500;color:var(--r-text3)">— Moliya hisobotida xarajat qaysi yo'nalishga yozilishi uchun</span></label>
             {# kech117 (A2): korxona yo'nalishlari (Sozlamalar); kirimning qo'shimcha xarajatlari shu yo'nalishga yoziladi #}
             <div class="rcv-cat-toggle" id="ap-prod-type-toggle">
-              <div class="rcv-cat-opt" data-value="" onclick="selectProdType(this, this.dataset.value)">Umumiy</div>
+              <div class="rcv-cat-opt" data-value="" onclick="selectProdType(this, this.dataset.value)" title="Bitta yo'nalishga tegishli bo'lmagan xarid (podveska, setka, bir nechta yo'nalishga ketadigan material) — xarajatlar yo'nalishlarga daromad ulushida bo'linadi">Umumiy</div>
 {% for y in yonalishlar_royxati(current_user.company_id) %}              <div class="rcv-cat-opt" data-value="{{ y.id }}" onclick="selectProdType(this, this.dataset.value)">{{ y.nom }}</div>
 {% endfor %}            </div>
-            <div style="font-size:12px;color:var(--r-text3);margin-top:5px">"Umumiy" — bitta yo'nalishga tegishli bo'lmagan xarid uchun (masalan podveska, setka yoki bir nechta yo'nalishga ketadigan material); kirim xarajatlari umumiy xarajat bo'lib, yo'nalishlarga daromad ulushida bo'linadi</div>
             <select id="ap-prod-type" style="display:none">
               <option value="">Umumiy</option>
 {% for y in yonalishlar_royxati(current_user.company_id) %}              <option value="{{ y.id }}">{{ y.nom }}</option>
 {% endfor %}            </select>
           </div>
-
-          <div style="font-size:12px;color:var(--r-text3);margin-bottom:8px">👤 Quyidagi ma'lumotlar — faqat <b>tanlangan ta'minotchi</b>ga tegishli:</div>
-          <div class="rcv-stat-grid">
-            {# kech120 (zip 132 — G4-16): jami — hamma xarid (ilgari «Jami nasiya» — har xarid nasiya deb sanalardi) #}
-            <div class="rcv-stat-box"><div class="rcv-stat-label">Jami xarid</div><div class="rcv-stat-value" id="sup-credit">—</div></div>
-            <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value" style="color:var(--r-success)" id="sup-paid">—</div></div>
-            <div class="rcv-stat-box"><div class="rcv-stat-label">Qarz</div><div class="rcv-stat-value" style="color:var(--m-b91c1c)" id="sup-debt">—</div></div>
-            <div class="rcv-quickpay">
-              {# kech120 (G4-21): bu — ta'minotchiga ESKI qarzni to'lash (shu kirim to'lovi emas — u «Hozir to'langan summa» da) #}
-              <label style="font-size:12px;color:var(--r-text3);font-weight:600;text-transform:uppercase">Eski qarzni to'lash</label>
-              <div style="display:flex;gap:6px">
-                <input type="text" id="sup-quickpay-amount" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
-                <button id="sup-quickpay-btn" onclick="quickPaySupplier()">💰 To'lov</button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
-      <!-- 2. Material qo'shish -->
-      <div class="rcv-card">
+      <!-- 2. Materiallar — jadval (2-variant: alohida «Omborda» ustuni, narx o'zgarishi belgisi), oxirgi qator — kiritish qatori -->
+      <div class="rcv-card rcv-mat-karta" id="rcv-mat-karta">
         <div class="rcv-card-body">
-          <div class="rcv-card-title">Material qo'shish</div>
-
-          <div class="rcv-row rcv-row-3 rcv-row-mat" style="margin-bottom:6px">
-            <div style="display:flex;gap:8px;align-items:flex-end">
-              <div class="rcv-field" style="flex:1">
-                <label>Material *</label>
-                <select id="ap-item" onchange="apOnItemChange()" data-qidiruvli data-qidiruv-joy="Material nomi…"><option value="">Yuklanmoqda...</option></select>
-              </div>
-            </div>
-            <div class="rcv-field" id="ap-volume-wrap" style="display:none">
-              {# kech120 (zip 132 — G4-18): materialning joriy blok hajmi o'zi yoziladi (ilgari bo'sh, namuna «1.4» — boshqa materialniki) #}
-              <label>1 blok necha m³?</label>
-              <input type="text" class="i-m3price" id="ap-volume" placeholder="m³">
-            </div>
+          <div class="rcv-sec">
+            <i class="ti ti-stack-2"></i><b>Materiallar</b><span class="rcv-badge"><span id="rcv-pos-count">0</span> ta pozitsiya</span>
+            <span class="rcv-sec-ong">Materiallar jami: <b id="rcv-pos-total">0 so'm</b></span>
           </div>
 
-          <div id="ap-filter-hint" style="display:none;font-size:12px;color:var(--r-text3);margin:-8px 0 14px;padding:6px 10px;background:var(--r-primary-tint);border-radius:7px"></div>
+          <div id="ap-filter-hint" style="display:none;font-size:12px;color:var(--r-text3);margin:0 0 8px;padding:6px 10px;background:var(--r-primary-tint);border-radius:7px"></div>
 
-          <div style="margin-bottom:14px">
-            <span class="rcv-newitem-link" onclick="apToggleNewItem()">
-              <span id="ap-newitem-toggle-text">🆕 Ro'yxatda yo'q — yangi material yozaman</span>
-            </span>
-          </div>
+          <table class="rcv-mat" id="rcv-mat-jadval">
+            <colgroup><col class="k-nr"><col class="k-mat"><col class="k-omb"><col class="k-qty"><col class="k-unit"><col class="k-narx"><col class="k-sum"><col class="k-del"></colgroup>
+            <thead><tr><th>№</th><th>Material <span class="rcv-req">*</span></th><th class="r">Omborda</th><th>Miqdor <span class="rcv-req">*</span></th><th>Birlik</th><th>1 birlik narxi <span class="rcv-req">*</span></th><th class="r">Summa</th><th></th></tr></thead>
+            <tbody id="rcv-basket-body"><tr class="rcv-bosh-qator"><td colspan="8">Hali material qo'shilmagan</td></tr></tbody>
+            <tbody id="rcv-kiritish-body">
+              <tr class="rcv-kiritish">
+                <td class="c-nr" data-label="№"><span class="rcv-nr rcv-nr-yangi" title="Yangi qator">+</span></td>
+                <td class="c-mat" data-label="Material">
+                  <div id="ap-item-wrap"><select id="ap-item" onchange="apOnItemChange()" data-qidiruvli data-qidiruv-joy="Material nomi…" aria-label="Material"><option value="">Yuklanmoqda...</option></select></div>
+                  <div id="ap-newitem-yorliq" style="display:none"><i class="ti ti-sparkles"></i>&nbsp;Yangi material — nomini formada yozing</div>
+                  {# kech196 (O'LCHANGAN: `#ap-volume-wrap` ko'rinishi JS da `style.display = 'block'` — `.rcv-vol` flex qoidasi bekor bo'lib, kiritish
+                     qatorida «1 blok =» belgiga yopishgan va maydon savat qatorlaridagidan 10 px chapda edi): ko'rinish — tashqi o'ramda, joylashuv — ichkida #}
+                  <div id="ap-volume-wrap" style="display:none"><div class="rcv-vol">
+                    {# kech120 (zip 132 — G4-18): materialning joriy blok hajmi o'zi yoziladi (ilgari bo'sh, namuna «1.4» — boshqa materialniki) #}
+                    <i class="ti ti-cube"></i><label for="ap-volume">1 blok =</label><input type="text" class="i-m3price" id="ap-volume" placeholder="m³" inputmode="decimal"><span>m³</span>
+                  </div></div>
+                </td>
+                <td class="c-omb" data-label="Omborda" id="ap-omborda"><div class="rcv-omb">—</div></td>
+                <td class="c-qty" data-label="Miqdor"><span class="rcv-yorliq-ichki" id="ap-qty-yorliq">Miqdor</span><input class="rcv-q rcv-sig" type="number" id="ap-qty" placeholder="0" min="0" step="0.01" aria-label="Miqdor"></td>
+                <td class="c-unit" data-label="Birlik"><div class="rcv-unit" id="ap-unit">—</div></td>
+                <td class="c-narx" data-label="1 birlik narxi"><span class="rcv-yorliq-ichki" id="ap-price-yorliq">1 birlik narxi</span><div class="rcv-narxbox" id="ap-narxbox"><span id="ap-trend"></span><input class="rcv-q rcv-sig" type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this)" inputmode="decimal" aria-label="1 birlik narxi"></div></td>
+                <td class="c-sum" data-label="Summa"><span class="rcv-yorliq-ichki">Summa</span><input class="rcv-q rcv-sig" type="text" id="ap-total" value="—" disabled aria-label="Summa"></td>
+                <td class="c-del" data-label=""><button type="button" class="rcv-qosh" onclick="apAddToBasket()" title="Qatorni ro'yxatga qo'shish" aria-label="Qatorni ro'yxatga qo'shish"><i class="ti ti-plus"></i></button></td>
+              </tr>
+            </tbody>
+          </table>
 
           <div id="ap-newitem-form" class="rcv-newitem-box">
             <div class="rcv-row rcv-row-3" style="margin-bottom:0">
-              <div class="rcv-field"><label>Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat"></div>
+              <div class="rcv-field"><label for="ap-newitem-name">Yangi material nomi</label><input type="text" id="ap-newitem-name" placeholder="Masalan: Ftalat"></div>
               <div class="rcv-field">
-                <label>Kategoriya (Tasnif)</label>
+                <label for="ap-newitem-category">Kategoriya (Tasnif)</label>
                 <select id="ap-newitem-category" onchange="onNewItemCategoryChange()">
                   <option value="Penoplast">Penoplast</option>
                   <option value="Kimyoviy qo'shimchalar" selected>Kimyoviy qo'shimcha</option>
@@ -236,8 +520,8 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
                 </select>
               </div>
               <div class="rcv-field">
-                <label>O'lchov birligi</label>
-                <select id="ap-newitem-unit">
+                <label for="ap-newitem-unit">O'lchov birligi</label>
+                <select id="ap-newitem-unit" onchange="apNewItemUnitChange()">
                   <option value="kg">kg</option><option value="dona">dona</option><option value="litr">litr</option>
                   <option value="m³">m³</option><option value="m">m</option><option value="rulon">rulon</option>
                 </select>
@@ -246,7 +530,7 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
 
             <div class="rcv-row rcv-row-2" id="ap-newitem-peno-wrap" style="display:none;margin-top:14px;margin-bottom:0">
               <div class="rcv-field">
-                <label>1 blok necha m³? *</label>
+                <label for="ap-newitem-volume">1 blok necha m³? *</label>
                 <input type="text" id="ap-newitem-volume" placeholder="masalan 1,4" inputmode="decimal">
               </div>
               <div class="rcv-field" style="display:flex;align-items:flex-end;padding-bottom:10px">
@@ -256,125 +540,136 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
                 </label>
               </div>
             </div>
-
+            <div class="rcv-izoh" style="margin-top:10px">Nom, kategoriya va birlikni yozing, keyin qatordagi miqdor va narxni kiriting va «+» ni bosing — material omborda yaratiladi va ro'yxatga qo'shiladi.</div>
           </div>
 
-          <div class="rcv-row rcv-row-3">
-            <div class="rcv-field"><label>Miqdor *</label><input type="number" id="ap-qty" placeholder="0" min="0" step="0.01"></div>
-            <div class="rcv-field"><label>1 birlik narxi *</label><input type="text" id="ap-price" placeholder="0" oninput="formatPriceInput(this)"></div>
-            <div class="rcv-field"><label>Jami</label><input type="text" id="ap-total" value="—" disabled style="background:var(--r-bg);font-weight:700;color:var(--r-primary)"></div>
-          </div>
-
-          <button class="rcv-btn rcv-btn-primary" style="width:100%;margin-top:4px" onclick="apAddToBasket()">+ Material ro'yxatga qo'shish</button>
-        </div>
-      </div>
-
-      <!-- 3. Materiallar ro'yxati -->
-      <div class="rcv-card">
-        <div class="rcv-card-body">
-          <div class="rcv-card-title" style="margin-bottom:6px">Materiallar ro'yxati</div>
-          <div class="rcv-table-wrap">
-          <table class="rcv-table telefon-karta">
-            <thead><tr><th>№</th><th>Material nomi</th><th>Miqdor</th><th>1 birlik narxi</th><th style="text-align:right">Summa</th><th></th></tr></thead>
-            <tbody id="rcv-basket-body"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali material qo'shilmagan</td></tr></tbody>
-          </table>
-          </div>
-          <div class="rcv-totals-bar">
-            <span>Jami pozitsiyalar: <b id="rcv-pos-count">0</b></span>
-            <span>Jami summa: <b id="rcv-pos-total" style="color:var(--r-primary)">0 so'm</b></span>
+          <div class="rcv-addbar">
+            <button type="button" class="rcv-ab pr" id="rcv-ombordan-btn" onclick="ombordanOch()"><i class="ti ti-building-warehouse"></i>Ombordan tanlash <small>· bir nechtasini birdan</small></button>
+            <div class="rcv-ab-qator">
+              <button type="button" class="rcv-ab" onclick="rcvBoshQator()"><i class="ti ti-plus"></i>Bo'sh qator</button>
+              <span class="rcv-ab gh rcv-newitem-link" role="button" tabindex="0" onclick="apToggleNewItem()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+                <i class="ti ti-sparkles"></i><span id="ap-newitem-toggle-text">Yangi material</span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 4. To'lov ma'lumotlari -->
-      <div class="rcv-card">
+      <!-- 3. Qo'shimcha xarajatlar (faqat xaridda) -->
+      <div class="rcv-card faqat-kirim" id="rcv-xarajat-karta">
         <div class="rcv-card-body">
-          <div class="rcv-card-title">To'lov ma'lumotlari</div>
-          <div class="rcv-row rcv-row-3">
-            <div class="rcv-field">
-              <label>To'lov muddati <span style="font-weight:400;color:var(--r-text3)">(qarz qolsa)</span></label>
-              <input type="date" id="ap-due-date">
-            </div>
-            <div class="rcv-field"><label>Hozir to'langan summa <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — materiallar uchun)</span></label>
-              <div style="display:flex;gap:6px">
-                <input type="text" id="ap-paid-now" placeholder="0" oninput="formatPriceInput(this)" style="flex:1">
-                <button type="button" class="btn btn-gold-outline" onclick="apPayFull()" style="flex-shrink:0;white-space:nowrap">To'liq to'lash</button>
-              </div>
-            </div>
-            {# kech155 (zip 210): hoziroq to'lov va qo'shimcha xarajatlar qaysi pul hisobidan #}
-            <div class="rcv-field"><label>Qaysi hisobdan to'lanadi <span style="font-weight:400;color:var(--r-text3)">(hoziroq to'lov va qo'shimcha xarajatlar)</span></label>
-              <div id="ap-hisob" data-hisob-tanlov></div>
-            </div>
-            <div class="rcv-field"><label>Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
+          <div class="rcv-sec"><i class="ti ti-truck"></i><b>Qo'shimcha xarajatlar</b><span class="rcv-sec-izoh">ixtiyoriy · korxona xarajati, ta'minotchi qarziga kirmaydi</span></div>
+          <div class="rcv-row rcv-row-4" style="margin-bottom:0">
+            <div class="rcv-field"><label for="ap-cost-transport"><i class="ti ti-truck"></i> Transport</label><input type="text" class="rcv-sig" id="ap-cost-transport" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-tushirish"><i class="ti ti-forklift"></i> Tushirish</label><input type="text" class="rcv-sig" id="ap-cost-tushirish" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-yuklash"><i class="ti ti-package-export"></i> Yuklash</label><input type="text" class="rcv-sig" id="ap-cost-yuklash" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
+            <div class="rcv-field"><label for="ap-cost-boshqa"><i class="ti ti-dots"></i> Boshqa xarajat</label><input type="text" class="rcv-sig" id="ap-cost-boshqa" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this);updateSummary()"></div>
           </div>
-
-          <div class="rcv-card-title" style="margin-top:16px">Qo'shimcha xarajatlar <span style="font-weight:400;color:var(--r-text3)">(ixtiyoriy — korxona xarajati, Moliyaga yoziladi; ta'minotchi qarziga kirmaydi)</span></div>
-          <div class="rcv-row rcv-row-4">
-            <div class="rcv-field"><label>🚚 Transport</label><input type="text" id="ap-cost-transport" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
-            <div class="rcv-field"><label>📦 Tushirish (Grushchik)</label><input type="text" id="ap-cost-tushirish" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
-            <div class="rcv-field"><label>⬆️ Yuklash</label><input type="text" id="ap-cost-yuklash" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
-            <div class="rcv-field"><label>➕ Boshqa xarajat</label><input type="text" id="ap-cost-boshqa" placeholder="0" oninput="formatPriceInput(this);updateSummary()"></div>
-          </div>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--r-primary-tint);border:1px solid var(--ch-dbeafe);border-radius:9px;font-size:13px;color:var(--gold-dark);cursor:pointer">
-            <input type="checkbox" id="ap-add-to-cost" style="width:16px;height:16px;cursor:pointer;flex-shrink:0" onchange="updateSummary()">
+          <label class="rcv-chk">
+            <input type="checkbox" id="ap-add-to-cost" onchange="updateSummary()">
             {# kech132 (zip 156): «bu xarajatlar» — shu jumladagi «Qo'shimcha xarajatlar» (ilgari «yuqoridagi xarajatlar» — joylashuv so'zi) #}
             <span><b>Qo'shimcha xarajatlarni tannarxga qo'shish</b> — yoqilsa, bu xarajatlar materiallar qiymatiga proporsional taqsimlanib, ombordagi birlik tannarxiga qo'shiladi. O'chiq bo'lsa — faqat Moliyada alohida ko'rinadi.</span>
           </label>
-
-          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:9px;font-size:13px;color:var(--m-92400e);cursor:pointer">
-            <input type="checkbox" id="ap-opening-stock" style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
-            <span>Bu — <b>boshlang'ich (allaqachon bor) ombor</b>, yangi xarid emas (Kassa balansiga ta'sir qilmaydi)</span>
-          </label>
         </div>
       </div>
 
-    </div>
-
-    <!-- ═══ O'NG USTUN ═══ -->
-    <div class="rcv-ong">
-      <div class="rcv-card" style="position:sticky;top:14px">
+      <!-- 4. To'lov ma'lumotlari (faqat xaridda): To'liq / Qisman / Qarzga -->
+      <div class="rcv-card faqat-kirim" id="rcv-tolov-karta">
         <div class="rcv-card-body">
-          <div class="rcv-card-title">Kirim xulosasi</div>
-          <div class="rcv-summary-row"><span class="rcv-sum-label">Materiallar summasi</span><span class="rcv-sum-val" id="sum-products">0 so'm</span></div>
-          <div class="rcv-summary-row"><span class="rcv-sum-label">Qo'shimcha xarajatlar</span><span class="rcv-sum-val" id="sum-transport">0 so'm</span></div>
-          <div class="rcv-summary-row total"><span class="rcv-sum-label">Umumiy summa</span><span class="rcv-sum-val" id="sum-grand">0 so'm</span></div>
-        </div>
-        <div class="rcv-card-body" style="padding-top:6px">
-          <div class="rcv-summary-row"><span class="rcv-sum-label">To'langan summa</span><span class="rcv-sum-val" style="color:var(--r-success)" id="sum-paid">0 so'm</span></div>
-          <div class="rcv-summary-row debt"><span class="rcv-sum-label" style="font-weight:700;color:var(--r-text)">Qarzga qoladi</span><span class="rcv-sum-val" id="sum-debt">0 so'm</span></div>
-          {# kech120 (G4-21): qarz — faqat materiallar summasidan; qo'shimcha xarajatlar (transport …) ta'minotchi qarziga kirmaydi #}
-          <div style="font-size:12px;color:var(--r-text3);margin-top:-4px;margin-bottom:6px">Faqat materiallar uchun; qo'shimcha xarajatlar — korxona xarajati (ta'minotchi qarziga kirmaydi).</div>
-          <div id="sum-opening-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-fffbeb);border:1px solid var(--ch-fde68a);border-radius:8px;font-size:13px;color:var(--m-92400e);line-height:1.45">⚠️ <b>Boshlang'ich ombor</b> belgilangan: ta'minotchiga qarz yozilmaydi, «Hozir to'langan summa» yuborilmaydi, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — belgini olib tashlang.</div>
-          <div id="sum-date-warn" style="display:none;margin-top:10px;padding:9px 11px;background:var(--f-eff6ff);border:1px solid var(--ch-bfdbfe);border-radius:8px;font-size:13px;color:var(--m-1e40af);line-height:1.45"></div>
+          <div class="rcv-sec"><i class="ti ti-credit-card"></i><b>To'lov ma'lumotlari</b></div>
+          <div class="rcv-tolov-turi" id="rcv-tolov-turi" role="radiogroup" aria-label="To'lov">
+            <button type="button" class="rcv-ro" data-tur="toliq" role="radio" aria-checked="false" onclick="rcvTolovTuri('toliq')"><span class="dot"></span>To'liq to'langan</button>
+            <button type="button" class="rcv-ro" data-tur="qisman" role="radio" aria-checked="false" onclick="rcvTolovTuri('qisman')"><span class="dot"></span>Qisman to'langan</button>
+            <button type="button" class="rcv-ro on" data-tur="qarz" role="radio" aria-checked="true" onclick="rcvTolovTuri('qarz')"><span class="dot"></span>Qarzga olindi</button>
+          </div>
+          <div class="rcv-row rcv-row-tolov" style="margin-bottom:8px">
+            <div class="rcv-field"><label for="ap-paid-now">To'langan summa <span class="rcv-req" id="ap-paid-req" style="display:none">*</span> <span style="font-weight:400;color:var(--r-text3)">(ta'minotchiga — materiallar uchun)</span></label>
+              <div class="rcv-ikonli"><i class="ti ti-cash"></i><input type="text" class="rcv-sig" id="ap-paid-now" placeholder="0" inputmode="decimal" style="text-align:right" oninput="formatPriceInput(this)"></div>
+            </div>
+            {# kech155 (zip 210): hoziroq to'lov va qo'shimcha xarajatlar qaysi pul hisobidan #}
+            <div class="rcv-field"><label>Qaysi hisobdan</label>
+              <div id="ap-hisob" data-hisob-tanlov></div>
+            </div>
+            <div class="rcv-field" id="ap-due-wrap"><label for="ap-due-date">Qarz to'lov muddati</label>
+              <input type="date" id="ap-due-date">
+            </div>
+          </div>
+          <div class="rcv-izoh"><i class="ti ti-info-circle"></i> «Qisman» yoki «Qarzga» tanlanganda qarz to'lov muddati yoziladi; «To'liq» — summa o'zi materiallar jamisi bilan to'ladi. Qo'shimcha xarajatlar ham shu hisobdan chiqadi.</div>
         </div>
       </div>
 
-      <div class="rcv-card">
+      <!-- 5. Kengaytirilgan sozlamalar (yig'iladi) -->
+      <details class="rcv-card rcv-yigma" id="rcv-kengaytirilgan">
+        <summary><i class="ti ti-adjustments"></i><b>Kengaytirilgan sozlamalar</b><span class="rcv-yigma-izoh">Izoh, mas'ul shaxs</span><i class="ti ti-chevron-down rcv-yigma-ochar"></i></summary>
         <div class="rcv-card-body">
-          <div class="rcv-card-title">Qo'shimcha ma'lumotlar</div>
-          <div class="rcv-field" style="margin-bottom:14px">
-            <label>Mas'ul shaxs</label>
-            <input type="text" value="{{ current_user.full_name or current_user.username }}" disabled style="background:var(--r-bg)">
+          <div class="rcv-row rcv-row-2" style="margin-bottom:0">
+            <div class="rcv-field"><label for="ap-notes">Izoh</label><input type="text" id="ap-notes" placeholder="Masalan: Naqd pul bilan to'landi"></div>
+            <div class="rcv-field">
+              <label>Mas'ul shaxs</label>
+              <input type="text" value="{{ current_user.full_name or current_user.username }}" disabled style="background:var(--r-bg)">
+            </div>
           </div>
           {# kech120 (zip 132 — F bosqichi 2-qism, audit G4-21): «Hujjat fayli (hozircha saqlanmaydi)» maydoni olib tashlandi — fayl tanlansa
              ham hech qayerga yozilmasdi (foydalanuvchi saqlangan deb o'ylardi) #}
         </div>
+      </details>
+
+    </div>
+
+    <!-- ═══ O'NG USTUN: Hisob-kitob + ta'minotchi ═══ -->
+    <div class="rcv-ong">
+      <div class="rcv-card" id="rcv-hisob-karta">
+        <div class="rcv-card-body">
+          <div class="rcv-sec"><i class="ti ti-calculator"></i><b>Hisob-kitob</b></div>
+          <div class="rcv-kv"><span id="sum-products-yorliq">Materiallar summasi</span><b class="rcv-sig" id="sum-products">0 so'm</b></div>
+          <div class="rcv-kv faqat-kirim"><span>Qo'shimcha xarajatlar</span><b class="rcv-sig" id="sum-transport">0 so'm</b></div>
+          <div class="rcv-kv tot faqat-kirim"><span>Umumiy summa</span><b class="rcv-sig" id="sum-grand">0 so'm</b></div>
+          <div class="rcv-kv tot faqat-boshl"><span>Omborga kiradi</span><b id="sum-omborga">0 ta material</b></div>
+          <hr class="rcv-hr faqat-kirim">
+          <div class="rcv-kv paid faqat-kirim"><span>Ta'minotchiga to'landi</span><b class="rcv-sig" id="sum-paid">0 so'm</b></div>
+          <div class="rcv-kv debt faqat-kirim"><span>Qarzga qoladi</span><b class="rcv-sig" id="sum-debt">0 so'm</b></div>
+          <div class="rcv-kv faqat-kirim" style="padding-top:2px"><span id="sum-xarajat-yorliq">Xarajatlar (naqd puldan)</span><b class="rcv-sig" id="sum-xarajat">0 so'm</b></div>
+          {# kech120 (G4-21): qarz — faqat materiallar summasidan; qo'shimcha xarajatlar (transport …) ta'minotchi qarziga kirmaydi #}
+          <div class="rcv-note faqat-kirim"><i class="ti ti-info-circle"></i><span>Qarz — faqat materiallar uchun. Qo'shimcha xarajatlar korxona xarajati: tanlangan hisobdan chiqadi (ta'minotchi qarziga kirmaydi).</span></div>
+          <div id="sum-opening-warn" class="rcv-note amb" style="display:none"><i class="ti ti-alert-triangle"></i><span><b>Boshlang'ich qoldiq:</b> omborda allaqachon bor material (Boshlang'ich ombor). Ta'minotchiga qarz yozilmaydi, to'lov yo'q, Kassaga ta'sir qilmaydi. Yangi xarid bo'lsa — «Kirim (xarid)» ni tanlang.</span></div>
+          <div id="sum-date-warn" class="rcv-note" style="display:none"></div>
+          <button class="rcv-btn rcv-btn-primary rcv-go" id="receive-submit-btn" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
+          <div class="rcv-saqlandi" id="rcv-saqlandi" aria-live="polite"></div>
+        </div>
       </div>
 
-      <button class="rcv-btn rcv-btn-dark" id="receive-submit-btn" style="width:100%" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
+      <div class="rcv-card" id="rcv-sup-karta">
+        <div class="rcv-card-body">
+          <div class="rcv-sup-nom"><i class="ti ti-building-store"></i><b id="sup-nom">Ta'minotchi tanlanmagan</b><small>umumiy hisob</small></div>
+          <div class="rcv-stat-grid">
+            {# kech120 (zip 132 — G4-16): jami — hamma xarid (ilgari «Jami nasiya» — har xarid nasiya deb sanalardi) #}
+            <div class="rcv-stat-box"><div class="rcv-stat-label">Jami xarid</div><div class="rcv-stat-value rcv-sig" id="sup-credit">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">To'langan</div><div class="rcv-stat-value rcv-sig" style="color:var(--r-success)" id="sup-paid">—</div></div>
+            <div class="rcv-stat-box"><div class="rcv-stat-label">Eski qarz</div><div class="rcv-stat-value rcv-sig" style="color:var(--m-b91c1c)" id="sup-debt">—</div></div>
+          </div>
+          <div class="rcv-quickpay">
+            {# kech120 (G4-21): bu — ta'minotchiga ESKI qarzni to'lash (shu kirim to'lovi emas — u «To'langan summa» da) #}
+            <button type="button" class="rcv-pay2" id="sup-quickpay-och" onclick="rcvEskiQarzOch()"><i class="ti ti-coins"></i>Eski qarzni to'lash</button>
+            <div class="rcv-quickpay-joy" id="sup-quickpay-joy" hidden>
+              <input type="text" class="rcv-sig" id="sup-quickpay-amount" placeholder="Summa" inputmode="decimal" oninput="formatPriceInput(this)" aria-label="Eski qarz to'lovi summasi">
+              <button id="sup-quickpay-btn" onclick="quickPaySupplier()">💰 To'lov</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="rcv-tarix">
-      <!-- 5. Kirimlar tarixi — kech119 (C — telefon, G4-05): alohida grid bo'lagi: kompyuterda chap ustunda (avvalgidek),
-           telefonda «Kirimni tasdiqlash» dan KEYIN (ilgari tasdiqlash tugmasi tarix jadvalidan ham pastda edi) -->
-      <div class="rcv-card">
+      <!-- 6. Kirimlar tarixi — kech194 (zip 261): yig'iladigan bo'lim; kech119 (C — telefon, G4-05): alohida grid bo'lagi -->
+      <details class="rcv-card rcv-yigma" id="rcv-tarix-yigma">
+        <summary><i class="ti ti-history"></i><b>Shu ta'minotchidan kirimlar tarixi</b><span class="rcv-badge" id="rcv-tarix-soni" style="display:none"></span><span class="rcv-yigma-izoh">sana bo'yicha filtr</span><i class="ti ti-chevron-down rcv-yigma-ochar"></i></summary>
         <div class="rcv-card-body">
           <div class="rcv-tarix-sarlavha" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div class="rcv-card-title" style="margin:0">Kirimlar tarixi</div>
             <div class="rcv-history-filter">
-              <input type="date" id="hist-from" style="border:1px solid var(--r-border)" class="maydon maydon-sm">
+              <input type="date" id="hist-from" style="border:1px solid var(--r-border)" class="maydon maydon-sm" aria-label="Sanadan">
               <span style="color:var(--r-text3)">—</span>
-              <input type="date" id="hist-to" style="border:1px solid var(--r-border)" class="maydon maydon-sm">
+              <input type="date" id="hist-to" style="border:1px solid var(--r-border)" class="maydon maydon-sm" aria-label="Sanagacha">
               <button class="rcv-icon-btn" style="color:var(--r-primary)" onclick="loadHistoryForSupplier()" title="Filtrlash" aria-label="Filtrlash"><i class="ti ti-filter"></i></button>
             </div>
           </div>
@@ -386,9 +681,34 @@ html[data-theme="dark"] .rcv-quickpay button{background:var(--f-f1f5f9);color:va
           </div>
           <div id="rcv-history-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:12px"></div>
         </div>
-      </div>
+      </details>
     </div>
 
+  </div>
+
+  <!-- Telefon: pastda yopishgan panel -->
+  <div class="rcv-dock" id="rcv-dock">
+    <div class="rcv-dock-qator"><span><span id="dock-yorliq">Umumiy</span>: <b id="dock-umumiy">0 so'm</b></span><span class="faqat-kirim">Qarz: <b class="qarz" id="dock-qarz">0</b></span></div>
+    <button type="button" class="rcv-btn rcv-btn-primary" id="receive-submit-dock" onclick="submitReceive()">✓ Kirimni tasdiqlash</button>
+  </div>
+
+  <!-- «Ombordan tanlash» oynasi — kech194 (zip 261, egasi «juda zo'r» 06.11 00:44) -->
+  <div id="ombordanOyna" role="dialog" aria-modal="true" aria-labelledby="ombordanSarlavha" style="display:none;position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:1000">
+    <div class="ot-panel">
+      <div class="ot-bosh">
+        <div class="ot-grab"></div>
+        <div class="ot-sarlavha"><i class="ti ti-building-warehouse"></i><b id="ombordanSarlavha">Ombordan tanlash</b>
+          <button type="button" class="ot-x" data-yopish onclick="ombordanYop()" title="Yopish" aria-label="Yopish"><i class="ti ti-x"></i></button></div>
+        <p>Omborda bor materiallarni belgilang — hammasi ro'yxatga birdan qo'shiladi, narx — shu ta'minotchidan oxirgi xariddan (o'zgartirish mumkin), siz faqat miqdorni yozasiz.</p>
+        <div class="ot-qidiruv"><i class="ti ti-search"></i><input type="text" id="ot-qidiruv" data-kiritish-emas placeholder="Material nomi bo'yicha qidirish…" aria-label="Material nomi bo'yicha qidirish" oninput="ombordanChiz()"></div>
+        <div class="ot-chiplar" id="ot-chiplar" role="radiogroup" aria-label="Filtr"></div>
+      </div>
+      <div class="ot-ichi" id="ot-royxat"></div>
+      <div class="ot-past">
+        <div class="ot-holat" id="ot-holat"></div>
+        <button type="button" class="rcv-btn rcv-btn-primary" id="ot-qosh-btn" onclick="ombordanQosh()" disabled><i class="ti ti-plus"></i><span id="ot-qosh-matn">Ro'yxatga qo'shish</span></button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -589,6 +909,13 @@ let invItems = [];
 let apBasket = [];
 let apCreatingNewItem = false;
 let prodTypeChosen = false; // Yo'nalish («Umumiy» yoki korxona yo'nalishi — kech117) ONGLI ravishda tanlanganmi — "Umumiy"ning qiymati ("") bo'sh qiymat bilan bir xil bo'lgani uchun, buni alohida kuzatamiz
+// kech194 (zip 261): to'lov turi — 'toliq' (to'liq to'langan: «To'langan summa» = materiallar jami, savat o'zgarsa o'zi yangilanadi),
+// 'qisman' (qo'lda), 'qarz' (qarzga olindi: 0). Boshlang'ich — mavjud qoida (avvalgi forma bo'sh «Hozir to'langan» = qarz).
+let rcvTolov = 'qarz';
+// kech194 (zip 261 — egasi QARORI 06.11 00:57, 2-variant): shu ta'minotchidan har materialning OXIRGI xarid narxi va sanasi
+// (ta'minotchi «purchased-items» API si → `oxirgi_narx`, `oxirgi_sana`; boshlang'ich qoldiqsiz) — narx o'zgarishi belgisi va
+// «Ombordan tanlash» dagi narx uchun. Ta'minotchi almashsa — bo'shatiladi.
+let oxirgiNarxlar = new Map();
 
 // ── QORALAMA (localStorage) — sahifadan tasodifan chiqib qolsa,
 // kiritilgan mahsulotlar/qiymatlar yo'qolmasin, qayta kirganda tiklansin ──
@@ -597,6 +924,13 @@ let prodTypeChosen = false; // Yo'nalish («Umumiy» yoki korxona yo'nalishi —
 const RCV_DRAFT_KEY = 'pdp_receive_draft_v1_{{ current_user.company_id or 0 }}_{{ current_user.id }}';
 // kech144 (zip 180, audit C2): «Ta'minotchilar: Ko'rish» ruxsati (ta'minotchi tarixi va xarid qilingan materiallar so'rovlari)
 const TAMINOTCHI_KORISH = {{ 'true' if current_user.ruxsat('taminotchi', 'korish') else 'false' }};
+
+// kech194 (zip 261): element bo'lsa — matnini yozadi (sahifaning qismlari alohida sinalganda ham yiqilmaydi)
+function _rcvYoz(id, matn) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = matn;
+  return el;
+}
 
 function saveDraft(){
   try {
@@ -619,14 +953,30 @@ function saveDraft(){
       addToCost: document.getElementById('ap-add-to-cost')?.checked || false,
       openingStock: document.getElementById('ap-opening-stock')?.checked || false,
       paidNow: document.getElementById('ap-paid-now')?.value || '',
+      // kech194 (zip 261): to'lov turi va hisob ham qoralamada (savatdagi chala qatorlar — `chala: true` bilan)
+      tolovTuri: rcvTolov,
+      hisob: (typeof hisobQiymat === 'function' && document.getElementById('ap-hisob')) ? hisobQiymat('ap-hisob') : 'naqd',
       basket: apBasket
     };
     localStorage.setItem(RCV_DRAFT_KEY, JSON.stringify(draft));
+    rcvSaqlandiYoz();
   } catch(e) {}
+}
+
+// kech194 (zip 261 — egasining varianti): «Qoralama avtomatik saqlandi · HH:MM» (Toshkent vaqti; savat bo'sh — yozuv yo'q)
+function rcvSaqlandiYoz() {
+  const el = document.getElementById('rcv-saqlandi');
+  if (!el) return;
+  if (!apBasket.length) { el.textContent = ''; return; }
+  let vaqt = '';
+  try { vaqt = typeof tkVaqt === 'function' ? tkVaqt(Date.now()) : ''; } catch (e) { vaqt = ''; }     // Toshkent soati (base.html)
+  el.innerHTML = '<i class="ti ti-cloud-check"></i>' + escapeHtml('Qoralama avtomatik saqlandi' + (vaqt ? ' · ' + vaqt : ''));
 }
 
 function clearDraft(){
   try { localStorage.removeItem(RCV_DRAFT_KEY); } catch(e) {}
+  const el = document.getElementById('rcv-saqlandi');
+  if (el) el.textContent = '';
 }
 
 function restoreDraft(){
@@ -676,8 +1026,15 @@ function restoreDraft(){
   if (document.getElementById('ap-add-to-cost')) document.getElementById('ap-add-to-cost').checked = !!draft.addToCost;
   if (document.getElementById('ap-opening-stock')) document.getElementById('ap-opening-stock').checked = !!draft.openingStock;
   if (document.getElementById('ap-paid-now')) document.getElementById('ap-paid-now').value = draft.paidNow || '';
-
-  apBasket = draft.basket;
+  // chala qator belgisi — eski qoralamada yo'q: miqdor va narx bo'yicha
+  apBasket = draft.basket.map(b => Object.assign({}, b, { chala: !(Number(b.qty) > 0 && Number(b.price) > 0) }));
+  // kech194 (zip 261): hisob va to'lov turi (eski qoralamada yo'q — summa bo'yicha: yozilgan bo'lsa «Qisman», bo'lmasa «Qarzga»).
+  // Savat tiklangandan KEYIN — `change` → `updateSummary` → `saveDraft` qoralamani bo'sh savat bilan bosib ketmasin
+  if (draft.hisob && typeof hisobTanla === 'function' && document.getElementById('ap-hisob')) hisobTanla('ap-hisob', draft.hisob);
+  rcvSegmentKor();
+  const _tur = ['toliq', 'qisman', 'qarz'].indexOf(draft.tolovTuri) >= 0 ? draft.tolovTuri
+    : (parseNum(draft.paidNow) > 0 ? 'qisman' : 'qarz');
+  rcvTolovTuri(_tur, true);
   renderBasket();
   showMsg('↩️ Avvalgi tugallanmagan kirim tiklandi (' + apBasket.length + ' ta material)', 'info');
 }
@@ -685,10 +1042,20 @@ function restoreDraft(){
 // ── TA'MINOTCHI ──
 async function onSupplierChange(){
   currentSupplierId = parseInt(document.getElementById('r-supplier').value) || null;
+  // kech194 (zip 261): ta'minotchi kartasidagi nom; oxirgi narxlar — yangi ta'minotchiniki (kelguncha — belgisiz)
+  {
+    const sel = document.getElementById('r-supplier');
+    const nom = (currentSupplierId && sel && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex].textContent.trim() : "Ta'minotchi tanlanmagan";
+    _rcvYoz('sup-nom', nom);
+  }
+  oxirgiNarxlar = new Map();
+  rcvTrendlarYangila();
   if (!currentSupplierId) {
     document.getElementById('sup-credit').textContent = '—';
     document.getElementById('sup-paid').textContent = '—';
     document.getElementById('sup-debt').textContent = '—';
+    if (typeof rcvSigKeyin === 'function') rcvSigKeyin();          // review262 №2: oldingi ta'minotchi summasining shrifti / izohi qolmasin
+    const _soni = document.getElementById('rcv-tarix-soni'); if (_soni) _soni.style.display = 'none';
     applySupplierMaterialFilter(null);
     return;
   }
@@ -703,6 +1070,7 @@ async function loadHistoryForSupplier(page){
   const tbody0 = document.getElementById('rcv-history-body');
   if (typeof TAMINOTCHI_KORISH !== 'undefined' && !TAMINOTCHI_KORISH) {
     ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
     if (tbody0) tbody0.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">${escapeHtml(
       "Ta'minotchi tarixi va qarzi — «Ta'minotchilar: Ko'rish» ruxsati bilan ko'rinadi")}</td></tr>`;
     return;
@@ -713,8 +1081,10 @@ async function loadHistoryForSupplier(page){
   if (from) url += `&start_date=${encodeURIComponent(from)}`;
   if (to) url += `&end_date=${encodeURIComponent(to)}`;
   ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '…'; });
+  if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
   await yukBlok('kirim_tarix', url, d => loadHistoryForSupplier.chiz(d), e => {
     ['sup-credit', 'sup-paid', 'sup-debt'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+    if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
     if (tbody0) tbody0.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-danger)">${escapeHtml(
       yukXatoMatn("Ta'minotchi tarixi", e))}</td></tr>`;
     const pag0 = document.getElementById('rcv-history-pagination'); if (pag0) pag0.innerHTML = '';
@@ -726,7 +1096,7 @@ loadHistoryForSupplier.chiz = function (d) {
   document.getElementById('sup-credit').textContent = fmt(d.total_purchases != null ? d.total_purchases : d.total_credit)+" so'm";
   document.getElementById('sup-paid').textContent = fmt((Number(d.total_paid) || 0) + (Number(d.paid_cash) || 0))+" so'm";
   document.getElementById('sup-debt').textContent = fmt(d.debt)+" so'm";
-
+  if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
   const tbody = document.getElementById('rcv-history-body');
   if (!d.purchases.length){
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Xarid tarixi yo\'q</td></tr>';
@@ -746,14 +1116,23 @@ loadHistoryForSupplier.chiz = function (d) {
         <td data-label="Sana" style="font-weight:600;color:var(--r-text)">${tkSana(p.purchased_at)}</td>
         <td data-label="Material" style="font-weight:600;color:var(--r-text)">${escapeHtml(p.item_name)}${p.receipt_id ? ` <span style="color:var(--r-text3);font-size:12px;font-weight:500">· Kirim #${p.receipt_id}</span>` : ''}</td>
         <td data-label="Miqdor" style="font-weight:600">${p.quantity} ${escapeHtml(p.unit)}</td>
-        <td data-label="1 birlik narxi" style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
-        <td data-label="Summa" style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
+        <td data-label="1 birlik narxi" class="rcv-pul" style="text-align:right;font-weight:600;color:var(--r-text2)">${fmt(unitPrice)} so'm</td>
+        <td data-label="Summa" class="rcv-pul" style="text-align:right;font-weight:800;color:var(--r-text)">${fmt(p.total_amount)} so'm</td>
         <td data-label="Holati" class="kirim-holat" data-holat="${holat}" title="${escapeHtml(holatIzoh)}" style="text-align:right;font-size:12px;font-weight:700;color:${holatRang}">${holatMatn}</td>
       </tr>`;
     }).join('');
   }
 
   const pg = d.pagination;
+  // kech194 (zip 261): yig'iladigan «Kirimlar tarixi» sarlavhasida yozuvlar soni (sahifalash ma'lumotidan)
+  {
+    const soniEl = document.getElementById('rcv-tarix-soni');
+    const jami = pg && pg.total_count != null ? pg.total_count : null;     // review261 №7: API kaliti — `total_count`
+    if (soniEl) {
+      if (jami != null && isFinite(Number(jami))) { soniEl.textContent = sonKor(Number(jami), 0) + ' ta'; soniEl.style.display = ''; }
+      else soniEl.style.display = 'none';
+    }
+  }
   const pagEl = document.getElementById('rcv-history-pagination');
   if (pg.total_pages <= 1) { pagEl.innerHTML = ''; }
   else {
@@ -762,6 +1141,14 @@ loadHistoryForSupplier.chiz = function (d) {
       <button class="rcv-icon-btn" ${pg.page>=pg.total_pages?'disabled':''} onclick="loadHistoryForSupplier(${pg.page+1})">›</button>`;
   }
 };
+
+// kech194 (zip 261 — egasining varianti): «Eski qarzni to'lash» — tugma bosilganda summa maydoni va «💰 To'lov» ochiladi
+function rcvEskiQarzOch() {
+  const joy = document.getElementById('sup-quickpay-joy');
+  if (!joy) return;
+  joy.hidden = !joy.hidden;
+  if (!joy.hidden) { const i = document.getElementById('sup-quickpay-amount'); if (i) i.focus(); }
+}
 
 let isSavingSupplierQuickPay = false;
 async function quickPaySupplier(confirmOverpay = false){
@@ -866,7 +1253,23 @@ async function loadInvItemsForAp() {
     if (!invItems.length) { sel.innerHTML = '<option value="">⚠️ Omborxonada hech narsa yo\'q</option>'; return; }
     renderInvDropdown();
     apOnItemChange();
+    // kech194 (zip 261): savatdagi qatorlarning «Omborda» ustuni — yangi qoldiq bilan (qoralama ro'yxat kelishidan oldin chizilgan bo'lishi mumkin)
+    if (apBasket.length) renderBasket();
+    if (ombordanOchiqmi()) ombordanChiz();
   } catch(e) { console.error(e); sel.innerHTML = '<option value="">' + escapeHtml("⚠️ Materiallar ro'yxatini ko'rsatib bo'lmadi — sahifani yangilang") + '</option>'; }
+}
+
+// kech194 (zip 261): kategoriyalar tartibi va ko'rinadigan nomi — «Ombordan tanlash» uchun (material tanlagichidagi `catOrder` bilan bir xil)
+const RCV_KAT_TARTIB = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Gips', 'Bazalt', 'Boshqa'];
+const RCV_KAT_NOMI = {'Qattiq qotishmalar': "Mineral qo'shimchalar"};
+function rcvKategoriyalar(list) {
+  const groups = {};
+  list.forEach(i => { const cat = i.category || 'Boshqa'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
+  const sortedCats = Object.keys(groups).sort((a,b)=>{
+    const ia=RCV_KAT_TARTIB.indexOf(a), ib=RCV_KAT_TARTIB.indexOf(b);
+    return (ia===-1?99:ia)-(ib===-1?99:ib);
+  });
+  return sortedCats.map(cat => ({ cat, items: groups[cat] }));
 }
 
 function renderInvDropdown(){
@@ -875,6 +1278,9 @@ function renderInvDropdown(){
   if (supplierFilterActive && supplierFilterIds && supplierFilterIds.size > 0) {
     list = invItems.filter(i => supplierFilterIds.has(i.id));
   }
+  // kech120 (zip 130 — G4-20, O'LCHANGAN — audit kech114): ilgari birinchi material OLDINDAN tanlangan turardi — e'tiborsiz
+  // omborchi noto'g'ri materialga kirim qilishi mumkin edi. Endi boshida «— Material tanlang —»; ro'yxat qayta chizilsa
+  // (ta'minotchi filtri) — oldin tanlangan material ro'yxatda bo'lsa, o'sha qoladi.
   const catOrder = ['Penoplast', "Kimyoviy qo'shimchalar", 'Qattiq qotishmalar', 'Gips', 'Bazalt', 'Boshqa'];
   const groups = {};
   list.forEach(i => { const cat = i.category || 'Boshqa'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(i); });
@@ -882,9 +1288,6 @@ function renderInvDropdown(){
     const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
     return (ia===-1?99:ia)-(ib===-1?99:ib);
   });
-  // kech120 (zip 130 — G4-20, O'LCHANGAN — audit kech114): ilgari birinchi material OLDINDAN tanlangan turardi — e'tiborsiz
-  // omborchi noto'g'ri materialga kirim qilishi mumkin edi. Endi boshida «— Material tanlang —»; ro'yxat qayta chizilsa
-  // (ta'minotchi filtri) — oldin tanlangan material ro'yxatda bo'lsa, o'sha qoladi.
   const _oldingi = sel.value;
   sel.innerHTML = '<option value="">— Material tanlang —</option>' + sortedCats.map(cat => {
     const opts = groups[cat].map(i => `<option value="${i.id}" data-unit="${escapeHtml(i.unit)}">${escapeHtml(i.item_name)} (${escapeHtml(i.unit)})</option>`).join('');
@@ -921,9 +1324,87 @@ async function applySupplierMaterialFilter(supplierId){
     if (Array.isArray(items) && items.length) {
       supplierFilterIds = new Set(items.map(i => i.id));
       supplierFilterActive = true;
+      // kech194 (zip 261): oxirgi xarid narxi / sanasi (shu ta'minotchidan)
+      const m = new Map();
+      items.forEach(i => { if (i && i.oxirgi_narx != null && Number(i.oxirgi_narx) > 0) m.set(i.id, {narx: Number(i.oxirgi_narx), sana: i.oxirgi_sana || ''}); });
+      oxirgiNarxlar = m;
     }
   } catch(e) { /* filtr ishlamasa — hammasi ko'rsatiladi, muammo emas */ }
   if (invItems.length) renderInvDropdown();
+  rcvOxirgiNarxQayta();
+  rcvTrendlarYangila();
+  if (ombordanOchiqmi()) ombordanChiz();
+}
+
+// review261 №2: «Ombordan tanlash» dan oxirgi narx bilan tushgan (foydalanuvchi narxini o'zgartirmagan) qatorlar — ta'minotchi almashsa
+// YANGI ta'minotchining oxirgi narxi (yo'q bo'lsa — bo'sh, qator chala: narxni yozish so'raladi). Ilgari A ning narxi qolib, B ga A narxida
+// kirim yozilishi mumkin edi (yashil «↓» belgisi bilan — «arzonroq» deb ko'rinardi).
+function rcvOxirgiNarxQayta() {
+  let n = 0;
+  apBasket.forEach(b => {
+    if (b.narxManba !== 'oxirgi') return;
+    const ox = oxirgiNarxlar.get(b.itemId);
+    const yangi = ox ? ox.narx : null;
+    if ((b.price || null) === yangi) return;
+    b.price = yangi;
+    b.chala = !(Number(b.qty) > 0 && Number(b.price) > 0);
+    b.total = b.chala ? 0 : buyurtmaJami(b.qty, b.price).jami;
+    n++;
+  });
+  if (n) {
+    renderBasket();
+    showMsg('ℹ️ ' + n + " ta qatorda narx shu ta'minotchining oxirgi xarid narxiga yangilandi (oxirgi narx yo'q bo'lsa — narxni yozing)", 'info');
+  }
+}
+
+// kech194 (zip 261 — 2-variant): «Omborda» katagi — joriy qoldiq; eng kam miqdordan (min_stock > 0) kam bo'lsa qizil va «↓ kam»
+function rcvOmbordaKatak(item) {
+  if (!item) return '<div class="rcv-omb">—</div>';
+  const qoldiq = Number(item.stock_quantity) || 0;
+  const min = Number(item.min_stock) || 0;
+  const kam = min > 0 && qoldiq < min;
+  const izoh = kam ? ('Omborda kam — eng kam miqdor: ' + sonKor(min, 2) + ' ' + (item.unit || '')) : 'Omborda bor qoldiq';
+  return `<div class="rcv-omb${kam ? ' kam' : ''}" title="${escapeHtml(izoh)}"><span class="rcv-sig">${escapeHtml(sonKor(qoldiq, 2) + ' ' + (item.unit || ''))}</span>`
+    + (kam ? '<small><i class="ti ti-arrow-down"></i>kam</small>' : '') + '</div>';
+}
+
+// kech194 (zip 261 — 2-variant): narx shu ta'minotchidan oxirgi xariddan farq qilsa — o'zgarish foizi. Tiyingacha teng — belgi yo'q.
+// Qaytaradi: null yoki {yon: 'up' | 'dn', matn: '1,3%', oxirgi, sana}
+function rcvTrend(narx, oxirgi) {
+  const n = Number(narx), o = oxirgi && Number(oxirgi.narx);
+  if (!(n > 0) || !(o > 0)) return null;
+  const nT = Math.round(tiyinga(n) * 100), oT = Math.round(tiyinga(o) * 100);
+  if (nT === oT) return null;
+  const foiz = (nT - oT) / oT * 100;
+  const mutlaq = Math.abs(foiz);
+  // juda katta farq (xato yozilgan narx bo'lishi mumkin) — belgi tor katakka sig'ishi uchun «>999%» (aniq qiymati — izohda)
+  const matn = mutlaq < 0.1 ? '<0,1%' : (mutlaq >= 1000 ? '>999%' : (sonKor(Math.round(mutlaq * 10) / 10, 1) + '%'));
+  return { yon: foiz > 0 ? 'up' : 'dn', matn, oxirgi: o, sana: oxirgi.sana || '' };
+}
+function rcvTrendHtml(t) {
+  if (!t) return '';
+  const izoh = "Oxirgi narx (shu ta'minotchidan): " + pulKor(t.oxirgi) + " so'm" + (t.sana ? ' · ' + t.sana : '')
+    + (t.yon === 'up' ? ' — hozirgi narx qimmatroq' : ' — hozirgi narx arzonroq');
+  // belgi — tugma emas (yagona tugma o'lchamlari qoidasi — test_u13), lekin klaviaturadan ham ochiladi (Tab → Enter)
+  return `<span class="rcv-trend${t.yon === 'dn' ? ' dn' : ''}" tabindex="0" title="${escapeHtml(izoh)}" data-izoh="${escapeHtml(izoh)}"`
+    + ` onclick="rcvTrendBos(this)" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); rcvTrendBos(this); }">`
+    + `<i class="ti ti-arrow-${t.yon === 'dn' ? 'down' : 'up'}" aria-hidden="true"></i>${escapeHtml(t.matn)}</span>`;
+}
+function rcvTrendBos(el) {
+  if (el && el.dataset && el.dataset.izoh) showMsg('ℹ️ ' + el.dataset.izoh, 'info');
+}
+// narx katagidagi belgini joyida yangilaydi (maydonga tegmaydi — yozish to'xtamaydi)
+function rcvTrendJoyla(box, joy, t) {
+  if (joy) joy.innerHTML = rcvTrendHtml(t);
+  if (box && box.classList) box.classList.toggle('trendli', !!t);
+}
+function rcvTrendlarYangila() {
+  apBasket.forEach((b, i) => {
+    const tr = document.querySelector('#rcv-basket-body tr[data-i="' + i + '"]');
+    if (!tr) return;
+    rcvTrendJoyla(tr.querySelector('.rcv-narxbox'), tr.querySelector('.rcv-trend-joy'), rcvTrend(b.price, oxirgiNarxlar.get(b.itemId)));
+  });
+  if (document.getElementById('ap-price')) apCalc();
 }
 
 function apOnItemChange(){
@@ -933,29 +1414,71 @@ function apOnItemChange(){
   // kech120 (zip 132 — G4-18): tanlangan penoplastning saqlangan blok hajmi (kirimda boshqacha bo'lsa — o'zgartiriladi)
   const vol = document.getElementById('ap-volume');
   if (vol) vol.value = (item && item.is_penoplast && Number(item.volume_per_unit) > 0) ? String(item.volume_per_unit).replace('.', ',') : '';
+  rcvKiritishKor();
+}
+// kech194 (zip 261): kiritish qatorining «Omborda», «Birlik» kataklari, karta yorliqlari, jami va narx belgisi (blok hajmiga tegmaydi)
+function rcvKiritishKor() {
+  const sel = document.getElementById('ap-item');
+  const itemId = sel ? parseInt(sel.value) : NaN;
+  const item = invItems.find(i => i.id === itemId);
+  const omb = document.getElementById('ap-omborda');
+  if (omb && typeof rcvOmbordaKatak === 'function') omb.innerHTML = apCreatingNewItem ? '<div class="rcv-omb">0</div>' : rcvOmbordaKatak(item);
+  if (typeof rcvKiritishBirlik === 'function') {
+    if (apCreatingNewItem) apNewItemUnitChange(); else rcvKiritishBirlik(item ? item.unit : '');
+  }
   apCalc();
+}
+// kiritish qatoridagi birlik (o'zgarmas — materialdan; yangi material — tanlangan birlik)
+function rcvKiritishBirlik(unit) {
+  _rcvYoz('ap-unit', unit || '—');
+  _rcvYoz('ap-qty-yorliq', unit ? 'Miqdor (' + unit + ')' : 'Miqdor');
+  _rcvYoz('ap-price-yorliq', unit ? '1 ' + unit + ' narxi' : '1 birlik narxi');
+}
+function apNewItemUnitChange() {
+  if (apCreatingNewItem) rcvKiritishBirlik(document.getElementById('ap-newitem-unit')?.value || '');
 }
 function apCalc(){
   const qty = parseFloat(document.getElementById('ap-qty').value)||0;
   const price = parseNum(document.getElementById('ap-price').value)||0;
   // kech144 (zip 180, audit C6): server qoidasi (`buyurtmaJami` — savatdagi bilan bir xil; ilgari `qty × narx` butun so'mga)
   document.getElementById('ap-total').value = (qty*price>0) ? narxKorinishi(buyurtmaJami(qty, price).jami)+" so'm" : '—';
+  if (typeof rcvSigdir === 'function') {
+    ['ap-qty', 'ap-price', 'ap-total'].forEach(id => rcvSigdir(document.getElementById(id)));
+    rcvSigdir(document.querySelector('#ap-omborda .rcv-sig'));   // review262 №1: material tanlanganda «Omborda» ham darhol
+  }
+  // kech194 (zip 261): kiritish qatorida ham narx o'zgarishi belgisi
+  if (typeof rcvTrendJoyla === 'function' && document.getElementById('ap-trend')) {
+    const itemId = parseInt(document.getElementById('ap-item').value);
+    rcvTrendJoyla(document.getElementById('ap-narxbox'), document.getElementById('ap-trend'),
+      (!apCreatingNewItem && itemId) ? rcvTrend(price, oxirgiNarxlar.get(itemId)) : null);
+  }
 }
 document.getElementById('ap-qty').addEventListener('input', apCalc);
 document.getElementById('ap-price').addEventListener('input', apCalc);
 
-function apToggleNewItem(){
+// kech194 (zip 261): `majbur` — true bo'lsa faqat OCHADI («Ombordan tanlash» dagi «Yangi material qo'shish»; ochiq bo'lsa yopilmaydi)
+function apToggleNewItem(majbur){
+  if (majbur === true && apCreatingNewItem) { const n = document.getElementById('ap-newitem-name'); if (n) n.focus(); return; }
   apCreatingNewItem = !apCreatingNewItem;
   document.getElementById('ap-item').style.display = apCreatingNewItem ? 'none' : 'block';
+  // kech194 (zip 261): qidiruvli tanlagich (`tanlov.js` — asl select yonidagi tugma) ham yashiriladi
+  const _w = document.getElementById('ap-item-wrap'); if (_w) _w.style.display = apCreatingNewItem ? 'none' : '';
+  const _y = document.getElementById('ap-newitem-yorliq'); if (_y) _y.style.display = apCreatingNewItem ? 'flex' : 'none';
   document.getElementById('ap-newitem-form').style.display = apCreatingNewItem ? 'block' : 'none';
   document.getElementById('ap-newitem-toggle-text').textContent = apCreatingNewItem
-    ? '← Ro\'yxatdan tanlayman' : "🆕 Ro'yxatda yo'q — yangi material yozaman";
+    ? '← Ro\'yxatdan tanlayman' : "Yangi material";
   if (apCreatingNewItem) {
     document.getElementById('ap-newitem-name').value='';
     document.getElementById('ap-newitem-volume').value='';
     const defEl = document.getElementById('ap-newitem-default'); if (defEl) defEl.checked = false;
     document.getElementById('ap-volume-wrap').style.display='none';
     onNewItemCategoryChange();
+    const _omb = document.getElementById('ap-omborda'); if (_omb) _omb.innerHTML = '<div class="rcv-omb">0</div>';
+    if (typeof apNewItemUnitChange === 'function') apNewItemUnitChange();
+    if (typeof rcvTrendJoyla === 'function') rcvTrendJoyla(document.getElementById('ap-narxbox'), document.getElementById('ap-trend'), null);
+    const _n = document.getElementById('ap-newitem-name'); if (_n && typeof _n.focus === 'function') _n.focus();
+  } else if (typeof rcvKiritishKor === 'function' && document.getElementById('ap-omborda')) {
+    rcvKiritishKor();
   }
 }
 
@@ -1011,7 +1534,7 @@ async function apResolveItemId(){
         const sel = document.getElementById('ap-item');
         sel.value = String(d.id);
         apOnItemChange();
-        showMsg('ℹ️ ' + d.message + " — o'sha material tanlandi: birligini tekshirib, «+ Material ro'yxatga qo'shish» ni qayta bosing", 'info');
+        showMsg('ℹ️ ' + d.message + " — o'sha material tanlandi: birligini tekshirib, qatordagi «+» ni qayta bosing", 'info');
         return null;
       }
       showMsg("❌ Yangi material yaratib bo'lmadi: " + await amalSababi(res), 'error');
@@ -1019,12 +1542,14 @@ async function apResolveItemId(){
     }
     const created = await res.json();
     invItems.push({id:created.id, item_name:created.item_name, unit:created.unit, category:created.category, is_penoplast:created.is_penoplast,
-                   volume_per_unit: created.volume_per_unit});
+                   volume_per_unit: created.volume_per_unit, stock_quantity: Number(created.stock_quantity) || 0,
+                   min_stock: Number(created.min_stock) || 0, price_per_unit: created.price_per_unit});
     apToggleNewItem();
     const sel = document.getElementById('ap-item');
     const opt = document.createElement('option');
     opt.value = created.id; opt.dataset.unit = created.unit; opt.textContent = `${created.item_name} (${created.unit})`;
     sel.appendChild(opt); sel.value = created.id;
+    if (typeof rcvKiritishKor === 'function') rcvKiritishKor();
     return created.id;
   } catch(e) { showMsg('❌ Server xatosi', 'error'); return null; }
 }
@@ -1052,9 +1577,11 @@ async function apAddToBasket(){
 
 // kech115 (G4-01): savatdagi AYNAN bir xil qator (material, miqdor, tiyinga yaxlitlangan narx, hajm) — server ham rad
 // etadi (`crud.kirim_takror_qator`). Bir materialni boshqa narx / miqdorda (ikki partiya) qo'shish — mumkin.
-function apTakrorQator(itemId, qty, price, volumePerUnit){
+// kech194 (zip 261): chala qator (miqdor yoki narx yo'q — «Ombordan tanlash» dan) solishtirilmaydi; `istisno` — joyida tahrirlanayotgan
+// qatorning o'zi (o'zi bilan takror emas).
+function apTakrorQator(itemId, qty, price, volumePerUnit, istisno){
   const narx = buyurtmaJami(qty, price).narx;
-  return apBasket.findIndex(b => b.itemId === itemId && Number(b.qty) === Number(qty)
+  return apBasket.findIndex((b, i) => i !== istisno && !b.chala && b.itemId === itemId && Number(b.qty) === Number(qty)
     && buyurtmaJami(b.qty, b.price).narx === narx
     && (b.volumePerUnit || null) === (volumePerUnit || null));
 }
@@ -1071,7 +1598,7 @@ function apQatorniSavatga(itemId, item, qty, price){
     return false;
   }
   // 125-band (kech96): qator jamisi — server qoidasi bilan (`crud._xarid_narx_jami`, bazaga yoziladigan AYNAN summa)
-  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:buyurtmaJami(qty, price).jami, isPenoplast: item?item.is_penoplast:false, volumePerUnit });
+  apBasket.push({ itemId, itemName:item?item.item_name:'?', unit:item?item.unit:'', qty, price, total:buyurtmaJami(qty, price).jami, isPenoplast: item?item.is_penoplast:false, volumePerUnit, chala:false });
 
   document.getElementById('ap-item').value='';
   document.getElementById('ap-qty').value='';
@@ -1079,32 +1606,149 @@ function apQatorniSavatga(itemId, item, qty, price){
   document.getElementById('ap-total').value='—';
   document.getElementById('ap-volume').value='';
   document.getElementById('ap-volume-wrap').style.display='none';
+  if (document.getElementById('ap-omborda')) document.getElementById('ap-omborda').innerHTML = rcvOmbordaKatak(null);
+  if (document.getElementById('ap-unit')) rcvKiritishBirlik('');
+  if (document.getElementById('ap-trend')) rcvTrendJoyla(document.getElementById('ap-narxbox'), document.getElementById('ap-trend'), null);
   renderBasket();
   return true;
 }
 
-function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); }
+function apRemoveFromBasket(idx){ apBasket.splice(idx,1); renderBasket(); if (ombordanOchiqmi()) ombordanChiz(); }
+
+// kech196 (egasi so'rovi 06.11 03:57: «summa to'liq sig'mayapti — shunaqa joylarini o'zing ham tekshirib to'g'rilab ber, mayda kamchiliklar
+// qolmasin»; O'LCHANGAN work/k262/olchov262.py): `.rcv-sig` — raqamli maydon / katak. Matn sig'masa shrift kichrayadi (eng kami 11 px;
+// raqam guruhlari bo'linmas bo'shliq bilan — raqam o'rtasidan bo'linmaydi, «so'm» keyingi qatorga o'tishi mumkin); shunda ham sig'masa —
+// to'liq qiymat izohda (sichqoncha ostida). Ko'rinmaydigan element (yopiq bo'lim, boshqa rejim) o'tkaziladi — kenglik o'zgarsa qayta o'lchanadi.
+const RCV_SIG_MIN = 11;
+function rcvSigdir(el) {
+  if (!el || !el.style || !el.dataset) return;
+  if (el.style.fontSize) el.style.fontSize = '';
+  if (el.classList) el.classList.remove('rcv-sig-sinmaydi');
+  const cw = el.clientWidth;
+  if (!cw) return;
+  const izohOchir = () => { if (el.dataset.sigIzoh) { el.removeAttribute('title'); delete el.dataset.sigIzoh; } };
+  const sw = el.scrollWidth;
+  if (sw <= cw + 1) { izohOchir(); return; }
+  const asl = parseFloat(getComputedStyle(el).fontSize) || 13;
+  let f = Math.max(RCV_SIG_MIN, Math.floor(asl * cw / sw * 2) / 2);
+  el.style.fontSize = f + 'px';
+  while (el.scrollWidth > el.clientWidth + 1 && f > RCV_SIG_MIN) { f = Math.max(RCV_SIG_MIN, f - 0.5); el.style.fontSize = f + 'px'; }
+  if (el.scrollWidth > el.clientWidth + 1) {
+    // review262 №3, №5: eng kichik shriftda ham sig'masa — katak ichida bo'linadi (`rcv-sig-sinmaydi`, katakdan chiqmaydi); izohga to'liq
+    // qiymat, ota elementning o'z izohi bo'lsa (masalan «Omborda kam — …») — u ham saqlanadi
+    const matn = el.tagName === 'INPUT' ? el.value : el.textContent;
+    const ota = el.parentElement && el.parentElement.getAttribute ? el.parentElement.getAttribute('title') : '';
+    el.title = ota ? matn + ' — ' + ota : matn;
+    el.dataset.sigIzoh = '1';
+    if (el.tagName !== 'INPUT' && el.classList) el.classList.add('rcv-sig-sinmaydi');
+  } else izohOchir();
+}
+function rcvSigHammasi() {
+  try { document.querySelectorAll('#rcvWrap .rcv-sig').forEach(rcvSigdir); } catch (e) { /* o'lchov — faqat ko'rinish */ }
+}
+let _rcvSigNav = 0;
+function rcvSigKeyin() {
+  if (_rcvSigNav) return;
+  const keyin = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f => setTimeout(f, 16));
+  _rcvSigNav = keyin(() => { _rcvSigNav = 0; rcvSigHammasi(); });
+}
+if (typeof ResizeObserver === 'function' && document.getElementById('rcvWrap')) {
+  new ResizeObserver(() => rcvSigKeyin()).observe(document.getElementById('rcvWrap'));
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => rcvSigKeyin());
+document.addEventListener('input', e => { if (e.target && e.target.classList && e.target.classList.contains('rcv-sig')) rcvSigdir(e.target); });
+
+// kech194 (zip 261): qator miqdori maydonda ko'rinishi (bo'sh — chala qator; narx — `narxKorinishi`, 0 — bo'sh)
+function _rcvQtyMatn(q) { return (q === null || q === undefined || !(Number(q) > 0)) ? '' : sonKor(Number(q), 4).replace(/[\u00a0\u202f]/g, ' '); }
 
 function renderBasket(){
   const tbody = document.getElementById('rcv-basket-body');
   if (!apBasket.length){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--r-text3)">Hali material qo\'shilmagan</td></tr>';
+    tbody.innerHTML = '<tr class="rcv-bosh-qator"><td colspan="8">Hali material qo\'shilmagan — «Ombordan tanlash» yoki qatorda materialni tanlang</td></tr>';
   } else {
-    tbody.innerHTML = apBasket.map((b,i)=>`
-      <tr>
-        <td data-label="№">${i+1}</td>
-        <td data-label="Material nomi" style="font-weight:600;color:var(--r-text)">${escapeHtml(b.itemName)}${b.isPenoplast?' <span style="color:var(--gold-dark);font-size:12px">(Penoplast)</span>':''}</td>
-        <td data-label="Miqdor">${sonKor(b.qty, 4)} ${escapeHtml(b.unit)}</td>
-        <td data-label="1 birlik narxi">${pulKor(b.price)} so'm</td>
-        <td data-label="Summa" style="text-align:right;font-weight:700">${pulKor(b.total)} so'm</td>
-        <td data-label="" style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})" title="Ro'yxatdan olib tashlash" aria-label="Ro'yxatdan olib tashlash"><i class="ti ti-trash"></i></button></td>
-      </tr>`).join('');
+    // kech194 (zip 261 — egasining varianti, 2-variant): har qator — material, «Omborda», miqdor / narx (joyida tahrirlanadi), birlik,
+    // narx o'zgarishi belgisi, summa; penoplastda «1 blok = … m³»
+    tbody.innerHTML = apBasket.map((b,i)=>{
+      const item = invItems.find(x => x.id === b.itemId);
+      const unit = b.unit || '';
+      const t = rcvTrend(b.price, oxirgiNarxlar.get(b.itemId));
+      const qtyBosh = !(Number(b.qty) > 0), narxBosh = !(Number(b.price) > 0);
+      const vol = b.isPenoplast ? `<div class="rcv-vol"><i class="ti ti-cube"></i><span>1 blok =</span><input type="text" inputmode="decimal" class="rcv-q-vol" value="${escapeHtml(b.volumePerUnit ? String(b.volumePerUnit).replace('.', ',') : '')}" placeholder="m³" aria-label="1 blok necha m³" oninput="apQatorTahrir(${i}, 'vol', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"><span>m³</span></div>` : '';
+      return `
+      <tr data-i="${i}" class="${b.chala ? 'chala' : ''}">
+        <td class="c-nr" data-label="№"><span class="rcv-nr">${i+1}</span></td>
+        <td class="c-mat" data-label="Material nomi"><div class="rcv-matnom" title="${escapeHtml(b.itemName)}">${escapeHtml(b.itemName)}</div>${vol}</td>
+        <td class="c-omb" data-label="Omborda">${rcvOmbordaKatak(item)}</td>
+        <td class="c-qty" data-label="Miqdor"><span class="rcv-yorliq-ichki">${escapeHtml(unit ? 'Miqdor (' + unit + ')' : 'Miqdor')}</span><input class="rcv-q rcv-sig rcv-q-qty${qtyBosh ? ' bosh' : ''}" type="text" inputmode="decimal" value="${escapeHtml(_rcvQtyMatn(b.qty))}" placeholder="0" aria-label="${escapeHtml((i+1) + '-qator miqdori')}" oninput="apQatorTahrir(${i}, 'qty', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"></td>
+        <td class="c-unit" data-label="Birlik"><div class="rcv-unit">${escapeHtml(unit || '—')}</div></td>
+        <td class="c-narx" data-label="1 birlik narxi"><span class="rcv-yorliq-ichki">${escapeHtml(unit ? '1 ' + unit + ' narxi' : '1 birlik narxi')}</span><div class="rcv-narxbox${t ? ' trendli' : ''}"><span class="rcv-trend-joy">${rcvTrendHtml(t)}</span><input class="rcv-q rcv-sig rcv-q-price${narxBosh ? ' bosh' : ''}" type="text" inputmode="decimal" value="${narxKorinishi(Number(b.price) > 0 ? b.price : 0).replace(/^0$/, '')}" placeholder="0" aria-label="${escapeHtml((i+1) + '-qator narxi')}" oninput="formatPriceInput(this); apQatorTahrir(${i}, 'price', this.value)" onfocus="this.dataset.oldin = this.value" onchange="apQatorTekshir(${i}, this)"></div></td>
+        <td class="c-sum" data-label="Summa"><span class="rcv-yorliq-ichki">Summa</span><span class="rcv-sum rcv-sig">${b.chala ? '—' : pulKor(b.total) + " so'm"}</span></td>
+        <td class="c-del" data-label=""><button type="button" class="rcv-del rcv-icon-btn" onclick="apRemoveFromBasket(${i})" title="Ro'yxatdan olib tashlash" aria-label="Ro'yxatdan olib tashlash"><i class="ti ti-trash"></i></button></td>
+      </tr>`;
+    }).join('');
   }
   const total = pulYigindi(apBasket.map(b => b.total));
   document.getElementById('rcv-pos-count').textContent = apBasket.length;
   document.getElementById('rcv-pos-total').textContent = pulKor(total)+" so'm";
   updateSummary();
   saveDraft();
+}
+
+// kech194 (zip 261 — REJA261 §2.3): mavjud qatorning miqdori / narxi / blok hajmi JOYIDA tahrirlanadi — qator qayta chizilmaydi (yozish
+// to'xtamaydi): jami (server qoidasi `buyurtmaJami`), chala belgisi, summa katagi, narx o'zgarishi belgisi, «Materiallar jami», xulosa,
+// qoralama. Bo'sh / 0 — chala qator (jamiga kirmaydi, «Kirimni tasdiqlash» to'xtaydi).
+function apQatorTahrir(i, maydon, qiymat) {
+  const b = apBasket[i];
+  if (!b) return;
+  if (maydon === 'qty') { const q = rcvMiqdorOqi(qiymat); b.qty = q > 0 ? q : null; }
+  else if (maydon === 'price') { const p = parseNum(qiymat); b.price = p > 0 ? p : null; delete b.narxManba; }
+  else if (maydon === 'vol') { const v = parseNum(qiymat); b.volumePerUnit = v > 0 ? v : null; }
+  else return;
+  b.chala = !(Number(b.qty) > 0 && Number(b.price) > 0);
+  b.total = b.chala ? 0 : buyurtmaJami(b.qty, b.price).jami;
+  const tr = document.querySelector('#rcv-basket-body tr[data-i="' + i + '"]');
+  if (tr) {
+    tr.classList.toggle('chala', b.chala);
+    const s = tr.querySelector('.rcv-sum'); if (s) s.textContent = b.chala ? '—' : pulKor(b.total) + " so'm";
+    const qi = tr.querySelector('.rcv-q-qty'); if (qi) qi.classList.toggle('bosh', !(Number(b.qty) > 0));
+    const pi = tr.querySelector('.rcv-q-price'); if (pi) pi.classList.toggle('bosh', !(Number(b.price) > 0));
+    rcvTrendJoyla(tr.querySelector('.rcv-narxbox'), tr.querySelector('.rcv-trend-joy'), rcvTrend(b.price, oxirgiNarxlar.get(b.itemId)));
+  }
+  _rcvYoz('rcv-pos-total', pulKor(pulYigindi(apBasket.map(x => x.total))) + " so'm");
+  updateSummary();
+}
+// review261 №4: qator miqdori — faqat son (ming ajratgich — bo'shliq, kasr — vergul yoki nuqta, bittasi): «1/2», «1.2.3», «2e3», harf —
+// son emas (qator chala qoladi, «miqdorni yozing»); ilgari `parseNum` ularni jimgina 12 / 123 / 2000 qilardi
+function rcvMiqdorOqi(v) {
+  const t = String(v == null ? '' : v).replace(/[\s\u00a0\u202f]/g, '');
+  if (!/^\d+([.,]\d+)?$/.test(t)) return NaN;
+  return Number(t.replace(',', '.'));
+}
+
+// Tahrir tugagach (maydondan chiqilganda): to'liq qator boshqa to'liq qator bilan AYNAN bir xil bo'lib qolsa (server ham rad etadi) —
+// xabar va maydon avvalgi qiymatiga qaytadi
+function apQatorTekshir(i, input) {
+  const b = apBasket[i];
+  if (!b || b.chala) return;
+  const takror = apTakrorQator(b.itemId, b.qty, b.price, b.volumePerUnit, i);
+  if (takror < 0) return;
+  showMsg("❌ " + (i + 1) + "-qator " + (takror + 1) + "-qator bilan AYNAN bir xil bo'lib qoldi (" + b.itemName + ", " + sonKor(b.qty, 4)
+    + " × " + pulKor(b.price) + " so'm). Ikki partiya bo'lsa — miqdorini birlashtiring.", 'error');
+  if (input && input.dataset && input.dataset.oldin !== undefined) {
+    input.value = input.dataset.oldin;
+    const maydon = input.classList.contains('rcv-q-qty') ? 'qty' : (input.classList.contains('rcv-q-price') ? 'price' : 'vol');
+    apQatorTahrir(i, maydon, input.value);
+  }
+}
+
+// kech194 (zip 261): «+ Bo'sh qator» — kiritish qatoriga (material tanlagichi) o'tadi
+function rcvBoshQator() {
+  if (apCreatingNewItem) { const n = document.getElementById('ap-newitem-name'); if (n) n.focus(); return; }
+  const tr = document.querySelector('#rcv-kiritish-body tr');
+  if (tr && tr.scrollIntoView) tr.scrollIntoView({behavior: 'smooth', block: 'center'});
+  const sel = document.getElementById('ap-item');
+  const qt = sel && sel.parentElement ? sel.parentElement.querySelector('.qt .qt-maydon') : null;
+  if (qt) { qt.focus(); qt.click(); } else if (sel) sel.focus();
 }
 
 function apGetExtraCosts(){
@@ -1115,6 +1759,9 @@ function apGetExtraCosts(){
     boshqa: parseNum(document.getElementById('ap-cost-boshqa')?.value)||0,
   };
 }
+
+// kech194 (zip 261): hisob nomi xulosa uchun — «Xarajatlar (bankdan)»
+const RCV_HISOB_DAN = {naqd: 'naqd puldan', bank: 'bankdan', karta: 'kartadan'};
 
 // 125-band (kech96, O'LCHANGAN `work/probe125.py` R1–R3 — HAQIQIY brauzer, SQLite = PG): qo'shimcha xarajatlar
 // (transport, tushirish, yuklash, boshqa) korxona xarajati sifatida Moliyaga yoziladi va kassadan chiqadi —
@@ -1128,13 +1775,17 @@ function apGetExtraCosts(){
 // (`paid_now: 0`, qatorlar nasiya emas) — ilgari xulosa buni o'qimay «Qarzga qoladi 5 000 000» derdi, omborchi
 // belgi ishlayotganini ko'rmasdi. Endi to'langan / qarz — 0, ostida sariq ogohlantirish. Sana bugun bo'lmasa —
 // ko'k eslatma (G4-03).
+// kech194 (zip 261): «To'liq to'langan» tanlangan bo'lsa — «To'langan summa» savat bilan birga o'zi yangilanadi; boshlang'ich rejimda
+// qo'shimcha xarajatlar yuborilmaydi (karta yashirin) — xulosada ham 0.
 function updateSummary(){
   const productsTotal = pulYigindi(apBasket.map(b => b.total));
   const ec = apGetExtraCosts();
-  const extraTotal = pulYigindi([ec.transport, ec.tushirish, ec.yuklash, ec.boshqa]);
-  const grand = pulYigindi([productsTotal, extraTotal]);
   const opening = document.getElementById('ap-opening-stock')?.checked || false;
-  const paid = opening ? 0 : (parseNum(document.getElementById('ap-paid-now').value)||0);
+  const extraTotal = opening ? 0 : pulYigindi([ec.transport, ec.tushirish, ec.yuklash, ec.boshqa]);
+  const grand = pulYigindi([productsTotal, extraTotal]);
+  const paidEl = document.getElementById('ap-paid-now');
+  if (!opening && rcvTolov === 'toliq' && paidEl) paidEl.value = productsTotal > 0 ? narxKorinishi(productsTotal) : '';
+  const paid = opening ? 0 : (parseNum(paidEl ? paidEl.value : '')||0);
   const debt = opening ? 0 : Math.max(0, pulYigindi([productsTotal, -paid]));
 
   document.getElementById('sum-products').textContent = pulKor(productsTotal)+" so'm";
@@ -1142,6 +1793,17 @@ function updateSummary(){
   document.getElementById('sum-grand').textContent = pulKor(grand)+" so'm";
   document.getElementById('sum-paid').textContent = pulKor(paid)+" so'm";
   document.getElementById('sum-debt').textContent = pulKor(debt)+" so'm";
+  // kech194 (zip 261): yangi xulosa qatorlari va telefon paneli
+  _rcvYoz('sum-products-yorliq', opening ? 'Materiallar qiymati' : 'Materiallar summasi');
+  _rcvYoz('sum-omborga', apBasket.length + ' ta material');
+  _rcvYoz('sum-xarajat', pulKor(extraTotal) + " so'm");
+  {
+    const turi = (typeof hisobQiymat === 'function' && document.getElementById('ap-hisob')) ? hisobQiymat('ap-hisob') : 'naqd';
+    _rcvYoz('sum-xarajat-yorliq', 'Xarajatlar (' + (RCV_HISOB_DAN[turi] || 'naqd puldan') + ')');
+  }
+  _rcvYoz('dock-yorliq', opening ? 'Materiallar' : 'Umumiy');
+  _rcvYoz('dock-umumiy', pulKor(opening ? productsTotal : grand) + " so'm");
+  _rcvYoz('dock-qarz', pulKor(debt));
   const ow = document.getElementById('sum-opening-warn');
   if (ow) ow.style.display = opening ? 'block' : 'none';
   const dw = document.getElementById('sum-date-warn');
@@ -1155,6 +1817,7 @@ function updateSummary(){
       dw.style.display = 'none';
     }
   }
+  if (typeof rcvSigKeyin === 'function') rcvSigKeyin();
   saveDraft();
 }
 
@@ -1171,12 +1834,210 @@ function apPayFull(){
   document.getElementById('ap-paid-now').value = narxKorinishi(productsTotal);
   updateSummary();
 }
-document.getElementById('ap-paid-now').addEventListener('input', updateSummary);
+
+// kech194 (zip 261 — egasining varianti): to'lov turi — «To'liq to'langan» (summa = materiallar jami, o'zgartirilmaydi), «Qisman
+// to'langan» (qo'lda), «Qarzga olindi» (0). «Qarz to'lov muddati» — faqat Qisman / Qarzga da. `tiklash` — qoralamadan (summa
+// o'zgartirilmaydi, fokus yo'q).
+function rcvTolovTuri(tur, tiklash) {
+  if (['toliq', 'qisman', 'qarz'].indexOf(tur) < 0) tur = 'qarz';
+  rcvTolov = tur;
+  rcvTolovKor();
+  const p = document.getElementById('ap-paid-now');
+  if (p) {
+    p.readOnly = tur === 'toliq';
+    if (tur === 'qarz') p.value = '';
+    if (tur === 'toliq') p.value = '';            // updateSummary materiallar jamisini yozadi
+  }
+  updateSummary();
+  if (tur === 'qisman' && !tiklash && p && typeof p.focus === 'function') p.focus();
+}
+
+// tanlangan to'lov turining ko'rinishi (tugmalar, «*», qarz muddati)
+function rcvTolovKor() {
+  document.querySelectorAll('#rcv-tolov-turi .rcv-ro').forEach(b => {
+    const on = b.dataset.tur === rcvTolov;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  const req = document.getElementById('ap-paid-req'); if (req) req.style.display = rcvTolov === 'qisman' ? '' : 'none';
+  const dw = document.getElementById('ap-due-wrap'); if (dw) dw.style.display = rcvTolov === 'toliq' ? 'none' : '';
+}
+
+// kech194 (zip 261 — egasining varianti): «Kirim (xarid)» | «Boshlang'ich qoldiq» — yashirin `#ap-opening-stock` belgisini o'rnatadi
+// (mavjud kod, qoralama, testlar uni o'qiydi) va `change` yuboradi; ko'rinish — `rcvSegmentKor`
+function rcvSegment(tur) {
+  const cb = document.getElementById('ap-opening-stock');
+  if (!cb) return;
+  const yangi = tur === 'boshlangich';
+  if (cb.checked === yangi) { rcvSegmentKor(); return; }
+  cb.checked = yangi;
+  try { cb.dispatchEvent(new Event('change', {bubbles: true})); } catch (e) { rcvSegmentKor(); updateSummary(); }
+}
+function rcvSegmentKor() {
+  const cb = document.getElementById('ap-opening-stock');
+  const boshl = !!(cb && cb.checked);
+  const w = document.getElementById('rcvWrap'); if (w) w.classList.toggle('rcv-boshl', boshl);
+  [['rcv-seg-kirim', !boshl], ['rcv-seg-boshl', boshl]].forEach(([id, on]) => {
+    const b = document.getElementById(id);
+    if (b) { b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); }
+  });
+  const matn = boshl ? '✓ Qoldiqni omborga kiritish' : '✓ Kirimni tasdiqlash';
+  ['receive-submit-btn', 'receive-submit-dock'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b && !b.disabled) b.textContent = matn;
+  });
+}
+
+document.getElementById('ap-paid-now').addEventListener('input', function () {
+  // kech194 (zip 261): «Qarzga olindi» turganda summa yozilsa — «Qisman to'langan» ga o'tadi (yozilgan summa saqlanadi)
+  if (rcvTolov === 'qarz' && parseNum(this.value) > 0) { rcvTolov = 'qisman'; rcvTolovKor(); }
+  updateSummary();
+});
 document.getElementById('r-docnum')?.addEventListener('input', saveDraft);
 document.getElementById('ap-due-date')?.addEventListener('input', saveDraft);
 document.getElementById('ap-notes')?.addEventListener('input', saveDraft);
-document.getElementById('ap-opening-stock')?.addEventListener('change', updateSummary);   // kech115 (G4-02): xulosa ham
+document.getElementById('ap-opening-stock')?.addEventListener('change', function () { rcvSegmentKor(); updateSummary(); });   // kech115 (G4-02): xulosa ham
 document.getElementById('r-date')?.addEventListener('change', updateSummary);             // kech115 (G4-03)
+document.getElementById('ap-hisob')?.addEventListener('change', updateSummary);           // kech194 (zip 261): «Xarajatlar (…dan)»
+
+// ── «OMBORDAN TANLASH» — kech194 (zip 261, egasi «juda zo'r» 06.11 00:44) ─────────────────────────────────────────────────
+// Omborda bor materiallar ro'yxati: qidiruv, «Hammasi» / «Shu ta'minotchidan» / «Kam qolganlar», kategoriya guruhlari, ko'p tanlov.
+// Ro'yxatda bor material — «✓ ro'yxatda» (o'chiq). Qo'shilganda har biri savatga CHALA qator bo'lib tushadi (miqdor bo'sh, narx — shu
+// ta'minotchidan oxirgi xariddan, bo'lmasa bo'sh); foydalanuvchi miqdorni qatorda yozadi.
+let otFiltr = 'hammasi';
+let otTanlangan = new Set();
+function ombordanOchiqmi() {
+  const o = document.getElementById('ombordanOyna');
+  return !!(o && o.style.display && o.style.display !== 'none');
+}
+function rcvKammi(i) { const min = Number(i.min_stock) || 0; return min > 0 && (Number(i.stock_quantity) || 0) < min; }
+function ombordanOch() {
+  const o = document.getElementById('ombordanOyna');
+  if (!o) return;
+  otTanlangan = new Set();
+  otFiltr = (supplierFilterIds && supplierFilterIds.size > 0) ? 'shu' : 'hammasi';
+  const q = document.getElementById('ot-qidiruv'); if (q) q.value = '';
+  o.style.display = 'block';
+  if (!invItems.length) loadInvItemsForAp();
+  ombordanChiz();
+  if (q && window.matchMedia && !window.matchMedia('(max-width: 700px)').matches) q.focus();
+}
+function ombordanYop(fokussiz) {
+  const o = document.getElementById('ombordanOyna');
+  if (o) o.style.display = 'none';
+  if (fokussiz) return;                    // review261 №8: «Yangi material qo'shish» — fokus yangi material nomida qoladi
+  const b = document.getElementById('rcv-ombordan-btn'); if (b && typeof b.focus === 'function') b.focus();
+}
+function ombordanFiltr(f) { otFiltr = f; ombordanChiz(); }
+function ombordanBelgi(id, on) {
+  if (on) otTanlangan.add(id); else otTanlangan.delete(id);
+  const el = document.querySelector('#ot-royxat .ot-it[data-id="' + id + '"]');
+  if (el) el.classList.toggle('on', !!on);
+  ombordanPast();
+}
+function ombordanPast() {
+  const royxatda = new Set(apBasket.map(b => b.itemId));
+  const n = otTanlangan.size;
+  const m = invItems.filter(i => royxatda.has(i.id)).length;
+  const h = document.getElementById('ot-holat');
+  if (h) h.innerHTML = '<b>' + n + ' ta tanlandi</b>' + (m ? '<span class="ot-ortiq"> · ' + m + ' tasi ro\'yxatda bor</span>' : '');
+  const btn = document.getElementById('ot-qosh-btn'); if (btn) btn.disabled = n === 0;
+  _rcvYoz('ot-qosh-matn', "Ro'yxatga qo'shish" + (n ? ' (' + n + ')' : ''));
+}
+function ombordanChiz() {
+  const royxat = document.getElementById('ot-royxat');
+  if (!royxat) return;
+  const royxatda = new Set(apBasket.map(b => b.itemId));
+  const shuIds = supplierFilterIds && supplierFilterIds.size > 0 ? supplierFilterIds : null;
+  const sonlar = {
+    hammasi: invItems.length,
+    shu: shuIds ? invItems.filter(i => shuIds.has(i.id)).length : 0,
+    kam: invItems.filter(rcvKammi).length,
+  };
+  if (otFiltr === 'shu' && !sonlar.shu) otFiltr = 'hammasi';
+  const chip = (f, ikon, nom, cls) => `<button type="button" class="ot-chip${cls || ''}${otFiltr === f ? ' on' : ''}" role="radio" aria-checked="${otFiltr === f}"`
+    + ` data-filtr="${f}" onclick="ombordanFiltr('${f}')">${ikon ? '<i class="ti ' + ikon + '"></i>' : ''}${escapeHtml(nom)} <b>${sonlar[f]}</b></button>`;
+  document.getElementById('ot-chiplar').innerHTML = chip('hammasi', '', 'Hammasi')
+    + (currentSupplierId ? chip('shu', 'ti-building-store', "Shu ta'minotchidan") : '')
+    + chip('kam', 'ti-alert-triangle', 'Kam qolganlar', ' kam');
+
+  const qidir = (document.getElementById('ot-qidiruv')?.value || '').toLowerCase().replace(/[\u02bb\u02bc\u2018\u2019`]/g, "'").trim();
+  let list = invItems;
+  if (otFiltr === 'shu' && shuIds) list = list.filter(i => shuIds.has(i.id));
+  else if (otFiltr === 'kam') list = list.filter(rcvKammi);
+  if (qidir) list = list.filter(i => String(i.item_name || '').toLowerCase().replace(/[\u02bb\u02bc\u2018\u2019`]/g, "'").indexOf(qidir) >= 0);
+
+  let html = '';
+  if (!invItems.length) html = '<div class="ot-bosh-xabar">Materiallar ro\'yxati yuklanmoqda…</div>';
+  else if (!list.length) html = '<div class="ot-bosh-xabar">' + escapeHtml(qidir ? ('«' + qidir + '» bo\'yicha material topilmadi') : 'Bu bo\'limda material yo\'q') + '</div>';
+  else {
+    html = rcvKategoriyalar(list).map(g => '<div class="ot-grp">' + escapeHtml(RCV_KAT_NOMI[g.cat] || g.cat) + '</div>' + g.items.map(i => {
+      const bor = royxatda.has(i.id);
+      const on = bor || otTanlangan.has(i.id);
+      const kam = rcvKammi(i);
+      const ox = oxirgiNarxlar.get(i.id);
+      const narxMatn = ox ? ('oxirgi narx: <b>' + escapeHtml(pulKor(ox.narx)) + " so'm</b>" + (ox.sana ? ' · ' + escapeHtml(String(ox.sana)) : '') + " · shu ta'minotchidan")
+        : (Number(i.price_per_unit) > 0 ? "o'rtacha tannarx: <b>" + escapeHtml(pulKor(i.price_per_unit)) + " so'm</b>" : 'narx yozilmagan');
+      const stk = `<div class="ot-stk${kam ? ' kam' : ''}"><b>${escapeHtml(sonKor(Number(i.stock_quantity) || 0, 2) + ' ' + (i.unit || ''))}</b>`
+        + (kam ? 'kam · min ' + escapeHtml(sonKor(Number(i.min_stock) || 0, 2)) : 'omborda') + '</div>';
+      return `<label class="ot-it${bor ? ' dis' : (on ? ' on' : '')}" data-id="${i.id}"><input type="checkbox"${on ? ' checked' : ''}${bor ? ' disabled' : ''}`
+        + ` onchange="ombordanBelgi(${i.id}, this.checked)" aria-label="${escapeHtml(i.item_name)}">`
+        + `<div class="ot-nm"><b title="${escapeHtml(i.item_name)}"><span class="ot-nom">${escapeHtml(i.item_name)}</span>${bor ? '<span class="ot-royxatda" title="Ro\'yxatda bor"><span aria-hidden="true">✓</span><span class="ot-r-matn"> ro\'yxatda</span></span>' : ''}</b><small>${narxMatn}</small></div>${stk}</label>`;
+    }).join('')).join('');
+  }
+  html += '<button type="button" class="ot-yangi" onclick="apToggleNewItem(true); ombordanYop(true)"><i class="ti ti-sparkles" style="font-size:18px"></i>'
+    + '<span style="flex:1">Kerakli material topilmadimi? <u>Yangi material qo\'shish</u></span><i class="ti ti-chevron-right"></i></button>';
+  royxat.innerHTML = html;
+  ombordanPast();
+}
+function ombordanQosh() {
+  if (!otTanlangan.size) return;
+  const royxatda = new Set(apBasket.map(b => b.itemId));
+  const birinchi = apBasket.length;
+  // tanlangan tartibda emas — ro'yxatdagi tartibda (kategoriya, nom)
+  const tartib = rcvKategoriyalar(invItems.filter(i => otTanlangan.has(i.id) && !royxatda.has(i.id))).reduce((a, g) => a.concat(g.items), []);
+  tartib.forEach(item => {
+    const ox = oxirgiNarxlar.get(item.id);
+    const vol = item.is_penoplast && Number(item.volume_per_unit) > 0 ? Number(item.volume_per_unit) : null;
+    apBasket.push({ itemId: item.id, itemName: item.item_name, unit: item.unit || '', qty: null, price: ox ? ox.narx : null, total: 0,
+                    isPenoplast: !!item.is_penoplast, volumePerUnit: vol, chala: true, narxManba: 'oxirgi' });
+  });
+  ombordanYop();
+  renderBasket();
+  if (tartib.length) {
+    showMsg('✓ ' + tartib.length + " ta material ro'yxatga qo'shildi — miqdorini yozing", 'success');
+    const inp = document.querySelector('#rcv-basket-body tr[data-i="' + birinchi + '"] .rcv-q-qty');
+    if (inp) { if (inp.scrollIntoView) inp.scrollIntoView({behavior: 'smooth', block: 'center'}); inp.focus(); }
+  }
+}
+
+// review261 №9: «Ombordan tanlash» oynasi ochiq turganda Tab fokusni oyna ichida aylantiradi (orqadagi sahifaga o'tmaydi); tanlov
+// guruhlari (kirim turi, to'lov turi) — ← / → / ↑ / ↓ bilan
+document.getElementById('ombordanOyna')?.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab') return;
+  const f = [...this.querySelectorAll('button, input, [tabindex="0"]')].filter(x => !x.disabled && x.offsetParent !== null);
+  if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }
+  else if (!e.shiftKey && (i === f.length - 1 || i < 0)) { e.preventDefault(); f[0].focus(); }
+});
+function rcvRadioKlaviatura(guruh) {
+  const g = document.getElementById(guruh);
+  if (!g) return;
+  g.addEventListener('keydown', function (e) {
+    const yon = {ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1}[e.key];
+    if (!yon) return;
+    const t = [...g.querySelectorAll('[role="radio"]')].filter(x => x.offsetParent !== null);
+    const i = t.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const k = t[(i + yon + t.length) % t.length];
+    k.click();
+    k.focus();                             // (to'lov turi «Qisman» summa maydoniga o'tkazadi — klaviaturada fokus guruhda qoladi)
+  });
+}
+rcvRadioKlaviatura('rcv-seg');
+rcvRadioKlaviatura('rcv-tolov-turi');
 
 // ── YAKUNIY SAQLASH ──
 let isSubmittingReceive = false;
@@ -1187,6 +2048,9 @@ let isSubmittingReceive = false;
 // qo'yilgan qator — to'liq bo'lsagina, `apQatorniSavatga` orqali (maydonlar tozalanadi, takror qator rad);
 // chala qator (miqdor yoki narx yozilgan, ikkinchisi yo'q / material tanlanmagan) — to'xtaydi, JIM tashlab
 // yuborilmaydi. Server xatosida savat saqlanadi, maydonlar bo'sh — qayta bosish qatorni ikkilamaydi.
+// kech194 (zip 261): savatdagi chala qator («Ombordan tanlash» dan — miqdor / narx yozilmagan) — to'xtaydi, o'sha maydonga o'tadi;
+// «Qisman to'langan» da summa yozilmagan — to'xtaydi; «To'liq» da qarz muddati yuborilmaydi; boshlang'ich rejimda qo'shimcha
+// xarajatlar (karta yashirin) yuborilmaydi.
 async function submitReceive(){
   if (!currentSupplierId) { showMsg("❌ Ta'minotchini tanlang", 'error'); return; }
   if (isSubmittingReceive) return; // Ikki marta bosishdan himoya
@@ -1213,7 +2077,8 @@ async function submitReceive(){
   if (!receiptDate) { showMsg('❌ Kirim sanasini kiriting', 'error'); return; }
   if (receiptDate > bugunISO) { showMsg('❌ Kirim sanasi kelajakda bo\'lishi mumkin emas: ' + sanaKorinishi(receiptDate), 'error'); return; }
   const dueDate = document.getElementById('ap-due-date').value || null;
-  if (dueDate && dueDate < receiptDate) {
+  const _boshl6 = document.getElementById('ap-opening-stock')?.checked || false;     // review261 №6: yashirin maydon to'xtatmaydi
+  if (dueDate && dueDate < receiptDate && rcvTolov !== 'toliq' && !_boshl6) {
     showMsg("❌ To'lov muddati (" + sanaKorinishi(dueDate) + ") kirim sanasidan (" + sanaKorinishi(receiptDate) + ") oldin bo'lishi mumkin emas", 'error');
     return;
   }
@@ -1232,6 +2097,19 @@ async function submitReceive(){
 
   if (!apBasket.length) { showMsg('❌ Kamida bitta material qo\'shing', 'error'); return; }
 
+  // kech194 (zip 261): chala qator — miqdor / narx yozilmagan
+  {
+    const ci = apBasket.findIndex(b => b.chala || !(Number(b.qty) > 0) || !(Number(b.price) > 0));
+    if (ci >= 0) {
+      const b = apBasket[ci];
+      const qtyYoq = !(Number(b.qty) > 0);
+      showMsg('❌ ' + (ci + 1) + '-qatorda (' + b.itemName + ') ' + (qtyYoq ? 'miqdorni' : 'narxni') + ' yozing (yoki qatorni olib tashlang)', 'error');
+      const inp = document.querySelector('#rcv-basket-body tr[data-i="' + ci + '"] ' + (qtyYoq ? '.rcv-q-qty' : '.rcv-q-price'));
+      if (inp) { if (inp.scrollIntoView) inp.scrollIntoView({behavior: 'smooth', block: 'center'}); inp.focus(); }
+      return;
+    }
+  }
+
   // kech144 (zip 180, audit B6): «Hozir to'langan» materiallar jamisidan ko'p bo'lmasin (qo'shimcha xarajatlar ta'minotchi qarziga kirmaydi;
   // ilgari server ortig'ini jimgina tashlardi — xulosada ko'rinardi, hech qayerga yozilmasdi)
   {
@@ -1241,6 +2119,12 @@ async function submitReceive(){
     if (!_boshlangich && _tolov > _jami + 0.005) {
       showMsg("❌ Hozir to'langan summa (" + pulKor(_tolov) + " so'm) materiallar jamisidan (" + pulKor(_jami)
         + " so'm) ko'p bo'lishi mumkin emas", 'error');
+      return;
+    }
+    // kech194 (zip 261): «Qisman to'langan» — summa yozilishi kerak
+    if (!_boshlangich && rcvTolov === 'qisman' && !(_tolov > 0)) {
+      showMsg("❌ «Qisman to'langan»: to'langan summani yozing (yoki «Qarzga olindi» ni tanlang)", 'error');
+      const p = document.getElementById('ap-paid-now'); if (p && typeof p.focus === 'function') p.focus();
       return;
     }
   }
@@ -1258,13 +2142,20 @@ async function submitReceive(){
   isSubmittingReceive = true;
   const submitBtn = document.getElementById('receive-submit-btn');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; submitBtn.dataset.origText = submitBtn.textContent; submitBtn.textContent = 'Saqlanmoqda...'; }
+  const dockBtn = document.getElementById('receive-submit-dock');
+  if (dockBtn) { dockBtn.disabled = true; dockBtn.style.opacity = '0.6'; dockBtn.dataset.origText = dockBtn.textContent; dockBtn.textContent = 'Saqlanmoqda...'; }
+  // review261 №3: saqlash kutilayotganda savat qatorlari, kiritish qatori va «Ombordan tanlash» o'zgartirilmaydi (ilgari qator miqdori
+  // o'zgartirilsa bazaga eski, xabarga yangi qiymat yozilardi va o'zgarish jim yo'qolardi)
+  const _qulf = document.querySelectorAll ? [...document.querySelectorAll('#rcv-basket-body input, #rcv-basket-body button, #rcv-kiritish-body input, #rcv-kiritish-body button, #rcv-ombordan-btn')]
+    .filter(x => !x.disabled) : [];
+  _qulf.forEach(x => { x.disabled = true; });
 
   const paidNowTotal = parseNum(document.getElementById('ap-paid-now').value)||0;
-  const ec = apGetExtraCosts();
-  const addToCost = document.getElementById('ap-add-to-cost')?.checked || false;
+  const isOpeningStock = document.getElementById('ap-opening-stock')?.checked || false;
+  const ec = isOpeningStock ? {transport: 0, tushirish: 0, yuklash: 0, boshqa: 0} : apGetExtraCosts();
+  const addToCost = isOpeningStock ? false : (document.getElementById('ap-add-to-cost')?.checked || false);
   const notes = document.getElementById('ap-notes').value || '';
   const docNum = document.getElementById('r-docnum').value || '';
-  const isOpeningStock = document.getElementById('ap-opening-stock')?.checked || false;
 
   // MUHIM: barcha mahsulotlar VA qo'shimcha xarajatlar (Transport/Tushirish/
   // Yuklash/Boshqa) — BITTA, yagona so'rov orqali, serverda BITTA yagona
@@ -1286,7 +2177,7 @@ async function submitReceive(){
     yonalish_id: document.getElementById('ap-prod-type')?.value ? Number(document.getElementById('ap-prod-type').value) : null,
     // kech115 (G4-03): ilgari ikkalasi ham yuborilmasdi — kirim doim bugun, qarz muddati hech qayerda saqlanmasdi
     receipt_date: receiptDate,
-    payment_due_date: isOpeningStock ? null : dueDate
+    payment_due_date: (isOpeningStock || rcvTolov === 'toliq') ? null : dueDate
   };
 
   // kech144 (zip 180, audit A1 — kodda tasdiqlangan: 502 / javob yo'qolsa «❌ Xato: Kirim saqlanmadi» derdi — server saqlagan bo'lishi
@@ -1311,15 +2202,19 @@ async function submitReceive(){
   } finally {
     isSubmittingReceive = false;
     if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; if (submitBtn.dataset.origText) submitBtn.textContent = submitBtn.dataset.origText; }
+    if (dockBtn) { dockBtn.disabled = false; dockBtn.style.opacity = ''; if (dockBtn.dataset.origText) dockBtn.textContent = dockBtn.dataset.origText; }
+    _qulf.forEach(x => { x.disabled = false; });
   }
 
   // 125-band (kech96): ta'minotchiga to'lov / qarz — mahsulotlar jami bo'yicha (server bilan bir xil; qo'shimcha
   // xarajatlar — korxona xarajati, qarzga kirmaydi).
-  const productsJami = pulYigindi(apBasket.map(l => l.total));
+  // (yuborilgan qatorlardan — `payload`; savat saqlash paytida qulflangan)
+  const productsJami = pulYigindi(payload.items.map(l => buyurtmaJami(l.quantity, l.price_per_unit).jami));
   const totalPaid = isOpeningStock ? 0 : Math.min(paidNowTotal, productsJami);
   const totalDebt = isOpeningStock ? 0 : Math.max(0, pulYigindi([productsJami, -paidNowTotal]));
 
-  showMsg(`✓ Kirim saqlandi! To'landi: ${pulKor(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${pulKor(totalDebt)} so'm`:''}` + amalTakrorIzoh(kirimTakror), 'success');
+  showMsg((isOpeningStock ? `✓ Boshlang'ich qoldiq omborga kiritildi (${payload.items.length} ta material)`
+    : `✓ Kirim saqlandi! To'landi: ${pulKor(totalPaid)} so'm${totalDebt>0.005?`, Qarz: ${pulKor(totalDebt)} so'm`:''}`) + amalTakrorIzoh(kirimTakror), 'success');
   apBasket = []; invItems = [];
   clearDraft();
   renderBasket();
@@ -1336,6 +2231,8 @@ async function submitReceive(){
   // keyingi oddiy xarid ham jimgina boshlang'ich (qarzsiz, to'lov 0) bo'lib, o'sha hujjat raqami bilan yozilardi.
   // Sana — yana bugun (G4-03).
   document.getElementById('ap-opening-stock').checked = false;
+  rcvSegmentKor();
+  rcvTolovTuri('qarz', true);                          // kech194 (zip 261): keyingi kirim — boshlang'ich holatda
   document.getElementById('r-docnum').value = '';
   document.getElementById('r-date').value = tkISO();
   updateSummary();
@@ -1352,6 +2249,8 @@ async function submitReceive(){
   // (`is_penoplast` topilmaydi → `volume_per_unit` yuborilmaydi). Endi ro'yxat serverdan qayta olinadi (yangi
   // qoldiq va narxlar bilan).
   loadInvItemsForAp();
+  // kech194 (zip 261): oxirgi narxlar ham yangilanadi (yangi kirim — endi oxirgi xarid)
+  applySupplierMaterialFilter(currentSupplierId);
 }
 
 function showMsg(text, type){
@@ -1359,14 +2258,15 @@ function showMsg(text, type){
   if (!box) {
     box = document.createElement('div');
     box.id = 'rcvMsgBox';
-    box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2000;padding:14px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);white-space:pre-line';
+    box.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2000;padding:14px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.15);white-space:pre-line;max-width:calc(100vw - 40px)';
     document.body.appendChild(box);
   }
   box.textContent = text;
   box.style.background = type==='error' ? 'var(--f-fee2e2)' : (type==='success' ? 'var(--f-dcfce7)' : 'var(--gold-tint)');
   box.style.color = type==='error' ? 'var(--m-dc2626)' : (type==='success' ? 'var(--m-166534)' : 'var(--gold-dark)');
   box.style.display = 'block';
-  setTimeout(()=>{ box.style.display='none'; }, 3500);
+  clearTimeout(showMsg._t);
+  showMsg._t = setTimeout(()=>{ box.style.display='none'; }, 3500);
 }
 
 loadInvItemsForAp();
@@ -1376,7 +2276,7 @@ restoreDraft();
 // MUHIM: bu, avval skript BOSHIDA turardi — o'sha payt hali
 // `currentSupplierId` (let bilan e'lon qilingan) va `onSupplierChange`
 // to'liq tayyor bo'lmagan holatda chaqirilib, jim xatoga uchrab, tanlov
-// muvaffaqiyatsiz tugar edi ("kartochkalar 0" muammosi shundan edi — 
+// muvaffaqiyatsiz tugar edi ("kartochkalar 0" muammosi shundan edi —
 // qo'lda ikkinchi marta tanlaganda esa hammasi tayyor bo'lgani uchun
 // to'g'ri ishlardi). Endi bu — skriptning ENG OXIRIDA, hammasi to'liq
 // tayyor bo'lgandan keyin ishga tushadi.

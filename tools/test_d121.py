@@ -665,10 +665,15 @@ _topildi = {n: re.findall(r"(?i)yetkazib beruvchi\w*|yetkazuvchi\w*|hamkorlarga|
 check("N1 sahifalarda «yetkazib beruvchi» / «yetkazuvchi» / «hamkor»(ta'minotchi ma'nosida) — YO'Q («Hamkor ustalar» — usta, "
       "tegilmaydi)", not any(_topildi.values()), {k: v for k, v in _topildi.items() if v})
 _sr = fayl("templates/supplier_receive.html")
+# kech195 (zip 261, MOSLANDI): «Kirim qilish» oynasi qayta qurildi (egasining varianti) — «Material qo'shish» formasi va alohida «Materiallar
+# ro'yxati» o'rniga bitta «Materiallar» jadvali (oxirgi qatori — kiritish qatori); talab o'sha: «Material», «Mahsulot» emas
+_Z261 = 'id="rcv-seg-boshl"' in _sr
 check("N2 Kirim formasi: «Ta'minotchidan kirim qilish», «Material qo'shish», «Material *», «Materiallar ro'yxati», «Material "
       "nomi», «Materiallar summasi»; «Mahsulot qo'shish» / «Mahsulot *» YO'Q",
-      all(x in _sr for x in ("Ta'minotchidan kirim qilish", "Material qo'shish", "<label>Material *</label>", "Materiallar ro'yxati",
-                             "<th>Material nomi</th>", "Materiallar summasi", "Hali material qo'shilmagan"))
+      all(x in _sr for x in (("Ta'minotchidan kirim qilish", "<b>Materiallar</b>", "<th>Material <span class=\"rcv-req\">*</span></th>",
+                              'data-label="Material nomi"', "Materiallar summasi", "Hali material qo'shilmagan") if _Z261 else
+                             ("Ta'minotchidan kirim qilish", "Material qo'shish", "<label>Material *</label>", "Materiallar ro'yxati",
+                              "<th>Material nomi</th>", "Materiallar summasi", "Hali material qo'shilmagan")))
       and "Mahsulot qo'shish" not in korinadigan(_sr) and "<label>Mahsulot *</label>" not in _sr
       and "Mahsulotlar summasi" not in _sr)
 _base = fayl("templates/base.html")

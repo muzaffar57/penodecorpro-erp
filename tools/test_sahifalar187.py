@@ -129,9 +129,17 @@ check("S7 Qarzdorlar «Boshqa majburiyatlarimiz» — `oblig-sarlavha` / `oblig-
       _D.count('class="oblig-sarlavha"') == 2 and _D.count('class="oblig-chap"') == 2 and _D.count('class="oblig-summa"') == 2
       and ".oblig-summa{flex-shrink:0;white-space:nowrap;text-align:right}" in _D)
 _SR = oqi("templates/supplier_receive.html")
+_Z261 = 'id="rcv-seg-boshl"' in _SR             # kech195 (zip 261): yangi «Kirim qilish» oynasi
 check("S8 Kirim — «Materiallar ro'yxati» va «Kirimlar tarixi» jadvallari `telefon-karta`, kataklarda `data-label`",
-      _SR.count('<table class="rcv-table telefon-karta">') == 2 and 'data-label="Holati" class="kirim-holat"' in _SR
-      and '<td data-label="Material nomi"' in _SR and '<td data-label="" style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"' in _SR)
+      # kech195 (zip 261, MOSLANDI): «Materiallar» jadvali — o'z karta qoidasi (konteyner so'rovi `@container rcvmat`, kataklarda `data-label`
+      # va ichki yorliq), «Kirimlar tarixi» — avvalgidek `telefon-karta`
+      ((_SR.count('<table class="rcv-table telefon-karta">') == 1 and '<table class="rcv-mat" id="rcv-mat-jadval">' in _SR
+        and "@container rcvmat (max-width:760px){" in _SR and '<td class="c-mat" data-label="Material nomi">' in _SR
+        and '<td class="c-del" data-label=""><button type="button" class="rcv-del rcv-icon-btn" onclick="apRemoveFromBasket(${i})"' in _SR)
+       if _Z261 else
+       (_SR.count('<table class="rcv-table telefon-karta">') == 2
+        and '<td data-label="Material nomi"' in _SR and '<td data-label="" style="text-align:right"><button class="rcv-icon-btn" onclick="apRemoveFromBasket(${i})"' in _SR))
+      and 'data-label="Holati" class="kirim-holat"' in _SR)
 check("S12 Kirim — to'r katagi mazmun (uzun ta'minotchi nomi, katta summa) bilan kengaymaydi, ≤ 420 px da summalar bitta ustunda",
       ".rcv-row > *{min-width:0}" in _SR and ".rcv-stat-grid > *{min-width:0}" in _SR and "  .rcv-stat-grid{grid-template-columns:1fr}" in _SR)
 check("S9 KPI raqam kartalari — ≤ 380 px da ikona matn ustida",
@@ -291,8 +299,12 @@ def _kartami(v, w, h):
 
 
 holat("kirim_savat", "L7", "/suppliers/receive", _SAVAT, ".rcv-card:has(#rcv-basket-body)", izoh="«Materiallar ro'yxati» (1 material qo'shilgan)",
+      # kech195 (zip 261, MOSLANDI): yangi «Kirim qilish» — materiallar jadvali tor joyda (konteyner ≤ 700 px) qator — KARTA (`display: grid`,
+      # ustun nomlari yashirin, kataklarda yorliq), ustunlar: №, Material, Omborda, Miqdor …
       qosh=[("telefonda (yotiq ham) jadval — KARTA, kataklarda ustun nomi", _jadval_kartami(".rcv-card:has(#rcv-basket-body) table"),
-             lambda v, w, h: _kartami(v, w, h) and v["yorliq"][:5] == ["№", "Material nomi", "Miqdor", "1 birlik narxi", "Summa"]),
+             lambda v, w, h: ((isinstance(v, dict) and v.get("thead") == "none" and v.get("qator") == "grid"
+                               and v["yorliq"][:4] == ["№", "Material nomi", "Omborda", "Miqdor"]) if _Z261 else
+                              (_kartami(v, w, h) and v["yorliq"][:5] == ["№", "Material nomi", "Miqdor", "1 birlik narxi", "Summa"]))),
             ("🗑 (ro'yxatdan olib tashlash) ekranda to'liq", KORINISH % "'#rcv-basket-body .rcv-icon-btn'", _toliq(1))])
 holat("kirim_taminotchi", "L12", "/suppliers/receive", _SAVAT, ".rcv-card", izoh="eng uzun nomli ta'minotchi tanlangan",
       qosh=[("kirim sahifasi (`.rcv-wrap`) yon tomonga toshmaydi", "() => { const p = document.querySelector('.rcv-wrap'); return p ? [p.scrollWidth, p.clientWidth] : null; }",

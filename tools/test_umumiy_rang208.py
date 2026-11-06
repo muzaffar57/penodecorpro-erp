@@ -193,16 +193,18 @@ _tg_map = _bs[_bs.index("const _TUNGI_GRAFIK"):_bs.index("function _tungimi(")]
 check("S10 tungi rejimda grafikning ko'k ustuni (#2563EB — qorong'i kartada 3,1:1) yorqinroq #3B82F6 ga almashadi (`_TUNGI_GRAFIK`)",
       "'#2563eb': '#3B82F6'" in _tg_map and kontrast(hexrgb("#3B82F6"), hexrgb("#1E212A")) >= 4, _tg_map[:300])
 _qz = {"orders.html": '<span id="pay-debt" style="font-weight:800;color:var(--m-b91c1c)">',
-       "supplier_receive.html": '<div class="rcv-stat-value" style="color:var(--m-b91c1c)" id="sup-debt">',
+       # kech196 (zip 262, MOSLANDI): statistika katagi `.rcv-sig` (raqam sig'masa shrift kichrayadi) — rang qoidasi o'zgarmagan; eski kodda ham o'tadi
+       "supplier_receive.html": ('<div class="rcv-stat-value" style="color:var(--m-b91c1c)" id="sup-debt">',
+                                 '<div class="rcv-stat-value rcv-sig" style="color:var(--m-b91c1c)" id="sup-debt">'),
        "suppliers.html": '<span style="color:var(--m-b91c1c)" id="hist-debt">',
        "kpi.html": '<div style="font-weight:700;color:var(--m-b91c1c)">${(() => { const k = list.reduce((s,e)=>s+(e.adjustment||0),0);'}
 check("S11 och ko'kish fonda qizil yozuv ≥ 4,5:1: qarz summalari (`#pay-debt`, `#sup-debt`, `#hist-debt`, KPI «Kamaytirish jami») va "
       "«Chiqish» ustiga kelinganda — `--m-b91c1c` (#DC2626 / #EF4444 — 4,44 / 3,41); murojaat «Yangi javob» — `--gold-btn` + oq yozuv",
-      all(v in oqi("templates/" + f) for f, v in _qz.items())
+      all(any(x in oqi("templates/" + f) for x in (v if isinstance(v, tuple) else (v,))) for f, v in _qz.items())
       and ".s-logout:hover { background: var(--menu-hover); color: var(--m-b91c1c); }" in ST
       and ".mj-yangi-javob{background:var(--gold-btn);color:#fff}" in oqi("templates/murojaat.html")
       and min(kontrast(hexrgb("#B91C1C"), hexrgb(x)) for x in ("#F4F6FA", "#EFF6FF", "#F1F4F9", "#FFFFFF")) >= 4.5,
-      [f for f, v in _qz.items() if v not in oqi("templates/" + f)])
+      [f for f, v in _qz.items() if not any(x in oqi("templates/" + f) for x in (v if isinstance(v, tuple) else (v,)))])
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 # tayyorgarlik — ma'lumot API orqali
