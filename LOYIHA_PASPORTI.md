@@ -765,7 +765,7 @@ BOR bo'lsa (to'g'ri / noto'g'ri / bo'sh, sarlavha to'g'ri bo'lsa ham) — 403 `m
 (Telegram xabari, sessiya o'chirish); sarlavha noto'g'ri / yo'q — 403 «Noto'g'ri maxfiy kalit». Marshrutlarda `secret` parametri YO'Q.
 Test `tools/test_cron_sarlavha268.py` (46; SQ / TF1 / PG / PG+TF1; asl c93eec0 da 19 yiqiladi, qulamaydi); MOSLANDI
 `test_audit_himoya` E1a (versiya manbadan), `test_platforma_obuna` C1 / C2, `test_yashirin_material` (sarlavha — eski kodda ham yashil);
-mutatsiya `work/k268/mut268.py`.
+mutatsiya `work/k268/mut268.py` — 12 / 12 O'LDI; bog'liq 9 test (SQ; 3 moslangani TF1 / PG / asl c93eec0 da ham) yashil.
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
