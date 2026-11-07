@@ -315,7 +315,8 @@ else:
     # Bitta detal: yangi qator, tur, maydonlar → {perm, jami, up}. Qiymatlar `input` hodisasi bilan (forma o'zi hisoblaydi).
     DETAL_JS = """([tur, maydon, qoplama]) => {
         addItem();
-        const rs = document.querySelectorAll('#items .detal'); const r = rs[rs.length - 1];
+        // yangi qator ro'yxat BOSHIGA qo'shiladi — aynan o'zi (`item_<itemCount>`) olinadi (oxirgisi — eng birinchi qo'shilgani)
+        const r = document.getElementById('item_' + itemCount);
         selectTypeOpt(r.querySelector('.type-opt[data-value="' + tur + '"]'), tur);
         for (const [sel, v] of Object.entries(maydon)) {
           const e = sel.startsWith('#') ? document.querySelector(sel) : r.querySelector(sel);
@@ -411,6 +412,7 @@ else:
             pg.evaluate("() => { document.getElementById('items').innerHTML = ''; }")
             pg.evaluate("() => { const e = document.getElementById('base_price'); e.value = '2 468 000'; e.dispatchEvent(new Event('input', {bubbles: true})); }")
             pg.evaluate(DETAL_JS, ["profil", {".i-name": "Saqlanadigan profil", ".i-h": "10", ".i-w": "10", ".i-l": "3"}, False])
+            pg.evaluate(DETAL_JS, ["panel", {".i-name": "Saqlanadigan panel", ".i-h": "5", ".i-t": "10", ".i-q": "2"}, False])
             pg.evaluate(f"() => {{ document.getElementById('project_id').value = '{ID['P1']}'; document.getElementById('deadline_input').value = '2026-12-20'; }}")
             _oldin = {o["id"] for o in (js(A.get("/api/orders")) or [])}
             pg.evaluate("() => { saveOrder(); }")
@@ -422,9 +424,12 @@ else:
             _yangi = [o for o in (js(A.get("/api/orders")) or []) if o["id"] not in _oldin]
             OU = _yangi[0]["id"] if _yangi else None
             _du = js(A.get(f"/api/orders/{OU}")) if OU else {}
-            _iu = (_du.get("items") or [{}])[0]
-            check("U15 forma saqladi: buyurtmada qoida «+500», detal 1 m 12 500 × 3 = 37 500", _du.get("narx_yaxlit") == "+500"
-                  and yaqin(_iu.get("total_price"), 37_500), (OU, _du.get("narx_yaxlit"), _iu.get("unit_price"), _iu.get("total_price")))
+            _iq = {i.get("name"): i for i in (_du.get("items") or [])}
+            _iu = _iq.get("Saqlanadigan profil") or {}
+            _ip = _iq.get("Saqlanadigan panel") or {}
+            check("U15 forma saqladi (2 detal): buyurtmada qoida «+500», profil 1 m 12 500 × 3 = 37 500, panel 12 500 × 2 = 25 000",
+                  _du.get("narx_yaxlit") == "+500" and len(_iq) == 2 and yaqin(_iu.get("total_price"), 37_500)
+                  and yaqin(_ip.get("total_price"), 25_000), (OU, _du.get("narx_yaxlit"), [(k, v.get("total_price")) for k, v in _iq.items()]))
 
             # ── Sozlama «−1000» ga o'zgardi → eski buyurtma tahriri o'z qoidasi bilan
             sozla(A, "-", 1000)
@@ -433,14 +438,14 @@ else:
                 pg.wait_for_timeout(700)
                 pg.evaluate("() => { editSelected(); }")
                 pg.wait_for_timeout(1300)
-                _e = pg.evaluate("""() => { const r = document.querySelector('#items .detal');
+                _e = pg.evaluate("""() => { const r = [...document.querySelectorAll('#items .detal')].find(x => x.querySelector('.i-name').value === 'Saqlanadigan profil');
                     return {perm: r.querySelector('.i-perm').value, jami: r.querySelector('.i-price').value, q: NARX_YAXLIT,
                             iz: document.getElementById('narx_yaxlit_izoh').textContent}; }""")
                 check("U16 sozlama «−1 000» ga o'zgardi — saqlangan buyurtma tahriri O'Z qoidasi bilan («+500»): 1 m 12 500, jami 37 500; izoh «yuqoriga … 500»",
                       _e["q"] == "+500" and bosh(_e["perm"]) == "12 500" and bosh(_e["jami"]) == "37 500" and "yuqoriga" in _e["iz"], _e)
                 pg.evaluate("() => { const e = document.getElementById('base_price'); e.value = '2 530 000'; e.dispatchEvent(new Event('input', {bubbles: true})); }")
                 pg.wait_for_timeout(200)
-                _e2 = pg.evaluate("() => document.querySelector('#items .detal .i-perm').value")
+                _e2 = pg.evaluate("() => [...document.querySelectorAll('#items .detal')].find(x => x.querySelector('.i-name').value === 'Saqlanadigan profil').querySelector('.i-perm').value")
                 check("U17 tahrirda asosiy narx o'zgarsa — buyurtmaning qoidasi bilan: 12 650 → 13 000 (Sozlamalardagi «−1 000» EMAS)",
                       bosh(_e2) == "13 000", _e2)
             # eski (qoidasiz) buyurtma — B3 dagi O2 (12 340)
