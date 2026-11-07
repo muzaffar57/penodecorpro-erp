@@ -747,6 +747,12 @@ otaning korxonasi sessiyadagi JORIY korxonadan (`tenant_context`, `auth.get_curr
 `_resolve_parent_company(…, chuqurlik=2)` — ota `company_id` siz bo'lsa, otaning o'z qoidasi bo'yicha zanjir (`DeliveryItem → Delivery →
 Order`). HTTP marshrutlar o'zgarmagan (ular otani avvaldan korxona bo'yicha qidiradi — bu ikkinchi to'siq). Test `tools/test_joriy266.py`
 (19; SQ / TF1 / PG; asl 3ff5445 da 9 yiqiladi, qulamaydi); mutatsiya `work/k266/mut266.py` — 7 / 7 O'LDI.
+**Mavjudlik oracle'i — doimiy darvoza (kech203, zip 267 — review265 INFO-7).** review265 ning bir martalik o'lchovi
+(`work/k265/review265/probes/probe_oracle_http.py`, 19 yozish yo'li) + 4 tahrir / to'lov yo'li (`PUT /api/orders/{id}` usta / retsept / begona buyurtma,
+`POST /api/orders/{id}/payments`) — `tools/test_oracle_http267.py` (145; SQ / TF1 / PG / PG+TF1): har yo'lda begona ↔ yo'q id — holat va matn
+AYNAN (mijozning o'z id raqami chiqarib), 500 / 422 emas, ichki sabab yo'q, ErrorLog to'lmaydi, rad etilgan so'rov B da hech narsa yozmaydi,
+A korxonasining hamma jadvali va obyektlari o'zgarmaydi; o'z id lari bilan oddiy so'rovlar ishlaydi. Asl 26fc68d (zip 265 dan oldin) da
+20 yiqiladi (qulamaydi); mutatsiya `work/k267/mut267.py` — 3 / 3 O'LDI. Ilova kodi O'ZGARMAGAN — faqat test.
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
@@ -9107,6 +9113,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_ombor_platforma_yuklash_ui.py` · PG — kech139 (zip 166): «Omborxona» va «Platforma» sahifalari bitta so'rov xatosida QOTMAYDI, yolg'on qiymat («Yangi · 0», oldingi ochilishning «21 400 000 so'm» jami,…
 - `test_ombor_turkum.py` · PG — kech105 darvozasi: K105-2 (ombor turkumi "Boshqa" har deployda "Bazalt" ga aylanardi) va K105-3 (penoplast belgisi material NOMIDAN har deployda qo'yilardi; Ta'minotchilar sahi…
 - `test_oracle265.py` · PG — kech202 (zip 265): xavfsizlik REJA 14-band (Fable F6) — «mavjudlik oracle'i» yopiladi.
+- `test_oracle_http267.py` · PG — kech203 (zip 267): review265 INFO-7 — «mavjudlik oracle'i» 19 + 4 yozish yo'lida DOIMIY darvoza.
 - `test_ord066_tuzatish.py` · PG — kech127 (zip 150): `main` (production) dagi ORD-066-1 LOY XATOSINING bir martalik tuzatishi (`main._migrate_ord066_loy_xatosi`; egasi QARORI 07.10, tugmali: loy 500 kg, qold…
 - `test_ortiqcha_qaytarish.py` · PG — 5-bo'lim 57-band darvozasi (kech60, 2026-09-24): ORTIQCHA mahsulot omborga.
 - `test_oy_boshi.py` · PG — kech119 darvozasi (2026-10-01): Hisobotlar «oy boshi» xatolari va «Foyda tahlili» matnlari.
@@ -9274,5 +9281,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 360 (Python 322, JS 38).
+Jami test fayllari: 361 (Python 323, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
