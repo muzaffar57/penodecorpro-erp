@@ -461,6 +461,9 @@ class OrderCreate(BaseModel):
     base_price: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
     # kech155 (zip 211): «1 blok asosiy narxi» (qoplamasiz) — o'z narxi yozilmagan blok detallar uchun (forma shu bilan hisoblaydi)
     blok_base_price: Optional[float] = Field(default=None, ge=0, le=9_999_999_999.99, allow_inf_nan=False)
+    # kech204 (zip 269): forma narxlarni hisoblagan yaxlitlash qoidasi («+500» — yuqoriga, «-1000» — pastga; yo'q — yaxlitlanmagan).
+    # Faqat yaratishda saqlanadi (tahrir buyurtmaning o'z qoidasini o'zgartirmaydi); taklif tanasida ham turadi.
+    narx_yaxlit: Optional[str] = Field(default=None, pattern=r"^[+-](100|500|1000)$")
     # 17d (2026-09-21): rejalashtirilgan loy (kg). QAT'IY: faqat JSON son
     # (`true` / `"5"` — yo'q, ilgari 1 va 5 kg ga o'girilardi), chekli
     # (`Infinity` loy xomashyosini −∞ qilardi), manfiy emas, chegara

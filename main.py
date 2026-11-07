@@ -1067,6 +1067,8 @@ def _migrate_payment_columns():
             migrations.append("ALTER TABLE orders ADD COLUMN base_price NUMERIC(12,2)")
         if 'blok_base_price' not in ord_cols:      # kech155 (zip 211): «1 blok asosiy narxi»
             migrations.append("ALTER TABLE orders ADD COLUMN blok_base_price NUMERIC(12,2)")
+        if 'narx_yaxlit' not in ord_cols:          # kech204 (zip 269): buyurtma narxlari hisoblangan yaxlitlash qoidasi
+            migrations.append("ALTER TABLE orders ADD COLUMN narx_yaxlit VARCHAR(8)")
         if 'planned_loy_kg' not in ord_cols:
             migrations.append("ALTER TABLE orders ADD COLUMN planned_loy_kg FLOAT")
         # kech159 (zip 221): «Tayyor» oldidagi taxminiy qoplama (izohdagi reja → haqiqiy pul farqi uchun)
@@ -6508,6 +6510,8 @@ async def orders_page(request: Request, show_all: bool = False, db: Session = De
         "sayt_bor": bool(current_user.ruxsat("buyurtma", "korish") and crud.dokon_yoqilganmi(db, auth.company_id_of(current_user))),
         "sayt_soni": (crud.sayt_yangi_soni(db, auth.company_id_of(current_user))
                       if current_user.ruxsat("buyurtma", "korish") else 0),
+        # kech204 (zip 269): YANGI buyurtma / taklif formasi 1 m / 1 dona narxini shu qoida bilan yaxlitlaydi («+500» / «» — o'chiq)
+        "narx_yaxlit_korxona": crud.narx_yaxlit_sozlamasi(db, auth.company_id_of(current_user))["qoida"],
     })
 
 
@@ -9163,6 +9167,8 @@ def api_get_order(order_id: int, db: Session = Depends(get_db), current_user=Dep
         "base_price": float(order.base_price) if order.base_price is not None else None,
         # kech155 (zip 211): «1 blok asosiy narxi»
         "blok_base_price": float(order.blok_base_price) if getattr(order, 'blok_base_price', None) is not None else None,
+        # kech204 (zip 269): tahrir formasi shu qoida bilan hisoblaydi (NULL — yaxlitlanmaydi; Sozlamalardagi joriy qoida EMAS)
+        "narx_yaxlit": getattr(order, 'narx_yaxlit', None) or None,
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
         # 2026-09-17: Milestone 4 — Production/MRP tayyorlik ko'rsatkichi
         # (Order.status'ga umuman tegishli emas — faqat ko'rsatish uchun).
@@ -12529,6 +12535,44 @@ def _sozlama_jurnali(db, current_user, cid, nima: str, farqlar: list) -> None:
     crud.log_activity(db, "updated", "company_settings", cid, "Sozlamalar — " + nima,
                       current_user.full_name or current_user.username,
                       new_value=crud.audit_farq_matni(farqlar), company_id=cid)
+
+
+@app.get("/api/settings/narx-yaxlit")
+def api_get_narx_yaxlit(db: Session = Depends(get_db), current_user=Depends(auth.ruxsat("sozlama", "korish"))):
+    """kech204 (zip 269): buyurtma oynasida 1 m / 1 dona narxini yaxlitlash — yo'nalish («» o'chiq, «+» yuqoriga, «-» pastga),
+    qadam (100 / 500 / 1 000), amaldagi qoida va odamga tushunarli matn."""
+    _s = crud.narx_yaxlit_sozlamasi(db, auth.company_id_of(current_user))
+    return {**_s, "qadamlar": list(crud.NARX_YAXLIT_QADAMLAR), "matn": crud.narx_yaxlit_matni(_s["qoida"])}
+
+
+@app.put("/api/settings/narx-yaxlit")
+def api_set_narx_yaxlit(yonalish: str = Form(""), qadam: str = Form(""), db: Session = Depends(get_db),
+                        current_user=Depends(auth.ruxsat("sozlama", "tahrirlash"))):
+    """kech204 (zip 269 — egasi QARORLARI 07.11): yaxlitlash sozlamasi. `yonalish` — «» (o'chiq) / «+» / «-»; `qadam` — 100 / 500 /
+    1000 (o'chiq bo'lsa ham saqlanadi — keyin yoqilganda tanlangani qoladi). Noma'lum qiymat — 400, hech narsa saqlanmaydi.
+    Faqat YANGI buyurtma / taklifga ta'sir qiladi — mavjud buyurtmalar o'z qoidasi bilan qoladi (`orders.narx_yaxlit`)."""
+    _y = (yonalish or "").strip()
+    if _y not in ("", "+", "-"):
+        raise HTTPException(status_code=400, detail="Yo'nalish noto'g'ri — o'chiq, «+» (yuqoriga) yoki «−» (pastga) bo'lishi kerak")
+    try:
+        _q = int((qadam or "").strip())
+    except (TypeError, ValueError):
+        _q = None
+    if _q not in crud.NARX_YAXLIT_QADAMLAR:
+        raise HTTPException(status_code=400, detail="Qadam noto'g'ri — 100, 500 yoki 1 000 so'm bo'lishi kerak")
+    cid = auth.company_id_of(current_user)
+    _eski = crud.narx_yaxlit_sozlamasi(db, cid)
+    crud.set_setting(db, crud.NARX_YAXLIT_YONALISH_KALIT, _y, company_id=cid)
+    crud.set_setting(db, crud.NARX_YAXLIT_QADAM_KALIT, str(_q), company_id=cid)
+    _yangi = crud.narx_yaxlit_sozlamasi(db, cid)
+    _yon_nomi = {"": "o'chiq", "+": "yuqoriga (+)", "-": "pastga (−)"}
+    _farq = []
+    if _eski["yonalish"] != _yangi["yonalish"]:
+        _farq.append(f"Yo'nalish: «{_yon_nomi[_eski['yonalish']]}» → «{_yon_nomi[_yangi['yonalish']]}»")
+    if _eski["qadam"] != _yangi["qadam"]:
+        _farq.append(f"Qadam: «{_eski['qadam']}» → «{_yangi['qadam']}»")
+    _sozlama_jurnali(db, current_user, cid, "Narxni yaxlitlash", _farq)
+    return {**_yangi, "qadamlar": list(crud.NARX_YAXLIT_QADAMLAR), "matn": crud.narx_yaxlit_matni(_yangi["qoida"])}
 
 
 @app.get("/api/settings/categories")

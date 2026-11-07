@@ -2851,6 +2851,9 @@ def create_order(db: Session, order_data: OrderCreate, performed_by: str = None,
     db_order.agreed_amount = _pul2(getattr(order_data, 'agreed_amount', None) or total_amount)
     db_order.base_price = getattr(order_data, 'base_price', None)
     db_order.blok_base_price = _pul2_bosh(getattr(order_data, 'blok_base_price', None))   # kech155 (zip 211)
+    # kech204 (zip 269): forma narxlarni hisoblagan yaxlitlash qoidasi — buyurtmaga NUSXA (tahrirda shu qoida bilan hisoblanadi; tahrir
+    # uni o'zgartirmaydi — `update_order_full` bu maydonga tegmaydi)
+    db_order.narx_yaxlit = getattr(order_data, 'narx_yaxlit', None) or None
     if total_amount > 0 and float(db_order.agreed_amount) < total_amount:
         db_order.discount_percent = round((total_amount - float(db_order.agreed_amount)) / total_amount * 100, 2)
 
@@ -7025,6 +7028,46 @@ def set_setting(db: Session, key: str, value: str, company_id: int = None):
         row = CompanySetting(company_id=company_id, key=key, value=value)
         db.add(row)
     db.commit()
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+# kech204 (zip 269) — BUYURTMA OYNASIDA 1 m / 1 dona NARXINI YAXLITLASH (egasi so'rovi 07.11 14:28; QARORLARI 07.11 14:3x:
+# qadam Sozlamalarda tanlanadi — 100 / 500 / 1 000, standart 500; yo'nalish — faqat «+» (doim yuqoriga) va «−» (doim pastga)).
+# Formula chiqargan 1 birlik narxi (Profil, Panel, Donalik, Blok — tayyor mahsulotdan / qo'lda yozilgani EMAS) yaxlitlanadi; jami =
+# yaxlit narx × miqdor. Hisob brauzerda (`orders.html` → `narxYaxlit`); server qoidani buyurtmaga NUSXA qilib saqlaydi
+# (`orders.narx_yaxlit` — «+500» / «-1000» / NULL), shuning uchun sozlama keyin o'zgarsa ham eski buyurtma tahrirda o'z qoidasi bilan
+# hisoblanadi (narxi jimgina o'zgarmaydi). Tayyor mahsulot bo'limiga tegilmaydi (egasi: «u yerda o'zi sotish narxini belgilaydi»).
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+NARX_YAXLIT_YONALISH_KALIT = "narx_yaxlit_yonalish"     # "" — o'chiq, "+" — yuqoriga, "-" — pastga
+NARX_YAXLIT_QADAM_KALIT = "narx_yaxlit_qadam"           # "100" / "500" / "1000"
+NARX_YAXLIT_QADAMLAR = (100, 500, 1000)
+NARX_YAXLIT_QADAM_STANDART = 500
+NARX_YAXLIT_QOIDA_NAQSH = r"^[+-](100|500|1000)$"       # buyurtmaga saqlanadigan qoida («+500»)
+
+
+def narx_yaxlit_sozlamasi(db: Session, company_id: int) -> dict:
+    """Korxonaning yaxlitlash sozlamasi: {"yonalish": "" | "+" | "-", "qadam": 100 | 500 | 1000, "qoida": "" | "+500" …}.
+    Noma'lum / buzilgan qiymat — o'chiq yo'nalish, standart qadam (sahifa yiqilmaydi)."""
+    _y = (get_setting(db, NARX_YAXLIT_YONALISH_KALIT, "", company_id=company_id) or "").strip()
+    if _y not in ("", "+", "-"):
+        _y = ""
+    try:
+        _q = int((get_setting(db, NARX_YAXLIT_QADAM_KALIT, "", company_id=company_id) or "").strip())
+    except (TypeError, ValueError):
+        _q = NARX_YAXLIT_QADAM_STANDART
+    if _q not in NARX_YAXLIT_QADAMLAR:
+        _q = NARX_YAXLIT_QADAM_STANDART
+    return {"yonalish": _y, "qadam": _q, "qoida": (f"{_y}{_q}" if _y else "")}
+
+
+def narx_yaxlit_matni(qoida) -> str:
+    """Odamga tushunarli matn: «+500» → «yuqoriga, 500 so'm qadam bilan»; bo'sh / noma'lum — «o'chiq»."""
+    import re as _re269
+    q = (qoida or "").strip()
+    if not _re269.fullmatch(NARX_YAXLIT_QOIDA_NAQSH, q):
+        return "o'chiq"
+    _son = f"{int(q[1:]):,}".replace(",", " ")
+    return ("yuqoriga" if q[0] == "+" else "pastga") + f", {_son} so'm qadam bilan"
 
 
 def log_activity(db: Session, action: str, entity_type: str, entity_id: int,
@@ -22480,6 +22523,8 @@ def taklif_buyurtma_shakli(t) -> dict:
         "id": t.id, "order_number": t.raqam, "project_id": None,
         "master_id": _tana.get("master_id"), "deadline": _tana.get("deadline"),
         "base_price": _tana.get("base_price"), "blok_base_price": _tana.get("blok_base_price"),   # kech155 (zip 211)
+        # kech204 (zip 269): taklif narxlari hisoblangan yaxlitlash qoidasi (eski taklif — yo'q: yaxlitlanmaydi)
+        "narx_yaxlit": _tana.get("narx_yaxlit") or None,
         "agreed_amount": _tana.get("agreed_amount"),
         "total_amount": _h["jami"], "kelishilgan": _h["kelishilgan"],
         "qoplama_retsept_id": _tana.get("recipe_id"), "recipe_id": _tana.get("recipe_id"),

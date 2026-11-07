@@ -766,6 +766,17 @@ BOR bo'lsa (to'g'ri / noto'g'ri / bo'sh, sarlavha to'g'ri bo'lsa ham) — 403 `m
 Test `tools/test_cron_sarlavha268.py` (46; SQ / TF1 / PG / PG+TF1; asl c93eec0 da 19 yiqiladi, qulamaydi); MOSLANDI
 `test_audit_himoya` E1a (versiya manbadan), `test_platforma_obuna` C1 / C2, `test_yashirin_material` (sarlavha — eski kodda ham yashil);
 mutatsiya `work/k268/mut268.py` — 12 / 12 O'LDI; bog'liq 9 test (SQ; 3 moslangani TF1 / PG / asl c93eec0 da ham) yashil.
+**Buyurtma oynasida 1 m / 1 dona narxini yaxlitlash (kech204, zip 269 — egasi so'rovi 07.11 14:28; QARORLARI: qadam Sozlamalarda —
+100 / 500 / 1 000, standart 500; yo'nalish — faqat «+» va «−»).** Sozlamalar → «🔢 Narxni yaxlitlash» (`GET / PUT /api/settings/narx-yaxlit`,
+ruxsat — «Korxona sozlamalari»; kalitlar `narx_yaxlit_yonalish` («» / «+» / «-»), `narx_yaxlit_qadam`; `crud.narx_yaxlit_sozlamasi`,
+`crud.narx_yaxlit_matni`; o'zgarish — «Audit jurnali»). `templates/orders.html`: `narxYaxlit(n)` — Profil (1 m, qoplamadan keyin; jami =
+yaxlit × uzunlik, ichki detallar avvalgidek qo'shiladi), Panel, Donalik (yangi usul — o'lcham + «1 metrdan nechta»), Blok (1 birlik);
+tayyor mahsulotdan / qo'lda yozilgan narx, Loy sotish, MRP — TEGILMAYDI. «−» qadamdan kichik narxni 0 ga tushirmaydi (aniq qoladi);
+tiyindagi suzuvchi xato qadam sakratmaydi. Qoida buyurtma / taklif bilan saqlanadi: `orders.narx_yaxlit` (VARCHAR(8), sync migratsiya;
+«+500» / «-1000» / NULL), `OrderCreate.narx_yaxlit` (naqsh `^[+-](100|500|1000)$`; faqat YARATISHDA yoziladi — tahrir o'zgartirmaydi),
+taklif tanasida ham (`taklif_buyurtma_shakli` → rasmiylashtirishda buyurtmaga). Forma: yangi buyurtma / taklif — Sozlamalardagi qoida
+(`KORXONA_NARX_YAXLIT`, `showNewForm`), tahrir / taklifni ochish — yozuvning O'Z qoidasi (`editSelected`; eski — yaxlitlanmaydi), nusxa —
+yangi; izoh `#narx_yaxlit_izoh`. Test `tools/test_narx_yaxlit269.py` (SQ / TF1 / PG / PG+TF1; U — Chromium).
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
@@ -8135,7 +8146,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /logs` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.ruxsat('jurnal', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.jurnal_tannarx_yashir, crud.kirish_tarixi_sahifasi
-- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/settings/telegram-bot/ulash`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
+- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/narx-yaxlit`, `/api/settings/telegram-bot`, `/api/settings/telegram-bot/ulash`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
 
 ### `GET /murojaat` → `main.py:murojaat_page` → `templates/murojaat.html`
 - Qorovul: auth.admin_only
@@ -8143,7 +8154,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 
 ### `GET /orders` → `main.py:orders_page` → `templates/orders.html`
 - Qorovul: auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish'))
-- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.dokon_yoqilganmi, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.sayt_yangi_soni, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
+- Server chaqiruvlari: auth.company_id_of, auth.ruxsat_biri, crud.dokon_yoqilganmi, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.narx_yaxlit_sozlamasi, crud.sayt_yangi_soni, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
 - `orders.html` API: `/api/deliveries`, `/api/deliveries/{}`, `/api/deliveries/{}/pdf`, `/api/finished`, `/api/finished/search`, `/api/loy-stock`, `/api/order-items/{}/image`, `/api/orders`, `/api/orders/attachments/{}`, `/api/orders/pinned`, `/api/orders/{}`, `/api/orders/{}/activate`, `/api/orders/{}/agreed-amount`, `/api/orders/{}/attachments`, `/api/orders/{}/coating-notify`, `/api/orders/{}/delivery-status`, `/api/orders/{}/pdf`, `/api/orders/{}/pin`, `/api/orders/{}/planned-loy`, `/api/orders/{}/profit`, `/api/orders/{}/ready`, `/api/orders/{}/summary-pdf`, `/api/payments`, `/api/payments/{}`, `/api/production/product-types`, `/api/projects/{}/berilgan-detallar`, `/api/sayt-buyurtmalari`, `/api/sayt-buyurtmalari/{}`, `/api/sayt-buyurtmalari/{}/bekor`, `/api/sayt-buyurtmalari/{}/tasdiqla`, `/api/takliflar`, `/api/takliflar/{}`, `/api/takliflar/{}/bekor`, `/api/takliflar/{}/pdf`, `/api/takliflar/{}/rasmiylashtir`, `/api/warnings/low-stock`
 
 ### `GET /platforma` → `main.py:platforma_page` → `templates/platforma.html`
@@ -8188,7 +8199,7 @@ Har sahifa: URL → handler → shablon → qorovul (ruxsat), so'ng shablon Java
 ### `GET /sozlamalar` → `main.py:logs_page` → `templates/logs.html`
 - Qorovul: auth.ruxsat('jurnal', 'korish')
 - Server chaqiruvlari: auth.company_id_of, auth.ruxsat, crud.audit_amal_guruhlari, crud.audit_jurnali_sahifasi, crud.get_error_logs, crud.jurnal_tannarx_yashir, crud.kirish_tarixi_sahifasi
-- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/telegram-bot`, `/api/settings/telegram-bot/ulash`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
+- `logs.html` API: `/api/settings/categories`, `/api/settings/company`, `/api/settings/company/logo`, `/api/settings/narx-yaxlit`, `/api/settings/telegram-bot`, `/api/settings/telegram-bot/ulash`, `/api/system/backup`, `/api/system/health-check`, `/api/yonalishlar`, `/api/yonalishlar/{}`
 
 ### `GET /suppliers` → `main.py:suppliers_page` → `templates/suppliers.html`
 - Qorovul: auth.ruxsat('taminotchi', 'korish')
@@ -8649,7 +8660,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `DELETE /api/sayt-katalogi/telefonlar/{telefon_id}` → `main.py:api_dokon_telefon_ochir` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_telefon_ochir
 - `GET /api/sayt-katalogi/tm-mahsulotlar` → `main.py:api_dokon_tm_mahsulotlar` · 🔒 auth.admin_only · auth.company_id_of, crud.dokon_tekshir, crud.dokon_tm_mahsulotlar
 
-#### `/api/settings` (10)
+#### `/api/settings` (12)
 - `GET /api/settings/categories` → `main.py:api_get_categories` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat
 - `PUT /api/settings/categories` → `main.py:api_set_categories` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
 - `GET /api/settings/company` → `main.py:api_get_company` · 🔒 auth.require_login · auth.company_id_of
@@ -8657,6 +8668,8 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `POST /api/settings/company/logo` → `main.py:api_upload_company_logo` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat
 - `GET /api/settings/ehson-percent` → `main.py:api_get_ehson_percent` · 🔒 auth.ruxsat('kpi', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_setting
 - `PUT /api/settings/ehson-percent` → `main.py:api_set_ehson_percent` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.set_setting
+- `GET /api/settings/narx-yaxlit` → `main.py:api_get_narx_yaxlit` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat, crud.narx_yaxlit_matni, crud.narx_yaxlit_sozlamasi
+- `PUT /api/settings/narx-yaxlit` → `main.py:api_set_narx_yaxlit` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.narx_yaxlit_matni, crud.narx_yaxlit_sozlamasi, crud.set_setting
 - `GET /api/settings/telegram-bot` → `main.py:api_get_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'korish') · auth.company_id_of, auth.ruxsat, crud.get_setting
 - `PUT /api/settings/telegram-bot` → `main.py:api_set_telegram_bot` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.get_setting, crud.set_setting
 - `POST /api/settings/telegram-bot/ulash` → `main.py:api_telegram_bot_ulash` · 🔒 auth.ruxsat('sozlama', 'tahrirlash') · auth.company_id_of, auth.ruxsat, crud.get_setting, crud.log_activity, crud.set_setting
@@ -8775,7 +8788,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 - `GET /murojaat` → `main.py:murojaat_page` · 🔒 auth.admin_only
 
 #### `/orders` (1)
-- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.dokon_yoqilganmi, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.sayt_yangi_soni, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
+- `GET /orders` → `main.py:orders_page` · 🔒 auth.ruxsat_biri(('buyurtma', 'korish'), ('buyurtma_fayl', 'yaratish')) · auth.company_id_of, auth.ruxsat_biri, crud.dokon_yoqilganmi, crud.get_deadline_urgency, crud.get_masters, crud.get_orders_for_main_page, crud.get_projects, crud.get_recipes, crud.loyiha_pul_hisobi, crud.loyihalar_pul_hisobi, crud.narx_yaxlit_sozlamasi, crud.sayt_yangi_soni, crud.taklif_faol_soni, services.get_default_penoplast, services.get_penoplast_list
 
 #### `/platforma` (1)
 - `GET /platforma` → `main.py:platforma_page` · 🔓 · auth.get_current_user
@@ -8830,7 +8843,7 @@ ruxsat tanada tekshiriladi — o'zgartirishdan OLDIN handler'ni o'qing).
 #### `/ustalar` (1)
 - `GET /ustalar` → `main.py:masters_manage_page` · 🔒 auth.ruxsat('usta', 'korish') · auth.ruxsat
 
-Jami marshrutlar: 442 (main.py: 421, production_routes.py: 21).
+Jami marshrutlar: 444 (main.py: 423, production_routes.py: 21).
 <!-- AVTO:API OXIRI -->
 
 ### 9.5 Jadvallar
@@ -8899,7 +8912,7 @@ ORM qorovuli yangi / o'zgargan qatorda ota yozuv korxonasini tekshiradi.
 - `order_gips_additives` — `OrderGipsAdditive` (`models.py`, 6) — ota orqali (order_id→Order)
 - `order_item_sub_details` — `OrderItemSubDetail` (`models.py`, 12) — ota orqali (order_item_id→OrderItem)
 - `order_items` — `OrderItem` (`models.py`, 31) — o'z `company_id` + ota tekshiruvi (order_id→Order)
-- `orders` — `Order` (`models.py`, 36) — o'z `company_id` + ota tekshiruvi (project_id→Project)
+- `orders` — `Order` (`models.py`, 37) — o'z `company_id` + ota tekshiruvi (project_id→Project)
 - `payments` — `Payment` (`models.py`, 11) — ota orqali (order_id→Order)
 - `product_types` — `ProductType` (`production_models.py`, 13) — o'z `company_id`
 - `production_orders` — `ProductionOrder` (`production_models.py`, 21) — o'z `company_id`
@@ -9115,6 +9128,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_nan216.py` · PG — kech157 (zip 216 «NaN / cheksiz son — butun dastur bo'ylab»; zip 215b dagi buyurtma o'lchami sinfi).
 - `test_naqd_kassa.py` · PG — kech88 darvozasi (2026-09-26, 105 / 107 / 108-band).
 - `test_narx_etalon.py` — NARX HISOB-KITOBLARI ETALONI (Bosqich 3, 9-band).
+- `test_narx_yaxlit269.py` · PG — kech204 (zip 269): buyurtma oynasida 1 m / 1 dona narxini yaxlitlash (egasi so'rovi 07.11 14:28; QARORLARI: qadam Sozlamalarda tanlanadi — 100 / 500 / 1 000, standart 500; yo…
 - `test_nom_noyobligi.py` — mahsulot turi va retsept varianti nomlari.
 - `test_nom_tartib222.py` · PG — kech159 (zip 222 «Detal nomi — katta / kichik harf» — egasi 28.10: yuk xatida «PADAKOLNIK» → «Padakolnik»; tanlovi «Saqlashda + yuk xatida (Tavsiya)»).
 - `test_nomdosh220.py` · PG — kech159 (zip 220 «Nomdosh detallar tahriri» — egasi tanlovi 27.10 «Tuzatish + zaxira (Tavsiya)»).
@@ -9295,5 +9309,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 362 (Python 324, JS 38).
+Jami test fayllari: 363 (Python 325, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->

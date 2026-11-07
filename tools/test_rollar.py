@@ -392,6 +392,8 @@ ESKI = {
 }
 # Rollar sahifasi va API (kech118) — FAQAT Admin (topshirilmaydi)
 YANGI_MARSHRUTLAR = {
+    # kech204 (zip 269): «🔢 Narxni yaxlitlash» — Mahsulot turlari bilan bir xil ruxsat (ko'rish / tahrirlash — «Korxona sozlamalari»)
+    "GET /api/settings/narx-yaxlit": "A", "PUT /api/settings/narx-yaxlit": "A",
     # kech189 (zip 256): Moliya «− Usta KPI to'landi» oynasi — keshbek qoldig'i bor ustalar; ruxsat — to'lovni yozish bilan bir xil
     # («Kassa: Yaratish» — `POST /api/masters/{master_id}/keshbek`)
     "GET /api/finance/usta-keshbek": "A",

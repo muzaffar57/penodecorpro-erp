@@ -365,6 +365,39 @@
     </div>
     </details>
 
+    {# kech204 (zip 269 — egasi so'rovi 07.11 14:28, QARORLARI: qadam 100 / 500 / 1 000; yo'nalish «+» / «−»): buyurtma oynasida
+       formula chiqargan 1 m / 1 dona narxini yaxlitlash. `GET / PUT /api/settings/narx-yaxlit`. #}
+    <details class="sht" data-sht="soz-yaxlit"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🔢 Narxni yaxlitlash</span><span class="sht-holat"></span></summary>
+    <div class="sht-ich">
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:12px">
+        Buyurtma oynasida Profil, Panel, Donalik va Blok detallarining hisoblangan <b>1 m (1 dona) narxi</b> tanlangan qadamga
+        yaxlitlanadi; jami — yaxlit narx × miqdor. Tayyor mahsulotdan olingan va qo'lda yozilgan narxlarga tegilmaydi.
+        Faqat <b>yangi</b> buyurtma va takliflarga ta'sir qiladi — avval saqlanganlari o'z narxida qoladi.
+      </div>
+      <div id="yx-forma" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;margin-bottom:10px">
+        <fieldset style="border:0;padding:0;margin:0;min-width:0">
+          <legend style="font-size:12px;color:var(--text3);margin-bottom:6px;padding:0">Yo'nalish</legend>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:13px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="yx-yon" value="" style="width:16px;height:16px" onchange="yxMisol()"> O'chiq</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="yx-yon" value="+" style="width:16px;height:16px" onchange="yxMisol()"> Yuqoriga (+)</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="yx-yon" value="-" style="width:16px;height:16px" onchange="yxMisol()"> Pastga (−)</label>
+          </div>
+        </fieldset>
+        <div style="min-width:0">
+          <label for="yx-qadam" style="display:block;font-size:12px;color:var(--text3);margin-bottom:4px">Qadam</label>
+          <select id="yx-qadam" class="input-field" style="width:140px" onchange="yxMisol()">
+            <option value="100">100 so'm</option>
+            <option value="500">500 so'm</option>
+            <option value="1000">1 000 so'm</option>
+          </select>
+        </div>
+      </div>
+      <div id="yx-misol" style="font-size:13px;color:var(--text2);margin-bottom:12px;min-height:18px"></div>
+      {% if _soz_tahrir %}<button class="btn btn-dark btn-sm" id="yx-save-btn" onclick="saveNarxYaxlit()" disabled>Saqlash</button>{% endif %}
+      <span id="yx-status" style="font-size:13px;margin-left:8px"></span>
+    </div>
+    </details>
+
     {# kech117 (A2 — egasi QARORLARI kech114 00:08): korxona yo'nalishlari — qo'shish, nomini o'zgartirish, yashirish,
        ishlatilmaganini o'chirish (ishlatilgani — faqat yashirish). Hammasi `/api/yonalishlar`. #}
     <details class="sht" data-sht="soz-yon"><summary><span class="sht-str" aria-hidden="true">▶</span><span class="sht-sarl">🧭 Yo'nalishlar</span><span class="sht-holat"></span></summary>
@@ -653,6 +686,69 @@ async function saveCategories() {
   } finally { if (sb) sb.disabled = false; }
 }
 
+// ── kech204 (zip 269): «🔢 Narxni yaxlitlash» ─────────────────────────────────────────────────────────────────────────
+// Yuklanmaguncha «Saqlash» yopiq (sozlama noma'lum holatda «o'chiq» deb yozilib qolmasin — zip 175 C1 saboqi).
+const YX_YON_NOMI = { '': "o'chiq", '+': 'yuqoriga', '-': 'pastga' };
+function yxSon(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function yxTanlov() {
+  const r = document.querySelector('input[name="yx-yon"]:checked');
+  const q = parseInt((document.getElementById('yx-qadam') || {}).value || '500', 10);
+  return { yon: r ? r.value : '', qadam: q };
+}
+// Misol — Buyurtma oynasidagi `narxYaxlit` bilan bir xil qoida (12 340 va 12 650)
+function yxYaxlit(n, yon, qadam) {
+  const b = yon === '+' ? Math.ceil(n / qadam - 1e-9) : Math.floor(n / qadam + 1e-9);
+  return (b * qadam) > 0 ? b * qadam : n;
+}
+function yxMisol() {
+  const el = document.getElementById('yx-misol');
+  if (!el) return;
+  const t = yxTanlov();
+  if (!t.yon) { el.textContent = 'Narx hisoblanganicha qoladi (yaxlitlanmaydi).'; return; }
+  el.textContent = 'Misol: ' + [12340, 12650].map(n => yxSon(n) + ' → ' + yxSon(yxYaxlit(n, t.yon, t.qadam))).join(';  ') + " so'm";
+}
+async function loadNarxYaxlit() {
+  const st = document.getElementById('yx-status');
+  let d;
+  try { d = await yukOl('/api/settings/narx-yaxlit'); }
+  catch (e) {
+    if (st) st.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml(yukXatoMatn("Narxni yaxlitlash", (e && e.yukXato) ? e : yukXato('server'))) + '</span>';
+    if (typeof shtorkaHolat === 'function') shtorkaHolat('soz-yaxlit', 'yuklanmadi', true);
+    return;
+  }
+  const yon = (d && typeof d.yonalish === 'string') ? d.yonalish : '';
+  document.querySelectorAll('input[name="yx-yon"]').forEach(r => { r.checked = (r.value === yon); });
+  const sel = document.getElementById('yx-qadam');
+  if (sel && d && d.qadam) sel.value = String(d.qadam);
+  yxMisol();
+  if (typeof shtorkaHolat === 'function') shtorkaHolat('soz-yaxlit', yon ? (YX_YON_NOMI[yon] + ', ' + yxSon(d.qadam) + " so'm") : "o'chiq");
+  const sb = document.getElementById('yx-save-btn');
+  if (sb) sb.disabled = false;
+}
+async function saveNarxYaxlit() {
+  const sb = document.getElementById('yx-save-btn');
+  if (sb && sb.disabled) return;
+  const el = document.getElementById('yx-status');
+  const t = yxTanlov();
+  const fd = new FormData();
+  fd.append('yonalish', t.yon);
+  fd.append('qadam', String(t.qadam));
+  if (sb) sb.disabled = true;
+  try {
+    let r;
+    try { r = await fetch('/api/settings/narx-yaxlit', { method: 'PUT', body: fd }); }
+    catch (e) { el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml("❌ Saqlanmadi: " + await amalSababi(e)) + '</span>'; return; }
+    if (r.ok) {
+      let d = {};
+      try { d = await r.json(); } catch (e) {}
+      el.innerHTML = '<span style="color:var(--green,#0a0)">✓ Saqlandi</span>';
+      if (typeof shtorkaHolat === 'function') shtorkaHolat('soz-yaxlit', d.yonalish ? (YX_YON_NOMI[d.yonalish] + ', ' + yxSon(d.qadam) + " so'm") : "o'chiq");
+    } else {
+      el.innerHTML = '<span style="color:var(--m-b91c1c)">' + escapeHtml((r.status >= 500 ? "⚠️ Natija noma'lum: " : "❌ Saqlanmadi: ") + await amalSababi(r)) + '</span>';
+    }
+  } finally { if (sb) sb.disabled = false; }
+}
+
 // kech144 (zip 175, audit C3 — O'LCHANGAN: `r.ok` tekshirilmasdi — 403 / 401 JSON da bot sozlangan bo'lsa ham qizil «Sozlanmagan —
 // Telegram xabarlari YUBORILMAYDI» chiqardi): `yukOl`; yuklanmasa — sabab, holat taxmin qilinmaydi.
 // kech146 (zip 183, audit J10): serverdan kelgan chat ID (bo'sh emasmi) — maydon bo'shatilsa «o'chirish» deb yuboriladi
@@ -924,7 +1020,7 @@ const YON_OCHIR = {{ 'true' if current_user.ruxsat('sozlama', 'ochirish') else '
 // faqat jurnal ruxsatli rolda ikkitasi 403, `?hammasi=true` asosiy yo'nalishni yaratishi ham mumkin edi)
 // kech160 (zip 225): shtorkalar (xotira / filtr qo'llangan — ochiq)
 document.addEventListener('DOMContentLoaded', () => { if (typeof shtorkaTayyor === 'function') shtorkaTayyor(document); });
-{% if sozlamalar_sahifasi %}document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });{% endif %}
+{% if sozlamalar_sahifasi %}document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); loadNarxYaxlit(); yonYukla(); });{% endif %}
 // kech120 (zip 129): server tanlagan yorliq (`?tab=` — filtr / sahifa havolasidan keyin shu yorliq ochiq qoladi)
 {% if yorliq != 'login' %}document.addEventListener('DOMContentLoaded', () => { if (document.getElementById('tab-{{ yorliq }}')) switchLogTab('{{ yorliq }}'); });{% endif %}
 

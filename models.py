@@ -801,6 +801,8 @@ class Order(Base):
     base_price = Column(Numeric(12, 2), nullable=True)  # "1 m³ asosiy narxi" — hodim kiritgan, tahrirlashda tiklanishi uchun
     # kech155 (zip 211): «1 blok asosiy narxi» (qoplamasiz) — o'z «1 blok narxi» yozilmagan blok detallar shundan; tahrirda tiklanadi
     blok_base_price = Column(Numeric(12, 2), nullable=True)
+    # kech204 (zip 269): forma 1 m / 1 dona narxini hisoblagan yaxlitlash qoidasi («+500», «-1000»; NULL — yaxlitlanmagan / eski buyurtma)
+    narx_yaxlit = Column(String(8), nullable=True)
     gips_inventory_id = Column(Integer, ForeignKey("inventory.id"), nullable=True)  # Aniq qaysi Gips xomashyosi ishlatilgani
 
     # kech97 (114-band, O'LCHANGAN — kech90 `probe90_tartib`): ORDER BY siz PostgreSQL ro'yxat tartibi so'rov

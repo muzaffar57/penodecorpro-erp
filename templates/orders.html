@@ -926,6 +926,9 @@ input[type=number]{-moz-appearance:textfield}
               <input type="text" id="blok_base_price" placeholder="Masalan: 600 000" oninput="formatPriceInput(this);recalcAll()" aria-describedby="blok_base_izoh">
               <div id="blok_base_izoh" style="font-size:12px;color:var(--text3);margin-top:5px">Qoplamasiz. Detalda o'z «1 blok narxi» yozilsa — o'sha olinadi</div>
             </div>
+            {# kech204 (zip 269 — egasi so'rovi 07.11): yaxlitlash yoqiq bo'lsa — xodim formula narxi nega «yumaloq» ekanini biladi
+               (`narxYaxlitIzohi` — yangi buyurtma: Sozlamalardagi qoida, tahrir / taklif: o'sha buyurtma / taklifning o'z qoidasi) #}
+            <div id="narx_yaxlit_izoh" style="display:none;font-size:12px;color:var(--text2);background:var(--bg);border-radius:8px;padding:6px 10px;margin:-4px 0 12px"></div>
             <div class="form-group" style="margin:0">
               <label for="loy_kg">Loy miqdori (kg)</label>
               <input type="number" id="loy_kg" placeholder="0" min="0" step="0.5"
@@ -1786,6 +1789,46 @@ const PENOPLASTS = [
   {% endfor %}
 ];
 const DEFAULT_PENO_ID = {{ default_penoplast_id if default_penoplast_id else 'null' }};
+
+// ── kech204 (zip 269 — egasi so'rovi 07.11 14:28, QARORLARI: qadam Sozlamalarda 100 / 500 / 1 000; yo'nalish «+» / «−») ───────────
+// Formula chiqargan 1 m / 1 dona narxi (Profil, Panel, Donalik — yangi usul, Blok; tayyor mahsulotdan / qo'lda yozilgani EMAS) qadamga
+// yaxlitlanadi: «+» — doim yuqoriga (12 340 → 12 500, 12 650 → 13 000), «−» — doim pastga (12 340 → 12 000, 12 650 → 12 500); jami =
+// yaxlit narx × miqdor. YANGI buyurtma / taklif — Sozlamalardagi qoida; tahrir / taklifni ochish — o'sha yozuvning O'Z qoidasi (eski
+// buyurtma — qoidasiz, yaxlitlanmaydi), shuning uchun sozlama keyin o'zgarsa ham saqlangan narx jimgina o'zgarmaydi.
+const KORXONA_NARX_YAXLIT = {{ (narx_yaxlit_korxona or '')|tojson }};
+let NARX_YAXLIT = KORXONA_NARX_YAXLIT;
+
+function narxYaxlitQoidasi(q) {
+  const m = /^([+-])(100|500|1000)$/.exec(String(q || '').trim());
+  return m ? { yon: m[1], qadam: parseInt(m[2], 10) } : null;
+}
+
+// n — formula chiqargan 1 birlik narxi. Qoida yo'q / narx 0 — o'zgarmaydi. Tiyindagi suzuvchi xato (12 500,0000001) qadam sakratmaydi.
+// «−» qadamdan kichik narxni 0 ga tushirmaydi — aniq narx qoladi (bepul detal bo'lib qolmasin).
+function narxYaxlit(n) {
+  const q = narxYaxlitQoidasi(NARX_YAXLIT);
+  const x = Number(n);
+  if (!q || !(x > 0) || !isFinite(x)) return n;
+  const tiyin = Math.round(x * 100) / 100;
+  const nisbat = tiyin / q.qadam;
+  const butun = q.yon === '+' ? Math.ceil(nisbat - 1e-9) : Math.floor(nisbat + 1e-9);
+  const r = butun * q.qadam;
+  return r > 0 ? r : n;
+}
+
+function narxYaxlitIzohi() {
+  const el = document.getElementById('narx_yaxlit_izoh');
+  if (!el) return;
+  const q = narxYaxlitQoidasi(NARX_YAXLIT);
+  if (!q) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.textContent = `🔢 1 m / 1 dona narxi ${q.yon === '+' ? 'yuqoriga' : 'pastga'} yaxlitlanadi — ${formatNum(q.qadam)} so'm qadam bilan`;
+  el.style.display = 'block';
+}
+
+function narxYaxlitOrnat(q) {
+  NARX_YAXLIT = narxYaxlitQoidasi(q) ? String(q).trim() : '';
+  narxYaxlitIzohi();
+}
 // kech144 (zip 179, audit P2-16): «Buyurtmalar: Yaratish» ruxsati — `?yangi=1` / `?new_for_project=` havolalari shu bilan (ruxsat yo'q —
 // forma ochilmaydi; ilgari to'ldirilib, saqlashda 403)
 const BUYURTMA_YARATISH = {{ 'true' if current_user.ruxsat('buyurtma', 'yaratish') else 'false' }};
@@ -4108,6 +4151,8 @@ function showNewForm() {
   // Tahrirlash rejimidan qaytish
   editMode = false;
   currentEditOrderId = null;
+  // kech204 (zip 269): yangi buyurtma / taklif — Sozlamalardagi yaxlitlash qoidasi (tahrir / taklif ochilsa `editSelected` almashtiradi)
+  if (typeof narxYaxlitOrnat === 'function') narxYaxlitOrnat(KORXONA_NARX_YAXLIT);
   editJami0 = 0;
   editAsl0 = 0;
   editKech = 0;
@@ -6275,6 +6320,7 @@ function calculateItem(row) {
       row.dataset.donaVolPerUnit = perUnitVol.toString();
       unitPrice = perUnitVol * basePrice;
       if (isCoated) unitPrice *= 2;
+      unitPrice = narxYaxlit(unitPrice);     // kech204 (zip 269)
       if (upEl) upEl.value = narxKorinishi(unitPrice);
       perMeterPrice = unitPrice;
       price = unitPrice * qty;
@@ -6307,13 +6353,9 @@ function calculateItem(row) {
     const eni_m  = h / 100;
     const keng_m = w / 100;
     const perMeter_base = (eni_m * keng_m * basePrice) / 2;  // 2 ga bo'linadi
-    price = perMeter_base * l;
-    if (isCoated) {
-      price *= 2;
-      perMeterPrice = perMeter_base * 2;
-    } else {
-      perMeterPrice = perMeter_base;
-    }
+    // kech204 (zip 269): 1 m narxi (qoplama bilan) yaxlitlanadi, jami — yaxlit 1 m × uzunlik (ichki detallar — pastda, avvalgidek)
+    perMeterPrice = narxYaxlit(isCoated ? perMeter_base * 2 : perMeter_base);
+    price = perMeterPrice * l;
     volume_total = (eni_m * keng_m * l) / 2;   // profil — yarim kesim
 
     // Ichki qo'shimcha detallar (masalan rebristo qism) — hajmi va
@@ -6345,13 +6387,9 @@ function calculateItem(row) {
     const eni_m   = h / 100;
     const qalin_m = t / 100;
     const perDona_base = eni_m * qalin_m * basePrice;  // qoplamasiz 1 metr narxi
-    price = perDona_base * qty;
-    if (isCoated) {
-      price *= 2;
-      perMeterPrice = perDona_base * 2;  // qoplama bilan 1 metr narxi
-    } else {
-      perMeterPrice = perDona_base;      // qoplamasiz 1 metr narxi
-    }
+    // kech204 (zip 269): 1 metr narxi (qoplama bilan — ×2) yaxlitlanadi, jami — yaxlit narx × miqdor
+    perMeterPrice = narxYaxlit(isCoated ? perDona_base * 2 : perDona_base);
+    price = perMeterPrice * qty;
     volume_total = eni_m * qalin_m * qty;
     row.querySelector('.i-vol').value = volume_total.toFixed(4);
     }
@@ -6377,6 +6415,7 @@ function calculateItem(row) {
     const kerakMetr = qty;
 
     perMeterPrice = chiqadiPerBlok > 0 ? (blokPrice / chiqadiPerBlok) * (isCoated ? blokKoef(row) : 1) : 0;   // 1 birlik narxi
+    perMeterPrice = narxYaxlit(perMeterPrice);     // kech204 (zip 269)
     price = perMeterPrice * kerakMetr;   // Mijozdan olinadigan jami summa
 
     const blokKerak = chiqadiPerBlok > 0 ? (kerakMetr / chiqadiPerBlok) : 0;   // Omborga — aniq kasr son (yaxlitlanmaydi)
@@ -6981,6 +7020,7 @@ async function saveOrder(isDraft = false) {
     items,
     base_price: parseNum(document.getElementById('base_price')?.value || '0') || null,
     blok_base_price: parseNum(document.getElementById('blok_base_price')?.value || '0') || null,   // kech155 (zip 211)
+    narx_yaxlit: NARX_YAXLIT || null,    // kech204 (zip 269): narxlar shu qoida bilan hisoblandi — buyurtma / taklifga saqlanadi
     loy_kg: parseFloat(document.getElementById('loy_kg')?.value || '0') || null
   };
   // kech144 (zip 173): forma kaliti — javob yo'qolib qayta bosilsa server o'sha buyurtmani qaytaradi (takror yaratilmaydi)
@@ -7264,6 +7304,9 @@ async function editSelected(mode = 'edit', preloadedOrder = null, itemFilterIdx 
       showMsg('Buyurtma ma\'lumotlari topilmadi', 'error');
       return;
     }
+    // kech204 (zip 269): tahrir / taklif — o'sha yozuvning O'Z yaxlitlash qoidasi (eski — yo'q: yaxlitlanmaydi); nusxa — yangi buyurtma
+    // (Sozlamalardagi qoida — `showNewForm` qo'ygani qoladi). Detallar chizilishidan (`calculateItem`) OLDIN.
+    if (!isDup) narxYaxlitOrnat(order.narx_yaxlit || '');
 
     // kech103 (K103-4, O'LCHANGAN `work/probe103ui.py` T2f / T7): topshirish holati detallar chizilishidan OLDIN
     // o'qiladi. Ilgari u detallar chizilgandan KEYIN o'qilardi — detallar oldingi (boshqa) buyurtmaning
