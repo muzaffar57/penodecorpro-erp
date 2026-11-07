@@ -534,6 +534,9 @@ check("J12a /sozlamalar — kirish / audit yozuvlari HTML da YO'Q (asl: bor), /l
 check("J12b /sozlamalar — «Kirish urinishlari» kartasi boshidanoq yashirin",
       '<div id="tab-login" class="card" style="display:none">' in _sz and '<div id="tab-login" class="card">' in _lg)
 _yuk = "document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); yonYukla(); });"
+# kech204 (zip 269, MOSLANDI): «🔢 Narxni yaxlitlash» yuklovchisi (`loadNarxYaxlit`) qo'shildi — versiya manbadan (eski kodda avvalgi qator)
+if "loadNarxYaxlit();" in _sz:
+    _yuk = "document.addEventListener('DOMContentLoaded', () => { loadTgBot(); loadCompany(); loadCategories(); loadNarxYaxlit(); yonYukla(); });"
 check("J12c sozlama yuklovchilari — faqat /sozlamalar da (asl: /logs da ham)", _yuk in _sz and _yuk not in _lg)
 _so = mijoz("jr_och").get("/sozlamalar").text
 check("J11a «Tahrirlash» siz rol — «Fayl tanlash» yo'q (asl: bor, yuklash tugmasisiz)", "Fayl tanlash" not in _so and "Fayl tanlash" in _sz)

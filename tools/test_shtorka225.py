@@ -100,13 +100,17 @@ section("S — manba")
 # ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 _B = open(os.path.join(ROOT, "templates", "base.html"), encoding="utf-8").read()
 _L = open(os.path.join(ROOT, "templates", "logs.html"), encoding="utf-8").read()
+# kech204 (zip 269, MOSLANDI): Sozlamalarda yangi shtorka «🔢 Narxni yaxlitlash» (`soz-yaxlit`, «Mahsulot turlari» dan keyin) — versiya
+# manbadan aniqlanadi (eski kodda avvalgi ro'yxat kutiladi; test ikkalasida yashil)
+Y269 = 'data-sht="soz-yaxlit"' in _L
+_YX = ["soz-yaxlit"] if Y269 else []
 check("S1 base.html: chap menyuda `/logs` bandi yo'q; «Sozlamalar» — `active_page in ('sozlamalar', 'logs')`",
       'href="/logs" class="nav-item' not in _B and "active_page in ('sozlamalar', 'logs')" in _B)
 check("S2 base.html: umumiy shtorka — `shtorkaTayyor`, `shtorkaHolat`, `shtorkaHtml`, `shtorkaOch` va `details.sht` uslubi",
       all(f"function {n}(" in _B for n in ("shtorkaTayyor", "shtorkaHolat", "shtorkaHtml", "shtorkaOch")) and "details.sht > summary{" in _B)
 check("S3 logs.html: «📋 Tizim jurnallari» (`#soz-jurnal-btn`), «← Sozlamalar» (`.jr-orqaga`), eski «⚙️ Sozlamalar →» yorlig'i yo'q, 7 shtorka",
       'id="soz-jurnal-btn"' in _L and 'class="log-tab tab jr-orqaga" href="/sozlamalar"' in _L and "⚙️ Sozlamalar →" not in _L
-      and _L.count('<details class="sht" data-sht="') == 7 and _L.count("</details>") == 7)
+      and _L.count('<details class="sht" data-sht="') == 7 + len(_YX) and _L.count("</details>") == 7 + len(_YX))
 _MAIN = open(os.path.join(ROOT, "main.py"), encoding="utf-8").read()
 _PROD = open(os.path.join(ROOT, "templates", "production.html"), encoding="utf-8").read()
 _TRASH = open(os.path.join(ROOT, "templates", "trash.html"), encoding="utf-8").read()
@@ -245,7 +249,8 @@ with sync_playwright() as pw:
         _s0 = pg.evaluate(SHT)
         check("H1 5 shtorka, hammasi yopiq (birinchi marta); holat: nom, «N ta yoqiq», «N ta», Telegram «umumiy bot», Zaxira «butun korxona — 1 fayl» — "
               "hammasi NEYTRAL (yashil ham, qizil ham emas — oddiy ma'lumot; review225 T4 / T5)",
-              list(_s0) == ["soz-nom", "soz-tur", "soz-yon", "soz-tg", "soz-zaxira"] and not any(v["ochiq"] for v in _s0.values())
+              list(_s0) == ["soz-nom", "soz-tur", *_YX, "soz-yon", "soz-tg", "soz-zaxira"] and not any(v["ochiq"] for v in _s0.values())
+              and (not Y269 or _s0["soz-yaxlit"]["holat"] == "o'chiq")
               and _s0["soz-nom"]["holat"] and re.fullmatch(r"\d+ ta yoqiq", _s0["soz-tur"]["holat"]) and re.fullmatch(r"\d+ ta", _s0["soz-yon"]["holat"])
               and _s0["soz-tg"]["holat"] == "umumiy bot" and _s0["soz-zaxira"]["holat"] == "butun korxona — 1 fayl"
               and all(v["klass"] == "" for v in _s0.values()), _s0)
@@ -396,7 +401,7 @@ with sync_playwright() as pw:
         _r2 = pg.evaluate(MENYU)
         check("R1 korxona admini: menyuda «Tizim jurnallari» yo'q, tugma bor; Zaxira bo'limi yo'q (4 shtorka); jurnal — «← Sozlamalar», Kirish, "
               "Audit, «💰 Tekshiruv» (Xatoliklar / Korxonalar yo'q)",
-              not _r1["logs"] and _r1["jurnal_btn"] and list(_r1s) == ["soz-nom", "soz-tur", "soz-yon", "soz-tg"]
+              not _r1["logs"] and _r1["jurnal_btn"] and list(_r1s) == ["soz-nom", "soz-tur", *_YX, "soz-yon", "soz-tg"]
               and _r2["yorliqlar"] == ["← Sozlamalar", "🔑 Kirish tarixi", "🕓 Audit jurnali", "💰 Tekshiruv"], (_r1, _r1s, _r2))
         ctx.close()
 
