@@ -779,6 +779,11 @@ taklif tanasida ham (`taklif_buyurtma_shakli` → rasmiylashtirishda buyurtmaga)
 yangi; izoh `#narx_yaxlit_izoh`. Test `tools/test_narx_yaxlit269.py` (59; SQ / TF1 / PG / PG+TF1 (37 — U siz); U — Chromium; asl 77fbc14 da
 37 yiqiladi, qulamaydi); MOSLANDI `test_shtorka225` S3 / H1 / R1 (yangi shtorka `soz-yaxlit`), `test_jurnal183` J12c (yuklovchi), `test_rollar`
 (2 marshrut) — versiya manbadan; bog'liq 76 test SQ yashil; mutatsiya `work/k269/mut269.py` — 28 / 28 O'LDI.
+OQIMLAR (egasi so'rovi 07.11 16:05) — `tools/test_yaxlit_oqim269.py` (22; SQ / TF1; Chromium; asl 77fbc14 da yiqiladi, qulamaydi): faqat
+Blok korxona (asosiy / o'z narxi / qoplamali) va Profil + Panel + Donalik (qoplamali / qoplamasiz) BITTA buyurtmada — oddiy buyurtma → tahrir
+miqdor + / −; qoralama → (Sozlama «−1 000») → tahrir → jarayonga olish; «⚡ Tez hisob» → taklif tahriri → rasmiylashtirish; har qadamda
+serverdagi narx mustaqil hisob bilan solishtiriladi (profil: «1 dona» = uzunlik × yaxlit 1 m). Sinov saytida ham jonli o'tkazildi
+(T-0007 → ORD-071-15, ORD-071-16 — aralash qoralama).
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
@@ -9266,6 +9271,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_xarid_tahrir.py` — 21-band: xarid TAHRIRI ombor bilan mos, va ta'minotchini o'chirish FK cheklovida yiqilmaydi.
 - `test_xotira227.py` · PG — kech163 (zip 227 «kichik texnik qoldiqlar»: brauzer xotirasi yopiq bo'lsa sahifa xatosi — review225 O2; Salomatlik server matni escape siz — review225 O3).
 - `test_yashirin_material.py` · PG — K34-1 darvozasi (kech34, 2026-09-22).
+- `test_yaxlit_oqim269.py` · PG — kech204 (zip 269): narx yaxlitlash — BUTUN OQIMLAR haqiqiy brauzerda (egasi so'rovi 07.11 16:05: «tezkor buyurtma yaratib yoki vaqtinchalik saqlash qilib qayta tahrirlab yoki…
 - `test_yetkazish_detal_tolov.py` · PG — 5-bo'lim 6-band va 13-band darvozasi (kech38, 2026-09-23).
 - `test_yonalish_natija.py` · PG — kech118 (egasi QARORI 2026-09-30 15:23, tugmali javoblar 15:30 — QAYTA SO'RALMAYDI): YO'NALISHLAR BO'YICHA MOLIYAVIY NATIJA — umumiy xarajat TAQSIMLANMAYDI, oyliklar alohida…
 - `test_yuk_xati_loyiha.py` · PG — kech124 (zip 144): loyiha sahifasida «Yuk xatlari», yuk xati raqami LOYIHA bo'yicha, «Jamlab olish».
@@ -9311,5 +9317,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 363 (Python 325, JS 38).
+Jami test fayllari: 364 (Python 326, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->
