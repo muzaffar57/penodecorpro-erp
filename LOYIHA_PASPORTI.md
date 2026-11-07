@@ -753,6 +753,10 @@ Order`). HTTP marshrutlar o'zgarmagan (ular otani avvaldan korxona bo'yicha qidi
 AYNAN (mijozning o'z id raqami chiqarib), 500 / 422 emas, ichki sabab yo'q, ErrorLog to'lmaydi, rad etilgan so'rov B da hech narsa yozmaydi,
 A korxonasining hamma jadvali va obyektlari o'zgarmaydi; o'z id lari bilan oddiy so'rovlar ishlaydi. Asl 26fc68d (zip 265 dan oldin) da
 20 yiqiladi (qulamaydi); mutatsiya `work/k267/mut267.py` — 3 / 3 O'LDI. Ilova kodi O'ZGARMAGAN — faqat test.
+**Retsept oynasi — jami katagi nomi (kech203, zip 267 — egasi roziligi, MRP qo'llanmasi kuzatuvi).** `templates/production.html`:
+ilgari «Xomashyo (har doim)» — lekin qiymat (`_retsept_holatlari` «doim»: majburiy qatorlar xomashyosi + qadoq + qo'shimcha xarajat, 1 birlik
+uchun) to'liq tannarx edi. Endi `#bom-jami-doim-nom`: qoplama / ixtiyoriy qator yo'q — «1 {birlik} tannarxi (to'liq)», bor — «… (asosiy
+tarkib)»; `title` izohi. Test `tools/test_mrp_sahifa_ui.py` T4 / T5 moslandi, K4b qo'shildi (67; SQ / TF1 / PG / PG+TF1).
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob

@@ -495,7 +495,7 @@
 
     <div class="bom-jami" id="bom-jami">
       <div class="qism">
-        <div>Xomashyo (har doim) <b id="bom-jami-doim">—</b></div>
+        <div title="Majburiy tarkib: xomashyo, qadoq va qo'shimcha xarajatlar — 1 birlik uchun"><span id="bom-jami-doim-nom">1 birlik tannarxi (to'liq)</span> <b id="bom-jami-doim">—</b></div>
         <div id="bom-jami-qoplama-quti" style="display:none">Qoplamali bo'lsa <b id="bom-jami-qoplama">—</b></div>
       </div>
       <div class="o"><div id="bom-jami-sarlavha">1 birlik taxminiy tannarxi</div> <b id="bom-jami-birlik">—</b></div>
@@ -1320,6 +1320,11 @@ function retseptHisobiChiz(natija, q, sabab) {
   });
   const birlik = bomBirlik || 'birlik';
   document.getElementById('bom-jami-sarlavha').textContent = `1 ${birlik} taxminiy tannarxi`;
+  // kech203 (egasi roziligi, MRP qo'llanmasi kuzatuvi): ilgari «Xomashyo (har doim)» — lekin qiymat qadoq va qo'shimcha xarajatni ham
+  // o'z ichiga oladi (server: majburiy qatorlar xomashyosi + qo'shimcha xarajat, 1 birlik uchun). Qoplama / ixtiyoriy qator bo'lsa — ular
+  // bu songa kirmaydi, shuning uchun «to'liq» emas, «asosiy tarkib».
+  const qismliMi = !!(natija && (natija.qoplama_bor || natija.ixtiyoriy_bor));
+  document.getElementById('bom-jami-doim-nom').textContent = `1 ${birlik} tannarxi (${qismliMi ? 'asosiy tarkib' : "to'liq"})`;
   const qoplamaQuti = document.getElementById('bom-jami-qoplama-quti');
   const ogoh = document.getElementById('bom-ogoh');
   if (!natija) {

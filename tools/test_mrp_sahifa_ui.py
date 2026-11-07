@@ -690,13 +690,13 @@ check("T3 qoplama qatori: Sozlama OCHIQ, «Faqat qoplamali buyurtmada» tanlanga
       lambda: _rq[3]["sozlama"] is True and _rq[3]["qachon"] == "qoplama"
       and "Qoplama — faqat qoplamali buyurtmada" in _rq[3]["chiplar"] and "+800 so'm / m²" in _rq[3]["chiplar"]
       and _rq[0]["sozlama"] is False and _rq[0]["qachon"] == "doim" and _rq[0]["izoh"] == "izoh-qator", _rq)
-check("T4 jami: «Xomashyo (har doim) 10 295 so'm», «Qoplamali bo'lsa + 4 400 so'm», «1 m² taxminiy tannarxi 10 295 so'm · qoplamali 14 695 so'm»",
-      lambda: all(x in _r["jami"] for x in ("Xomashyo (har doim) 10 295 so'm", "Qoplamali bo'lsa + 4 400 so'm",
+check("T4 jami: «1 m² tannarxi (asosiy tarkib) 10 295 so'm» (kech203 — ilgari «Xomashyo (har doim)»), «Qoplamali bo'lsa + 4 400 so'm», «1 m² taxminiy tannarxi 10 295 so'm · qoplamali 14 695 so'm»",
+      lambda: "Xomashyo (har doim)" not in _r["jami"] and all(x in _r["jami"] for x in ("1 m² tannarxi (asosiy tarkib) 10 295 so'm", "Qoplamali bo'lsa + 4 400 so'm",
                                             "1 m² taxminiy tannarxi 10 295 so'm · qoplamali 14 695 so'm")), _r.get("jami"))
 _r = n("retsept_ozgartir")
 check("T5 kley → «Ishlab chiqarishda tanlansa», isrof «12,5»: chip «Ixtiyoriy …», narx 3 544 so'm (1,125 × 3 150), jami qayta hisoblandi",
       lambda: _r["ixt"] is True and _r["qopl"] is False and "Ixtiyoriy — ishlab chiqarishda tanlanadi" in _r["chiplar"]
-      and _r["narx"].startswith("3 544 so'm") and "Xomashyo (har doim) 6 830 so'm" in _r["jami"]
+      and _r["narx"].startswith("3 544 so'm") and "1 m² tannarxi (asosiy tarkib) 6 830 so'm" in _r["jami"]
       and "Ixtiyoriy tarkib tanlansa — 14 774 so'm gacha." in _r["ogoh"], _r)
 _r = n("retsept_yangi_qator")
 check("T6 yangi qator: material tanlovi (HTML nomli material MATN bo'lib), «0,5» → narx 500 so'm",
@@ -741,6 +741,10 @@ _qk = next((t for t in _y.get("turlar") or [] if t.startswith("MRU Qolip")), "")
 check("K3 kichik partiya — tur qatorida «Kichik (0,125 m² uchun · …)» (ilgari «0,13»)", "Kichik (0,125 m² uchun ·" in _qk, _qk)
 check("K4 retsept oynasi — «Tarkibi — 0,125 m² uchun», qator «0,00625 kg × 820» (ilgari «0,01» / 4 xona)",
       lambda: n("retsept_kichik")["tarkib"] == "Tarkibi — 0,125 m² uchun" and "0,00625 kg × 820" in n("retsept_kichik")["narx"],
+      n("retsept_kichik"))
+check("K4b qoplama / ixtiyoriy qatorsiz retsept — jami katagi «1 m² tannarxi (to'liq)» (kech203; ilgari «Xomashyo (har doim)»)",
+      lambda: "1 m² tannarxi (to'liq)" in n("retsept_kichik")["jami"] and "asosiy tarkib" not in n("retsept_kichik")["jami"]
+      and "Xomashyo (har doim)" not in n("retsept_kichik")["jami"],   # yashirin «Qoplamali bo'lsa» qutisi textContent da qoladi
       n("retsept_kichik"))
 check("K5 yangi ishlab chiqarish — retsept tanlovi «Kichik — 0,125 m² uchun, 1 ta material»",
       lambda: n("yangi_kichik")["bom"] == ["Kichik — 0,125 m² uchun, 1 ta material"], n("yangi_kichik"))
