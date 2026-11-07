@@ -2854,6 +2854,12 @@ class ExpenseTransaction(Base):
     notes = Column(Text, nullable=True)
 
     created_by = Column(String(100), nullable=True)
+    # kech201 (zip 264, xavfsizlik REJA 16-band — Fable F11): yozgan foydalanuvchining id si. «Xarajat qo'shish» dagi «o'z bugungi
+    # xarajatim» (ko'rish / o'chirish) ilgari faqat `created_by` (ism yoki login) bo'yicha edi — bir korxonada ismi bir xil ikki
+    # foydalanuvchi bir-birining bugungi xarajatini ko'rib o'chira olardi, ismi almashgan foydalanuvchi esa o'zinikini yo'qotardi.
+    # Endi id bo'yicha (`main._ozim_bugungi_sharti`). NULL — zip 264 dan oldingi yozuv / foydalanuvchisiz manba (kirim, oylik forma):
+    # «o'ziniki» faqat ism bo'yicha (o'tish kuni). Mavjud jadvalga `sync_missing_columns` qo'shadi (NULL).
+    created_by_user_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # 'monthly_form' — Moliya sahifasidagi oylik forma orqali avtomatik yaratilgan
@@ -3765,8 +3771,68 @@ class TenantMismatchError(Exception):
 _GUARD_READ_OPTS = {"skip_tenant_filter": True}
 
 
-def _resolve_parent_company(session, obj, rules):
-    """Ota zanjiri bo'yicha birinchi topilgan company_id ni qaytaradi."""
+# kech202 (zip 265 — xavfsizlik auditi REJA 14-band, Fable F6): «mavjudlik oracle'i» yopiladi. Ilgari begona korxonaning id si → 409
+# «Boshqa korxonaning ma'lumoti…», umuman YO'Q id esa → SQLite da 200 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 —
+# javobdan «bu id boshqa korxonada BOR» degan xulosa chiqardi (id lar butun platforma bo'yicha umumiy). Endi qo'riqchi YANGI qo'yilayotgan
+# havola (yangi yozuvda — har havola, o'zgartirilgan yozuvda — faqat O'ZGARGAN ustun) umuman topilmasa ham XUDDI SHU xatoni beradi
+# (`TenantMismatchError`, ichki matni boshqa — foydalanuvchiga ko'rinmaydi), `main.tenant_mismatch_handler` ikkalasiga bir xil 404 qaytaradi.
+# O'zgarmagan eski (osilgan) havolalar TEKSHIRILMAYDI — eski yozuvni boshqa maydoni bo'yicha tahrirlash avvalgidek ishlaydi.
+def _shu_flushda_yangi(session, cls, fk_value) -> bool:
+    """kech202 (zip 265): havola qilingan yozuv shu sessiyada YANGI (hali bazaga yozilmagan, id si qo'lda berilgan) — topilmadi
+    hisoblanmaydi (shu flush da ota oldin yoziladi; eski xulq — o'tkazib yuborish)."""
+    for _o in session.new:
+        if isinstance(_o, cls) and getattr(_o, "id", None) == fk_value:
+            return True
+    return False
+
+
+def _bazada_shu_qiymat(session, obj, fk_attr, fk_value) -> bool:
+    """kech202 (zip 265, review265 PAST-3): o'zgartirilgan (dirty) yozuvda ustun «o'zgargan» ko'rinsa-yu, bazadagi qiymati AYNAN shu bo'lsa
+    (expired atributga o'sha eski osilgan qiymat qayta yozilgan) — haqiqatda o'zgarmagan: topilmadi deb rad etilmaydi.
+    Faqat «topilmadi» tarmog'ida (kamdan-kam) bitta SELECT."""
+    from sqlalchemy import inspect as _i265, select as _s265
+    try:
+        _ident = _i265(obj).identity
+        _tbl = type(obj).__table__
+        _pk = list(_tbl.primary_key.columns)
+        _col = _tbl.columns.get(fk_attr)
+        if not _ident or len(_pk) != 1 or _col is None:
+            return False
+        _v = session.execute(_s265(_col).where(_pk[0] == _ident[0]).execution_options(**_GUARD_READ_OPTS)).scalar()
+        return _v is not None and _v == fk_value
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def _yoq_rad_etilsinmi(session, obj, cls, fk_attr, fk_value, yoqni_tekshir) -> bool:
+    """kech202 (zip 265): topilmagan havola rad etiladimi — `True` (yangi yozuv) — har havola; to'plam (o'zgartirilgan yozuv) — faqat
+    o'zgargan ustun va bazadagi qiymati boshqa bo'lsa; shu flush da yangi (id qo'lda) ota-yozuv — topilgan hisoblanadi."""
+    if yoqni_tekshir is True:
+        pass
+    elif not yoqni_tekshir or fk_attr not in yoqni_tekshir:
+        return False
+    if _shu_flushda_yangi(session, cls, fk_value):
+        return False
+    if yoqni_tekshir is not True and _bazada_shu_qiymat(session, obj, fk_attr, fk_value):
+        return False
+    return True
+
+
+def _havola_yoq_xatosi(obj, fk_attr, fk_value, nom):
+    return TenantMismatchError(
+        f"{type(obj).__name__}.{fk_attr}={fk_value}: bog'lanayotgan {nom} yozuvi topilmadi "
+        f"(o'chirilgan yoki umuman yo'q). Amal bekor qilindi."
+    )
+
+
+def _resolve_parent_company(session, obj, rules, yoqni_tekshir=None, chuqurlik=2):
+    """Ota zanjiri bo'yicha birinchi topilgan company_id ni qaytaradi.
+
+    kech202 (zip 265): `yoqni_tekshir` — ota-yozuvi TOPILMASA rad etiladigan ustunlar (`True` — hammasi: yangi yozuv; to'plam — faqat
+    o'zgarganlari; None — tekshirilmaydi, eski xulq).
+    kech202 (zip 266, review265 PAST-1): ota-yozuvning o'zida `company_id` yo'q bo'lsa (masalan `DeliveryItem` → `Delivery`) — korxona
+    otaning o'z qoidasi bo'yicha zanjir bilan olinadi (`Delivery` → `Order`), `chuqurlik` qadamgacha; ilgari bunday yozuvning korxonasi
+    aniqlanmay, havolalari (`DeliveryItem.order_item_id`) umuman tekshirilmasdi."""
     _mapped = {c.key for c in type(obj).__table__.columns}
     for fk_attr, parent_name in rules:
         if fk_attr not in _mapped:
@@ -3780,18 +3846,43 @@ def _resolve_parent_company(session, obj, rules):
         parent = session.get(parent_cls, fk_value,
                              execution_options=_GUARD_READ_OPTS)
         if parent is None:
+            if _yoq_rad_etilsinmi(session, obj, parent_cls, fk_attr, fk_value, yoqni_tekshir):
+                raise _havola_yoq_xatosi(obj, fk_attr, fk_value, parent_name)
             continue
         cid = getattr(parent, "company_id", None)
+        if not cid and chuqurlik > 0 and _TENANT_RULES.get(parent_name):
+            cid, _ = _resolve_parent_company(session, parent, _TENANT_RULES[parent_name], None, chuqurlik - 1)
         if cid:
             return cid, f"{fk_attr} -> {parent_name}"
     return None, None
 
 
-def _check_refs(session, obj, own_cid):
+def _joriy_korxona_tekshir(session, obj, own):
+    """kech202 (zip 266, review265 PAST-1): o'z `company_id` ustuni YO'Q model (Payment, OrderAttachment, DeliveryItem, EmployeeAdvance …
+    — 17 ta; korxonasi faqat ota-yozuvdan) yozilayotganda korxona so'rovning JORIY korxonasidan (`auth` qo'ygan `tenant_context`) farq
+    qilsa — rad. Ilgari bunday yozuv begona otaga ham yozilardi (HTTP marshrutlar otani oldindan korxona bo'yicha qidirgani uchun yopiq
+    edi, ORM qatlami esa yo'q edi). Joriy korxona yo'q (login, cron, fon vazifasi, `system_context`) — tekshirilmaydi; o'z `company_id`
+    si bor modellar — tekshirilmaydi (ularda platforma egasi boshqa korxona uchun aniq `company_id` bilan yozishi mumkin)."""
+    if own is None or "company_id" in type(obj).__table__.columns:
+        return
+    try:
+        joriy = session.info.get("tenant_company_id")      # tenant_context._KEY (aylanma importsiz)
+    except Exception:                                   # noqa: BLE001
+        joriy = None
+    if joriy is not None and own != joriy:
+        raise TenantMismatchError(
+            f"{type(obj).__name__}: ota-yozuv korxonasi {own}, so'rov korxonasi {joriy}. Korxonalar orasida bog'lanish yaratib bo'lmaydi."
+        )
+
+
+def _check_refs(session, obj, own_cid, yoqni_tekshir=None):
     """Yozuv KO'RSATAYOTGAN boshqa yozuvlar ham shu korxonanikimi.
 
     2026-09-18 — M2. own_cid — yozuvning o'z korxonasi (ota orqali yoki
-    aniq berilgan). Havola boshqa korxonaga ishora qilsa, rad etiladi."""
+    aniq berilgan). Havola boshqa korxonaga ishora qilsa, rad etiladi.
+
+    kech202 (zip 265): `yoqni_tekshir` — havola qilingan yozuv TOPILMASA ham xuddi shunday rad etiladigan ustunlar (`True` — hammasi;
+    to'plam — faqat shulari; None — eski xulq: topilmagan havola o'tkazib yuboriladi)."""
     refs = _TENANT_REFS.get(type(obj).__name__)
     if not refs or not own_cid:
         return
@@ -3818,6 +3909,8 @@ def _check_refs(session, obj, own_cid):
         ref = session.get(ref_cls, fk_value,
                           execution_options=_GUARD_READ_OPTS)
         if ref is None:
+            if _yoq_rad_etilsinmi(session, obj, ref_cls, fk_attr, fk_value, yoqni_tekshir):
+                raise _havola_yoq_xatosi(obj, fk_attr, fk_value, ref_name)
             continue
         ref_cid = getattr(ref, "company_id", None)
         if ref_cid and ref_cid != own_cid:
@@ -3947,7 +4040,8 @@ def _tenant_guard(session, flush_context, instances):
             rules = _TENANT_RULES.get(nom)
             own = getattr(obj, "company_id", None)
             if rules:
-                parent_cid, manba = _resolve_parent_company(session, obj, rules)
+                # kech202 (zip 265): yangi yozuvda topilmagan ota-yozuv ham rad (begona id bilan bir xil javob)
+                parent_cid, manba = _resolve_parent_company(session, obj, rules, yoqni_tekshir=True)
                 if parent_cid is not None:
                     if own is None:
                         # Modelda company_id ustuni bo'lsa — to'ldiramiz.
@@ -3960,7 +4054,8 @@ def _tenant_guard(session, flush_context, instances):
                             f"({manba}) company_id={parent_cid} ga tegishli. "
                             f"Bir korxonaning yozuvini boshqasiga bog'lab bo'lmaydi."
                         )
-            _check_refs(session, obj, own)
+                _joriy_korxona_tekshir(session, obj, own)            # kech202 (zip 266, review265 PAST-1)
+            _check_refs(session, obj, own, yoqni_tekshir=True)   # kech202 (zip 265): topilmagan havola ham rad
 
         # --- O'ZGARTIRILGAN yozuvlar ---
         # Mavjud yozuvning ota-FK'si yoki company_id si o'zgartirilsa,
@@ -3981,7 +4076,9 @@ def _tenant_guard(session, flush_context, instances):
                         if a in _mapped and get_history(obj, a).has_changes()}
             if not ozgargan:
                 continue
-            parent_cid, manba = _resolve_parent_company(session, obj, rules)
+            # kech202 (zip 265): faqat O'ZGARGAN ustundagi topilmagan ota / havola rad etiladi (eski osilgan havolali yozuvni
+            # boshqa maydoni bo'yicha tahrirlash avvalgidek ishlaydi)
+            parent_cid, manba = _resolve_parent_company(session, obj, rules, yoqni_tekshir=ozgargan)
             own = getattr(obj, "company_id", None)
             if parent_cid is not None:
                 if own is not None and own != parent_cid:
@@ -3992,4 +4089,5 @@ def _tenant_guard(session, flush_context, instances):
                         f"O'zgarish rad etildi."
                     )
                 own = own or parent_cid
-            _check_refs(session, obj, own)
+                _joriy_korxona_tekshir(session, obj, own)            # kech202 (zip 266, review265 PAST-1)
+            _check_refs(session, obj, own, yoqni_tekshir=ozgargan)

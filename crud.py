@@ -875,9 +875,11 @@ def yonalish_nomlari(db: Session, company_id: int) -> dict:
 
 
 def create_expense_transaction(db: Session, data, performed_by: Optional[str] = None, source: str = "manual",
-                               company_id: int = None):
+                               company_id: int = None, performed_by_user_id: Optional[int] = None):
     """Yangi xarajat tranzaksiyasini yaratadi. Bu funksiya faqat YANGI ExpenseTransaction
-    jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi."""
+    jadvaliga yozadi — mavjud MonthlyExpense yoki hisob-kitob logikasiga umuman tegmaydi.
+    kech201 (zip 264, REJA 16-band): `performed_by_user_id` — yozgan foydalanuvchi id si (`created_by_user_id`; «o'z bugungi
+    xarajatim» shu bo'yicha). Tana (`data`) dagi `created_by_user_id` HISOBGA OLINMAYDI — faqat chaqiruvchi beradi."""
     from models import ExpenseTransaction
     # 17e (2026-09-22): ILDIZ — tana QAT'IY (summa musbat va chekli,
     # kategoriya 1–30 belgi, yo'nalish ro'yxatdan, sana 2000–2100).
@@ -899,6 +901,7 @@ def create_expense_transaction(db: Session, data, performed_by: Optional[str] = 
         amount=data.get("amount", 0),
         notes=data.get("notes"),
         created_by=performed_by,
+        created_by_user_id=(int(performed_by_user_id) if performed_by_user_id is not None else None),
         source=source,
         production_type=_pt,
         yonalish_id=_yid,
@@ -16142,7 +16145,10 @@ def add_returned_to_stock(db: Session, order_item, quantity: float, reason: str,
         source=StockSource.RETURNED,
         from_order_id=order_id or order_item.order_id,
         return_reason=reason,
-        penoplast_id=order_item.penoplast_id,
+        # kech202 (zip 265, review265 PAST-2): detaldagi penoplast keyin bazadan butunlay o'chgan bo'lsa (eski FK siz ustunda osilgan id) —
+        # qaytgan partiyaga ko'chirilmaydi (bo'sh): qo'riqchi yangi yozuvdagi topilmagan havolani rad etadi, qaytarish to'xtamasin
+        penoplast_id=(order_item.penoplast_id if (order_item.penoplast_id and db.query(Inventory.id).filter(
+            Inventory.id == order_item.penoplast_id, Inventory.company_id == _ret_cid).first() is not None) else None),
         # QO'SHILDI 2026-09-20 (Bosqich 3, 10-band). MRP mahsuloti
         # (`category='mrp_product'`) buyurtmadan qaytarilganda, turi
         # yo'qolmasin. Eski turkumlarda bu maydon NULL — bu ATAYLAB.

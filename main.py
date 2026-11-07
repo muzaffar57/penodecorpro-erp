@@ -4389,12 +4389,25 @@ async def global_error_logger(request: Request, exc: Exception):
 from models import TenantMismatchError as _TenantMismatchError
 
 
+# kech202 (zip 265 — xavfsizlik auditi REJA 14-band, Fable F6): begona korxonaning id si ham, umuman YO'Q id ham (qo'riqchi endi
+# ikkalasini bir xil xato bilan rad etadi — `models._havola_yoq_xatosi`) — BIR XIL 404 va BIR XIL matn: javobdan «bu id boshqa korxonada
+# bor» degan xulosa chiqmaydi (ilgari 409 ↔ 200 / 500). Ichki sabab (`str(exc)`) foydalanuvchiga ko'rsatilmaydi.
+TENANT_BOG_XATO_MATNI = ("Bog'lanayotgan ma'lumot topilmadi — u o'chirilgan yoki sizning korxonangizga tegishli emas. "
+                         "Amal bekor qilindi.")
+
+
 @app.exception_handler(_TenantMismatchError)
 async def tenant_mismatch_handler(request: Request, exc: _TenantMismatchError):
+    # kech202 (zip 265, review265 O'RTA-1): ichki sabab (model, ustun, id) — FAQAT server jurnaliga (Railway loglari); foydalanuvchi javobi
+    # o'zgarmaydi. Ilgari yo'q id PostgreSQL da 500 + ErrorLog edi — dasturdagi xato (o'chirilgan yozuv id sini ko'chirish) izsiz qolmasin.
+    # ErrorLog ga YOZILMAYDI: begona id bilan so'rov yuborib jadvalni to'ldirish mumkin bo'lmasin.
+    try:
+        print(f"⚠ Bog'lanish rad etildi (404) {request.method} {request.url.path}: {str(exc)[:400]}")
+    except Exception:                                   # noqa: BLE001
+        pass
     return JSONResponse(
-        status_code=409,
-        content={"detail": "Boshqa korxonaning ma'lumoti bilan bog'lab bo'lmaydi. "
-                           "Amal bekor qilindi."},
+        status_code=404,
+        content={"detail": TENANT_BOG_XATO_MATNI},
     )
 
 
@@ -10652,7 +10665,8 @@ def api_create_expense_transaction(request: Request, response: Response, data: d
     def _bajar():
         try:
             toza = crud._clean_val("ExpenseTransaction", data)
-            tx = crud.create_expense_transaction(db, toza, performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user))
+            tx = crud.create_expense_transaction(db, toza, performed_by=current_user.full_name or current_user.username, source="manual", company_id=auth.company_id_of(current_user),
+                                                 performed_by_user_id=current_user.id)      # kech201 (zip 264, REJA 16-band)
         except ValueError as e:
             db.rollback()
             raise HTTPException(status_code=400, detail=str(e))
@@ -10695,14 +10709,21 @@ def api_list_expense_transactions(year: Optional[int] = None, month: Optional[in
 # kech121 (zip 138 — EGASI QARORI 02.10, audit G3-24): «Xarajat qo'shish» — foydalanuvchi BUGUN (Toshkent) o'zi kiritgan qo'lda
 # xarajatlarni ko'radi va SHU KUNI o'zi o'chira oladi (Menejerda Moliya ro'yxati va umumiy o'chirish ruxsati yo'q — xato summani
 # tuzata olmasdi). «O'ziniki» — `created_by` (yozishdagi nom: to'liq ism yoki login), `source = manual`, yaratilgan vaqti bugun.
+# kech201 (zip 264, xavfsizlik REJA 16-band — Fable F11): «o'ziniki» — `created_by_user_id` (yozgan foydalanuvchi id si). Ism bo'yicha
+# edi: bir korxonada to'liq ismi bir xil ikki foydalanuvchi (masalan ikki «Menejer») bir-birining bugungi xarajatini ko'rib O'CHIRA
+# OLARDI; ismini almashtirgan foydalanuvchi esa o'zinikini ko'rmay qolardi. id si yo'q (zip 264 dan oldin yozilgan — faqat o'tish kuni)
+# yozuv — avvalgidek ism bo'yicha.
 def _ozim_bugungi_sharti(db, current_user):
     from models import ExpenseTransaction as _ET138
     from database import tashkent_today_start_utc as _tts138
     from datetime import timedelta as _td138
+    from sqlalchemy import and_ as _and264, or_ as _or264
     _b = _tts138()
     return db.query(_ET138).filter(
         _ET138.company_id == auth.company_id_of(current_user), _ET138.source == "manual",
-        _ET138.created_by == (current_user.full_name or current_user.username),
+        _or264(_ET138.created_by_user_id == current_user.id,
+               _and264(_ET138.created_by_user_id.is_(None),
+                       _ET138.created_by == (current_user.full_name or current_user.username))),
         _ET138.created_at >= _b, _ET138.created_at < _b + _td138(days=1))
 
 
