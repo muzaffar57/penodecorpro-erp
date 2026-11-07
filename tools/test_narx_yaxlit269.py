@@ -272,6 +272,17 @@ _h = A.get("/orders").text
 check("B10 Buyurtmalar sahifasi — joriy korxona qoidasi («-1000») va hisob funksiyasi bor", 'const KORXONA_NARX_YAXLIT = "-1000";' in _h
       and "function narxYaxlit(" in _h, _h[_h.find("KORXONA_NARX_YAXLIT") - 10:_h.find("KORXONA_NARX_YAXLIT") + 60] if "KORXONA_NARX_YAXLIT" in _h else "yo'q")
 check("B11 B korxona sahifasi — bo'sh qoida (o'chiq)", 'const KORXONA_NARX_YAXLIT = "";' in B.get("/orders").text)
+import crud                                       # noqa: E402
+import tenant_context                             # noqa: E402
+_s = SessionLocal()
+with tenant_context.system_context(_s):
+    _zx = crud.export_full_backup(_s, company_id=1)
+_s.close()
+_zx_or = [r for v in (_zx.values() if isinstance(_zx, dict) else []) if isinstance(v, list)
+          for r in v if isinstance(r, dict) and r.get("id") == O1 and "order_number" in r]
+_zx_or = _zx_or or [r for r in ((_zx.get("tables") or {}).get("orders") or []) if isinstance(r, dict) and r.get("id") == O1]
+check("B13 zaxira nusxada buyurtma qoidasi bor (narx_yaxlit «+500»)", bool(_zx_or) and _zx_or[0].get("narx_yaxlit") == "+500",
+      (list(_zx)[:6] if isinstance(_zx, dict) else type(_zx), _zx_or[:1]))
 check("B12 Sozlamalar sahifasida «🔢 Narxni yaxlitlash» bo'limi (yo'nalish, qadam, misol, Saqlash)", all(x in A.get("/sozlamalar").text for x in (
       "🔢 Narxni yaxlitlash", 'name="yx-yon"', 'id="yx-qadam"', 'id="yx-misol"', 'id="yx-save-btn"')))
 
@@ -373,7 +384,10 @@ else:
                   and bosh(dn["jami"]) == "50 000" and bosh(dn["up"]) == "12 500", dn)
             check("U8 Blok: 123 400 ÷ 10 = 12 340 → 12 500, jami × 6 m = 75 000", bosh(bl["perm"]) == "12 500" and bosh(bl["jami"]) == "75 000", bl)
             pq = pg.evaluate(DETAL_JS, ["profil", {".i-name": "U profil q", ".i-h": "10", ".i-w": "10", ".i-l": "1"}, True])
-            check("U9 qoplamali Profil: 12 340 × 2 = 24 680 → 25 000 (yaxlitlash qoplamadan KEYIN)", bosh(pq["perm"]) == "25 000", pq)
+            pq2 = pg.evaluate(DETAL_JS, ["profil", {".i-name": "U profil q2", "#base_price": "2 530 000", ".i-h": "10", ".i-w": "10", ".i-l": "1"}, True])
+            pg.evaluate("() => { const e = document.getElementById('base_price'); e.value = '2 468 000'; e.dispatchEvent(new Event('input', {bubbles: true})); }")
+            check("U9 qoplamali Profil: 12 340 × 2 = 24 680 → 25 000; 12 650 × 2 = 25 300 → 25 500 (yaxlitlash qoplamadan KEYIN — oldin "
+                  "bo'lsa 26 000)", bosh(pq["perm"]) == "25 000" and bosh(pq2["perm"]) == "25 500", (pq, pq2))
             p65 = pg.evaluate(DETAL_JS, ["profil", {".i-name": "U profil 65", "#base_price": "2 530 000", ".i-h": "10", ".i-w": "10", ".i-l": "1"}, False])
             check("U10 12 650 → 13 000 (egasi misoli)", bosh(p65["perm"]) == "13 000", p65)
             p_aniq = pg.evaluate(DETAL_JS, ["profil", {".i-name": "U profil aniq", "#base_price": "2 500 000", ".i-h": "10", ".i-w": "10", ".i-l": "1"}, False])
@@ -455,7 +469,11 @@ else:
             ctx.close()
             br.close()
 
-    _ui()
+    try:
+        _ui()
+        check("U0 brauzer bo'limi oxirigacha yurdi", True)
+    except Exception as e:                 # noqa: BLE001 — asl kodda (maydonlar yo'q) test QULAMAYDI, yiqiladi
+        check("U0 brauzer bo'limi oxirigacha yurdi", False, f"{type(e).__name__}: {str(e)[:400]}")
     check("U21 sahifalarda JS xatosi yo'q", not XATOLAR, XATOLAR[:5])
     _srv.should_exit = True
 
