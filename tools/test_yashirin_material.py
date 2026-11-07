@@ -335,7 +335,9 @@ check(f"full-stock-report javobi '({_kutilgan} ta xomashyo)' — yashirinlar san
 TG.clear()
 main.CRON_SECRET = "K34_SIR"
 _cr = TestClient(main.app, base_url="https://testserver", raise_server_exceptions=False)
-_r = req(_cr, "get", "/api/cron/low-stock-check", params={"secret": "K34_SIR"})
+# kech204 (zip 268, MOSLANDI): kalit `X-Cron-Secret` sarlavhasida (zip 171 dan beri qabul qilinadi — eski kodda ham yashil;
+# zip 268 dan manzildagi `?secret=` — 403)
+_r = req(_cr, "get", "/api/cron/low-stock-check", headers={"X-Cron-Secret": "K34_SIR"})
 _rj = js(_r) or {}
 _msg = " ".join(t for cid, t in TG if cid == 1)
 check("cron low-stock-check → 200, sent: true", _r.status_code == 200 and _rj.get("sent") is True,

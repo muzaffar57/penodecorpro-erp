@@ -8522,23 +8522,34 @@ def api_low_stock_alert(db: Session = Depends(get_db), current_user=Depends(auth
 # bilmagan hech kim, bu manzilni chaqira olmaydi.
 # ═══════════════════════════════════════════════════════════════
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
+# kech204 (zip 268): sir manzilda (`?secret=`) kelsa — shu matn bilan 403 (sir faqat `X-Cron-Secret` sarlavhasida).
+CRON_MANZIL_SIR_MATNI = ("Maxfiy kalit manzilda qabul qilinmaydi — uni manzildan olib tashlab, "
+                         "X-Cron-Secret sarlavhasiga qo'ying")
 
 
-def _cron_sirini_tekshir(request: Request, secret: str) -> None:
+def _cron_sirini_tekshir(request: Request) -> None:
     """kech143 (zip 171, AUDIT A-X09 — O'LCHANGAN `p_himoya.py` X09a–c): sir faqat manzil ichida (`?secret=`, proksi / xizmat
     loglarida qoladi) va oddiy `!=` bilan solishtirilardi. Endi `X-Cron-Secret` sarlavhasi ham qabul qilinadi (cron-job.org
-    «Headers» bo'limi; manzildagisi ham ishlayveradi — mavjud sozlama buzilmaydi), solishtiruv — doimiy vaqtli."""
+    «Headers» bo'limi; manzildagisi ham ishlayveradi — mavjud sozlama buzilmaydi), solishtiruv — doimiy vaqtli.
+
+    kech204 (zip 268, REJA263 18-band, Fable F14): egasi 07.11 14:07 da cron-job.org dagi IKKALA vazifani (ombor tekshiruvi,
+    sessiya tozalash) `X-Cron-Secret` sarlavhasiga o'tkazdi (Test run — 200). Endi sir FAQAT sarlavhada: manzilda `secret`
+    so'rov parametri bo'lsa (qiymati to'g'ri bo'lsa ham, sarlavha to'g'ri bo'lsa ham) — 403 va aniq sabab (sir manzilda —
+    jurnallarda qoladi; uni sarlavhaga ko'chirish kerak). Tartib: sir o'rnatilmagan — 503 (avvalgidek), manzilda sir — 403,
+    sarlavha noto'g'ri / yo'q — 403."""
     import hmac as _hm143
     if not CRON_SECRET:
         raise HTTPException(status_code=503, detail="CRON_SECRET Railway'da o'rnatilmagan")
-    _berilgan = (request.headers.get("x-cron-secret") or secret or "")
+    if "secret" in request.query_params:
+        raise HTTPException(status_code=403, detail=CRON_MANZIL_SIR_MATNI)
+    _berilgan = request.headers.get("x-cron-secret") or ""
     if not _hm143.compare_digest(_berilgan.encode("utf-8"), CRON_SECRET.encode("utf-8")):
         raise HTTPException(status_code=403, detail="Noto'g'ri maxfiy kalit")
 
 
 @app.get("/api/cron/low-stock-check")
-def api_cron_low_stock_check(request: Request, secret: str = "", db: Session = Depends(get_db)):
-    _cron_sirini_tekshir(request, secret)
+def api_cron_low_stock_check(request: Request, db: Session = Depends(get_db)):
+    _cron_sirini_tekshir(request)
     # 2026-09-19 — Faza 3: ilgari bu so'rov KORXONA FILTRISIZ edi, ya'ni
     # bitta ogohlantirish xabarida BARCHA korxonalarning materiallari
     # aralashib ketardi. Endi har bir korxona alohida ko'rib chiqiladi.
@@ -8600,8 +8611,8 @@ def api_cron_low_stock_check(request: Request, secret: str = "", db: Session = D
 # tizimda ishlab turgan hech kimning sessiyasiga tegilmaydi.
 # ═══════════════════════════════════════════════════════════════
 @app.get("/api/cron/cleanup-sessions")
-def api_cron_cleanup_sessions(request: Request, secret: str = "", db: Session = Depends(get_db)):
-    _cron_sirini_tekshir(request, secret)
+def api_cron_cleanup_sessions(request: Request, db: Session = Depends(get_db)):
+    _cron_sirini_tekshir(request)
     result = auth.cleanup_expired_sessions(db)
     total = result["user_sessions"] + result["employee_sessions"]
     return {"cleaned": True, "message": f"{total} ta eski sessiya tozalandi", "detail": result}

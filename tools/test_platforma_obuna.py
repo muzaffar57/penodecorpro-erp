@@ -906,12 +906,14 @@ _asl_tg, _asl_cs = main._send_telegram, getattr(main, "CRON_SECRET", "")
 main._send_telegram = lambda matn, company_id=None: TG.append((company_id, matn))
 main.CRON_SECRET = "po_cron"
 req(CP, "post", f"/api/platform/companies/{_b}/block", data={"sabab": "Boshqa"})
-r = req(C0, "get", "/api/cron/low-stock-check?secret=po_cron")
+# kech204 (zip 268, MOSLANDI): kalit `X-Cron-Secret` sarlavhasida (zip 171 dan beri qabul qilinadi — eski kodda ham yashil;
+# zip 268 dan manzildagi `?secret=` — 403)
+r = req(C0, "get", "/api/cron/low-stock-check", headers={"X-Cron-Secret": "po_cron"})
 _tg_b = [c for c, _ in TG if c == _b]
 _tg_a = [c for c, _ in TG if c == 1]
 req(CP, "post", f"/api/platform/companies/{_b}/unblock")
 TG.clear()
-r2 = req(C0, "get", "/api/cron/low-stock-check?secret=po_cron")
+r2 = req(C0, "get", "/api/cron/low-stock-check", headers={"X-Cron-Secret": "po_cron"})
 _tg_b2 = [c for c, _ in TG if c == _b]
 main._send_telegram, main.CRON_SECRET = _asl_tg, _asl_cs
 check("C1 B bloklangan — A ga xabar bor, B ga YO'Q", r.status_code == 200 and _tg_a and not _tg_b, (r.status_code, r.text[:200], TG))

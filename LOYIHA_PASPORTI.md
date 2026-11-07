@@ -735,7 +735,7 @@ Telegram qoidasi — faqat A–Z a–z 0–9 _ -, `TG_UMUMIY_SIR_MIN` = 20 … 2
 javobda sir YO'Q. Sabab (kech198, 06.11 17:50): eski tugma yangi sirni Telegram'ga berardi, server eski imzo bilan tekshirardi — egasi
 Railway ni yangilaguncha @Penoustabot xabarlari 403. «Bot hozir qayerga ulangan» da 403 maslahati (asosiy sayt, mos, kutayotgan > 0,
 oxirgi xato 403). QOLDI (PAST, keyingi zip): 14 (begona id → 409 o'rniga 404 — zip 265 da QILINDI, pastda), 16 (`created_by_user_id` — zip 264 da QILINDI, pastda); 18 — egasi cron-job.org ni
-`X-Cron-Secret` sarlavhasiga o'tkazishi; 19 — biznes savol (bloklangan korxona do'koni); 20 — info. Mutatsiya — `work/k263/mut263.py`:
+`X-Cron-Secret` sarlavhasiga o'tkazdi (07.11 14:07) — zip 268 da QILINDI, pastda; 19 — biznes savol (bloklangan korxona do'koni); 20 — info. Mutatsiya — `work/k263/mut263.py`:
 61 mutant — 59 O'LDI, 2 EKVIVALENT (P07 — teskari ketma-ketlikni (b) qoida qamraydi; Z07 — `len(data) > eng_kopi` ikkinchi qavat); review263 (`work/k263/review263/HISOBOT.md`: 1 O'RTA, 6 PAST — HAMMASI tuzatildi: R1 tarqoq blokdan egasi FAQAT ishonchli qurilma bilan o'tadi (blokda parol oshkor emas), R2 `/api/me/login` soatiga 10 band urinish, R3 login yagonaligi katta-kichik harf farqisiz (`auth._login_egasi`), R4 `auth.ZAXIRALANGAN_LOGINLAR` («admin», «root» …) faqat platforma egasiga + `RESET_ADMIN_PASSWORD` nishoni — platforma egasi, R5 yil / oy chegarasi (`database.tashkent_yil_oraligi`, forecast) — 400, R6 «qulflangan» faqat to'g'ri PIN bilan (`crud.hodim_qulfda_pin_togrimi`), R7 parol qoidasi kuchaytirildi (`crud.parol_ketma_ketlik_qoldigi`, kam xil belgi, «leet»), R8 tana chegarasida Starlette `cookie_parser`) — test `tools/test_review263.py`.
 **O'z `company_id` si yo'q modellar — joriy korxona bilan (kech202, zip 266 — review265 PAST-1).** `Payment`, `OrderAttachment`,
 `DeliveryItem`, `EmployeeAdvance`, `AdvanceRequest`, `InventoryPurchase`, `SupplierPayment`, `RecipeIngredient` va boshqa (jami 17) modelda
@@ -757,6 +757,15 @@ A korxonasining hamma jadvali va obyektlari o'zgarmaydi; o'z id lari bilan oddiy
 ilgari «Xomashyo (har doim)» — lekin qiymat (`_retsept_holatlari` «doim»: majburiy qatorlar xomashyosi + qadoq + qo'shimcha xarajat, 1 birlik
 uchun) to'liq tannarx edi. Endi `#bom-jami-doim-nom`: qoplama / ixtiyoriy qator yo'q — «1 {birlik} tannarxi (to'liq)», bor — «… (asosiy
 tarkib)»; `title` izohi. Test `tools/test_mrp_sahifa_ui.py` T4 / T5 moslandi, K4b qo'shildi (67; SQ / TF1 / PG / PG+TF1).
+**Cron kaliti — FAQAT sarlavhada (kech204, zip 268 — xavfsizlik REJA263 18-band, Fable F14).** `GET /api/cron/low-stock-check` va
+`GET /api/cron/cleanup-sessions` kalitni manzilda (`?secret=`) ham qabul qilardi — manzil proksi / Railway / cron-job.org jurnallarida
+qoladi. Egasi 07.11 14:07 da cron-job.org dagi ikkala vazifani `https://app.epserp.uz/api/cron/…` + «Headers» `X-Cron-Secret` ga
+o'tkazdi (Test run — 200). Endi `main._cron_sirini_tekshir(request)`: `CRON_SECRET` yo'q — 503 (avvalgidek); manzilda `secret` parametri
+BOR bo'lsa (to'g'ri / noto'g'ri / bo'sh, sarlavha to'g'ri bo'lsa ham) — 403 `main.CRON_MANZIL_SIR_MATNI`, hech qanday ish bajarilmaydi
+(Telegram xabari, sessiya o'chirish); sarlavha noto'g'ri / yo'q — 403 «Noto'g'ri maxfiy kalit». Marshrutlarda `secret` parametri YO'Q.
+Test `tools/test_cron_sarlavha268.py` (46; SQ / TF1 / PG / PG+TF1; asl c93eec0 da 19 yiqiladi, qulamaydi); MOSLANDI
+`test_audit_himoya` E1a (versiya manbadan), `test_platforma_obuna` C1 / C2, `test_yashirin_material` (sarlavha — eski kodda ham yashil);
+mutatsiya `work/k268/mut268.py`.
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
@@ -1298,8 +1307,8 @@ sotuvchi, xaridor). Tasdiq belgisini o'zi yuborsa ham yoziladi; 2-nav — yo'q (
 avvalgidek ogohlantirish + «Baribir sotish».
 HODIM QR (A-X06): `manzil` (brauzer `location.origin`) faqat xosti `Host` ga teng bo'lsa olinadi; aks holda `Host` + sxema
 (`X-Forwarded-Proto` https bo'lsa https — Railway da ilova http ko'radi).
-CRON / SESSIYA / ESKI XESH (A-X09): cron siri `X-Cron-Secret` sarlavhasida ham (ustun; manzildagi `?secret=` ham ishlaydi),
-solishtiruv `hmac.compare_digest`. Sessiya tokeni bazada SHA-256 (`auth.token_xesh`; cookie — xom): yaratish, topish, o'chirish,
+CRON / SESSIYA / ESKI XESH (A-X09): cron siri `X-Cron-Secret` sarlavhasida (zip 268 dan FAQAT sarlavhada — manzildagi `?secret=` —
+403 `main.CRON_MANZIL_SIR_MATNI`), solishtiruv `hmac.compare_digest`. Sessiya tokeni bazada SHA-256 (`auth.token_xesh`; cookie — xom): yaratish, topish, o'chirish,
 «joriy sessiyadan tashqari yopish» (parol, hodim PIN i). Ishga tushishda `main._migrate_himoya143`: eski xom tokenlar xeshlanadi
 (`auth.sessiya_tokenlarini_xeshla`; 64 belgili — xeshlangan; hech kim chiqib ketmaydi), eski tuzsiz SHA-256 parol / PIN xeshlari
 bcrypt bilan O'RALADI (`auth.eski_xeshlarni_ora`: `s$` + bcrypt(sha256_hex) — 62 belgi, `employees.pin_hash` VARCHAR(64)); kirishda
@@ -8969,6 +8978,7 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_buyurtma_ruxsat179.py` · PG — kech144 (zip 179, AUDIT 2-to'lqin — Buyurtmalar P2-16): «Buyurtmalar» sahifasida server rad etadigan (403) tugmalar ko'rinmaydi — har biri o'z marshruti ruxsati bilan. HA…
 - `test_buyurtma_ui173.py` · PG — kech144 (zip 173): «Buyurtmalar» va «Qarzdorlar» sahifalari — HAQIQIY Chromium, HAQIQIY lokal server (uvicorn, test bazasi). Tarmoq xatolari Playwright `route` bilan ataylab…
 - `test_c_telefon.py` · PG — kech119, C BOSQICH (telefon): dastur 390 va 360 px kenglikdagi telefonda — HAQIQIY brauzerda (Chromium, Playwright; sensorli ekran — `hover: none`) O'LCHANADI.
+- `test_cron_sarlavha268.py` · PG — kech204 (zip 268): xavfsizlik REJA263 18-band (Fable F14) — cron maxfiy kaliti FAQAT `X-Cron-Secret` sarlavhasida.
 - `test_css_tartib.py` — kech136 (zip 162): HAMMA shablonlarda yozilgan, lekin HECH QACHON ishlamaydigan uslub qoidalari yo'q (statik).
 - `test_d121.py` · PG — kech118 D BOSQICHI 1-qism (zip 121): MAYDA QOIDALAR VA NOMLAR (egasi QARORLARI kech118 11:40, tugmali, QAYTA SO'RALMAYDI).
 - `test_d122.py` · PG — kech118 D BOSQICHI 2-qism (zip 122): TUNGI REJIM TO'LIQ (audit U-02; egasi QARORI «To'liq tuzatilsin — har sahifa ranglari umumiy ranglar ro'yxatiga», tugmali, QAYTA SO'RALMAYDI).
@@ -9285,5 +9295,5 @@ Tavsif — faylning birinchi izoh xatboshisi.
 - `test_yuk_ochirish_ui.js` · JS — kech38 (2026-09-23), 5-bo'lim 12-band: to'lov bog'langan yuk xatini o'chirish UI si.
 - `test_yuqori_panel_ui.js` · JS — kech111 (K112-1): yuqori paneldagi ochiluvchi panellar — obuna ogohlantirishi (`#obunaPanel`) va bildirishnomalar (`#notifPanel`) — ochilganda EKRAN ICHIDA joylanadi (templa…
 
-Jami test fayllari: 361 (Python 323, JS 38).
+Jami test fayllari: 362 (Python 324, JS 38).
 <!-- AVTO:TESTLAR OXIRI -->

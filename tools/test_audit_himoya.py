@@ -585,8 +585,15 @@ check("D8c hujumchi IP sidan — to'g'ri PIN bilan ham bloklangan", _r.status_co
 section("E. CRON siri, sessiya tokeni xeshi, eski parol xeshlari (A-X09)")
 # ══════════════════════════════════════════════════════════════
 C = mijoz()
-check("E1a cron — to'g'ri sir manzilda (avvalgidek) — 200", req(C, "get", "/api/cron/cleanup-sessions?secret=himoya-cron-143")
-      .status_code == 200)
+# kech204 (zip 268, MOSLANDI — REJA263 18-band): kalit endi FAQAT `X-Cron-Secret` sarlavhasida; manzildagi `?secret=` — 403 aniq
+# sabab bilan (`main.CRON_MANZIL_SIR_MATNI`). Versiya manbadan aniqlanadi — eski kodda avvalgidek 200 kutiladi (test ikkalasida yashil).
+_Y268 = hasattr(main, "CRON_MANZIL_SIR_MATNI")
+_r_e1a = req(C, "get", "/api/cron/cleanup-sessions?secret=himoya-cron-143")
+if _Y268:
+    check("E1a cron — to'g'ri sir manzilda — 403 «manzilda qabul qilinmaydi» (zip 268)", _r_e1a.status_code == 403
+          and (_r_e1a.json() or {}).get("detail") == main.CRON_MANZIL_SIR_MATNI, (_r_e1a.status_code, _r_e1a.text[:160]))
+else:
+    check("E1a cron — to'g'ri sir manzilda (avvalgidek) — 200", _r_e1a.status_code == 200, (_r_e1a.status_code, _r_e1a.text[:160]))
 check("E1b cron — noto'g'ri sir — 403", req(C, "get", "/api/cron/cleanup-sessions?secret=xato").status_code == 403)
 check("E1c cron — sir `X-Cron-Secret` sarlavhasida — 200 (asl: 403)", req(C, "get", "/api/cron/cleanup-sessions",
       headers={"X-Cron-Secret": "himoya-cron-143"}).status_code == 200)
