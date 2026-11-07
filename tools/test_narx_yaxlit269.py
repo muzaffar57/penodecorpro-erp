@@ -85,7 +85,7 @@ with contextlib.redirect_stdout(_MIG):
     import main                                    # noqa: E402
     import auth                                    # noqa: E402
 from database import SessionLocal, engine          # noqa: E402
-from models import (UserRole, Inventory, Project, Order, OrderItem, OrderType, OrderStatus, ActivityLog,  # noqa: E402
+from models import (UserRole, Inventory, Project, Order, ActivityLog,  # noqa: E402
                     CompanySetting)
 from production_models import Company              # noqa: E402
 from fastapi.testclient import TestClient          # noqa: E402

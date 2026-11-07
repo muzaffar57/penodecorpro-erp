@@ -776,7 +776,9 @@ tiyindagi suzuvchi xato qadam sakratmaydi. Qoida buyurtma / taklif bilan saqlana
 «+500» / «-1000» / NULL), `OrderCreate.narx_yaxlit` (naqsh `^[+-](100|500|1000)$`; faqat YARATISHDA yoziladi — tahrir o'zgartirmaydi),
 taklif tanasida ham (`taklif_buyurtma_shakli` → rasmiylashtirishda buyurtmaga). Forma: yangi buyurtma / taklif — Sozlamalardagi qoida
 (`KORXONA_NARX_YAXLIT`, `showNewForm`), tahrir / taklifni ochish — yozuvning O'Z qoidasi (`editSelected`; eski — yaxlitlanmaydi), nusxa —
-yangi; izoh `#narx_yaxlit_izoh`. Test `tools/test_narx_yaxlit269.py` (SQ / TF1 / PG / PG+TF1; U — Chromium).
+yangi; izoh `#narx_yaxlit_izoh`. Test `tools/test_narx_yaxlit269.py` (59; SQ / TF1 / PG / PG+TF1 (37 — U siz); U — Chromium; asl 77fbc14 da
+37 yiqiladi, qulamaydi); MOSLANDI `test_shtorka225` S3 / H1 / R1 (yangi shtorka `soz-yaxlit`), `test_jurnal183` J12c (yuklovchi), `test_rollar`
+(2 marshrut) — versiya manbadan; bog'liq 76 test SQ yashil; mutatsiya `work/k269/mut269.py` — 28 / 28 O'LDI.
 **Begona id ↔ yo'q id — bir xil javob (kech202, zip 265 — xavfsizlik REJA 14-band, Fable F6).** Ilgari B korxonasi o'z yozuviga A
 korxonasining id sini (usta, retsept, material …) yozsa — 409 «Boshqa korxonaning ma'lumoti…», umuman yo'q id yozsa — SQLite da 200
 (osilgan havola yozilardi), PostgreSQL da FK xatosi → 500 + xatolar jurnali; id lar butun platforma bo'yicha umumiy bo'lgani uchun javob
